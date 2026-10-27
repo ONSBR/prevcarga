@@ -157,3 +157,10 @@ test_that("[FORBIDDEN] truncate_at == deck fisicamente truncado; [CONTROL] sem t
   w2 <- prevcarga_read_weather(cut_ctx(d08), "observed", from = O - 1, to = O, origin = O)
   expect_identical(w1, w2)
 })
+
+test_that("pc_deck_issues regrava so as emissoes pedidas", {
+  d <- pc_deck_sentinel("end", days = O + (-1:0))
+  pc_deck_issues(d, c(0L, 6L))
+  fc <- prevcarga_read_weather(pc_ctx_deck(d), "forecast", from = O - 1, to = O)
+  expect_identical(sort(unique(format(lubridate::with_tz(fc$issue_time, "UTC"), "%H"))), c("00", "06"))
+})
