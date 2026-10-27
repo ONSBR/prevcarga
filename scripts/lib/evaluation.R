@@ -150,10 +150,11 @@ prevcarga_read_actual <- function(ctx, area, from = NULL, to = NULL) {
   hi <- if (is.null(to)) NULL else .prevcarga_eval_dt(to, tz)
   dfrom <- if (is.null(lo)) NULL else lubridate::as_date(lo, tz = tz) - 1
   dto <- if (is.null(hi)) NULL else lubridate::as_date(hi, tz = tz)
-  ## o leitor ainda deixa vazar o erro cru do arrow quando falta load_mwh; reclassifica em contrato aqui
+  ## o leitor ainda deixa vazar o erro cru do arrow quando falta load_mwh; reclassifica em contrato aqui (so o campo load_mwh ausente; o resto sobe intacto)
   dt <- tryCatch(prevcarga_read_load(ctx, areas = area, from = dfrom, to = dto),
                  error = function(e) {
-                   if (inherits(e, "prevcarga_error")) stop(e)
+                   if (inherits(e, "prevcarga_error") ||
+                       !grepl("No match for FieldRef.Name(load_mwh)", conditionMessage(e), fixed = TRUE)) stop(e)
                    prevcarga_abort("contract.dataset_missing", where = "load.load_mwh",
                                    details = list(reason = conditionMessage(e)))
                  })

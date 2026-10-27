@@ -127,6 +127,19 @@ test_that("read_actual: A1 restrito a (from, to]; sem load_mwh propaga; SIN vazi
   expect_identical(e$id, "contract.dataset_missing")
 })
 
+test_that("read_actual: so o load_mwh ausente e reclassificado; outro erro sobe intacto", {
+  bad <- pc_eval_ctx()
+  pc_eval_drop_col(bad$data_dir)
+  e <- fail(prevcarga_read_actual(bad, "A1", o0, o0 + lubridate::hours(3)))
+  expect_identical(e$id, "contract.dataset_missing")
+  other <- pc_eval_ctx()
+  for (f in list.files(file.path(other$data_dir, "load"), "\\.parquet$", recursive = TRUE, full.names = TRUE))
+    writeLines("lixo", f)
+  e2 <- tryCatch(prevcarga_read_actual(other, "A1", o0, o0 + lubridate::hours(3)), error = identity)
+  expect_s3_class(e2, "error")
+  expect_false(identical(e2$id, "contract.dataset_missing"))
+})
+
 test_that("baselines: [FORBIDDEN] perturbar >= O nao muda; [CONTROL] O-1 e O-7 mudam", {
   long <- pc_eval_long("A1", O, 0:9, ctx = ctx)
   bl <- function(cx, kind) prevcarga_baseline(cx, "A1", O, kind, long)
