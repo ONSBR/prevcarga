@@ -2,8 +2,9 @@
 ##
 ## Unico lugar do sistema que abre manifest.json e que chama arrow::open_dataset. Requer errors.R
 ## carregado antes (prevcarga_abort). Fuso so por lubridate com tz explicito (force_tz + with_tz);
-## nenhum Sys.time/Sys.getenv e nenhuma aritmetica de data-hora fora do leitor. Cortes (available_until,
-## weather_issue_cutoff), feriados e painel entram no M2.2/M2.7. Saida de terminal: ASCII puro.
+## nenhum Sys.time/Sys.getenv e nenhuma aritmetica de data-hora fora do leitor. M2.2: corte intradiario
+## derivado do dado (available_until), filtro de saida e clima pela regra weather_issue_cutoff; feriados e
+## painel entram no M2.7. Saida de terminal: ASCII puro.
 ##
 ## Datasets canonicos (relativos a data_dir) e seus nomes no manifest/probe:
 .PREVCARGA_DECK_DATASETS <- c(load = "load", weather_observed = file.path("weather", "observed"),
@@ -121,13 +122,15 @@ prevcarga_resolve_load_label <- function(ctx, manifest) {
                                                               year = arrow::int32()))
 }
 
-.prevcarga_scan <- function(ds, cols, from, to, areas) {
+.prevcarga_scan <- function(ds, cols, from, to, areas, years = NULL) {
   fy <- arrow::Expression$field_ref("year")
   fa <- arrow::Expression$field_ref("area_code")
   flt <- NULL
   and <- function(a, b) if (is.null(a)) b else a & b
   if (!is.null(from)) flt <- and(flt, fy >= arrow::Expression$scalar(as.integer(lubridate::year(from)) - 1L))
   if (!is.null(to)) flt <- and(flt, fy <= arrow::Expression$scalar(as.integer(lubridate::year(to))))
+  if (length(years))
+    flt <- and(flt, Reduce(`|`, lapply(years, function(y) fy == arrow::Expression$scalar(as.integer(y)))))
   if (length(areas))
     flt <- and(flt, Reduce(`|`, lapply(areas, function(a) fa == arrow::Expression$scalar(as.character(a)))))
   sc <- if (is.null(flt)) arrow::Scanner$create(ds, projection = cols)
@@ -156,9 +159,35 @@ prevcarga_resolve_load_label <- function(ctx, manifest) {
        label = prevcarga_resolve_load_label(ctx, man))
 }
 
-## --- Carga: area_code, interval_start, interval_end, load_mwh (sem timestamp) --------------------------
-prevcarga_read_load <- function(ctx, areas = NULL, from = NULL, to = NULL) {
-  d <- .prevcarga_deck_ctx(ctx)
+## --- Corte intradiario derivado do dado (nunca manifest, flag nem relogio) --------------------------------
+## Por area: interval_end do ultimo intervalo CONTIGUO desde O 00:00 (sem intervalo em O => O 00:00; 48 => O+1 00:00).
+## `gap` = inicio do primeiro intervalo faltante quando ainda existe intervalo presente depois do buraco.
+.prevcarga_area_until <- function(istart, origin, tz) {
+  o0 <- lubridate::force_tz(lubridate::as_datetime(origin), tz)
+  s <- sort(unique(istart[istart >= o0 & istart < o0 + lubridate::days(1L)]))
+  if (!length(s)) return(list(until = o0, gap = NA_real_))
+  k <- as.integer(lubridate::time_length(s - o0, "minute") %/% 30L)
+  run <- sum(cumprod(k == seq_along(k) - 1L))
+  gap <- if (run < length(k)) as.numeric(o0 + lubridate::minutes(30L * run)) else NA_real_
+  list(until = o0 + lubridate::minutes(30L * run), gap = gap)
+}
+
+prevcarga_available_until <- function(load, origin, areas = NULL) {
+  tz <- attr(load, "tz")
+  if (is.null(tz)) tz <- lubridate::tz(load$interval_start)
+  if (is.null(areas)) areas <- unique(as.character(load$area_code))
+  areas <- sort(unique(as.character(areas)), method = "radix")
+  per <- lapply(areas, function(a) .prevcarga_area_until(load$interval_start[load$area_code == a], origin, tz))
+  until <- lubridate::as_datetime(vapply(per, function(p) as.numeric(p$until), 0), tz = tz)
+  gap <- lubridate::as_datetime(vapply(per, function(p) p$gap, 0), tz = tz)
+  by_area <- data.table::data.table(area_code = areas, until = until, gap = gap)
+  glob <- if (length(until)) min(until) else lubridate::force_tz(lubridate::as_datetime(origin), tz)
+  list(available_until = glob, available_until_by_area = by_area,
+       spread = length(unique(as.numeric(until))) > 1L)
+}
+
+## --- Carga bruta (sem corte): area_code, interval_start, interval_end, load_mwh -----------------------------
+.prevcarga_load_raw <- function(d, areas, from, to) {
   ds <- .prevcarga_open(d$dir, .PREVCARGA_DECK_DATASETS[["load"]], "load")
   .prevcarga_check_naive(ds$schema, "load", "timestamp")
   dt <- .prevcarga_scan(ds, c("area_code", "timestamp", "load_mwh"), from, to, areas)
@@ -169,16 +198,95 @@ prevcarga_read_load <- function(ctx, areas = NULL, from = NULL, to = NULL) {
   w <- .prevcarga_window(from, to, d$tz)
   dt <- dt[.prevcarga_in_window(interval_start, w)]
   data.table::setcolorder(dt, c("area_code", "interval_start", "interval_end", "load_mwh"))
+  dt
+}
+
+## Deriva o corte da carga (apos truncate_at) ou aborta: sem linha => completude.no_load; buraco no dia O =>
+## completude.origin_day_gap (o corte nunca encurta por causa do buraco).
+.prevcarga_derive_cut <- function(ctx_d, areas, origin, truncate_at, from, to) {
+  lo <- if (is.null(from)) origin else min(from, origin)
+  hi <- if (is.null(to)) origin else max(to, origin)
+  ext <- .prevcarga_load_raw(ctx_d, areas, lo, hi)
+  if (!is.null(truncate_at)) ext <- ext[interval_end <= truncate_at]
+  if (!nrow(ext)) prevcarga_abort("completude.no_load", where = "load")
+  data.table::setattr(ext, "tz", ctx_d$tz)
+  scope <- if (is.null(areas)) unique(ext$area_code) else areas
+  au <- prevcarga_available_until(ext, origin, scope)
+  bad <- au$available_until_by_area[!is.na(gap)]
+  if (nrow(bad))
+    prevcarga_abort("completude.origin_day_gap",
+                    where = sprintf("%s:%s", bad$area_code[1L], format(bad$gap[1L], "%H:%M")))
+  list(load = ext, au = au)
+}
+
+prevcarga_read_load <- function(ctx, areas = NULL, from = NULL, to = NULL, origin = NULL, truncate_at = NULL) {
+  d <- .prevcarga_deck_ctx(ctx)
+  if (is.null(origin)) {
+    dt <- .prevcarga_load_raw(d, areas, from, to)
+    if (!is.null(truncate_at)) dt <- dt[interval_end <= truncate_at]
+    au <- NULL
+  } else {
+    r <- .prevcarga_derive_cut(d, areas, origin, truncate_at, from, to)
+    au <- r$au
+    w <- .prevcarga_window(from, to, d$tz)
+    dt <- r$load[.prevcarga_in_window(interval_start, w) & interval_end <= au$available_until]
+    if (isTRUE(au$spread))
+      prevcarga_warn("warning.available_until_spread",
+                     where = paste(sprintf("%s:%s", au$available_until_by_area$area_code,
+                                           format(au$available_until_by_area$until, "%H:%M")), collapse = ","))
+  }
   data.table::setkey(dt, area_code, interval_start)
   data.table::setattr(dt, "load_label", d$label$value)
   data.table::setattr(dt, "load_label_source", d$label$source)
   data.table::setattr(dt, "tz", d$tz)
+  if (!is.null(au)) {
+    data.table::setattr(dt, "available_until", au$available_until)
+    data.table::setattr(dt, "available_until_by_area", au$available_until_by_area)
+    data.table::setattr(dt, "available_until_spread", au$spread)
+    data.table::setattr(dt, "origin", origin)
+  }
   dt[]
 }
 
+## Dia (no fuso da carga) do ultimo intervalo de carga presente: base do default de --origin. Le so as
+## particoes `year` mais altas (area_code, timestamp); nunca o relogio, nunca o store inteiro.
+prevcarga_last_load_day <- function(ctx, areas = NULL) {
+  d <- .prevcarga_deck_ctx(ctx)
+  ds <- .prevcarga_open(d$dir, .PREVCARGA_DECK_DATASETS[["load"]], "load")
+  .prevcarga_check_naive(ds$schema, "load", "timestamp")
+  yrs <- sort(unique(as.integer(sub(".*year=([0-9]+).*", "\\1", grep("year=[0-9]+", ds$files, value = TRUE)))),
+              decreasing = TRUE)
+  for (y in yrs) {
+    dt <- .prevcarga_scan(ds, c("area_code", "timestamp"), NULL, NULL, areas, years = y)
+    if (!nrow(dt)) next
+    ts <- .prevcarga_apply_tz(dt$timestamp, d$manifest$timezone$load, d$tz)
+    istart <- if (d$label$value == "end") ts - lubridate::minutes(30L) else ts
+    return(lubridate::as_date(max(istart), tz = d$tz))
+  }
+  prevcarga_abort("completude.no_load", where = "load")
+}
+
+## --- Limite de emissao do clima previsto (ADR-0024); o dates.R so reexpoe este valor -------------------------
+prevcarga_weather_issue_limit <- function(rule, origin, available_until, tz_load) {
+  if (identical(rule, "available_until")) return(lubridate::with_tz(available_until, tz_load))
+  if (identical(rule, "origin_midnight_utc"))
+    return(lubridate::with_tz(lubridate::force_tz(lubridate::as_datetime(origin), "UTC"), tz_load))
+  prevcarga_abort("config.bad_weather_cutoff", where = as.character(rule))
+}
+
+## Por area, a emissao mais fresca com issue_time <= limit.
+prevcarga_freshest_issue <- function(fc, limit) {
+  ok <- fc[issue_time <= limit]
+  if (!nrow(ok)) return(ok)
+  last <- ok[, .(issue_time = max(issue_time)), by = area_code]
+  ok[last, on = .(area_code, issue_time), nomatch = NULL]
+}
+
 ## --- Clima por area (exogenas instantaneas: nao deslocadas) --------------------------------------------
+## Com `origin`: observado so <= available_until (derivado da carga lida pelo proprio leitor, mesmo
+## origin/truncate_at); previsto so emissoes <= weather_issue_limit, a mais fresca por area.
 prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas = NULL, from = NULL,
-                                   to = NULL, select = NULL) {
+                                   to = NULL, select = NULL, origin = NULL, truncate_at = NULL) {
   kind <- match.arg(kind)
   d <- .prevcarga_deck_ctx(ctx)
   dataset <- paste0("weather_", kind)
@@ -194,13 +302,35 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
   for (col in names(tcols)) .prevcarga_check_naive(ds$schema, dataset, col)
   want <- if (is.null(select)) base else intersect(base, union(select, names(tcols)))
   cols <- c("area_code", intersect(want, ds$schema$names))
+  au <- NULL
+  if (!is.null(origin)) au <- .prevcarga_derive_cut(d, areas, origin, truncate_at, NULL, NULL)$au
   dt <- .prevcarga_scan(ds, cols, from, to, areas)
   for (col in intersect(names(tcols), names(dt)))
     data.table::set(dt, j = col, value = .prevcarga_apply_tz(dt[[col]], tcols[[col]], d$tz))
+  extra <- list()
+  if (!is.null(au)) {
+    if (kind == "observed") {
+      dt <- dt[timestamp <= au$available_until]
+    } else {
+      rule <- if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff
+      src <- ctx$sources$weather_issue_cutoff
+      limit <- prevcarga_weather_issue_limit(rule, origin, au$available_until, d$tz)
+      dt <- prevcarga_freshest_issue(dt, limit)
+      extra <- list(weather_issue_cutoff = rule,
+                    weather_issue_cutoff_source = if (is.null(src)) "default" else src,
+                    weather_issue_limit = limit,
+                    freshest_issue_by_area = unique(dt[, .(area_code, issue_time)])[order(area_code, method = "radix")])
+    }
+  }
   w <- .prevcarga_window(from, to, d$tz)
   dt <- dt[.prevcarga_in_window(dt[[key]], w)]
   data.table::setkeyv(dt, c("area_code", intersect(c("issue_time", key), names(dt))))
   data.table::setattr(dt, "tz", d$tz)
+  if (!is.null(au)) {
+    data.table::setattr(dt, "available_until", au$available_until)
+    data.table::setattr(dt, "origin", origin)
+  }
+  for (n in names(extra)) data.table::setattr(dt, n, extra[[n]])
   dt[]
 }
 

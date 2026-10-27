@@ -33,6 +33,23 @@
   invisible(NULL)
 }
 
+## Tabela do clima previsto (area_code, issue_time, valid_time, temperature, heat_index) com digitos do store.
+.pc_deck_forecast <- function(days, areas, issues, tz, issue_tz) {
+  em <- data.table::CJ(area_code = areas, day = days, issue_hour = as.integer(issues), sorted = FALSE)
+  em[, issue_utc := lubridate::force_tz(lubridate::as_datetime(day), "UTC") + lubridate::hours(issue_hour)]
+  fc <- em[rep(seq_len(nrow(em)), each = 48L)]
+  fc[, lead_h := rep(1:48, times = nrow(em))]
+  fc[, valid_local := lubridate::with_tz(issue_utc, tz) + lubridate::hours(lead_h)]
+  fc[, `:=`(issue_time = lubridate::force_tz(issue_utc, "UTC"),     # digitos UTC (issue_time declarado UTC)
+            valid_time = lubridate::force_tz(valid_local, "UTC"))]  # digitos no fuso da carga
+  if (!identical(issue_tz, "UTC")) {                                  # CONTROL: declarar o fuso errado nao muda os digitos
+    fc[, issue_time := lubridate::force_tz(lubridate::with_tz(issue_utc, issue_tz), "UTC")]
+  }
+  fc[, temperature := 15 + match(area_code, areas) + issue_hour / 100 + lead_h / 1000]
+  fc[, heat_index := temperature + 1]
+  fc[, .(area_code, issue_time, valid_time, temperature, heat_index)]
+}
+
 ## Manifest padrao do deck sentinela (ADR-0037); `load_label` so e gravado quando "start".
 pc_deck_manifest_default <- function(load_label = NULL, issue_tz = "UTC") {
   m <- list(schema_version = 1L)
@@ -88,20 +105,8 @@ pc_deck_sentinel <- function(load_label = c("end", "start"), days = pc_deck_defa
                  file.path("weather", "observed"), "timestamp")
 
   ## clima previsto: uma emissao por hora UTC em `issues`; valid_time = emissao + 1..48 h (digitos no fuso da carga)
-  em <- data.table::CJ(area_code = areas, day = days, issue_hour = as.integer(issues), sorted = FALSE)
-  em[, issue_utc := lubridate::force_tz(lubridate::as_datetime(day), "UTC") + lubridate::hours(issue_hour)]
-  fc <- em[rep(seq_len(nrow(em)), each = 48L)]
-  fc[, lead_h := rep(1:48, times = nrow(em))]
-  fc[, valid_local := lubridate::with_tz(issue_utc, tz) + lubridate::hours(lead_h)]
-  fc[, `:=`(issue_time = lubridate::force_tz(issue_utc, "UTC"),     # digitos UTC (issue_time declarado UTC)
-            valid_time = lubridate::force_tz(valid_local, "UTC"))]  # digitos no fuso da carga
-  if (!identical(issue_tz, "UTC")) {                                  # CONTROL: declarar o fuso errado nao muda os digitos
-    fc[, issue_time := lubridate::force_tz(lubridate::with_tz(issue_utc, issue_tz), "UTC")]
-  }
-  fc[, temperature := 15 + match(area_code, areas) + issue_hour / 100 + lead_h / 1000]
-  fc[, heat_index := temperature + 1]
-  .pc_deck_write(fc[, .(area_code, issue_time, valid_time, temperature, heat_index)], dir,
-                 file.path("weather", "forecast"), c("valid_time", "issue_time"))
+  fc <- .pc_deck_forecast(days, areas, issues, tz, issue_tz)
+  .pc_deck_write(fc, dir, file.path("weather", "forecast"), c("valid_time", "issue_time"))
 
   pc_deck_manifest(dir, load_label = if (load_label == "start") "start")
   dir
@@ -115,4 +120,87 @@ pc_ctx_deck <- function(data_dir, load_label = NULL, source = "default") {
   list(data_dir = data_dir,
        load_label_flag = if (identical(source, "flag")) load_label else NULL,
        load_label_config = if (identical(source, "config")) load_label else NULL)
+}
+
+## --- Mutadores de corte (M2.2): reescrevem o deck em disco; digitos ingenuos como no sentinela --------------
+.pc_deck_dsets <- c(load = "load", weather_observed = file.path("weather", "observed"),
+                    weather_forecast = file.path("weather", "forecast"))
+.pc_deck_ts_cols <- list(load = "timestamp", weather_observed = "timestamp",
+                         weather_forecast = c("valid_time", "issue_time"))
+
+## Le todas as particoes do dataset: colunas de tempo viram POSIXct UTC com os digitos do store.
+.pc_deck_read <- function(dir, dataset) {
+  rel <- .pc_deck_dsets[[dataset]]
+  fs <- list.files(file.path(dir, rel), pattern = "\\.parquet$", recursive = TRUE, full.names = TRUE)
+  parts <- lapply(fs, function(f) {
+    x <- data.table::as.data.table(as.data.frame(arrow::read_parquet(f)))
+    for (n in intersect(.pc_deck_ts_cols[[dataset]], names(x))) data.table::set(x, j = n, value = lubridate::with_tz(x[[n]], "UTC"))
+    x[, area_code := sub(".*area_code=([^/]+)/.*", "\\1", f)]
+    x
+  })
+  data.table::rbindlist(parts, use.names = TRUE)
+}
+
+.pc_deck_rewrite <- function(dt, dir, dataset) {
+  rel <- .pc_deck_dsets[[dataset]]
+  unlink(file.path(dir, rel), recursive = TRUE)
+  dir.create(file.path(dir, rel), recursive = TRUE, showWarnings = FALSE)
+  if (nrow(dt)) {
+    ts <- .pc_deck_ts_cols[[dataset]]
+    data.table::setcolorder(dt, c("area_code", setdiff(names(dt), "area_code")))
+    .pc_deck_write(dt, dir, rel, intersect(ts, names(dt)))
+  }
+  invisible(dir)
+}
+
+.pc_deck_manifest_read <- function(dir) jsonlite::read_json(file.path(dir, "manifest.json"), simplifyVector = TRUE)
+
+## Colunas de tempo ja no instante correto (fuso da carga) + interval_start/interval_end para a carga.
+.pc_deck_view <- function(dt, dataset, dir) {
+  m <- .pc_deck_manifest_read(dir); tz <- m$timezone$load
+  v <- data.table::copy(dt)
+  fix <- function(x, declared) lubridate::with_tz(lubridate::force_tz(x, declared), tz)
+  if (dataset == "load") {
+    st <- fix(v$timestamp, tz)
+    v[, interval_start := if (identical(m$load_label, "start")) st else st - lubridate::minutes(30L)]
+    v[, interval_end := interval_start + lubridate::minutes(30L)]
+  } else if (dataset == "weather_observed") {
+    v[, timestamp := fix(timestamp, m$timezone$weather_observed)]
+  } else {
+    v[, `:=`(issue_time = fix(issue_time, m$timezone$weather_forecast$issue_time),
+             valid_time = fix(valid_time, m$timezone$weather_forecast$valid_time))]
+  }
+  v
+}
+
+## Corta fisicamente a carga: fica so interval_end <= until (POSIXct no fuso da carga).
+pc_deck_until <- function(dir, until) {
+  dt <- .pc_deck_read(dir, "load"); v <- .pc_deck_view(dt, "load", dir)
+  .pc_deck_rewrite(dt[v$interval_end <= until], dir, "load")
+}
+
+## Remove da carga os intervalos (areas x interval_starts; vetores aceitos): cria buracos.
+pc_deck_drop <- function(dir, area, interval_start) {
+  dt <- .pc_deck_read(dir, "load"); v <- .pc_deck_view(dt, "load", dir)
+  .pc_deck_rewrite(dt[!(v$area_code %in% area & v$interval_start %in% interval_start)], dir, "load")
+}
+
+## +1 no valor (load_mwh | temperature) das linhas onde `rows` (expressao quote()) e TRUE; a expressao ve
+## interval_start/interval_end (carga), timestamp (observado) ou issue_time/valid_time (previsto) no fuso da carga.
+pc_deck_perturb <- function(dir, dataset, rows, env = parent.frame()) {
+  dt <- .pc_deck_read(dir, dataset); v <- .pc_deck_view(dt, dataset, dir)
+  idx <- which(eval(rows, v, env))
+  col <- if (dataset == "load") "load_mwh" else "temperature"
+  data.table::set(dt, i = idx, j = col, value = dt[[col]][idx] + 1)
+  .pc_deck_rewrite(dt, dir, dataset)
+  invisible(length(idx))
+}
+
+## Regrava o clima previsto com as emissoes pedidas (horas UTC), nos mesmos dias/areas do deck.
+pc_deck_issues <- function(dir, hours_utc) {
+  fc <- .pc_deck_read(dir, "weather_forecast"); m <- .pc_deck_manifest_read(dir)
+  days <- sort(unique(lubridate::as_date(fc$issue_time)))
+  new <- .pc_deck_forecast(days, sort(unique(fc$area_code), method = "radix"), hours_utc,
+                           m$timezone$load, m$timezone$weather_forecast$issue_time)
+  .pc_deck_rewrite(new, dir, "weather_forecast")
 }
