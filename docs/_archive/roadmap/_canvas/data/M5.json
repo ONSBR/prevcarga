@@ -1,0 +1,412 @@
+{
+ "id": "M5",
+ "docPath": "docs/roadmap/M5-TRAINING.md",
+ "title": "M5 — Training/Inference fachadas + FE-fachada + `train-models`/`infer-model` + registry",
+ "intent": "Entrega a fachada de FE que padroniza as 5 assinaturas divergentes dos plugins (o trabalho real) + fachadas R de training/inference (módulo = função R in-process, ADR-0018). `train-models` deriva corte honesto POR MODELO (M2) com subset DESBLOQUEADO (remove `_require_sin_scope`); `infer-model` lê params 100% do artefato (recusa re-especificar); version=hash content-addressed + run-manifest; verbo `registry` (ls/show/promote-atômico/rollback/pin/gc); gates por-modelo portados.",
+ "status": "VERIFY-READY (ready:true · 6/6 reviewers unânime · 0 landmines/controles bloqueantes · convergido em 12 rounds). Pronto pra implement. BLOQUEIO-CHAVE: ratificações do Gabriel antes do implement — (1) SUPERSEDER do ADR-0006 (formaliza 2 semânticas de corte; bloqueia os 3 gates retrain_harness dessem/HW + o MORNING; os 2 daily RF/LGBM são superseder-independentes); (2) ADR de lifecycle-registry + dimensão variant/EXOGENA; (3) FE-fachada nome/assinatura vs ADR-0009; (4) verbo infer-model dessem `_infer` vs `predict`; (5) exit-codes + freshness-clima + dono-protocol. Pré-requisitos M1/M2 AUSENTES no clean-room (provenance.R/dates.R/topology.R stubs; models//config//5 run.yaml + código R dos 5 plugins).",
+ "files": [
+  {
+   "path": "scripts/lib/features.R",
+   "action": "CRIAR",
+   "note": "FE-fachada: assinatura canônica prevcarga_build_features + 5 adapters finos (dispatch-fino, zero FE compartilhada ADR-0009) + transforms to_model_frame/to_display_frame. Nome provável — candidato a clarificação se colidir com verbo features (M6) ou morar em training.R."
+  },
+  {
+   "path": "scripts/lib/training.R",
+   "action": "CRIAR",
+   "note": "training-fachada prevcarga_train(spec,data,params)→artefato; normaliza as 5 assinaturas de train; corte honesto por-protocolo via dates.R (nenhuma lógica de corte re-hardcoded aqui)."
+  },
+  {
+   "path": "scripts/lib/inference.R",
+   "action": "CRIAR",
+   "note": "inference-fachada prevcarga_infer + 5 adapters + loader único; params 100% do artefato (recusa re-especificar)."
+  },
+  {
+   "path": "scripts/lib/registry.R",
+   "action": "ESTENDER",
+   "note": "Sobre a fronteira M1.6 (ADR-0010): adiciona ciclo de vida ls/show/promote-atômico/rollback/pin/gc + prevcarga_resolve_version; dono designado/fonte única do ciclo. Se M1.6 não materializou a fronteira, o M5 a cria junto."
+  },
+  {
+   "path": "scripts/prevcarga",
+   "action": "EDITAR",
+   "note": "Gramática docopt: verbos train-models/infer-model/registry + alias treinar→train-models (aviso de depreciação direciona a train-models + combine); handler prefixo→exit-code estendido (classes 4 topology / 5 window)."
+  },
+  {
+   "path": "models/<m>/tests/run_all_gates.R",
+   "action": "CRIAR",
+   "note": "Portar p/ o clean-room R-only os sub-gates [M5] model-native dos 5 arquivos (RF/LGBM/HW/dessem-linear/dessem-regdin); schema_long→M6, harness_*→M7 ficam deferidos."
+  },
+  {
+   "path": "scripts/lib/honesty_gate.R",
+   "action": "ESTENDER",
+   "note": "Braço MORNING (do M3 [DEFERRED M5]): perturba carga [O 00:00, O<cut], exige |Δ|>1e-5 = uso da manhã via feature mm. SÓ DESSEM (HW é cut-invariante). [pós-superseder 0006]. Reach-control generalizado NÃO entra (→M6)."
+  },
+  {
+   "path": "scripts/lib/dates.R",
+   "action": "EDITAR",
+   "note": "[pós-superseder 0006] Preencher o ramo retrain_harness de prevcarga_train_origin/prevcarga_resolve_cuts (série ≤O−1, ramifica no protocol do manifesto). Função é de M2; o ramo retrain_harness (opção-a) é do M5. Daily (opção-b) fica intacto."
+  },
+  {
+   "path": "scripts/lib/topology.R",
+   "action": "EDITAR",
+   "note": "[pré-implement] prevcarga_model_spec(model, root, overrides=) resolve o spec EFETIVO (run.yaml ⊕ overrides CLI --horizon/--exogena), consumido pelo corte (dates.R) e pelo version_hash. Cresce o contrato M1 do model_spec (candidato a clarificação ADR-0021). Superseder-independente (daily)."
+  },
+  {
+   "path": ".claude/workflows/implement-milestone.js",
+   "action": "EDITAR",
+   "note": "CHECKPOINTS['M5']/'M5-TRAINING' → _M5_CP (deployByDefault:false; abReference determinístico por-modelo nos limiares ADR-0017 ≤1e-5/≤0,1 MW)."
+  }
+ ],
+ "functions": [
+  {
+   "name": "prevcarga_build_features",
+   "module": "features",
+   "signature": "prevcarga_build_features(spec, deck, params=list())",
+   "note": "Assinatura canônica da FE-fachada (forma (deck,params) já é a de 3/5) + 5 adapters finos que normalizam RF (validador-WIDE, sem build)/LGBM (preserva split interno train_cutoff/val_cutoff)/dessem (no-op com contrato declarado)/HW (named list de frames + tokens estruturais deck.*)."
+  },
+  {
+   "name": "to_model_frame",
+   "module": "features",
+   "signature": "to_model_frame(x)",
+   "note": "Transform de alinhamento: carimbo fim→início, desloca por exatamente −granularity_min DO FRAME em que opera (dessem = frame horário pós-agregação = −3600s). Round-trip com to_display_frame = identidade (ADR-0019/0012)."
+  },
+  {
+   "name": "to_display_frame",
+   "module": "features",
+   "signature": "to_display_frame(x)",
+   "note": "Inverso: início→fim (+1 intervalo). Output-preserving → preserva o A/B Δ=0 do dessem."
+  },
+  {
+   "name": "prevcarga_train",
+   "module": "training",
+   "signature": "prevcarga_train(spec, data, params)",
+   "note": "training-fachada: normaliza train_hw_model/train_multioutput_rf/train_dessem_*/train_lgbm num contrato único → artefato auto-descritivo; FE por-plugin preservada; herda requires/provides (M5.1)."
+  },
+  {
+   "name": "prevcarga_infer",
+   "module": "inference",
+   "signature": "prevcarga_infer(spec, artifact, inference_features)",
+   "note": "inference-fachada canônica + 5 adapters: HW (hw_infer); RF (extrai sub-lista y_h* antes de predict_rf); LGBM (infer_single_origin, só artifact$min_max_BLF); dessem (_infer vs predict — decisão do Gabriel). Params 100% do artefato."
+  },
+  {
+   "name": "prevcarga_resolve_version",
+   "module": "registry",
+   "signature": "prevcarga_resolve_version(model, area, variant=NULL, {latest|version|pin})",
+   "note": "Loader/resolve único sobre <model>/[<variant>/]<area>/{latest,v_*}; substitui os 5 .resolve_*/load_artifact ad-hoc. Variante/EXOGENA entra na chave p/ dessem."
+  },
+  {
+   "name": "prevcarga_registry_promote",
+   "module": "registry",
+   "signature": "prevcarga_registry_promote(model, area, version, variant=NULL)",
+   "note": "Promote ATÔMICO = writeLines em tempfile + file.rename no mesmo FS (fecha o latest-sem-lock do oráculo). Carrega variant (dessem variant-escopado)."
+  },
+  {
+   "name": "prevcarga_registry_gc",
+   "module": "registry",
+   "signature": "prevcarga_registry_gc(...)",
+   "note": "Poda v_* não-apontadas por latest e não-pinadas. LOCAL-ONLY (nunca fala S3, ADR-0016). rollback reescreve latest p/ v_<hash> anterior; pin protege do gc (.pin ao lado de latest)."
+  },
+  {
+   "name": "prevcarga_train_origin",
+   "module": "dates",
+   "note": "[M2; M5 EDITA o ramo retrain_harness pós-superseder] daily (RF/LGBM) = as_of−1−horizon_days (lê run.yaml via model_spec); retrain_harness (dessem/HW) = série ≤O−1 + manhã ≤available_until, nunca jl_train_origin. Consome o spec EFETIVO (--horizon override)."
+  },
+  {
+   "name": "prevcarga_model_spec",
+   "module": "topology",
+   "signature": "prevcarga_model_spec(model, root, overrides=)",
+   "note": "[M1.2; M5 adiciona overrides=] resolve o spec EFETIVO (run.yaml ⊕ overrides CLI --horizon/--exogena), consumido pelo corte e pelo version_hash. Cresce o contrato M1."
+  }
+ ],
+ "functionality": [
+  "FE-fachada: assinatura canônica prevcarga_build_features + 5 adapters finos (RF validador-WIDE / LGBM preserva split interno / dessem no-op-com-contrato / HW frames+tokens-estruturais), thin-dispatch com ZERO lógica de FE compartilhada (ADR-0009)",
+  "Registry de contrato Tier-A contract-verified wire-time (requires⊆provides nos 4 saltos, fail-loud com lista de gaps) + guard de coluna em runtime; elimina o Tier-B lazy do HW/dessem (ADR-0010)",
+  "Transforms de alinhamento to_model_frame/to_display_frame output-preserving, deslocando por −granularity_min do frame operante (ADR-0019), preservando o A/B Δ=0 do dessem",
+  "training-fachada + verbo train-models: treina 1 modelo×área (capacidade nova, subset DESBLOQUEADO removendo _require_sin_scope, default=todos), corte honesto POR MODELO via M2, --dry-run/--jobs/--force",
+  "Version content-addressed v_<hash> + run-manifest com model_id (fecha version=timestamp não-idempotente); 2 treinos idênticos → mesmo id; trained_at fora do hash",
+  "inference-fachada + verbo infer-model: params 100% do artefato (gramática docopt NÃO declara --horizon/--exogena), resolução latest/version/pin, --variant seletor-de-resolução obrigatório p/ dessem, nunca re-fit/re-normaliza",
+  "Registry lifecycle + verbo registry (ls/show/promote-atômico/rollback/pin/gc): promote via tempfile+rename, gc local-only preserva latest+pinadas, layout content-addressed com dimensão variant/EXOGENA na chave",
+  "Gates por-modelo: portar sub-gates [M5] model-native dos 5 run_all_gates.R (A/B determinístico ADR-0017 |Δ|≤1e-5 mesmo-hardware) + braço MORNING [pós-superseder] + corte-por-protocolo falsificável + SPIKE de avaliação alinhamento LGBM/RF (interval_to_day) destilado no ESTADO-ATUAL"
+ ],
+ "verbs": [
+  {
+   "name": "train-models",
+   "note": "NOVO: [--model=<lista|todos>] [--area/--subsistema/--areas] [--as-of] [--horizon] [--exogena] [--dry-run] [--jobs] [--force] [--format]. Treina 1 modelo×área, corte honesto por-modelo, subset desbloqueado. --horizon/--exogena declarados (override de default run.yaml). NÃO reproduz o _reduce('train')/freeze da combina."
+  },
+  {
+   "name": "infer-model",
+   "note": "NOVO: --model --area [--variant] [--as-of] [--artifact-version|--pin] [--format]. 1 modelo×1 área×1 origem. NÃO declara flags de param (--horizon/--exogena) — params do artefato. --variant = seletor-de-resolução (obrigatório p/ dessem). read-only do registry."
+  },
+  {
+   "name": "registry",
+   "note": "NOVO: (ls|show|promote|rollback|pin|gc) [args] [--format]. Ciclo de vida do store; --area pelo mesmo resolvedor fonte-única →exit 4. ls/show read-only; promote/rollback/pin/gc mutam."
+  },
+  {
+   "name": "treinar",
+   "note": "EDITAR: alias → train-models com aviso de depreciação em stderr (direciona a train-models + combine, pois o treinar monolítico congelava a combina/k̂)."
+  }
+ ],
+ "nodes": [
+  {
+   "id": "mod:features",
+   "label": "features.R",
+   "kind": "module",
+   "parent": "",
+   "note": "FE-fachada: dispatch-fino + 5 adapters + transforms de alinhamento. Zero FE compartilhada (ADR-0009).",
+   "milestone": "M5"
+  },
+  {
+   "id": "mod:training",
+   "label": "training.R",
+   "kind": "module",
+   "parent": "",
+   "note": "training-fachada sobre os 5 plugins; corte honesto por-modelo/protocolo; version content-addressed.",
+   "milestone": "M5"
+  },
+  {
+   "id": "mod:inference",
+   "label": "inference.R",
+   "kind": "module",
+   "parent": "",
+   "note": "inference-fachada sobre os 5 plugins; infer lê params do artefato (recusa re-especificar); --variant seletor p/ dessem.",
+   "milestone": "M5"
+  },
+  {
+   "id": "fn:prevcarga_build_features",
+   "label": "prevcarga_build_features()",
+   "kind": "function",
+   "parent": "mod:features",
+   "note": "",
+   "milestone": "M5"
+  },
+  {
+   "id": "fn:to_model_frame",
+   "label": "to_model_frame()",
+   "kind": "function",
+   "parent": "mod:features",
+   "note": "",
+   "milestone": "M5"
+  },
+  {
+   "id": "fn:to_display_frame",
+   "label": "to_display_frame()",
+   "kind": "function",
+   "parent": "mod:features",
+   "note": "",
+   "milestone": "M5"
+  },
+  {
+   "id": "fn:prevcarga_train",
+   "label": "prevcarga_train()",
+   "kind": "function",
+   "parent": "mod:training",
+   "note": "",
+   "milestone": "M5"
+  },
+  {
+   "id": "fn:prevcarga_infer",
+   "label": "prevcarga_infer()",
+   "kind": "function",
+   "parent": "mod:inference",
+   "note": "",
+   "milestone": "M5"
+  },
+  {
+   "id": "fn:prevcarga_resolve_version",
+   "label": "prevcarga_resolve_version()",
+   "kind": "function",
+   "parent": "mod:registry",
+   "note": "Função nova do M5 em registry.R (módulo criado por M1).",
+   "milestone": "M5"
+  },
+  {
+   "id": "fn:prevcarga_registry_promote",
+   "label": "prevcarga_registry_promote()",
+   "kind": "function",
+   "parent": "mod:registry",
+   "note": "Promote atômico tempfile+rename.",
+   "milestone": "M5"
+  },
+  {
+   "id": "fn:prevcarga_registry_gc",
+   "label": "prevcarga_registry_gc()",
+   "kind": "function",
+   "parent": "mod:registry",
+   "note": "gc local-only; rollback/pin.",
+   "milestone": "M5"
+  },
+  {
+   "id": "verb:train-models",
+   "label": "train-models",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M5"
+  },
+  {
+   "id": "verb:infer-model",
+   "label": "infer-model",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M5"
+  },
+  {
+   "id": "verb:registry",
+   "label": "registry",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M5"
+  },
+  {
+   "id": "verb:treinar",
+   "label": "treinar",
+   "kind": "verb",
+   "parent": "",
+   "note": "Alias → train-models (aviso de depreciação).",
+   "milestone": "M5"
+  }
+ ],
+ "edges": [
+  {
+   "from": "verb:train-models",
+   "to": "mod:training",
+   "kind": "composes",
+   "label": "",
+   "milestone": "M5"
+  },
+  {
+   "from": "verb:infer-model",
+   "to": "mod:inference",
+   "kind": "composes",
+   "label": "",
+   "milestone": "M5"
+  },
+  {
+   "from": "verb:registry",
+   "to": "mod:registry",
+   "kind": "composes",
+   "label": "",
+   "milestone": "M5"
+  },
+  {
+   "from": "verb:treinar",
+   "to": "mod:training",
+   "kind": "composes",
+   "label": "alias",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:features",
+   "kind": "depends-on",
+   "label": "FE-fachada",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:dates",
+   "kind": "depends-on",
+   "label": "corte honesto",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "spec efetivo",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "content-addressed",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:registry",
+   "kind": "depends-on",
+   "label": "promote",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "runtime-first",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:honesty_gate",
+   "kind": "depends-on",
+   "label": "MORNING",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:evaluation",
+   "kind": "depends-on",
+   "label": "gates por-modelo",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:inference",
+   "to": "mod:features",
+   "kind": "depends-on",
+   "label": "FE adapter",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:inference",
+   "to": "mod:registry",
+   "kind": "depends-on",
+   "label": "resolve versão",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:inference",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "resolve área",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:inference",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "freeze/thaw",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:inference",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "runtime-first",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:features",
+   "to": "mod:registry",
+   "kind": "depends-on",
+   "label": "contrato Tier-A",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:features",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "spec/contrato",
+   "milestone": "M5"
+  },
+  {
+   "from": "mod:registry",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "primitivo hash/freeze",
+   "milestone": "M5"
+  }
+ ]
+}

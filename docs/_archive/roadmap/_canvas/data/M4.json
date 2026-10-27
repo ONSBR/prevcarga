@@ -1,0 +1,318 @@
+{
+ "id": "M4",
+ "docPath": "docs/roadmap/M4-COMBINA.md",
+ "title": "M4 — Módulo combination (combina dissolvida, leak corrigido em voo)",
+ "intent": "Reescreve a combina — o único Python que o `prever` diário executa e portadora do leak #1 — direto como módulo R `scripts/lib/combination.R` (numpy-puro → R-base, zero dep nova), corrigindo o vazamento de horizonte EM VOO (corte por data-alvo, não `ym<m`). 1º módulo numérico in-process: onde a honestidade vira invariante de módulo (1º a passar o honesty_gate do M3 e a assertiva de determinismo do M1). Só o módulo + o comando `combine` standalone migram; o flip de produção é M6, o bundle R-only é M8.",
+ "status": "VERIFY-READY (ready:true · 6/6 reviewers unânime · 0 landmines bloqueantes por 6 rounds R8–R13, 2026-10-13). Pronto pra implement, pendente ratificações do Gabriel (solver FISTA vs QP, ε, corte per-mês, eixo ADR-0013).",
+ "files": [
+  {
+   "path": "scripts/lib/combination.R",
+   "action": "CRIAR",
+   "note": "Módulo combina R-base (criado do zero; reservado em README.md:16): núcleo Duchi/FISTA/produce/eqw (M4.1), IO/painel/descoberta (M4.2), freeze/apply (M4.3), gates A/B (M4.4)."
+  },
+  {
+   "path": "scripts/prevcarga",
+   "action": "ESTENDER",
+   "note": "cmd_combine() + extensão da gramática docopt `Usage:` (:19-26) com `combine` (hoje só no comentário :12). M4.4."
+  },
+  {
+   "path": "scripts/lib/tests/",
+   "action": "CRIAR",
+   "note": "Suíte testthat nova do M4 (solver + IO/painel + freeze/split-parity + gates; fixtures parquet minúsculos por fórmula fechada, não np.random). Todos os tickets."
+  },
+  {
+   "path": "docs/ESTADO-ATUAL.md",
+   "action": "EDITAR",
+   "note": "Write-through 'Onde estamos' (M4 vivo: combina R, leak corrigido) + §esqueleto (combination.R deixa de ser 'a criar') + ressalva de que os números de backtest VÃO mudar. DoD cross-cutting."
+  },
+  {
+   "path": "scripts/lib/README.md",
+   "action": "EDITAR",
+   "note": "Linha combination.R → vivo (M4)."
+  },
+  {
+   "path": ".claude/workflows/implement-milestone.js",
+   "action": "EDITAR",
+   "note": "Pré-implement: adicionar CHECKPOINTS['M4']/'M4-COMBINA' → _M4_CP; APOSENTAR o _COMBINA_CP estale (:65-81, terminal M1–M6); re-apontar/remover 'M-combina'/'MIGRACAO-COMBINA-R' (:123-124) → _M4_CP."
+  },
+  {
+   "path": "docs/roadmap/README.md",
+   "action": "EDITAR",
+   "note": "Linha M4 → ✅ VERIFY-READY."
+  },
+  {
+   "path": "docs/roadmap/COMBINA-TECNICO-M4.md",
+   "action": "EDITAR",
+   "note": "Reconciliar banner (M5/M6 internos = flip→M6/bundle→M8; combina_baseline.R→combination.R; MEMBERS→prevcarga_members()); 5º invariante interp→refit_per_cut (:136); anti-padrão Δw→Δ y_pred (:109); '24 áreas'→células fitadas do fixture (:140/:176)."
+  }
+ ],
+ "functions": [
+  {
+   "name": "prevcarga_proj_simplex",
+   "module": "combination",
+   "signature": "prevcarga_proj_simplex(v)",
+   "note": "Projeção euclidiana no simplex (Duchi 2008); rho=último True (tail(which(cond),1), NÃO which.max); length==1 → 1.0. Porta combina_baseline.py:204-214. M4.1."
+  },
+  {
+   "name": "prevcarga_fit_convex",
+   "module": "combination",
+   "signature": "prevcarga_fit_convex(X, y, w0=NULL, iters=500, grad_tol=1e-6)",
+   "note": "FISTA no sistema normal k×k; parada ÚNICA por gradiente projetado (grad_tol) OU cap (emite warning + flag não-estacionário); SEM parada por step-change. Devolve (w, a). Reimplementa em R-base (pendente ratificação FISTA vs QP). M4.1."
+  },
+  {
+   "name": "prevcarga_produce_combined",
+   "module": "combination",
+   "signature": "prevcarga_produce_combined(panel, weights)",
+   "note": "Intercepto a FIXO; membro faltante renormaliza SÓ os pesos presentes (wv/s, a NÃO renormalizado); fallback s==0 → mean(na.rm). Porta :285-306. M4.1."
+  },
+  {
+   "name": "prevcarga_produce_eqw",
+   "module": "combination",
+   "signature": "prevcarga_produce_eqw(panel)",
+   "note": "Piso equal-weight rowMeans(f_*, na.rm=TRUE). Porta :309-313. M4.1."
+  },
+  {
+   "name": "prevcarga_combina_discover",
+   "module": "combination",
+   "signature": "prevcarga_combina_discover(root, area)",
+   "note": "Lista de membros do MANIFESTO (prevcarga_members, ADR-0013(a) — nunca glob-no-disco); localiza run por identidade (mdir,EXOGENA) run-mode-agnóstica (lê _infer); fail-hard se >1 run-mode casar; membro com 0 runs = coluna all-NA (não fail-hard). M4.2."
+  },
+  {
+   "name": "prevcarga_build_panel",
+   "module": "combination",
+   "signature": "prevcarga_build_panel(long)",
+   "note": "dcast de y_pred + reindex a prevcarga_members() (colunas f_<membro>, ausentes=NA, ordem canônica); não materializa y_true de membro. Porta :172-191. M4.2."
+  },
+  {
+   "name": "prevcarga_join_fresh_truth",
+   "module": "combination",
+   "signature": "prevcarga_join_fresh_truth(panel, data_dir, area)",
+   "note": "Reusa prevcarga_read_actual (M3.3, load_mwh fail-high, ts_r30); sobrescreve y_true por fresco (NA onde não casa); tz sem shift (naive-BRT, ADR-0003). Porta :45-78. M4.2."
+  },
+  {
+   "name": "prevcarga_broadcast_cut",
+   "module": "combination",
+   "signature": "prevcarga_broadcast_cut(panel)",
+   "note": "Difunde a PREVISÃO (nunca o peso) de membros cut-invariantes (RF/HW) por todos os cortes presentes, só no caso misto. Porta :138-154. M4.2."
+  },
+  {
+   "name": "prevcarga_combina_train",
+   "module": "combination",
+   "signature": "prevcarga_combina_train(area, panel, artifact_dir)",
+   "note": "fit_convex expansível por (lead,corte,mês), corte por data-alvo; congela list(meta,weights) via prevcarga_freeze (saveRDS) em v_<version_hash> content-addressed + ponteiro latest; carimba run-manifest (member_set_hash load-bearing). M4.3."
+  },
+  {
+   "name": "prevcarga_combina_apply",
+   "module": "combination",
+   "signature": "prevcarga_combina_apply(area, artifact_dir, panel, t_cut=NULL)",
+   "note": "prevcarga_thaw(latest) → produce_combined com pesos congelados do corte t_cut (sem re-fit); emite schema LONG 8-col; área não-treinada → stop() alto. Multi-corte [DEFERRED M6]. M4.3."
+  },
+  {
+   "name": "prevcarga_combina_full",
+   "module": "combination",
+   "signature": "prevcarga_combina_full(panel)",
+   "note": "Modo weights=NULL ⇒ full (fit+apply num passo); é o run_fn que o G2 do M4.4 envolve. M4.3."
+  },
+  {
+   "name": "prevcarga_combina_gate",
+   "module": "combination",
+   "signature": "prevcarga_combina_gate() / scorecard A/B",
+   "note": "Gates do M4.4: G2 honestidade (via prevcarga_honesty_gate M3.2, run_fn=FULL wrapped forecast_origin==origin) + otimalidade (gradiente projetado células fitadas) + qualidade A/B (WMAPE≤best-member/EQW). M4.4."
+  },
+  {
+   "name": "cmd_combine",
+   "module": "prevcarga",
+   "signature": "cmd_combine(args)",
+   "note": "Comando combine standalone; modos train/apply/full; verbo GUARDADO (runtime-first, exit 7); dispatch fino (lógica em combination.R). M4.4."
+  }
+ ],
+ "functionality": [
+  "Reescreve a combina (único Python do `prever` diário, run_reduce.sh:83) como módulo R-base `combination.R` — numpy-puro → R-base, sem scipy, zero dep nova de produção.",
+  "Corrige o leak #1 de horizonte EM VOO: corte de treino dos pesos por data-alvo `target_datetime < início-do-mês(m)` por (lead,corte,mês-de-origem), substituindo o `ym<m` que incluía alvos futuros.",
+  "Núcleo numérico: projeção Duchi no simplex + FISTA no sistema normal com parada por gradiente projetado (não step-change) + produce_combined (renorm só pesos presentes) + produce_eqw.",
+  "IO/painel/descoberta run-mode-agnóstica: lista de membros do manifesto `prevcarga_members()` (nunca glob), localiza runs por identidade (mdir,EXOGENA) lendo `_infer`, fail-hard em dupla-contagem.",
+  "Freeze `saveRDS` binário content-addressed (v_<version_hash>, não JSON/timestamp) + ponteiro latest + apply por-corte; split-parity R-vs-R apply(load(train()))==full Δ=0 com CONTROL-com-dente.",
+  "Gate G2 de honestidade reescrito nasce verde via o molde do M3.2 (run_fn=FULL, FORBIDDEN target≥origem / CONTROL target≤O−1), provando o leak-fix — 1º módulo a passar o honesty_gate.",
+  "Gate de otimalidade NOVO (gradiente projetado<1e-6 em células fitadas, exclui fallback/cap-hit) — substitui a paridade de solver ausente (ADR-0014).",
+  "A/B de qualidade por WMAPE≤best-member/≤EQW ESTRITO (ε=0 default) + comando `combine` standalone (train/apply/full) na gramática docopt."
+ ],
+ "verbs": [
+  {
+   "name": "combine",
+   "note": "Verbo-CLI standalone introduzido no M4: estende a gramática docopt `Usage:` (scripts/prevcarga:19-26, hoje só no comentário :12); modos train/apply/full; verbo GUARDADO (runtime-first, exit 7); dispatch fino, lógica mora em combination.R."
+  }
+ ],
+ "nodes": [
+  {
+   "id": "mod:combination",
+   "label": "combination.R",
+   "kind": "module",
+   "parent": "",
+   "note": "Ensemble convexo R-base (Duchi/FISTA/produce/eqw); leak #1 corrigido em voo (corte target<início(m) por mês-de-origem); IO/painel/descoberta run-mode-agnóstica; freeze saveRDS content-addressed; gates G2/otimalidade/qualidade.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_proj_simplex",
+   "label": "prevcarga_proj_simplex()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "Projeção Duchi no simplex; rho=último True.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_fit_convex",
+   "label": "prevcarga_fit_convex()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "FISTA; parada por gradiente projetado; flag não-estacionário no cap.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_produce_combined",
+   "label": "prevcarga_produce_combined()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "base + M%*%w; renorm só pesos presentes, a fixo.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_produce_eqw",
+   "label": "prevcarga_produce_eqw()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "Piso equal-weight rowMeans(na.rm).",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_combina_discover",
+   "label": "prevcarga_combina_discover()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "Membros do manifesto; run por identidade run-mode-agnóstica; fail-hard dupla-contagem.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_build_panel",
+   "label": "prevcarga_build_panel()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "dcast y_pred + reindex a prevcarga_members().",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_join_fresh_truth",
+   "label": "prevcarga_join_fresh_truth()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "y_true fresco via read_actual (M3.3); tz sem shift.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_broadcast_cut",
+   "label": "prevcarga_broadcast_cut()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "Difunde previsão (não peso) de membros cut-invariantes.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_combina_train",
+   "label": "prevcarga_combina_train()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "fit expansível por (lead,corte,mês) + freeze saveRDS content-addressed + run-manifest.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_combina_apply",
+   "label": "prevcarga_combina_apply()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "thaw(latest) → produce_combined pesos congelados; LONG 8-col; fail-alto área não-treinada.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_combina_full",
+   "label": "prevcarga_combina_full()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "weights=NULL ⇒ fit+apply; run_fn do G2.",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:prevcarga_combina_gate",
+   "label": "prevcarga_combina_gate()",
+   "kind": "function",
+   "parent": "mod:combination",
+   "note": "G2 honestidade + otimalidade + qualidade A/B (scorecard).",
+   "milestone": "M4"
+  },
+  {
+   "id": "fn:cmd_combine",
+   "label": "cmd_combine()",
+   "kind": "function",
+   "parent": "",
+   "note": "Dispatch fino do verbo combine (train/apply/full) na fachada; guardado runtime-first.",
+   "milestone": "M4"
+  },
+  {
+   "id": "verb:combine",
+   "label": "combine",
+   "kind": "verb",
+   "parent": "",
+   "note": "Verbo-CLI standalone (gramática docopt estendida); modos train/apply/full.",
+   "milestone": "M4"
+  }
+ ],
+ "edges": [
+  {
+   "from": "verb:combine",
+   "to": "mod:combination",
+   "kind": "composes",
+   "label": "dispatch fino",
+   "milestone": "M4"
+  },
+  {
+   "from": "mod:combination",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "members/topology (prevcarga_members)",
+   "milestone": "M4"
+  },
+  {
+   "from": "mod:combination",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "freeze saveRDS/version_hash",
+   "milestone": "M4"
+  },
+  {
+   "from": "mod:combination",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "determinismo TZ/BLAS-1T",
+   "milestone": "M4"
+  },
+  {
+   "from": "mod:combination",
+   "to": "mod:dates",
+   "kind": "depends-on",
+   "label": "sequenciamento (NÃO corte-de-peso)",
+   "milestone": "M4"
+  },
+  {
+   "from": "mod:combination",
+   "to": "mod:evaluation",
+   "kind": "depends-on",
+   "label": "WMAPE/scorecard/read_actual",
+   "milestone": "M4"
+  },
+  {
+   "from": "mod:combination",
+   "to": "mod:honesty_gate",
+   "kind": "depends-on",
+   "label": "G2 honestidade (1º consumidor)",
+   "milestone": "M4"
+  }
+ ]
+}

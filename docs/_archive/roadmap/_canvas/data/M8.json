@@ -1,0 +1,821 @@
+{
+ "id": "M8",
+ "docPath": "docs/roadmap/M8-BUNDLE.md",
+ "title": "M8 — Runtime R-only (S3) + install bootstrap + `verificar` + `morning` + A/B completo (gate de corte) + remoção final do Python",
+ "intent": "Transforma o clean-room em produto distribuível e decide o corte: (1) runtime R-only construído por CI e publicado no S3 (S3 só nas pontas, ADR-0016); (2) instaladores install/install.sh (jammy) e install/install.ps1 (Windows→WSL2) com hash obrigatório, instalação versionada, raiz de estado separada (PREVCARGA_STATE) e canal dos artefatos treinados; (3) verbos `verificar` (sha256 + trilhos ADR-0017) e `morning` (runbook diário); (4) A/B completo por estágio contra prevcargadessem3 = gate de corte, mais remoção final do Python provada sobre o artefato e write-through de encerramento.",
+ "status": "VERIFY-READY (M8) — verify-milestone R22 (2026-10-16): ready:true · 0 blockers · consenso 6/6 (22 rounds); 22 materiais residuais NÃO aplicados. Último milestone do programa (M1…M8). Checkpoint TERMINAL: 1º _M<n>_CP com abReference populado, deployByDefault:false.",
+ "files": [
+  {
+   "path": "ci/build_runtime.sh",
+   "action": "CRIAR",
+   "note": "M8.1: porta ci/build_marmita.sh sem uv/venv/python3/ARROW_S3; container ubuntu:22.04 pinado + snapshot apt; gera runtime/{R,rlib,syslib} + code/ + RUNTIME.json + tarball .tar.zst + .sha256"
+  },
+  {
+   "path": "ci/publish_runtime.sh",
+   "action": "CRIAR",
+   "note": "M8.2: aws s3 cp p/ s3://<bucket>/<prefixo>/runtime/v<VER>/ (imutável), --promote escreve LATEST, --artefatos publica pacote de artefatos, --canary; exige recibos de gate do sha exato. Único arquivo do repo com aws s3; fora do code/"
+  },
+  {
+   "path": "install/install.sh",
+   "action": "CRIAR",
+   "note": "M8.3: preflight (musl/glibc≥2.35/x86_64 → exit 6), download+hash obrigatório, extração atômica em versions/<VER>/ + current symlink, retenção N=2, --rollback/--uninstall/--purge, relocação R + shim Rscript, gera launcher bin/prevcarga, --artefatos → registry import"
+  },
+  {
+   "path": "install/install.ps1",
+   "action": "CRIAR",
+   "note": "M8.4: Windows→WSL2 (wsl --status; -InstallDistro; roda install.sh dentro da distro Ubuntu-22.04; -Runtime/-Sha256 local; -Artefatos repetido); instala %LOCALAPPDATA%\\prevcarga\\prevcarga.cmd com WSLENV"
+  },
+  {
+   "path": "install/run_ab_wsl.ps1",
+   "action": "CRIAR",
+   "note": "M8.4 Step 4b: perna WSL2 do A/B — copia ref/A/ + manifest de congelamento + deck + checkout e roda test_ab_corte.sh --so-estagio-A --plataforma wsl2-frota; grava recibo ab_A.wsl2-frota.json"
+  },
+  {
+   "path": "install/tests/",
+   "action": "CRIAR",
+   "note": "Pester + PSScriptAnalyzer do install.ps1 (container mcr.microsoft.com/powershell:7.4-ubuntu-22.04)"
+  },
+  {
+   "path": "scripts/lib/verify_repro.R",
+   "action": "CRIAR",
+   "note": "M8.5: prevcarga_verify_repro — integridade sha256 → identidade (run_manifest) → pareamento nativo/legado → valores por trilho; localizador novo só p/ reconc + varredura de extras (membros via prevcarga_combina_discover do M4)"
+  },
+  {
+   "path": "scripts/lib/morning.R",
+   "action": "CRIAR",
+   "note": "M8.6: prevcarga_morning — status→validate-deck (gate-0)→score de ontem→re-fit retrain_harness (cache put + pins)→forecast --pins→report; nunca promove; resumo.json persistido"
+  },
+  {
+   "path": "scripts/lib/runtime.R",
+   "action": "ESTENDER",
+   "note": "M1 → M8: prevcarga_platform_check() p/ o doctor; prevcarga_state_root() (PREVCARGA_STATE, default dev <repo>/.state/); prevcarga_data_root() (PREVCARGA_DATA, sem default em code/, D22)"
+  },
+  {
+   "path": "scripts/lib/provenance.R",
+   "action": "ESTENDER",
+   "note": "M1.3 → M8: run-manifest ganha runtime_id lateral (fora do hash; null na dev) + config_hash lateral; prevcarga_code_commit() path-scoped (git log -1 sobre o conjunto do code/; no instalado lê do RUNTIME.json); bundle_id inalterado"
+  },
+  {
+   "path": "scripts/lib/registry.R",
+   "action": "ESTENDER",
+   "note": "M5.4 → M8: raiz via prevcarga_state_root(); registry export|import (pacote de artefatos com manifesto {bundle_id, artefatos_id, code_commit, renv_lock_hash, itens[]}; import aditivo/completude/sha/promote); meta$train_origin lateral"
+  },
+  {
+   "path": "scripts/lib/cache.R",
+   "action": "ESTENDER",
+   "note": "M7.2 → M8: raiz via prevcarga_state_root(); ao gravar re-fit grava sidecar lateral prov.json {member_label, area, origin, available_until, cut_invariant} fora da chave"
+  },
+  {
+   "path": "scripts/lib/orchestrate.R",
+   "action": "ESTENDER",
+   "note": "M7 → M8: ledger resolve raiz via prevcarga_state_root()"
+  },
+  {
+   "path": "scripts/lib/forecast.R",
+   "action": "ESTENDER",
+   "note": "M6 → M8: painel results/ via prevcarga_state_root(); --pins=<pins.json> resolve v_hash no store do cache e confere sidecar class-aware (MISS/≠ → exit 2, nunca latest); grava <painel_dir>/run_manifest.json; prevcarga_data_root()"
+  },
+  {
+   "path": "scripts/lib/backtest.R",
+   "action": "ESTENDER",
+   "note": "M7.3 → M8: store de backtest via prevcarga_state_root(); backtest --out <arq> + --variant <e> (LONG 8-col de uma célula membro×área×corte); prevcarga_data_root()"
+  },
+  {
+   "path": "scripts/lib/combination.R",
+   "action": "ESTENDER",
+   "note": "M4 → M8: artifact_dir do freeze da combina via prevcarga_state_root()"
+  },
+  {
+   "path": "scripts/lib/reconcile.R",
+   "action": "ESTENDER",
+   "note": "M6 → M8: artifact_dir do perfil k̂ via prevcarga_state_root() (engine não muda)"
+  },
+  {
+   "path": "scripts/lib/reporting.R",
+   "action": "ESTENDER",
+   "note": "M6 → M8: HTML/PDF do --report gravados sob PREVCARGA_STATE/results/"
+  },
+  {
+   "path": "scripts/lib/honesty_gate.R",
+   "action": "ESTENDER",
+   "note": "M3.2 → M8.7 Step 3b: parâmetro forbidden_from ∈ {origin, available_until} (default origin); braço MORNING do M5.5 passa a ser implementado por forbidden_from=available_until"
+  },
+  {
+   "path": "scripts/lib/dates.R",
+   "action": "ESTENDER",
+   "note": "M2 → M8.3 Step 7a: prevcarga_train_origin(as_of, model, root, spec = NULL) aceita spec explícito (o gravado no artefato)"
+  },
+  {
+   "path": "scripts/lib/training.R",
+   "action": "ESTENDER",
+   "note": "M5 → M8.3 Step 7a: grava meta$train_origin + spec do treino {protocol, horizon_days, cut_invariant} + available_until como metadado lateral (fora do v_<hash>)"
+  },
+  {
+   "path": "scripts/lib/exports.R",
+   "action": "ESTENDER",
+   "note": "M6 → M8.3 Step 7b: grava <saida>/run_manifest.json (data_hash, bundle_id, model_versions, runtime_id) separado do manifest.json 5-campos; prevcarga_export(..., run_manifest)"
+  },
+  {
+   "path": "scripts/tools/ab_deck_shadow.R",
+   "action": "CRIAR",
+   "note": "tier tools/: run_fn deck-sombra do honesty-gate — prevcarga_honesty_deck_shadow(deck_dir, perturbacao) copia deck p/ tmp, perturba load_mwh, roda backtest em subprocesso com PREVCARGA_DATA próprio"
+  },
+  {
+   "path": "scripts/tools/ab_relayout.R",
+   "action": "CRIAR",
+   "note": "tier tools/: escreve saídas do backtest/M7 (membros e reconc) no layout legado por (nó,área,origem,corte) e gera run_manifest.json; --reverso leva longs congelados do oráculo ao layout do clean-room (sem --converter = move/linka byte-copy; com --converter = cópias tipadas)"
+  },
+  {
+   "path": "scripts/tools/ab_report.R",
+   "action": "CRIAR",
+   "note": "tier tools/: agregador do veredito CORTE-OK/CORTE-BLOQUEADO; Estágios D/E via prevcarga_combina_gate/produce_eqw/scorecard (M4) e prevcarga_wmape (M3); emite ab_report.{json,html} carimbado com run-manifest"
+  },
+  {
+   "path": "renv.lock",
+   "action": "CRIAR",
+   "note": "M8.1 Step 0: cria se ausente/completa; P3M jammy/2023-04-21; pacotes de modelo fixados nas versões do oráculo (interseção); sem testthat no grupo de produção"
+  },
+  {
+   "path": "scripts/prevcarga",
+   "action": "EDITAR",
+   "note": "gramática docopt: verificar [--referencia-legada --trilho --alvo --limiares --sem-membros], morning --dados [--as-of --report-format --strict --incluir-membros], registry export --saida / registry import <arq> --sha256, forecast --pins, backtest --out/--variant; publish/promote saem (D21); normalização de caminho WSL antes do docopt; cmd_verificar/cmd_morning; [prevcarga/repro]→9"
+  },
+  {
+   "path": "jobs/tests/limiares_ab.yaml",
+   "action": "CRIAR",
+   "note": "limiares declarados por-alvo (alvo, limiar_mw, assinado_por, data) fora do code/; lido pelo verificar --alvo --limiares (D16)"
+  },
+  {
+   "path": "jobs/tests/test_runtime_build.sh",
+   "action": "CRIAR",
+   "note": "gate M8.1: build em ubuntu:22.04 limpo sem python3; manifesto verdadeiro; runtime_id reprodutível; sem S3/testes no code/"
+  },
+  {
+   "path": "jobs/tests/test_lock_pin_parity.sh",
+   "action": "CRIAR",
+   "note": "gate M8.1: paridade de versões dos pacotes de modelo entre renv.lock clean-room e oráculo (CONTROL bump)"
+  },
+  {
+   "path": "jobs/tests/test_publish_runtime.sh",
+   "action": "CRIAR",
+   "note": "gate M8.2 com mock de aws no PATH: imutável, LATEST só --promote, sha calculado na hora, recibos exigidos, --artefatos idempotente"
+  },
+  {
+   "path": "jobs/tests/test_install_e2e.sh",
+   "action": "CRIAR",
+   "note": "gate M8.3 (porta test_marmita_e2e.sh): install em container sem python3 → doctor → forecast instalado==dev ≤1e-5; hash, preflight, atomicidade, estado preservado, rollback; grava recibo <sha>.test_install_e2e.json"
+  },
+  {
+   "path": "jobs/tests/test_registry_roundtrip.sh",
+   "action": "CRIAR",
+   "note": "gate M8.3: registry export → import byte-idêntico; import aditivo/completude/seleção por protocol; rollback de pacote (D27); grava recibos do sha e do artefatos_id"
+  },
+  {
+   "path": "jobs/tests/test_verificar_gateB.sh",
+   "action": "CRIAR",
+   "note": "gate M8.5 (porta test_prevcarga_gateB.sh): referência congelada PASS + perturbada +0,2 MW FAIL exit 9"
+  },
+  {
+   "path": "jobs/tests/test_runtime_python_free.sh",
+   "action": "CRIAR",
+   "note": "gate M8.8: pureza Python-free sobre o tarball extraído (find *.py/python*/libpython*; grep python3|subprocess|pyarrow|s3 no code/)"
+  },
+  {
+   "path": "jobs/tests/test_writethrough_m8.sh",
+   "action": "CRIAR",
+   "note": "gate M8.8: write-through (a)–(n) por grep ancorado no diff vs tag m8-base"
+  },
+  {
+   "path": "jobs/tests/emendas_m8.txt",
+   "action": "CRIAR",
+   "note": "lista FECHADA dos arquivos de teste das 6 emendas a M1.5/M1.4/M1/M6.2-M6.4/M1.3/M1.3 — fonte do gate 'só as 6 emendas'"
+  },
+  {
+   "path": "jobs/tests/test_ab_corte.sh",
+   "action": "CRIAR",
+   "note": "M8.7 Step 9: orquestra Estágios A–E, grava recibo ab_preflight.json ao iniciar e <sha>.test_ab_corte.json com veredito ao terminar; lê ab_excecoes/ab_plataformas/ab_origens; --so-estagio-A --plataforma"
+  },
+  {
+   "path": "jobs/tests/ab_gerar_referencia.sh",
+   "action": "CRIAR",
+   "note": "M8.7 Step 1: gera referência congelada em cópia descartável do oráculo com o runtime do próprio oráculo + pins; aws falso no PATH; raízes ref/A, ref/B, ref/C, ref/C' com manifest de congelamento"
+  },
+  {
+   "path": "jobs/tests/ab_veredito_injecao.sh",
+   "action": "CRIAR",
+   "note": "M8.7: testa o agregador do veredito com comparadores mockados"
+  },
+  {
+   "path": "jobs/tests/test_ab_harness.sh",
+   "action": "CRIAR",
+   "note": "M8.7 (fullGates): autoverificação do harness A/B sobre referência/deck/membros sintéticos (independe do D14)"
+  },
+  {
+   "path": "jobs/tests/ab_origens.yaml",
+   "action": "CRIAR",
+   "note": "só chaves origens + cortes (12 origens × 08:00/12:00, D8); membros/áreas vêm de prevcarga_members()/prevcarga_topology()"
+  },
+  {
+   "path": "jobs/tests/ab_excecoes.yaml",
+   "action": "CRIAR",
+   "note": "única fonte de membro fora do Δ (membro, motivo, assinado_por); vazio por default; classe DESSEM → abort (D23)"
+  },
+  {
+   "path": "jobs/tests/ab_plataformas.yaml",
+   "action": "CRIAR",
+   "note": "plataformas exigidas no veredito (default jammy + wsl2-frota)"
+  },
+  {
+   "path": "scripts/lib/tests/",
+   "action": "CRIAR",
+   "note": "testthat de verify_repro.R / morning.R / platform_check / state_root / normalização-WSL (+ emendas (1)(2)(3)(5)(6) aos testes do M1)"
+  },
+  {
+   "path": ".gitignore",
+   "action": "EDITAR",
+   "note": ".state/ e jobs/tests/.receipts/"
+  },
+  {
+   "path": ".claude/workflows/implement-milestone.js",
+   "action": "EDITAR",
+   "note": "CHECKPOINTS['M8']/'M8-BUNDLE' → _M8_CP; fases A/B e Real tests nos trilhos do ADR-0017 e caminho R-only (wirado junto com o doc)"
+  },
+  {
+   "path": "README.md",
+   "action": "CRIAR",
+   "note": "M8.8 (b): README da raiz do clean-room — consumo do produto (install.sh/install.ps1, verbos, estado)"
+  },
+  {
+   "path": "docs/reference/MANUAL-USUARIO.md",
+   "action": "CRIAR",
+   "note": "M8.8 (c): manual do usuário; caminho de produção = morning (D18/D28); poda manual do PREVCARGA_STATE (D30)"
+  },
+  {
+   "path": "docs/ESTADO-ATUAL.md",
+   "action": "EDITAR",
+   "note": "M8.8 (a): write-through de encerramento — trilhos 1e-5/0,1 MW, doctor PASS-ou-N/A, Empacotamento (3 raízes, pacote de artefatos, runtime_id vs bundle_id), morning, exit 9, renv.lock, D15, conjunto entregue, corte honesto em produção, honesty-gate class-aware, code_commit path-scoped, recibos, contrato do verificar"
+  }
+ ],
+ "functions": [
+  {
+   "name": "prevcarga_verify_repro",
+   "module": "verify_repro",
+   "signature": "prevcarga_verify_repro(saida, referencia, trilho, alvo=NULL, legada=FALSE, sem_membros=FALSE)",
+   "note": "M8.5 Step 1: integridade sha256 vs manifest (nativo 5-campos / legado manifest de congelamento) → identidade via run_manifest.json (data_hash nulo ou ≠, bundle_id ≠, model_versions ≠ → exit 2; runtime_id ≠ → aviso) → pareamento (nativo por path; legado via prevcarga_combina_discover do M4 + localizador novo só p/ reconc SIN+subsistemas + varredura de extras) → valores join area,forecast_origin,target_datetime,lead com tol 1e-5 (mesmo-hardware) | 0,1 MW (cross-machine) | limiar_mw de --limiares; sem tol relativa nem --tol livre; exit 0/2/9"
+  },
+  {
+   "name": "cmd_verificar",
+   "module": "prevcarga",
+   "note": "M8.5 Step 5b: handler da fachada que substitui o stub [prevcarga/todo] do M1.3 e chama prevcarga_verify_repro; --format text|json; [prevcarga/repro]→exit 9; guardado pelo runtime-guard"
+  },
+  {
+   "name": "prevcarga_morning",
+   "module": "morning",
+   "signature": "prevcarga_morning(as_of, strict=FALSE, ...)",
+   "note": "M8.6 Step 1: chama funções dos módulos (sem shell-out) na ordem status (informativo) → validate-deck (gate-0) → score de ontem → prevcarga_train só p/ protocol==retrain_harness gravando via prevcarga_cache_put() + pins.json → forecast --as-of --pins → forecast --report; guarda meta$train_origin ≤ prevcarga_train_origin(as_of, m, spec=spec_do_artefato) p/ daily; nunca promove; resumo.json persistido em PREVCARGA_STATE/ledger/morning/<as_of>_<HHMM>/ com run-manifest cheio"
+  },
+  {
+   "name": "cmd_morning",
+   "module": "prevcarga",
+   "note": "M8.6 Step 3c: handler novo (M1.3 não lista morning); gramática morning --dados=<dir> [--as-of --report-format --strict --incluir-membros --format]; guardado pelo runtime-guard (ADR-0022)"
+  },
+  {
+   "name": "prevcarga_platform_check",
+   "module": "runtime",
+   "signature": "prevcarga_platform_check()",
+   "note": "M8.5 Step 4: itens novos do doctor — glibc ≥ 2.35, R.version == RUNTIME.json.r_version, integridade sha256 de todo files[] do RUNTIME.json → classe 6 [prevcarga/bundle]; sem PREVCARGA_RUNTIME_JSON → N/A (não-instalado); reporta runtime_id, PREVCARGA_STATE, artefatos_id, config_override + config_hash, artefatos_divergencia (member_set_hash, flags, code_commit/renv_lock_hash), cache_bytes, state_bytes por subtree"
+  },
+  {
+   "name": "prevcarga_state_root",
+   "module": "runtime",
+   "signature": "prevcarga_state_root()",
+   "note": "M8.3 Step 7 (D12): lê PREVCARGA_STATE (default dev <repo>/.state/ gitignored); layout fixo {registry,cache,backtest,ledger,results,artefatos}/; todas as raízes de registry/cache/orchestrate/backtest/forecast/reporting/combination/reconcile resolvem a partir dele"
+  },
+  {
+   "name": "prevcarga_data_root",
+   "module": "runtime",
+   "signature": "prevcarga_data_root()",
+   "note": "M8.3 Step 7 (D22): lê PREVCARGA_DATA; na árvore de dev (sem RUNTIME.json) → <repo>/data; instalado sem env → exit 2 nos verbos de trabalho (status só reporta N/A); religado em todo leitor de deck sem --dados"
+  },
+  {
+   "name": "prevcarga_code_commit",
+   "module": "provenance",
+   "signature": "prevcarga_code_commit()",
+   "note": "M8.3 Step 8a: git log -1 --format=%H -- <conjunto de paths do code/> (sem scripts/tools/, scripts/data-prep/, *.md, */tests/, models/*/models/); no runtime instalado lê do RUNTIME.json; mesma derivação dev e build"
+  },
+  {
+   "name": "prevcarga_honesty_deck_shadow",
+   "module": "ab_deck_shadow",
+   "signature": "prevcarga_honesty_deck_shadow(deck_dir, perturbacao)",
+   "note": "M8.7 Step 3b (scripts/tools/): run_fn deck-sombra do honesty-gate — copia o deck p/ tmp, aplica a perturbação no load_mwh da janela, aponta PREVCARGA_DATA p/ a cópia e roda o backtest em subprocesso (não muta o env do chamador)"
+  },
+  {
+   "name": "prevcarga_train_origin",
+   "module": "dates",
+   "signature": "prevcarga_train_origin(as_of, model, root, spec = NULL)",
+   "note": "ESTENDER (nó do M2): aceita spec explícito (o gravado no artefato: protocol/horizon_days/cut_invariant); sem spec, comportamento do M2 inalterado"
+  },
+  {
+   "name": "prevcarga_run_manifest",
+   "module": "provenance",
+   "note": "ESTENDER (nó do M1.3): ganha runtime_id lateral (sha256 do RUNTIME.json canônico sem built_at; null na dev) e config_hash lateral; campos anuláveis só nos contextos declarados (emenda (6))"
+  },
+  {
+   "name": "prevcarga_export",
+   "module": "exports",
+   "signature": "prevcarga_export(..., run_manifest)",
+   "note": "ESTENDER (nó do M6): recebe o run-manifest do chamador e grava <saida>/run_manifest.json separado do manifest.json 5-campos"
+  },
+  {
+   "name": "prevcarga_honesty_gate",
+   "module": "honesty_gate",
+   "note": "ESTENDER (nó do M3.2): parâmetro forbidden_from ∈ {origin, available_until} (default origin); Estágio A escolhe por prevcarga_model_spec(m)$cut_invariant"
+  },
+  {
+   "name": "cmd_registry",
+   "module": "prevcarga",
+   "note": "ESTENDER (nó do M5): subverbos registry export --saida=<arq> (pacote de artefatos: latest dos membros protocol==daily + freeze combina + perfil k̂ + manifesto) e registry import <arq> --sha256=<h> (completude vs topologia, sha por item, v_<hash> aditivo, promote do latest, persiste artefatos/manifest.json)"
+  }
+ ],
+ "functionality": [
+  "Runtime R-only reprodutível (ci/build_runtime.sh em container pinado): runtime/{R,rlib,syslib} + code/{scripts,models,config,renv.lock} sem Python/ARROW_S3/testes/S3, RUNTIME.json com files[] sha256 e runtime_id content-addressed; renv.lock com paridade de versões dos pacotes de modelo com o oráculo (test_lock_pin_parity.sh)",
+  "Publicação S3 imutável (ci/publish_runtime.sh): runtime/v<VER>/ recusa sobrescrita, LATEST só com --promote, --artefatos idempotente por artefatos_id, --canary; publish exige recibos de gate (install e2e + registry roundtrip PASS + A/B CORTE-OK) do sha exato do tarball; único ponto de aws s3 do repo",
+  "Instalação versionada (install/install.sh): preflight musl/glibc≥2.35 → exit 6, hash obrigatório (runtime e artefatos), extração atômica stage→versions/<VER>/→current, retenção N=2, --rollback/--uninstall/--purge; 3 raízes (versions/, current, PREVCARGA_STATE fora de PREVCARGA_HOME); launcher bin/prevcarga com pins TZ/LC/OMP/OPENBLAS/MKL/VECLIB_MAXIMUM_THREADS + exec Rscript --vanilla; Windows = WSL2 via install.ps1 + shim prevcarga.cmd com WSLENV",
+  "Canal dos artefatos treinados: registry export (host de treino) → publish --artefatos → install --artefatos / registry import (completude vs topologia, sha por item, import aditivo, re-promote = rollback de pacote); seleção por protocol==daily (nunca lista literal); meta$train_origin lateral em todo artefato; estado (registry/cache/backtest/ledger/results/artefatos) resolvido por prevcarga_state_root(); deck por prevcarga_data_root()/PREVCARGA_DATA",
+  "Verbo verificar: integridade sha256 → identidade (data_hash nulo ou ≠ / bundle_id ≠ / model_versions ≠ → exit 2; runtime_id ≠ → aviso) → valores por trilho (1e-5 mesmo-hardware | 0,1 MW cross-machine | --alvo+--limiares declarado; sem tol relativa nem --tol livre), membros comparados por default, exit 9=[prevcarga/repro]; modo --referencia-legada pareado pelo manifest de congelamento; doctor de plataforma (N/A na dev, exit 6 instalado) + normalização de caminho WSL na fachada",
+  "Verbo morning (runbook diário, capacidade nova): status informativo → validate-deck gate-0 fail-fast → score de ontem (tolera LONG-ausente/nada-a-pontuar; --strict) → re-fit dos retrain_harness no store do cache M7.2 (sidecar prov.json) repassado ao forecast via --pins class-aware (MISS → exit 2, nunca latest) → forecast --as-of → report; guarda train_origin dos daily; nunca promove; sem superseder do ADR-0006 (D14) não roda; resumo.json com run-manifest cheio",
+  "A/B por estágio vs prevcargadessem3 = gate de corte: referência congelada em cópia descartável do oráculo (runtime do próprio oráculo, pins, aws falso, manifest de congelamento); A backtest por membro (trilho pela relação máquina+runtime), B reconcile-engine com a mesma entrada, C exports byte-copy sha256, C' prever daily vs infer-model, D combina propriedade/qualidade reusando gates do M4, E reportado; honesty-gate class-aware (forbidden_from por cut_invariant + deck-sombra); exceções só via ab_excecoes.yaml; veredito CORTE-OK/CORTE-BLOQUEADO por agregador testado por injeção; jammy + WSL2 da frota; oráculo intocado",
+  "Remoção final do Python provada sobre o artefato (test_runtime_python_free.sh) + gates M1–M7 re-rodados com o R do runtime instalado (env cru p/ o guard) + só as 6 emendas declaradas (emendas_m8.txt vs tag m8-base) + smoke morning sem python3 + write-through de encerramento (a)–(n) ancorado no diff + arquivamento do roadmap pós-corte (D10)"
+ ],
+ "verbs": [
+  {
+   "name": "verificar",
+   "action": "NOVO",
+   "note": "NOVO (M8.5): verificar --saida=<dir> --referencia=<dir> [--referencia-legada] [--trilho=<t>] [--alvo=<nome> --limiares=<arq>] [--sem-membros] [--format=<f>]; sem --corte e sem --tol; exit 0 PASS / 2 integridade-contrato / 9 [prevcarga/repro]"
+  },
+  {
+   "name": "morning",
+   "action": "NOVO",
+   "note": "NOVO (M8.6): morning --dados=<dir> [--as-of=<d>] [--report-format=<f>] [--strict] [--incluir-membros] [--format=<f>]; composição fina status→validate-deck→score→re-fit retrain_harness→forecast --pins→report; nunca promove"
+  },
+  {
+   "name": "registry",
+   "action": "EDITAR",
+   "note": "EDITAR (M8.3 Step 7, verbo do M5.4): subverbos registry export --saida=<arq> e registry import <arq> --sha256=<h> (pacote de artefatos); registry promote/rollback/gc seguem; gc não toca cache/backtest"
+  },
+  {
+   "name": "forecast",
+   "action": "EDITAR",
+   "note": "EDITAR (M8.3/M8.6, verbo do M6): --pins=<pins.json> (lista {membro, area, v_hash} resolvida no store do cache + sidecar prov.json class-aware; MISS/≠ → exit 2, nunca latest); grava <painel_dir>/run_manifest.json; raiz results/ via PREVCARGA_STATE; deck via PREVCARGA_DATA"
+  },
+  {
+   "name": "backtest",
+   "action": "EDITAR",
+   "note": "EDITAR (M8.3 Step 7, verbo do M7): --out <arq> (LONG 8-col de uma célula membro×área×corte) + --variant <e> (--model que resolve p/ >1 membro sem --variant → exit 2); store de backtest sob PREVCARGA_STATE"
+  },
+  {
+   "name": "doctor",
+   "action": "EDITAR",
+   "note": "EDITAR (M8.5 Step 4, verbo do M1.5): prevcarga_platform_check() — glibc/R.version/integridade do RUNTIME.json → exit 6; PASS-ou-N/A; --format json reporta runtime_id, PREVCARGA_STATE, artefatos_id, config_override/config_hash, artefatos_divergencia, cache_bytes, state_bytes; não checa aws/ARROW_S3"
+  },
+  {
+   "name": "status",
+   "action": "EDITAR",
+   "note": "EDITAR (M8.3 Step 7, verbo do M1.5): idade do bundle e último forecast OK lidos de PREVCARGA_STATE; deck N/A (PREVCARGA_DATA ausente) como item não-fatal"
+  },
+  {
+   "name": "export",
+   "action": "EDITAR",
+   "note": "EDITAR (M8.3 Step 7b, verbo do M6): copia <painel_dir>/run_manifest.json se existir, senão grava um com data_hash=null"
+  },
+  {
+   "name": "publish",
+   "action": "REMOVER",
+   "note": "REMOVIDO da gramática (D21, M8.3 Step 7): aposentado — seam coberto por registry promote (M5.4) + freeze (M4) + registry export (M8.3)"
+  },
+  {
+   "name": "promote",
+   "action": "REMOVER",
+   "note": "REMOVIDO da gramática de topo (D21): `prevcarga promote` sai; `registry promote` do M5.4 continua"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "mod:verify_repro",
+   "label": "verify_repro.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "módulo do verbo verificar: integridade sha256 → identidade (run_manifest) → pareamento nativo/legado → valores por trilho (1e-5 / 0,1 MW / --alvo); exit 0/2/9; sem tol relativa",
+   "milestone": "M8"
+  },
+  {
+   "id": "mod:morning",
+   "label": "morning.R",
+   "kind": "module",
+   "parent": "",
+   "note": "runbook diário de produção: status→validate-deck (gate-0)→score de ontem→re-fit retrain_harness no store do cache (+pins)→forecast --pins→report; nunca promove; resumo.json com run-manifest cheio",
+   "milestone": "M8"
+  },
+  {
+   "id": "tool:ab_relayout",
+   "label": "ab_relayout.R",
+   "kind": "tool",
+   "parent": "",
+   "note": "tier scripts/tools/ (fora do code/ do runtime): travessia clean-room→layout legado (invoca backtest --out por célula, gera run_manifest.json) e --reverso oráculo→painel do clean-room (sem --converter = byte-copy; com --converter = cópias tipadas)",
+   "milestone": "M8"
+  },
+  {
+   "id": "tool:ab_report",
+   "label": "ab_report.R",
+   "kind": "tool",
+   "parent": "",
+   "note": "tier scripts/tools/: agregador do veredito CORTE-OK/CORTE-BLOQUEADO; Estágios D/E via gates do M4 e prevcarga_wmape do M3; ab_report.{json,html} carimbado com run-manifest",
+   "milestone": "M8"
+  },
+  {
+   "id": "tool:ab_deck_shadow",
+   "label": "ab_deck_shadow.R",
+   "kind": "tool",
+   "parent": "",
+   "note": "tier scripts/tools/: run_fn deck-sombra do honesty-gate p/ o Estágio A (perturba o deck lido do disco, roda backtest em subprocesso)",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:prevcarga_verify_repro",
+   "label": "prevcarga_verify_repro()",
+   "kind": "function",
+   "parent": "mod:verify_repro",
+   "note": "prevcarga_verify_repro(saida, referencia, trilho, alvo=NULL, legada=FALSE, sem_membros=FALSE)",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:prevcarga_morning",
+   "label": "prevcarga_morning()",
+   "kind": "function",
+   "parent": "mod:morning",
+   "note": "prevcarga_morning(as_of, strict=FALSE, ...); chama funções dos módulos sem shell-out",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:prevcarga_platform_check",
+   "label": "prevcarga_platform_check()",
+   "kind": "function",
+   "parent": "mod:runtime",
+   "note": "itens novos do doctor (glibc≥2.35, R.version==RUNTIME.json, integridade files[]) → classe 6 [prevcarga/bundle]; N/A na dev",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:prevcarga_state_root",
+   "label": "prevcarga_state_root()",
+   "kind": "function",
+   "parent": "mod:runtime",
+   "note": "lê PREVCARGA_STATE (default dev <repo>/.state/); raiz de registry/cache/backtest/ledger/results/artefatos (D12)",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:prevcarga_data_root",
+   "label": "prevcarga_data_root()",
+   "kind": "function",
+   "parent": "mod:runtime",
+   "note": "lê PREVCARGA_DATA; dev → <repo>/data; instalado sem env → exit 2 (D22)",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:prevcarga_code_commit",
+   "label": "prevcarga_code_commit()",
+   "kind": "function",
+   "parent": "mod:provenance",
+   "note": "git log -1 path-scoped ao conjunto do code/; no instalado lê do RUNTIME.json; mesma derivação dev e build",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:prevcarga_honesty_deck_shadow",
+   "label": "prevcarga_honesty_deck_shadow()",
+   "kind": "function",
+   "parent": "tool:ab_deck_shadow",
+   "note": "prevcarga_honesty_deck_shadow(deck_dir, perturbacao): copia deck p/ tmp, perturba load_mwh, PREVCARGA_DATA próprio, roda backtest em subprocesso",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:cmd_verificar",
+   "label": "cmd_verificar()",
+   "kind": "function",
+   "parent": "verb:verificar",
+   "note": "handler da fachada scripts/prevcarga; substitui o stub [prevcarga/todo] do M1.3; [prevcarga/repro]→9",
+   "milestone": "M8"
+  },
+  {
+   "id": "fn:cmd_morning",
+   "label": "cmd_morning()",
+   "kind": "function",
+   "parent": "verb:morning",
+   "note": "handler novo da fachada scripts/prevcarga; guardado pelo runtime-guard (ADR-0022)",
+   "milestone": "M8"
+  },
+  {
+   "id": "verb:verificar",
+   "label": "verificar",
+   "kind": "verb",
+   "parent": "",
+   "note": "verificar --saida --referencia [--referencia-legada] [--trilho] [--alvo --limiares] [--sem-membros] [--format]; exit 0/2/9",
+   "milestone": "M8"
+  },
+  {
+   "id": "verb:morning",
+   "label": "morning",
+   "kind": "verb",
+   "parent": "",
+   "note": "morning --dados [--as-of] [--report-format] [--strict] [--incluir-membros] [--format]; gate-0 fail-fast; nunca promove",
+   "milestone": "M8"
+  }
+ ],
+ "edges": [
+  {
+   "from": "verb:verificar",
+   "to": "mod:verify_repro",
+   "kind": "composes",
+   "label": "cmd_verificar → prevcarga_verify_repro",
+   "milestone": "M8"
+  },
+  {
+   "from": "verb:morning",
+   "to": "mod:morning",
+   "kind": "composes",
+   "label": "cmd_morning → prevcarga_morning",
+   "milestone": "M8"
+  },
+  {
+   "from": "verb:doctor",
+   "to": "mod:runtime",
+   "kind": "composes",
+   "label": "prevcarga_platform_check (M8.5 Step 4)",
+   "milestone": "M8"
+  },
+  {
+   "from": "verb:registry",
+   "to": "mod:registry",
+   "kind": "composes",
+   "label": "registry export|import (M8.3)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:verify_repro",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "runtime-guard enforce; state_root",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:verify_repro",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "identidade: run_manifest data_hash/bundle_id/model_versions/runtime_id; prevcarga_data_hash",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:verify_repro",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "prevcarga_topology/members/model_spec$cut_invariant (pareamento legado, nós SIN+subsistemas)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:verify_repro",
+   "to": "mod:combination",
+   "kind": "depends-on",
+   "label": "prevcarga_combina_discover — localizador legado de membros (M4)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:verify_repro",
+   "to": "mod:exports",
+   "kind": "depends-on",
+   "label": "manifest.json 5-campos (integridade modo nativo)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "runtime-guard; state_root; data_root",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:validation",
+   "kind": "depends-on",
+   "label": "validate-deck gate-0 fail-fast",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:evaluation",
+   "kind": "depends-on",
+   "label": "score de ontem (M3)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:training",
+   "kind": "depends-on",
+   "label": "prevcarga_train só p/ protocol==retrain_harness (D15)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:cache",
+   "kind": "depends-on",
+   "label": "prevcarga_cache_put() re-fit content-addressed + sidecar prov.json",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:forecast",
+   "kind": "depends-on",
+   "label": "forecast --as-of --pins (--skip-validate) + --report",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:reporting",
+   "kind": "depends-on",
+   "label": "forecast --report (falha não desfaz o forecast)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:dates",
+   "kind": "depends-on",
+   "label": "guarda meta$train_origin ≤ prevcarga_train_origin(as_of, m, spec do artefato)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "prevcarga_model_spec protocol/cut_invariant; prevcarga_members",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:registry",
+   "kind": "depends-on",
+   "label": "lê latest dos daily; nunca promote/gc",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:morning",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "run-manifest cheio no resumo.json",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_relayout",
+   "to": "mod:backtest",
+   "kind": "depends-on",
+   "label": "invoca backtest --model --variant --area --from --to --corte --out por célula",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_relayout",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "prevcarga_members + model_spec$cut_invariant → (mdir, EXOGENA, _c<HHMM>)",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_relayout",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "gera run_manifest.json (prevcarga_run_manifest + prevcarga_data_hash; bundle_id=null pré-combina)",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_relayout",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "prevcarga_runtime_enforce() na 1ª linha",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_report",
+   "to": "mod:combination",
+   "kind": "depends-on",
+   "label": "Estágio D: prevcarga_combina_gate / produce_eqw / scorecard",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_report",
+   "to": "mod:evaluation",
+   "kind": "depends-on",
+   "label": "prevcarga_wmape fonte única; read_actual",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_report",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "carimba ab_report.json com runtime_id/bundle_id/data_hash",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_report",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "prevcarga_runtime_enforce() na 1ª linha",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_deck_shadow",
+   "to": "mod:honesty_gate",
+   "kind": "depends-on",
+   "label": "run_fn do gate; forbidden_from por cut_invariant",
+   "milestone": "M8"
+  },
+  {
+   "from": "tool:ab_deck_shadow",
+   "to": "mod:backtest",
+   "kind": "depends-on",
+   "label": "roda backtest em subprocesso com PREVCARGA_DATA próprio",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:cache",
+   "kind": "depends-on",
+   "label": "--pins resolve v_hash no store + sidecar prov.json class-aware (M8.6 Step 3c)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:exports",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "grava run_manifest.json separado do manifest.json (M8.3 Step 7b)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:training",
+   "to": "mod:dates",
+   "kind": "depends-on",
+   "label": "meta$train_origin = prevcarga_train_origin(as_of, m, spec) lateral (M8.3 Step 7a)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:registry",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "raiz via prevcarga_state_root() (D12)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:cache",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "raiz via prevcarga_state_root() (D12)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:orchestrate",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "ledger via prevcarga_state_root() (D12)",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "store de backtest via prevcarga_state_root(); deck via prevcarga_data_root()",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "painel results/ via prevcarga_state_root(); deck via prevcarga_data_root()",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:combination",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "artifact_dir do freeze via prevcarga_state_root()",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:reconcile",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "artifact_dir do perfil k̂ via prevcarga_state_root()",
+   "milestone": "M8"
+  },
+  {
+   "from": "mod:reporting",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "HTML/PDF do --report sob PREVCARGA_STATE/results/",
+   "milestone": "M8"
+  }
+ ]
+}

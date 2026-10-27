@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Gate de higiene do repo (shift-left) — barra bagunça antes do commit.
+# Ativar: git config core.hooksPath .githooks
+# Bypass consciente: git commit --no-verify
+set -uo pipefail
+
+all=$(git diff --cached --name-only)                     # todos os staged
+fail=0; warn=0
+
+# ── HARD (sempre): a main é ESPELHO do remoto, não superfície de trabalho ─────
+# Todo commit nasce em branch curta → PR → merge → reset da main local.
+cur=$(git symbolic-ref --short -q HEAD || true)
+case "$cur" in
+  main|master)
+    echo "❌ commit direto na '$cur' — ela é espelho do remoto (nunca commite aqui):"
+    echo "   crie uma branch: git switch -c <epico>/<tarefa>   (depois PR → merge → reset da main)"
+    fail=1 ;;
+esac
+
+# ── HARD (sempre): tiers efêmeros não entram (só o README) ───────────────────
+bad_sb=$(echo "$all" | grep -E '^sandbox/' | grep -v '^sandbox/README.md$' || true)
+bad_jn=$(echo "$all" | grep -E '^docs/journal/' | grep -v '^docs/journal/README.md$' || true)
+[ -n "$bad_sb" ] && { echo "❌ sandbox/ é efêmero — não commite:"; echo "$bad_sb" | sed 's/^/   /'; fail=1; }
+[ -n "$bad_jn" ] && { echo "❌ docs/journal/ é efêmero — rode /consolidate, não commite:"; echo "$bad_jn" | sed 's/^/   /'; fail=1; }
+
+# As heurísticas de "arquivo novo" só fazem sentido contra um histórico existente.
+# No commit inicial (sem HEAD) tudo é "added" → pulamos para não barrar a importação.
+if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  added=$(git diff --cached --name-only --diff-filter=A)
+
+  # HARD: resumo/snapshot NOVO como arquivo (o histórico é o git). _archive/ é grandfathered.
+  bad_hist=$(echo "$added" | grep -vE '^docs/_archive/' | grep -E 'RESUMO-SESSAO|_pre_[0-9]{8}|^backups/' || true)
+  [ -n "$bad_hist" ] && { echo "❌ resumo/snapshot como arquivo — use git (PR/commit/branch) ou docs/_archive/:"; echo "$bad_hist" | sed 's/^/   /'; fail=1; }
+
+  # WARN: script novo solto no root de scripts/ (confirmar o tier)
+  loose=$(echo "$added" | grep -E '^scripts/[^/]+\.(R|py|sh)$' || true)
+  [ -n "$loose" ] && { echo "⚠️  script novo em scripts/ root — confirme o tier (core? tools/? data-prep/?):"; echo "$loose" | sed 's/^/   /'; warn=1; }
+fi
+
+# WARN (sempre): mexeu em models/ mas não tocou o doc-verdade (write-through?)
+m=$(echo "$all" | grep -E '^models/[^_]' || true)
+e=$(echo "$all" | grep -E '^docs/ESTADO-ATUAL\.md$' || true)
+[ -n "$m" ] && [ -z "$e" ] && { echo "⚠️  models/ mudou sem tocar docs/ESTADO-ATUAL.md — write-through?"; warn=1; }
+
+if [ "$fail" = 1 ]; then echo; echo "Commit bloqueado (use 'git commit --no-verify' se for intencional)."; exit 1; fi
+[ "$warn" = 1 ] && echo "(avisos acima — commit segue)"
+exit 0

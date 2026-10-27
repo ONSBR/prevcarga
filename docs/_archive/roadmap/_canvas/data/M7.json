@@ -1,0 +1,363 @@
+{
+ "id": "M7",
+ "docPath": "docs/roadmap/M7-ORQUESTRACAO.md",
+ "title": "M7 — Orquestração + cache content-addressed + `backtest` unificado",
+ "intent": "M7 entrega o maior volume (o fan-out backtest de membros×áreas×origens) e o cache content-addressed — onde a honestidade é mais tentada a furar por custo, por isso vem por último, gateado por M2 (corte honesto) + honesty-gate (M3). Três peças sobre o caminho forecast/M6: orchestrate.R (matriz membro×folha×origem + ledger local), cache.R (fingerprint que INCLUI o corte) e o verbo backtest unificado (treino→infer-pra-trás→combina→reconcile→avaliação dia-a-dia).",
+ "status": "VERIFY-READY",
+ "files": [
+  {
+   "path": "scripts/lib/orchestrate.R",
+   "action": "CRIAR",
+   "note": "Matriz membro×folha×origem count-agnóstica; ledger LOCAL (presença de artefato content-addressed, nunca aws s3 ls); plan/--dry-run/--jobs/--resume/--keep-going; resumo duro + exit≠0 em entrega parcial. Substitui backtest.sh+submit*.sh (bash/AWS)."
+  },
+  {
+   "path": "scripts/lib/cache.R",
+   "action": "CRIAR",
+   "note": "Cache content-addressed chaveado pelo fingerprint de provenance.R/M1 que INCLUI o corte available_until (class-aware); lookup/store LOCAL; honra origem−1−horizonte. Fecha o version=timestamp+latest-sem-corte do oráculo."
+  },
+  {
+   "path": "scripts/lib/backtest.R",
+   "action": "CRIAR",
+   "note": "Motor do verbo backtest: porta o laço de walk_forward.R + composição combine-apply/reconcile/avaliação num ponto R único; G5 preservado (chama prevcarga_infer/M5, nunca re-implementa inferência). Compõe o caminho do forecast/M6 pra-trás, dia-a-dia."
+  },
+  {
+   "path": "scripts/lib/reporting.R",
+   "action": "ESTENDER",
+   "note": "M6: conteúdo de ACURÁCIA do backtest --report (WMAPE/horizonte/peak-fixo, port do report_A provido por evaluation.R, renderizado pelas primitivas do M6) + skill-score vs baseline. Só o CONTEÚDO; o cálculo é evaluation.R, nunca reporting.R."
+  },
+  {
+   "path": "scripts/lib/evaluation.R",
+   "action": "ESTENDER",
+   "note": "ESTENDER SÓ SE o dono optar por (a)/§Decisões D1: portar a régua-de-FORMA (regimes.py + regime×d_plus/rampa/timing/peak-regime). Default (b): NÃO editar no M7. Ato do dono."
+  },
+  {
+   "path": "scripts/prevcarga",
+   "action": "EDITAR",
+   "note": "Gramática docopt: verbo backtest (--from/--to|--last, --model/--area, --corte, --dplus, --baseline persistencia, --report, --report-format {html,pdf}, --resume) + verbo plan/--dry-run + --jobs/--keep-going. RE-ESCOPAR o gate forecast --corte-ausente do M6 ao bloco do verbo forecast (não à gramática inteira)."
+  },
+  {
+   "path": "models/random-forest/tests/run_all_gates.R",
+   "action": "ATIVAR",
+   "note": "Ativar os 2 gates de harness [M7] (gate08_ytrue_real, gate12_harness_long) que leem o HP + RE-APONTAR o produtor do HP (walk_forward.R→backtest.R/M7.3)."
+  },
+  {
+   "path": "models/holt-winters/tests/run_all_gates.R",
+   "action": "ATIVAR",
+   "note": "Ativar o gate de harness [M7] gate10_harness_parity (lê o HP) + RE-APONTAR produtor do HP p/ backtest.R + mapear o lado-unit (run_walk_unit.R → forecast/M6 single-origin COM refit, HW é retrain_harness, não infer-model/M5 congelado)."
+  },
+  {
+   "path": ".claude/workflows/implement-milestone.js",
+   "action": "EDITAR",
+   "note": "CHECKPOINTS['M7']/'M7-ORQUESTRACAO' → _M7_CP (deployByDefault:false; reprodução in-process ≤1e-5 + --resume no fullGates; abReference cross-machine ≤0,1 MW vazio = M8). A adicionar pré-implement."
+  }
+ ],
+ "functions": [
+  {
+   "name": "prevcarga_orchestrate",
+   "module": "orchestrate",
+   "signature": "prevcarga_orchestrate(spec, ...)",
+   "note": "Materializa a matriz membro×folha×origem (de prevcarga_topology()/prevcarga_members()), ledger LOCAL done|pending|failed por (membro,folha,origem), --jobs/--resume/--keep-going; default FAIL-FAST, --keep-going materializa parcial + exit≠0."
+  },
+  {
+   "name": "prevcarga_plan",
+   "module": "orchestrate",
+   "signature": "prevcarga_plan(...)",
+   "note": "plan/--dry-run: imprime a matriz + custo estimado ANTES de disparar; NÃO materializa artefato nem roda infer."
+  },
+  {
+   "name": "prevcarga_cache_key",
+   "module": "cache",
+   "signature": "prevcarga_cache_key(inputs)",
+   "note": "Fingerprint de identidade (ADR-0011) = hash({data_fingerprint, cutoff/available_until, feature_config, member_label=(mdir,exogena), model_versions, code_commit, renv_lock_hash, seed}); class-aware — corte na chave p/ data/feature-table + artefato cut-variante (protocol==retrain_harness E cut_invariant==false); platform/BLAS/TZ/LC/bundle_id/trained_at FORA do hash."
+  },
+  {
+   "name": "prevcarga_cache_get",
+   "module": "cache",
+   "note": "Lookup LOCAL (nunca S3); hit → reusa artefato content-addressed byte-idêntico via freeze/registry M5; verifica o corte (não auto-detecta)."
+  },
+  {
+   "name": "prevcarga_cache_put",
+   "module": "cache",
+   "note": "Miss → computa, congela saveRDS content-addressed v_<hash> (NÃO v_timestamp), armazena LOCAL."
+  },
+  {
+   "name": "prevcarga_backtest",
+   "module": "backtest",
+   "signature": "prevcarga_backtest(from, to|last, model, area, corte, dplus, baseline, ...)",
+   "note": "Por origem O pra-trás: treino-ou-infer (config-driven do protocol) → camada LONG (build_long_output/M6) → combina-full HONESTA por-mês (combina_full/M4, target<início(m), leak-fix #1, fita NÃO aplica congelado) → reconcile (k̂) → avaliação dia-a-dia (evaluation.R/M3). G5 preservado; retrain NÃO promove o latest de produção; --corte varre o intradiário; default só dados."
+  }
+ ],
+ "functionality": [
+  "Orquestrador R da matriz membro×folha×origem (8 membros via prevcarga_members(), não 5 modelos) com ledger LOCAL (nunca S3, ADR-0016), progresso 47/192 count-agnóstico, plan/--dry-run/--jobs/--resume/--keep-going, resumo duro + exit≠0 em entrega parcial (SIN nunca fabricado com cobertura incompleta).",
+  "Cache content-addressed cujo fingerprint INCLUI o corte available_until (class-aware): o invariante #1 — um cache-hit NUNCA serve resultado computado com dado mais fresco que origem−1−horizonte permitia (dois cortes intradiários → chaves DIFERENTES).",
+  "Verbo backtest unificado colapsa num ponto R único o que vive em 6+ peças de shell: treino→infer-pra-trás→combina-full honesta por-mês→reconcile→avaliação dia-a-dia sobre os 8 membros (G5 preservado: nunca infere, chama prevcarga_infer/M5).",
+  "Retrain por-origem do backtest escreve só no cache/M7.2 e NUNCA promove o latest do registry de produção (reasere o isolamento que o OUT_DIR-por-RUN do oráculo dava de graça).",
+  "backtest --report = ACURÁCIA (WMAPE por horizonte, peak-WMAPE-fixo-18-22h + viés-de-pico, skill) renderizada pelas primitivas do reporting.R/M6 em HTML+PDF, calculada pela fonte-única evaluation.R/M3.",
+  "Skill-score vs baseline (persistência O−1 + sazonal-ingênuo O−7) — a régua que o oráculo não tem — + pontuação fresca em nível-SIN (diferida do M3, SIN=Σsubsistemas count-agnóstico).",
+  "Ativa os 3 gates de harness diferidos que leem o HP (RF gate08_ytrue_real/gate12_harness_long, HW gate10_harness_parity) re-apontando o produtor do HP de walk_forward.R para backtest.R.",
+  "Substitui backtest.sh+submit*.sh (bash/AWS Batch) e o version=v_<Sys.time()>+latest-sem-corte do oráculo por R-only content-addressed; é a 1ª régua honesta de re-baselina do DESSEM."
+ ],
+ "verbs": [
+  {
+   "name": "backtest",
+   "note": "NOVO — 1º verbo R unificado da varredura: orquestra treino→infer-pra-trás→combina→reconcile→avaliação dia-a-dia; flags --from/--to|--last, --model/--area, --corte, --dplus, --baseline persistencia, --report, --report-format {html,pdf}, --resume. Não existe no oráculo (capacidade nova, não port)."
+  },
+  {
+   "name": "plan",
+   "note": "NOVO — plan/--dry-run: materializa a matriz membro×folha×origem + custo estimado ANTES de disparar; não computa nada. Não existe no oráculo."
+  }
+ ],
+ "nodes": [
+  {
+   "id": "mod:orchestrate",
+   "label": "orchestrate.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "Módulo 11: matriz membro×folha×origem (prevcarga_members(), 8 membros, count-agnóstica) + ledger LOCAL (nunca S3); plan/--dry-run/--jobs/--resume/--keep-going; entrega parcial → exit≠0. CRIAR.",
+   "milestone": "M7"
+  },
+  {
+   "id": "mod:cache",
+   "label": "cache.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "Módulo 14: cache content-addressed honrando o corte (fingerprint com available_until, class-aware); lookup/store LOCAL. CRIAR.",
+   "milestone": "M7"
+  },
+  {
+   "id": "mod:backtest",
+   "label": "backtest.R",
+   "kind": "module",
+   "parent": "",
+   "note": "Motor do verbo backtest unificado; compõe o caminho forecast/M6 pra-trás, dia-a-dia, sobre os membros; G5 preservado. CRIAR.",
+   "milestone": "M7"
+  },
+  {
+   "id": "fn:prevcarga_orchestrate",
+   "label": "prevcarga_orchestrate()",
+   "kind": "function",
+   "parent": "mod:orchestrate",
+   "note": "",
+   "milestone": "M7"
+  },
+  {
+   "id": "fn:prevcarga_plan",
+   "label": "prevcarga_plan()",
+   "kind": "function",
+   "parent": "mod:orchestrate",
+   "note": "",
+   "milestone": "M7"
+  },
+  {
+   "id": "fn:prevcarga_cache_key",
+   "label": "prevcarga_cache_key()",
+   "kind": "function",
+   "parent": "mod:cache",
+   "note": "",
+   "milestone": "M7"
+  },
+  {
+   "id": "fn:prevcarga_cache_get",
+   "label": "prevcarga_cache_get()",
+   "kind": "function",
+   "parent": "mod:cache",
+   "note": "",
+   "milestone": "M7"
+  },
+  {
+   "id": "fn:prevcarga_cache_put",
+   "label": "prevcarga_cache_put()",
+   "kind": "function",
+   "parent": "mod:cache",
+   "note": "",
+   "milestone": "M7"
+  },
+  {
+   "id": "fn:prevcarga_backtest",
+   "label": "prevcarga_backtest()",
+   "kind": "function",
+   "parent": "mod:backtest",
+   "note": "",
+   "milestone": "M7"
+  },
+  {
+   "id": "verb:backtest",
+   "label": "backtest",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M7"
+  },
+  {
+   "id": "verb:plan",
+   "label": "plan",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M7"
+  }
+ ],
+ "edges": [
+  {
+   "from": "verb:backtest",
+   "to": "mod:backtest",
+   "kind": "composes",
+   "label": "",
+   "milestone": "M7"
+  },
+  {
+   "from": "verb:backtest",
+   "to": "mod:orchestrate",
+   "kind": "composes",
+   "label": "orquestra por cima",
+   "milestone": "M7"
+  },
+  {
+   "from": "verb:backtest",
+   "to": "mod:cache",
+   "kind": "composes",
+   "label": "--resume reusa cache",
+   "milestone": "M7"
+  },
+  {
+   "from": "verb:backtest",
+   "to": "mod:reporting",
+   "kind": "composes",
+   "label": "--report (acurácia)",
+   "milestone": "M7"
+  },
+  {
+   "from": "verb:plan",
+   "to": "mod:orchestrate",
+   "kind": "composes",
+   "label": "",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:orchestrate",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "presença content-addressed",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:orchestrate",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "matriz count-agnóstica",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:orchestrate",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "runtime-guard por-worker",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:orchestrate",
+   "to": "mod:cache",
+   "kind": "depends-on",
+   "label": "ledger consulta cache",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:cache",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "fingerprint (espinha)",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:cache",
+   "to": "mod:dates",
+   "kind": "depends-on",
+   "label": "corte honesto origem−1−horizonte",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:cache",
+   "to": "mod:registry",
+   "kind": "depends-on",
+   "label": "freeze content-addressed",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:cache",
+   "to": "mod:features",
+   "kind": "depends-on",
+   "label": "reusa feature-table",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:orchestrate",
+   "kind": "depends-on",
+   "label": "ledger",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:cache",
+   "kind": "depends-on",
+   "label": "--resume cache honesto",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:forecast",
+   "kind": "depends-on",
+   "label": "caminho pra-trás",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:build_long_output",
+   "kind": "depends-on",
+   "label": "painel LONG",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:combination",
+   "kind": "depends-on",
+   "label": "combina-full honesta / leak-fix #1",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:reconcile",
+   "kind": "depends-on",
+   "label": "k̂/SIN",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:evaluation",
+   "kind": "depends-on",
+   "label": "WMAPE fonte-única",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:inference",
+   "kind": "depends-on",
+   "label": "G5 infer model-native",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:dates",
+   "kind": "depends-on",
+   "label": "corte por-origem",
+   "milestone": "M7"
+  },
+  {
+   "from": "mod:backtest",
+   "to": "mod:registry",
+   "kind": "depends-on",
+   "label": "resolve read-only (não promove)",
+   "milestone": "M7"
+  }
+ ]
+}

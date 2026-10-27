@@ -1,0 +1,447 @@
+{
+ "id": "M1",
+ "docPath": "docs/roadmap/M1-FUNDACAO.md",
+ "title": "M1 — Fundação: fachada + runtime-guard + topologia + proveniência",
+ "intent": "A fundação do clean-room: casca (fachada Rscript+docopt escrita uma vez) + 3 contratos (runtime-guard in-process, topologia config-driven, proveniência content-addressed) + 5 comandos de introspecção. Assere determinismo ANTES de qualquer número e dá a combina (M4)/training (M5) um local durável, sem migrar nada numérico.",
+ "status": "VERIFY-READY (ready:true, 0 blockers, 6/6 reviewers unânime; pronto pra implement)",
+ "files": [
+  {
+   "path": "scripts/lib/runtime.R",
+   "action": "ATIVAR",
+   "note": "stub :15-20 → implementa prevcarga_runtime_enforce()/prevcarga_runtime_check() (M1.1)"
+  },
+  {
+   "path": "scripts/lib/topology.R",
+   "action": "ATIVAR",
+   "note": "stub :14-25 → carrega+valida topology.yaml; topology()/members()/model_spec() (M1.2)"
+  },
+  {
+   "path": "config/topology.yaml",
+   "action": "CRIAR",
+   "note": "novo: fonte única declarativa subsistemas/áreas/perdas + 8 membros, extensível (M1.2)"
+  },
+  {
+   "path": "models/<m>/run.yaml",
+   "action": "CRIAR",
+   "note": "novo ×5 (hw/rf/lgbm/dessem-linear/dessem-regdin): contrato de config por-modelo enxuto, ADR-0021 (M1.2)"
+  },
+  {
+   "path": "scripts/lib/provenance.R",
+   "action": "ATIVAR",
+   "note": "stub :19-32 → version_hash/run_manifest/freeze/thaw (M1.3)"
+  },
+  {
+   "path": "scripts/prevcarga",
+   "action": "ATIVAR",
+   "note": "stub main() :36-38 → dispatcher docopt + runtime-first + exit-codes + 5 cmd_* de introspecção (M1.4/M1.5)"
+  },
+  {
+   "path": "scripts/lib/registry.R",
+   "action": "CRIAR",
+   "note": "novo: fronteira de contrato de tiers ADR-0010 (ciclo-de-vida fica M5) (M1.6)"
+  },
+  {
+   "path": "scripts/lib/tests/",
+   "action": "CRIAR",
+   "note": "suíte testthat nova do M1: 3+ gates falsificáveis (todos os tickets)"
+  },
+  {
+   "path": "scripts/lib/README.md",
+   "action": "EDITAR",
+   "note": "não muda materialmente: mapa módulo→milestone já descrito; stubs viram funções (cross)"
+  },
+  {
+   "path": "docs/ESTADO-ATUAL.md",
+   "action": "EDITAR",
+   "note": "write-through: M1 implementado, comandos vivos (DoD cross-cutting)"
+  },
+  {
+   "path": ".claude/workflows/implement-milestone.js",
+   "action": "EDITAR",
+   "note": "feito pré-implement: CHECKPOINTS['M1']/'M1-FUNDACAO' → _M1_CP (deployByDefault:false)"
+  }
+ ],
+ "functions": [
+  {
+   "name": "prevcarga_runtime_enforce",
+   "module": "runtime",
+   "signature": "prevcarga_runtime_enforce(strict = TRUE)",
+   "note": "capta ENV cru PRIMEIRO; aborta se sujo (TZ≠UTC / pin>1), só então seta TZ=UTC/LC/4 pins + blas_set_num_threads(1); exit 7"
+  },
+  {
+   "name": "prevcarga_runtime_check",
+   "module": "runtime",
+   "signature": "prevcarga_runtime_check()",
+   "note": "variante não-fatal → list(ok,offenders,observed); consumida pelo doctor sem crashar"
+  },
+  {
+   "name": "prevcarga_topology",
+   "module": "topology",
+   "signature": "prevcarga_topology(path = config/topology.yaml)",
+   "note": "lê+valida YAML → $subsystems/$leaves(união derivada)/$order/SIN=Σsubsistemas; fail-high [prevcarga/contract] exit 2"
+  },
+  {
+   "name": "prevcarga_members",
+   "module": "topology",
+   "signature": "prevcarga_members()",
+   "note": "lê chave members: → 8 membros (sigla,mdir,EXOGENA) declarativos, ADR-0013"
+  },
+  {
+   "name": "prevcarga_model_spec",
+   "module": "topology",
+   "signature": "prevcarga_model_spec(model, root = models/)",
+   "note": "lê horizon_days/history_days/protocol de models/<m>/run.yaml; stop [prevcarga/contract] exit 2 se faltar"
+  },
+  {
+   "name": "prevcarga_version_hash",
+   "module": "provenance",
+   "signature": "prevcarga_version_hash(fingerprint)",
+   "note": "v_+digest de lista ordenada {model_id,data_fingerprint,cutoff,feature_config,code_commit,renv_lock_hash}; canônico recursivo; trained_at/package_version FORA"
+  },
+  {
+   "name": "prevcarga_run_manifest",
+   "module": "provenance",
+   "signature": "prevcarga_run_manifest(...)",
+   "note": "12 campos de proveniência (carrega as_of, NÃO cutoff run-level) + laterais; member_set_hash=digest(members); bundle_id=hash"
+  },
+  {
+   "name": "prevcarga_freeze",
+   "module": "provenance",
+   "signature": "prevcarga_freeze(obj, path)",
+   "note": "saveRDS binário IEEE-754 + .manifest.json (sha256 + nrows/length)"
+  },
+  {
+   "name": "prevcarga_thaw",
+   "module": "provenance",
+   "signature": "prevcarga_thaw(path)",
+   "note": "readRDS + valida sha256 do .manifest antes de devolver (fail-high se mudou)"
+  },
+  {
+   "name": "prevcarga_register",
+   "module": "registry",
+   "signature": "prevcarga_register(spec)",
+   "note": "registra declarando requires/provides; verifica wire-time, fail-loud stop [prevcarga/contract] registry: (exit 2)"
+  },
+  {
+   "name": "prevcarga_registry",
+   "module": "registry",
+   "signature": "prevcarga_registry()",
+   "note": "fronteira de contrato Tier A (R6 contract-verified RF/LGBM/HW/DESSEM); Tier B reservado; sem ls/promote/gc (M5)"
+  },
+  {
+   "name": "cmd_doctor",
+   "module": "prevcarga",
+   "signature": "cmd_doctor(args)",
+   "note": "M1.5 — chama prevcarga_runtime_check() (reporta sem crashar) e lista cada checagem"
+  },
+  {
+   "name": "cmd_models",
+   "module": "prevcarga",
+   "signature": "cmd_models(args)",
+   "note": "M1.5 — prevcarga_members() + prevcarga_model_spec() por modelo → tabela"
+  },
+  {
+   "name": "cmd_areas",
+   "module": "prevcarga",
+   "signature": "cmd_areas(args)",
+   "note": "M1.5 — prevcarga_topology() → árvore folha→subsistema→SIN com as perdas"
+  },
+  {
+   "name": "cmd_describe",
+   "module": "prevcarga",
+   "signature": "cmd_describe(args)",
+   "note": "M1.5 — resolve os cortes de uma --as-of na medida do M1 (dates.R é M2: placeholder re-ligado no M2.3)"
+  },
+  {
+   "name": "cmd_status",
+   "module": "prevcarga",
+   "signature": "cmd_status(args)",
+   "note": "M1.5 — deck mais recente usável (manifest.json), idade/versão do bundle, resumo do doctor"
+  }
+ ],
+ "functionality": [
+  "Guarda de determinismo in-process: seta+assere TZ/LC/C.UTF-8 + 4 thread-pins (OMP/OPENBLAS/MKL/VECLIB) antes de qualquer número, com braço CONTROL por pin (exit 7 runtime)",
+  "Topologia como config declarativo único (config/topology.yaml): carrega+valida árvore folha→subsistema(+perda)→SIN e 8 membros; extensível editando YAML, sem contagem travada",
+  "Contrato de config por-modelo: 5× models/<m>/run.yaml enxutos (ADR-0021, só horizon/history/protocol/seed/cut_invariant/params; zero cruft de orquestração Batch)",
+  "Proveniência content-addressed: version_hash determinístico e order-insensitive (até chaves aninhadas), run-manifest de 12 campos com bundle_id=hash, freeze/thaw saveRDS com round-trip Δ=0",
+  "Fachada Rscript+docopt fina: usage enumera TODOS os verbos, runtime-first antes do corpo de todo comando guardado (doctor/status/-h isentos), despacho fino sem lógica de modelo",
+  "Taxonomia de exit-code por classe (ADR-0020): 0/2/3/4/5/6/7, com runtime=7, mapeada por prefixo único de erro; --format text|json global",
+  "5 comandos de introspecção novos (status/doctor/models/areas/describe) compondo os 3 módulos, sem valores/contagens locais; doctor porta o gate de runtime reportando sem abortar",
+  "registry.R: fronteira de contrato de tiers A/B (ADR-0010) com verificação fail-loud em wire-time; ciclo-de-vida (ls/promote/rollback/pin/gc) fica para o M5"
+ ],
+ "verbs": [
+  {
+   "name": "status",
+   "note": "novo: deck mais recente usável + idade do bundle + resumo do doctor; isento do enforce (best-effort, pode reportar sem deck)"
+  },
+  {
+   "name": "doctor",
+   "note": "novo: prevcarga_runtime_check() → PASS/WARN/FAIL por linha (TZ/LC/4 pins/pool BLAS/R-renv/arrow); isento do enforce; exit 7 se FAIL duro; porta o gate M1.1"
+  },
+  {
+   "name": "models",
+   "note": "novo: tabela sigla·mdir·exogena·horizon·history lida só de topology.R/run.yaml (zero literal)"
+  },
+  {
+   "name": "areas",
+   "note": "novo: árvore folha→subsistema→SIN com perdas, na ordem $order, do config carregado (só --format)"
+  },
+  {
+   "name": "describe",
+   "note": "novo: topologia + model_spec + corte lido do manifest; declara 'corte-de-treino derivado no M2', não inventa data"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "mod:runtime",
+   "label": "runtime.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "guarda de determinismo in-process (seta+assere TZ/LC/4 pins); roda PRIMEIRO em todo comando guardado",
+   "milestone": "M1"
+  },
+  {
+   "id": "mod:topology",
+   "label": "topology.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "fonte única: carrega+valida config/topology.yaml; horizonte/janela lê models/<m>/run.yaml (ADR-0021/0001)",
+   "milestone": "M1"
+  },
+  {
+   "id": "mod:provenance",
+   "label": "provenance.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "version content-addressed + run-manifest + freeze/thaw saveRDS (contrato para M4/M5)",
+   "milestone": "M1"
+  },
+  {
+   "id": "mod:registry",
+   "label": "registry.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "fronteira de contrato de tiers (ADR-0010, fail-loud wire-time); ciclo-de-vida no M5",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_runtime_enforce",
+   "label": "prevcarga_runtime_enforce()",
+   "kind": "function",
+   "parent": "mod:runtime",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_runtime_check",
+   "label": "prevcarga_runtime_check()",
+   "kind": "function",
+   "parent": "mod:runtime",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_topology",
+   "label": "prevcarga_topology()",
+   "kind": "function",
+   "parent": "mod:topology",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_members",
+   "label": "prevcarga_members()",
+   "kind": "function",
+   "parent": "mod:topology",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_model_spec",
+   "label": "prevcarga_model_spec()",
+   "kind": "function",
+   "parent": "mod:topology",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_version_hash",
+   "label": "prevcarga_version_hash()",
+   "kind": "function",
+   "parent": "mod:provenance",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_run_manifest",
+   "label": "prevcarga_run_manifest()",
+   "kind": "function",
+   "parent": "mod:provenance",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_freeze",
+   "label": "prevcarga_freeze()",
+   "kind": "function",
+   "parent": "mod:provenance",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_thaw",
+   "label": "prevcarga_thaw()",
+   "kind": "function",
+   "parent": "mod:provenance",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_register",
+   "label": "prevcarga_register()",
+   "kind": "function",
+   "parent": "mod:registry",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:prevcarga_registry",
+   "label": "prevcarga_registry()",
+   "kind": "function",
+   "parent": "mod:registry",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "verb:status",
+   "label": "status",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "verb:doctor",
+   "label": "doctor",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "verb:models",
+   "label": "models",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "verb:areas",
+   "label": "areas",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "verb:describe",
+   "label": "describe",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:cmd_doctor",
+   "label": "cmd_doctor()",
+   "kind": "function",
+   "parent": "verb:doctor",
+   "note": "M1.5 — chama prevcarga_runtime_check() (reporta sem crashar) e lista cada checagem",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:cmd_models",
+   "label": "cmd_models()",
+   "kind": "function",
+   "parent": "verb:models",
+   "note": "M1.5 — prevcarga_members() + prevcarga_model_spec() por modelo → tabela",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:cmd_areas",
+   "label": "cmd_areas()",
+   "kind": "function",
+   "parent": "verb:areas",
+   "note": "M1.5 — prevcarga_topology() → árvore folha→subsistema→SIN com as perdas",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:cmd_describe",
+   "label": "cmd_describe()",
+   "kind": "function",
+   "parent": "verb:describe",
+   "note": "M1.5 — resolve os cortes de uma --as-of na medida do M1 (dates.R é M2: placeholder re-ligado no M2.3)",
+   "milestone": "M1"
+  },
+  {
+   "id": "fn:cmd_status",
+   "label": "cmd_status()",
+   "kind": "function",
+   "parent": "verb:status",
+   "note": "M1.5 — deck mais recente usável (manifest.json), idade/versão do bundle, resumo do doctor",
+   "milestone": "M1"
+  }
+ ],
+ "edges": [
+  {
+   "from": "verb:doctor",
+   "to": "mod:runtime",
+   "kind": "composes",
+   "label": "runtime_check (gate)",
+   "milestone": "M1"
+  },
+  {
+   "from": "verb:status",
+   "to": "mod:runtime",
+   "kind": "composes",
+   "label": "resumo doctor",
+   "milestone": "M1"
+  },
+  {
+   "from": "verb:models",
+   "to": "mod:topology",
+   "kind": "composes",
+   "label": "members+model_spec",
+   "milestone": "M1"
+  },
+  {
+   "from": "verb:areas",
+   "to": "mod:topology",
+   "kind": "composes",
+   "label": "árvore topologia",
+   "milestone": "M1"
+  },
+  {
+   "from": "verb:describe",
+   "to": "mod:topology",
+   "kind": "composes",
+   "label": "topologia+spec",
+   "milestone": "M1"
+  },
+  {
+   "from": "mod:provenance",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "member_set_hash",
+   "milestone": "M1"
+  },
+  {
+   "from": "mod:registry",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "identidade de membro",
+   "milestone": "M1"
+  }
+ ]
+}

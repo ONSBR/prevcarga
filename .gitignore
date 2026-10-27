@@ -1,0 +1,62 @@
+# =============================================================================
+# .gitignore — o repositório versiona SÓ o código (~13 MB).
+# Dados, artefatos treinados e saídas vivem em object storage (S3), não aqui.
+# Ver docs/ESTADO-ATUAL.md §8 para como hidratar uma máquina nova.
+# =============================================================================
+
+# --- Insumos canônicos de dados -------------------------------------------
+# `data/` é um symlink para o workspace / é sincronizado do S3 (aws s3 sync).
+# O link é específico da máquina — nunca versionar.
+/data
+
+# --- Saídas de execução (efêmeras) -----------------------------------------
+/output/
+
+# --- Artefatos de modelo treinados (regerados por job ou puxados do S3) ----
+models/*/models/
+models/_experimental/*/models/
+
+# --- Arquivo frio (não pertence ao repo) -----------------------------------
+/backups/
+
+# --- Rascunhos locais ------------------------------------------------------
+/scratchpad/
+/tmp/
+
+# --- Tiers efêmeros: conteúdo nunca versionado, só o README explicativo -----
+/sandbox/*
+!/sandbox/README.md
+/docs/journal/*
+!/docs/journal/README.md
+
+# --- Nota técnica do modelo (autoral, mora fora do repo) --------------------
+/docs/nt-modelo/
+
+# --- Caches / temporários --------------------------------------------------
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# --- Artefatos R -----------------------------------------------------------
+.Rhistory
+.RData
+.Rproj.user/
+renv/library/
+renv/staging/
+
+# --- Logs ------------------------------------------------------------------
+*.log
+
+# --- Editor / SO -----------------------------------------------------------
+.DS_Store
+*.swp
+*~
+
+# --- Slides/rascunhos locais em docs/slides/ (não versionados) --------------
+# Decks e briefs de trabalho que ficam parados na árvore; o material oficial
+# de docs/slides/ já rastreado continua versionado (ignore é por-caminho).
+/docs/slides/BRIEF-slide-refatoracao-metricas.md
+/docs/slides/PrevCarga-DESSEM_Executivo.pptx
+.specforge/
+.specforge-canary/
+.mcp.json

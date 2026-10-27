@@ -1,0 +1,389 @@
+{
+ "id": "M6",
+ "docPath": "docs/roadmap/M6-FORECAST.md",
+ "title": "M6 — Forecast/Export/Reporting full-R + build_long_output + standalones de composição",
+ "intent": "Completa o caminho diário em R por ACREÇÃO: nomeia o montador do painel LONG 8-col, torna a reconciliação um módulo com topologia fonte-única, cria o relatório humano HTML+PDF, e colapsa a sequência diária (infer→painel→combine-apply→reconcile→export, default só dados) no verbo forecast + standalones isoláveis. O Python do oráculo deixa de existir no caminho _deliver.",
+ "status": "VERIFY-READY (M6): ready:true, 6/6 reviewers unânime, 0 blockers, convergido em 5 rounds (R1-R5, 2026-10-15). Pronto pra implement (CHECKPOINTS['M6'] a wirar). Decisões do Gabriel pendentes antes do implement (freshness-clima instante-vs-midnight é a decisão-chave, bloqueia só o alvo clima-previsto 2b). Pré-reqs M1-M5 ausentes/stub (dívida a resgatar, não escopo do M6).",
+ "files": [
+  {
+   "path": "scripts/lib/build_long_output.R",
+   "action": "CRIAR",
+   "note": "Montador único do painel LONG 8-col model-native de folha: junção honesta de y_true por instante-30min naive-BRT (anti-day-shift/anti-leak), load_mwh fail-high, re-ancoragem em O com trava |Δ|≤0.5s, ramo origin_cut, validador anti-off-by-one. ADR-0002. Writer fino da reconcilia é isento."
+  },
+  {
+   "path": "scripts/lib/forecast.R",
+   "action": "CRIAR",
+   "note": "Orquestrador do verbo forecast + camada LONG do M6 (chama prevcarga_build_long por-membro na saída model-native do infer, first_forecast_day/origin_cut lido do spec). Produtor do recorte-por-origem (materializa dirs datados, substitui run_reduce.sh:256-277). Reach-control unificado lendo prevcarga_topology(). NÃO edita o infer/M5.3."
+  },
+  {
+   "path": "scripts/lib/exports.R",
+   "action": "CRIAR",
+   "note": "Módulo 7: extrai o _deliver em R-base/arrow, zero Python. Layout plano por nível + manifest.json {path,nivel,area,linhas,sha256} por byte-copy (nunca re-serializa). Níveis-teto sobre agregados. Nunca fala S3 (ADR-0016)."
+  },
+  {
+   "path": "scripts/lib/reconcile.R",
+   "action": "CRIAR",
+   "note": "Módulo 6: porta reconcilia_baseline.R com topologia de topology.R (não hardcoded, ADR-0001). k̂ honesto calculado janela <O (não constante, não clamp). SIN=Σsubsistemas count-agnóstico. Writer 8-col fino próprio (forecast_origin character). Perfil content-addressed/promote atômico sobre registry.R/M5.4. WINDOW_DAYS vira parâmetro explícito."
+  },
+  {
+   "path": "scripts/lib/reporting.R",
+   "action": "CRIAR",
+   "note": "Módulo 10: motor R humano HTML+PDF (primitivas de render HTML/SVG por string, sem Plotly; proveniência/corte em destaque) + forecast --report DIAGNÓSTICO (curva/corte/pesos/vs-persistência, NUNCA acurácia). Conteúdo de acurácia do report_A→M7."
+  },
+  {
+   "path": "scripts/prevcarga",
+   "action": "EDITAR",
+   "note": "Gramática docopt: verbo forecast + alias prever→forecast (depreciação) + standalones export/reconcile/features (combine já é do M4)."
+  },
+  {
+   "path": "scripts/lib/honesty_gate.R",
+   "action": "ESTENDER",
+   "note": "Reach-control generalizado p/ módulos-sem-y_true (perturba ENTRADA, exige Δ≠0 na SAÍDA, molde MORNING). 2 alvos: (2a) k̂/reconcile roda no M6 (ratificação-independente); (2b) clima-previsto pós-ratificação. export/combina-apply NÃO entram (erro-de-categoria)."
+  },
+  {
+   "path": "models/<m>/tests/run_all_gates.R",
+   "action": "ATIVAR",
+   "note": "Ativa os sub-gates [M6] diferidos do M5 (schema_long/ytrue_real/no_dayshift/nowcast-origin_cut) nos 5 plugins; padroniza o critério ytrue_real forte. Exclui harness_*+RF gate08 (M7) e LGBM in-process (era M5)."
+  },
+  {
+   "path": ".claude/workflows/implement-milestone.js",
+   "action": "EDITAR",
+   "note": "CHECKPOINTS['M6']/'M6-FORECAST' → _M6_CP (deployByDefault:false; reprodução in-process no fullGates, abReference cross-machine vazio=M8). A adicionar pré-implement."
+  }
+ ],
+ "functions": [
+  {
+   "name": "prevcarga_build_long",
+   "module": "build_long_output",
+   "signature": "prevcarga_build_long(y_pred, forecast_origin, area, data_dir, granularity_min=30L, first_forecast_day=NULL, origin_cut=NULL)",
+   "note": "Dono único do painel: normaliza y_pred (reshape byrow=TRUE d_plus-major), re-ancora em O, junta y_true honesto por ts_r30 (merge all.x, NA onde falta), valida anti-off-by-one, select final das 8 colunas na ordem exata. first_forecast_day passado pelo caller (config-driven)."
+  },
+  {
+   "name": "prevcarga_export",
+   "module": "exports",
+   "signature": "prevcarga_export(painel, saida, origem, cut, out_ss, leaves, stray, niveis, incluir_membros)",
+   "note": "Achata a árvore num layout plano por cópia-de-bytes (file.copy/writeBin, jamais arrow::write_parquet de df relido); manifest 5-campos via provenance.R; --niveis teto só sobre agregados; nada a entregar→stop."
+  },
+  {
+   "name": "prevcarga_reconcile",
+   "module": "reconcile",
+   "signature": "prevcarga_reconcile(ss, prof_frozen=NULL, need_truth=FALSE, window_days=…)",
+   "note": "Porta reconcile_one; need_truth=FALSE = produção sem y_true. Topologia de prevcarga_topology(); k=mean(ratio) na janela (O−window,O−1] (data<O); BU_pred*k; SIN=Σsubsistemas count-agnóstico; registry latest-auto/promote atômico."
+  },
+  {
+   "name": "prevcarga_forecast",
+   "module": "forecast",
+   "signature": "prevcarga_forecast(spec, as_of, niveis, …)",
+   "note": "Orquestra infer(model-native/M5 congelado)→camada LONG→combine-apply(pesos congelados)→reconcile(k̂ congelado)→recorte-por-origem(materializa dirs datados)→export. Apply-nunca-fit. validate-deck gate-0 encadeado; corte do manifesto (não flag). Reach-control unificado de prevcarga_topology()."
+  },
+  {
+   "name": "prevcarga_report",
+   "module": "reporting",
+   "signature": "prevcarga_report(long, weights, cut, provenance, format=c('html','pdf'))",
+   "note": "Motor R HTML+PDF, proveniência/corte em destaque. forecast --report diagnóstico (curva/corte/pesos-da-combina/vs-persistência), SEM y_true. Cadeia R→PDF é decisão do dono (ADR-0017)."
+  }
+ ],
+ "functionality": [
+  "Painel LONG 8-col ganha um montador nomeado (build_long_output.R): junção honesta de y_true por instante-30min naive-BRT anti-day-shift/anti-leak, load_mwh fail-high, re-ancoragem em O com trava |Δ|≤0.5s, ramo origin_cut, validador embutido",
+  "export R-only (byte-copy, nunca re-serializa) + manifest {path,nivel,area,linhas,sha256} com gerado_em como único não-determinismo; --niveis teto sobre agregados, folha-solta sempre; nunca fala S3",
+  "reconcile como módulo: topologia fonte-única (não hardcoded), k̂ honesto calculado janela <O (não clamp), SIN=Σsubsistemas count-agnóstico, promote atômico content-addressed, WINDOW_DAYS parâmetro explícito",
+  "verbo forecast orquestra o caminho diário em R (infer→painel→combine-apply→reconcile→export, apply-nunca-fit, default só dados), colapsa o reach-control partido em 3 num mecanismo só lendo prevcarga_topology()",
+  "reporting HTML+PDF humano nasce; forecast --report é diagnóstico (curva/corte/pesos/vs-persistência), NUNCA acurácia (não há y_true no futuro); distinto de score/backtest --report",
+  "standalones export/reconcile/features deixam cada módulo isolável; alias prever→forecast depreciado; ancoragem por-modelo config-driven (lgbm d_plus=0 / RF-HW d_plus≥1)",
+  "ativa os sub-gates [M6] diferidos do M5 (schema_long/ytrue_real-forte/no_dayshift/nowcast-origin_cut) nos 5 run_all_gates.R; padroniza ytrue_real no critério forte",
+  "reach-control generalizado p/ módulos-sem-y_true (perturba entrada, exige Δ≠0 na saída, molde MORNING): (2a) k̂/reconcile roda no M6; (2b) clima-previsto diferido pós-ratificação freshness-clima"
+ ],
+ "verbs": [
+  {
+   "name": "forecast",
+   "note": "NOVO. Ponto R único: orquestra infer→painel(camada LONG)→combine-apply→reconcile→export; default só dados (--niveis subsistemas); flags --niveis{sin,subsistemas,tudo}/--report/--report-format{html,pdf}/--skip-validate/--incluir-membros"
+  },
+  {
+   "name": "prever",
+   "note": "EDITA. Vira alias→forecast com aviso de depreciação em stderr (ACREÇÃO, Python oráculo é só baseline do A/B)"
+  },
+  {
+   "name": "export",
+   "note": "NOVO standalone. Extrai o _deliver: byte-copy + manifest, invocável fora do forecast"
+  },
+  {
+   "name": "reconcile",
+   "note": "NOVO standalone. k̂ honesto, topologia fonte-única, SIN=Σsubsistemas; --mode train/apply, --eval"
+  },
+  {
+   "name": "features",
+   "note": "NOVO standalone (wiring 100% novo, sem precedente no oráculo). Materializa feature_table via a FE-fachada do M5 (passthrough fino, não recomputa FE)"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "mod:build_long_output",
+   "label": "build_long_output.R",
+   "kind": "module",
+   "parent": "",
+   "note": "Espinha dorsal: montador do painel LONG 8-col model-native de folha (ADR-0002)",
+   "milestone": "M6"
+  },
+  {
+   "id": "mod:forecast",
+   "label": "forecast.R",
+   "kind": "module",
+   "parent": "",
+   "note": "Orquestrador do verbo forecast + camada LONG + produtor do recorte-por-origem + reach-control unificado",
+   "milestone": "M6"
+  },
+  {
+   "id": "mod:exports",
+   "label": "exports.R",
+   "kind": "module",
+   "parent": "",
+   "note": "Módulo 7: byte-copy + manifest, R-only, nunca fala S3 (ADR-0016)",
+   "milestone": "M6"
+  },
+  {
+   "id": "mod:reconcile",
+   "label": "reconcile.R",
+   "kind": "module",
+   "parent": "",
+   "note": "Módulo 6: porta reconcilia_baseline.R com topologia fonte-única + k̂ honesto",
+   "milestone": "M6"
+  },
+  {
+   "id": "mod:reporting",
+   "label": "reporting.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "Módulo 10: motor humano HTML+PDF + forecast --report diagnóstico",
+   "milestone": "M6"
+  },
+  {
+   "id": "fn:prevcarga_build_long",
+   "label": "prevcarga_build_long()",
+   "kind": "function",
+   "parent": "mod:build_long_output",
+   "note": "",
+   "milestone": "M6"
+  },
+  {
+   "id": "fn:prevcarga_export",
+   "label": "prevcarga_export()",
+   "kind": "function",
+   "parent": "mod:exports",
+   "note": "",
+   "milestone": "M6"
+  },
+  {
+   "id": "fn:prevcarga_reconcile",
+   "label": "prevcarga_reconcile()",
+   "kind": "function",
+   "parent": "mod:reconcile",
+   "note": "",
+   "milestone": "M6"
+  },
+  {
+   "id": "fn:prevcarga_forecast",
+   "label": "prevcarga_forecast()",
+   "kind": "function",
+   "parent": "mod:forecast",
+   "note": "",
+   "milestone": "M6"
+  },
+  {
+   "id": "fn:prevcarga_report",
+   "label": "prevcarga_report()",
+   "kind": "function",
+   "parent": "mod:reporting",
+   "note": "",
+   "milestone": "M6"
+  },
+  {
+   "id": "verb:forecast",
+   "label": "forecast",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M6"
+  },
+  {
+   "id": "verb:prever",
+   "label": "prever",
+   "kind": "verb",
+   "parent": "",
+   "note": "alias→forecast (depreciação)",
+   "milestone": "M6"
+  },
+  {
+   "id": "verb:export",
+   "label": "export",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M6"
+  },
+  {
+   "id": "verb:reconcile",
+   "label": "reconcile",
+   "kind": "verb",
+   "parent": "",
+   "note": "",
+   "milestone": "M6"
+  },
+  {
+   "id": "verb:features",
+   "label": "features",
+   "kind": "verb",
+   "parent": "",
+   "note": "expõe a FE-fachada do M5",
+   "milestone": "M6"
+  }
+ ],
+ "edges": [
+  {
+   "from": "verb:forecast",
+   "to": "mod:forecast",
+   "kind": "composes",
+   "label": "",
+   "milestone": "M6"
+  },
+  {
+   "from": "verb:prever",
+   "to": "mod:forecast",
+   "kind": "composes",
+   "label": "alias",
+   "milestone": "M6"
+  },
+  {
+   "from": "verb:export",
+   "to": "mod:exports",
+   "kind": "composes",
+   "label": "",
+   "milestone": "M6"
+  },
+  {
+   "from": "verb:reconcile",
+   "to": "mod:reconcile",
+   "kind": "composes",
+   "label": "",
+   "milestone": "M6"
+  },
+  {
+   "from": "verb:features",
+   "to": "mod:features",
+   "kind": "composes",
+   "label": "fachada M5",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:inference",
+   "kind": "depends-on",
+   "label": "infer model-native",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:build_long_output",
+   "kind": "depends-on",
+   "label": "camada LONG",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:combination",
+   "kind": "depends-on",
+   "label": "combine-apply",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:reconcile",
+   "kind": "depends-on",
+   "label": "reconcile",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:exports",
+   "kind": "depends-on",
+   "label": "export",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "reach-control fonte-única",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:dates",
+   "kind": "depends-on",
+   "label": "corte honesto",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:forecast",
+   "to": "mod:validation",
+   "kind": "depends-on",
+   "label": "validate-deck gate-0",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:exports",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "manifest/sha256",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:exports",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "--area resolver",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:reconcile",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "topologia fonte-única",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:reconcile",
+   "to": "mod:registry",
+   "kind": "depends-on",
+   "label": "promote perfil k̂",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:reconcile",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "content-addressed",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:reconcile",
+   "to": "mod:evaluation",
+   "kind": "depends-on",
+   "label": "WMAPE --eval",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:reporting",
+   "to": "mod:evaluation",
+   "kind": "depends-on",
+   "label": "WMAPE fonte-única",
+   "milestone": "M6"
+  },
+  {
+   "from": "mod:honesty_gate",
+   "to": "mod:reconcile",
+   "kind": "depends-on",
+   "label": "reach-control k̂ (2a)",
+   "milestone": "M6"
+  }
+ ]
+}

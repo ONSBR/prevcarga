@@ -1,0 +1,350 @@
+{
+ "id": "M3",
+ "docPath": "docs/roadmap/M3-AVALIACAO.md",
+ "title": "M3 — Avaliação fonte-única + honesty-gate + `score` + `check-coherence`",
+ "intent": "A honestidade que o isolamento-de-processo (G5) garantia some quando a combina (M4) colapsa in-process; ela precisa virar invariante de módulo provado por gate falsificável ANTES da combina migrar. Em paralelo o WMAPE vive em ~11 lugares divergentes: o M3 colapsa isso em evaluation.R (fonte única) + honesty_gate.R (molde falsificável reusável) + os verbos score (acurácia vs y_true fresco, review D+1) e check-coherence (SIN=Σsubsistemas; subsistema=Σregiões·k̂). Nenhum modelo migra aqui.",
+ "status": "VERIFY-READY (M3): ready:true · 0 blockers · 6/6 reviewers unânime (2026-10-13, ~11 rounds). Pronto pra implement, com pré-requisitos/decisões do Gabriel (candidatos a ADR + 4 correções de premissa repo-vence).",
+ "files": [
+  {
+   "path": "scripts/lib/evaluation.R",
+   "action": "ATIVAR",
+   "note": "Destuba (hoje stop TODO M3 :13-19): fonte única de métrica + skill-score + baselines + scorecard + read_actual (M3.1+M3.3)."
+  },
+  {
+   "path": "scripts/lib/honesty_gate.R",
+   "action": "ATIVAR",
+   "note": "Destuba (hoje stop TODO M3 :16-18): molde in-process FORBIDDEN/CONTROL/CLEAN2 (M3.2)."
+  },
+  {
+   "path": "scripts/prevcarga",
+   "action": "ESTENDER",
+   "note": "Estende a gramática docopt Usage: (:19-26) com score e check-coherence (hoje só no comentário :11) + cmd_score()/cmd_check_coherence() + wiring class→exit-code (M3.3+M3.4)."
+  },
+  {
+   "path": "docs/ESTADO-ATUAL.md",
+   "action": "EDITAR",
+   "note": "Write-through em 2 seções: 'Onde estamos' (M3 vivo + correções de premissa) e §esqueleto (:96,100-101: tira evaluation/honesty_gate dos stubs)."
+  },
+  {
+   "path": "docs/reference/METRICAS-CANONICO.md",
+   "action": "CRIAR",
+   "note": "Novo doc de referência (espelho humano do contrato de métrica) — ⚠ candidato a [DEFERRED]/decisão do Gabriel; evaluation.R É a fonte única em código."
+  },
+  {
+   "path": ".claude/workflows/implement-milestone.js",
+   "action": "EDITAR",
+   "note": "Adiciona CHECKPOINTS['M3']/'M3-AVALIACAO' → _M3_CP (deployByDefault:false, passCriteria testthat-only) — pré-implement."
+  },
+  {
+   "path": "scripts/lib/tests/",
+   "action": "CRIAR",
+   "note": "Suíte testthat nova do M3 (fixtures de LONG parquet minúsculos + stores de carga realizada em tmp, nunca o data/ real)."
+  },
+  {
+   "path": "scripts/lib/README.md",
+   "action": "EDITAR",
+   "note": "Write-through: linhas evaluation.R e honesty_gate.R passam de 'a implementar (M3)' → 'vivo'."
+  },
+  {
+   "path": "docs/roadmap/README.md",
+   "action": "EDITAR",
+   "note": "Write-through do índice vivo: linha M3 (:26) → ✅ VERIFY-READY (CHECKPOINTS wirado)."
+  }
+ ],
+ "functions": [
+  {
+   "name": "prevcarga_wmape",
+   "module": "evaluation",
+   "signature": "prevcarga_wmape(y_true, y_pred, weights = NULL)",
+   "note": "100*sum(|y_pred−y_true|)/sum(|y_true|) sobre pares finitos (is.finite), NA_real_ se vazio; denom COM abs; ÚNICA definição de WMAPE do repo. weights inerte (sem consumidor, [DEFERRED])."
+  },
+  {
+   "name": "prevcarga_mape",
+   "module": "evaluation",
+   "signature": "prevcarga_mape(y_true, y_pred)",
+   "note": "100*mean(|e/y_true|) EXCLUINDO y_true==0 (não floor pmax 1e-9)."
+  },
+  {
+   "name": "prevcarga_mae",
+   "module": "evaluation",
+   "signature": "prevcarga_mae(y_true, y_pred)",
+   "note": "mean(|e|)."
+  },
+  {
+   "name": "prevcarga_rmse",
+   "module": "evaluation",
+   "signature": "prevcarga_rmse(y_true, y_pred)",
+   "note": "sqrt(mean(e²)); RMSE ≥ MAE (Jensen)."
+  },
+  {
+   "name": "prevcarga_bias",
+   "module": "evaluation",
+   "signature": "prevcarga_bias(y_true, y_pred)",
+   "note": "mean(e) em MW com sinal (bias>0 ⇒ over-forecast) + bias_pct = 100*Σe/Σ|y_true| (ratio-of-sums, não mean-of-ratios)."
+  },
+  {
+   "name": "prevcarga_peak_wmape",
+   "module": "evaluation",
+   "signature": "prevcarga_peak_wmape(target_datetime, y_true, y_pred, hours = 18:22)",
+   "note": "WMAPE restrito às horas de ponta FIXAS 18-22h (comunicável, protocolo-agnóstica). ramp/timing/peak-por-regime [DEFERRED M4]."
+  },
+  {
+   "name": "prevcarga_baseline",
+   "module": "evaluation",
+   "signature": "prevcarga_baseline(data_dir, area, origin, kind = \"persistence\")",
+   "note": "Builder de baseline por-slot (toca o store): persistence=y_slot(O−1), seasonal_naive=y_slot(O−7); lê carga realizada < origem (honesto); devolve LONG de baseline."
+  },
+  {
+   "name": "prevcarga_skill_score",
+   "module": "evaluation",
+   "signature": "prevcarga_skill_score(long, baseline_long)",
+   "note": "PURA: skill = 1 − WMAPE_modelo/WMAPE_baseline por d_plus/área; recebe baseline como DADO (LONG pré-computado), sem path/store."
+  },
+  {
+   "name": "prevcarga_scorecard",
+   "module": "evaluation",
+   "signature": "prevcarga_scorecard(long, by = c(\"d_plus\",\"area\"), baseline_long = NULL)",
+   "note": "Motor único (score/backtest/forecast --report). Consome schema LONG 8-col, filtra is.finite, agrega WMAPE/MAPE/MAE/RMSE/BIAS/peak por `by`, anexa skill se baseline_long dado. Puro e horizon-aware; rollup subsistema/SIN é consumer-side. Renomeia o param do stub baseline→baseline_long."
+  },
+  {
+   "name": "prevcarga_read_actual",
+   "module": "evaluation",
+   "signature": "prevcarga_read_actual(data_dir, area, from = NULL, to = NULL)",
+   "note": "Primitivo NOVO do M3.3: lê <data_dir>/load/area_code=<area>/year=*/data.parquet, schema CANÔNICO load_mwh+timestamp, naive-BRT, ts_r30=round(epoch/1800)*1800, mean por slot. Fail-high (stop [prevcarga/contract] exit 2) se coluna canônica faltar; partição inexistente → vazio."
+  },
+  {
+   "name": "prevcarga_honesty_gate",
+   "module": "honesty_gate",
+   "signature": "prevcarga_honesty_gate(run_fn, panel, origin, horizon)",
+   "note": "Molde in-process reusável. Perturba CÓPIAS do panel: CLEAN2 (determinismo ≤1e-5), FORBIDDEN (perturba SÓ y_true em target≥origem, exige Δ≤1e-5 + alcance provado), CONTROL (perturba y_true em O−1, exige Δ>1e-5). Veredito HONESTO/VAZA/INDETERMINADO/HARNESS QUEBRADO. Horizonte cheio ~9. MORNING/available_until [DEFERRED M5]."
+  },
+  {
+   "name": "cmd_score",
+   "module": "prevcarga",
+   "signature": "cmd_score(args)",
+   "note": "Dispatch fino no facade: resolve flags, re-junta y_true FRESCO uniforme (sobrescreve embutido), pré-computa baseline_long (fan-out por área), chama scorecard, valida --area via prevcarga_topology (exit 4), carimba data_hash+as_of. Verbo guardado (runtime-first)."
+  },
+  {
+   "name": "cmd_check_coherence",
+   "module": "prevcarga",
+   "signature": "cmd_check_coherence(args)",
+   "note": "Lê a árvore via prevcarga_topology() (nunca yaml direto nem members()); checa (a) SIN=Σsubsistemas, (b) k̂∈[1.0,1.15], (c) completude de nó emitível (exclui loss nodes, só em cobertura-comum); acumula findings; exit contract(2)/completude(3)/topology(4)/0."
+  }
+ ],
+ "functionality": [
+  "Colapsa WMAPE de ~11 implementações divergentes (3 famílias) numa fonte única em evaluation.R, provada por grep (consumidores chamam, não redefinem).",
+  "Métrica de acurácia canônica: WMAPE (denom Σ|y_true| com abs, máscara is.finite), MAPE (exclui y_true==0, não floor), MAE, RMSE, BIAS (MW com sinal + bias_pct ratio-of-sums), peak-WMAPE em janela FIXA 18-22h.",
+  "Skill-score (1 − WMAPE_modelo/WMAPE_baseline) + baselines por-slot criados do zero (persistence=O−1, seasonal_naive=O−7), lidos honestos < origem.",
+  "Honesty-gate falsificável in-process (CLEAN2/FORBIDDEN/CONTROL, limiar |Δ|≤1e-5, horizonte cheio ~9, alcance provado) reusável por módulo — invariante antes da combina (M4) migrar.",
+  "Verbo score: re-junta y_true fresco do store de forma UNIFORME (sobrescreve o embutido), manchete d_plus=1, exit-codes por classe (2/4/0), zero-overlap=exit 0 informativo.",
+  "Verbo check-coherence: (a) SIN=Σsubsistemas, (b) k̂∈[1.0,1.15], (c) completude de nó emitível (exclui loss nodes), lendo a árvore de topology.R (N=5/24-folhas, nunca hardcode).",
+  "scorecard puro e horizon-aware (por d_plus+area) é o motor único de score (M3), backtest (M7) e forecast --report (M6).",
+  "read_actual canônico (schema load_mwh fail-high, sem auto-detecção por aliases — ADR-0004/0005), porta só a mecânica de agregação ts_r30/mean."
+ ],
+ "verbs": [
+  {
+   "name": "score",
+   "note": "NOVO verbo (estende gramática docopt): pontua um LONG publicado vs y_true FRESCO re-juntado do store (review D+1, manchete d_plus=1), acurácia + skill-score vs baseline, --format json, exit-codes por classe, zero-overlap=exit 0. ≠ verificar (reprodução sha256/TOL)."
+  },
+  {
+   "name": "check-coherence",
+   "note": "NOVO verbo (estende gramática docopt): verifica coerência hierárquica de um LONG reconciliado — (a) SIN=Σsubsistemas aditiva + (b) k̂=subsistema/Σregiões ∈ [1.0,1.15] multiplicativa + (c) completude estrutural de nó emitível; acumula findings por instante; --format json."
+  }
+ ],
+ "nodes": [
+  {
+   "id": "mod:evaluation",
+   "label": "evaluation.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "M3.1+M3.3: fonte única de métrica (WMAPE/MAPE/MAE/RMSE/BIAS/peak-fixo-18-22h) + skill-score + baselines por-slot + scorecard + read_actual canônico via load_mwh.",
+   "milestone": "M3"
+  },
+  {
+   "id": "mod:honesty_gate",
+   "label": "honesty_gate.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "M3.2: gate falsificável in-process (FORBIDDEN/CONTROL/CLEAN2, limiar |Δ|≤1e-5, perturba só y_true) reusável por módulo; braço MORNING → M5; reach-control generalizado → M6.",
+   "milestone": "M3"
+  },
+  {
+   "id": "verb:score",
+   "label": "score",
+   "kind": "verb",
+   "parent": "",
+   "note": "Pontua LONG vs y_true fresco (review D+1), acurácia + skill-score; estende gramática docopt.",
+   "milestone": "M3"
+  },
+  {
+   "id": "verb:check-coherence",
+   "label": "check-coherence",
+   "kind": "verb",
+   "parent": "",
+   "note": "Coerência hierárquica (SIN=Σ / k̂) de LONG reconciliado; estende gramática docopt.",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_wmape",
+   "label": "prevcarga_wmape()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "ÚNICA definição de WMAPE do repo (denom Σ|y_true| com abs, is.finite).",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_mape",
+   "label": "prevcarga_mape()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "MAPE excluindo y_true==0.",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_mae",
+   "label": "prevcarga_mae()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "mean(|e|).",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_rmse",
+   "label": "prevcarga_rmse()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "sqrt(mean(e²)).",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_bias",
+   "label": "prevcarga_bias()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "BIAS MW com sinal + bias_pct ratio-of-sums.",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_peak_wmape",
+   "label": "prevcarga_peak_wmape()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "Peak-WMAPE janela fixa 18-22h.",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_baseline",
+   "label": "prevcarga_baseline()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "Builder de baseline por-slot (lê store <origem): persistence/seasonal_naive.",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_skill_score",
+   "label": "prevcarga_skill_score()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "Pura: 1 − WMAPE_modelo/WMAPE_baseline.",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_scorecard",
+   "label": "prevcarga_scorecard()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "Motor único puro/horizon-aware (score/backtest/forecast --report).",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_read_actual",
+   "label": "prevcarga_read_actual()",
+   "kind": "function",
+   "parent": "mod:evaluation",
+   "note": "Primitivo novo do M3.3: verdade fresca canônica load_mwh fail-high.",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:prevcarga_honesty_gate",
+   "label": "prevcarga_honesty_gate()",
+   "kind": "function",
+   "parent": "mod:honesty_gate",
+   "note": "Molde in-process (run_fn,panel,origin,horizon).",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:cmd_score",
+   "label": "cmd_score()",
+   "kind": "function",
+   "parent": "",
+   "note": "Handler do verbo score no facade (dispatch fino).",
+   "milestone": "M3"
+  },
+  {
+   "id": "fn:cmd_check_coherence",
+   "label": "cmd_check_coherence()",
+   "kind": "function",
+   "parent": "",
+   "note": "Handler do verbo check-coherence no facade.",
+   "milestone": "M3"
+  }
+ ],
+ "edges": [
+  {
+   "from": "verb:score",
+   "to": "mod:evaluation",
+   "kind": "composes",
+   "label": "scorecard/skill/read_actual",
+   "milestone": "M3"
+  },
+  {
+   "from": "verb:score",
+   "to": "mod:validation",
+   "kind": "composes",
+   "label": "gate-0 validate-deck",
+   "milestone": "M3"
+  },
+  {
+   "from": "verb:score",
+   "to": "mod:dates",
+   "kind": "composes",
+   "label": "resolve origem",
+   "milestone": "M3"
+  },
+  {
+   "from": "verb:score",
+   "to": "mod:provenance",
+   "kind": "composes",
+   "label": "data_hash+as_of",
+   "milestone": "M3"
+  },
+  {
+   "from": "verb:score",
+   "to": "mod:topology",
+   "kind": "composes",
+   "label": "valida --area",
+   "milestone": "M3"
+  },
+  {
+   "from": "verb:check-coherence",
+   "to": "mod:topology",
+   "kind": "composes",
+   "label": "árvore SIN fonte única",
+   "milestone": "M3"
+  },
+  {
+   "from": "mod:evaluation",
+   "to": "mod:validation",
+   "kind": "depends-on",
+   "label": "load_mwh canônico",
+   "milestone": "M3"
+  },
+  {
+   "from": "mod:honesty_gate",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "determinismo BLAS 1-thread",
+   "milestone": "M3"
+  }
+ ]
+}

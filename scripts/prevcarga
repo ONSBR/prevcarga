@@ -1,0 +1,40 @@
+#!/usr/bin/env Rscript
+## prevcarga — fachada da CLI modular (M1)
+##
+## Dispatcher FINO (Rscript + docopt): resolve argumentos, chama prevcarga_runtime_enforce() PRIMEIRO,
+## e compõe os módulos de scripts/lib/*.R. NÃO reimplementa lógica de modelo.
+## Durante o clean-room, comandos ainda não implementados fazem stop() com o milestone dono; o sistema
+## de produção segue em /opt/ons-source/prevcargadessem3 (referência do A/B) até o corte no M8.
+##
+## Superfície alvo de comandos (ver a spec SpecForge "Modular CLI"):
+##   Pipeline:    validate-deck · train-models · infer-model · forecast · backtest
+##   Avaliação:   score · verificar · check-coherence
+##   Composição:  features · combine · reconcile · export
+##   Operação:    status · doctor · plan · publish · registry · models · areas · describe
+##
+## 'usage' docopt (M1 implementa o dispatch + status/doctor/models/areas/describe):
+
+"prevcarga — CLI modular de previsão de carga (clean-room R-only)
+
+Usage:
+  prevcarga doctor        [--format=<fmt>]
+  prevcarga status        [--format=<fmt>]
+  prevcarga models        [--format=<fmt>]
+  prevcarga areas         [--format=<fmt>]
+  prevcarga describe      [--as-of=<data>] [--model=<m>] [--format=<fmt>]
+  prevcarga validate-deck --dados=<path> [--as-of=<data>] [--model=<m>] [--area=<a>] [--format=<fmt>]
+  prevcarga (-h | --help)
+
+Options:
+  --as-of=<data>    Forecast-origin (ÚNICO flag de data humano). Default: último dia completo do deck.
+  --model=<m>       Seletor de modelo (default: todos).
+  --area=<a>        Seletor de área/subsistema (default: SIN).
+  --format=<fmt>    Saída: text|json  [default: text].
+  -h --help         Mostra esta ajuda.
+" -> usage
+
+main <- function() {
+  stop("prevcarga: dispatcher não implementado — TODO M1 (runtime_enforce + docopt + status/doctor)")
+}
+
+if (identical(environment(), globalenv())) main()

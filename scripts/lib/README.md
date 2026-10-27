@@ -1,0 +1,30 @@
+# scripts/lib — módulos R (biblioteca)
+
+Cada módulo é uma **função R importável** (`source()`), não um script vestido por subprocess. A CLI
+(`scripts/prevcarga`, Rscript+docopt) é a fachada fina que os compõe. Mapa módulo → milestone (ver
+`docs/_archive/roadmap/PLANO.md`):
+
+| Arquivo | Milestone | Responsabilidade |
+|---|---|---|
+| `runtime.R` | **M1** | seta+assere determinismo (TZ/LC/BLAS 1-thread); roda PRIMEIRO em todo comando |
+| `topology.R` | **M1** | fonte única: carrega+valida `config/topology.yaml` (subsistemas/áreas/perdas + 8 membros); horizonte/janela lê `models/<m>/run.yaml` (ADR-0021) |
+| `provenance.R` | **M1** | version content-addressed + run-manifest + freeze `saveRDS` (contrato) |
+| `dates.R` | **M2** | 3 cortes a partir de `--as-of` (origin; treino `origem−1−horizonte` por modelo; intradiário do dado) |
+| `validation.R` | **M2** | formato + completude (DST-aware) + sanidade física + clima honesto + janela mínima |
+| `evaluation.R` | **M3 ✅ VERIFY-READY** | fonte única de WMAPE(abs)/MAPE(exclui-0)/MAE/RMSE/BIAS/**peak-fixo-18-22h** + skill-score vs baseline por-slot (persistência O−1 / sazonal O−7); `read_actual` canônico `load_mwh`. ramp/timing/peak-regime → M4 |
+| `honesty_gate.R` | **M3 ✅ VERIFY-READY** | gate falsificável in-process (FORBIDDEN/CONTROL/CLEAN2, limiar **`|Δ|≤1e-5`** não Δ=0; perturba só `y_true`) reusável por módulo; braço **MORNING** (só dessem, nowcast) → **M5**; reach-control generalizado p/ módulos-sem-`y_true` → **M6** (com `reconcile`) |
+| `combination.R` | **M4 ✅ VERIFY-READY** | ensemble convexo R-base (Duchi/FISTA/produce_combined/eqw), **leak corrigido em voo** (corte por data-alvo `target<início(m)` por mês-de-origem, não `ym<m`); IO/painel/descoberta **run-mode-agnóstica** do manifesto; freeze `saveRDS` content-addressed; gates G2/otimalidade/qualidade. Contrato congelado em `M4-COMBINA.md` (stub `CRIAR` até o `implement`) |
+| `features.R` | **M5 ✅ VERIFY-READY** | FE-fachada: normaliza as 5 assinaturas divergentes num `build_features(deck,params)` (dispatch-fino + adapters, **zero FE compartilhada**, ADR-0009); transforms de alinhamento `to_model_frame`/`to_display_frame` (`−granularity_min`, ADR-0019). Contrato em `M5-TRAINING.md` (stub `CRIAR`) |
+| `training.R` / `inference.R` | **M5 ✅ VERIFY-READY** | fachadas sobre os 5 plugins (`train-models`/`infer-model`); corte honesto **por-modelo/protocolo** (daily `origem−1−horizonte`; retrain_harness `série≤O−1` [pós-superseder 0006]); `version` **content-addressed**; infer lê params **do artefato** (recusa re-especificar); `--variant` seletor p/ dessem. `M5-TRAINING.md` (stub `CRIAR`) |
+| `registry.R` | **M1**→**M5 ✅ VERIFY-READY** | **M1**: fronteira de contrato de tiers (ADR-0010, fail-loud wire-time) · **M5**: ciclo de vida (ls/show/promote-**atômico**/rollback/pin/gc-local; layout `<model>/[<variant>/]<area>/{latest,v_<hash>}`). `M5-TRAINING.md` |
+| `build_long_output.R` | **M6 ✅ VERIFY-READY** | **espinha dorsal**: montador do painel LONG 8-col do caminho **model-native de folha** (junção honesta de `y_true` por instante-30min naive-BRT anti-day-shift/anti-leak; `load_mwh` fail-high; re-ancoragem em O `first_forecast_day` do spec [trava `\|Δ\|≤0.5s`]; ramo `origin_cut`; validador). ADR-0002. `M6-FORECAST.md` (stub `CRIAR`) |
+| `forecast.R` | **M6 ✅ VERIFY-READY** | orquestrador do verbo `forecast` (infer→camada-LONG→combine-apply→reconcile→**recorte-por-origem**→export; default só-dados) + reach-control unificado lendo `topology.R`; alias `prever`. `M6-FORECAST.md` |
+| `exports.R` | **M6 ✅ VERIFY-READY** | módulo 7: layout plano por nível + manifest.json (sha256/linhas) por **byte-copy** (nunca re-serializa); `export` standalone; **nunca fala S3** (ADR-0016). `M6-FORECAST.md` |
+| `reconcile.R` | **M6 ✅ VERIFY-READY** | módulo 6: porta `reconcilia_baseline.R` com **topologia de `topology.R`** (não hardcoded, ADR-0001); k̂ honesto calculado janela `<O` (não clamp); SIN=Σsubsistemas **count-agnóstico**; writer 8-col fino (`forecast_origin=character`); perfil content-addressed sobre `registry.R`/M5.4. `M6-FORECAST.md` |
+| `reporting.R` | **M6 ✅ VERIFY-READY** (+ **M7**: conteúdo de acurácia) | módulo 10: motor humano HTML+**PDF** (primitivas de render; corte/proveniência em destaque); `forecast --report` **diagnóstico NUNCA acurácia** (M6). ⚠ **M7 ESTENDE** com o conteúdo de ACURÁCIA do `backtest --report` (WMAPE/horizonte/peak-fixo/skill — port do `report_A`, cálculo em `evaluation.R`/M3, render pelas primitivas; sem regredir o `forecast --report`). `M6-FORECAST.md` / `M7-ORQUESTRACAO.md` |
+| `orchestrate.R` | **M7 ✅ VERIFY-READY** | módulo 11: matriz **membro×folha×origem** (count-agnóstica, `prevcarga_members()` 8 não 5 dirs) + **ledger LOCAL** (presença de artefato content-addressed, **nunca `aws s3 ls`** — ADR-0016) + `plan`/`--dry-run`/`--jobs`(por-worker)/`--resume`/`--keep-going` (default fail-fast); entrega parcial → exit≠0 + SIN não-fabricado por folha/subsistema-incompleta. `M7-ORQUESTRACAO.md` |
+| `cache.R` | **M7 ✅ VERIFY-READY** | módulo 14: cache content-addressed chaveado pelo fingerprint de `provenance.R`/M1 **com o corte `available_until` NA CHAVE, CLASS-AWARE** (só data/feature-table + dessem re-treinado [`protocol∧cut_invariant`] re-keyam; RF/LGBM/HW reusam, corte inference-only — ADR-0007/0011); `member_label=(mdir,exogena)` obrigatório; identidade exclui o lateral (platform/BLAS/TZ/LC/bundle_id); nunca fala S3. ⚠ precisa do `cut_invariant` via `model_spec`/M1 (refino HARD, key-time). `M7-ORQUESTRACAO.md` |
+| `backtest.R` | **M7 ✅ VERIFY-READY** | motor do verbo `backtest` unificado: treino→infer-pra-trás→**combina-full HONESTA por-mês** (fita no `y_pred` combinado `a+Xw`, NUNCA em `w`; não aplica pesos congelados)→reconcile→avaliação dia-a-dia; G5 (nunca infere, chama `prevcarga_infer`/M5); corte honesto por-origem; `--resume`/`--corte`; retrain não contamina o `latest` de produção. `M7-ORQUESTRACAO.md` |
+
+Stubs atuais param com `stop(... "— TODO M<n>")` de propósito: a estrutura existe, a implementação chega
+no seu milestone. Nenhum stub finge estar pronto.

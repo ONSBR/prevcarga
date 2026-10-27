@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Guarda de higiene (shift-left) — a main muda SÓ via PR no servidor, nunca por push daqui.
+# Ativar: git config core.hooksPath .githooks   (mesmo hooksPath do pre-commit)
+# Bypass consciente: git push --no-verify
+#
+# O git passa "<local_ref> <local_sha> <remote_ref> <remote_sha>" por stdin, uma linha por ref.
+set -uo pipefail
+
+zero='0000000000000000000000000000000000000000'
+fail=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      # deleção de branch (local_sha zero) não é atualização de conteúdo → deixa passar
+      [ "$local_sha" = "$zero" ] && continue
+      echo "❌ push para '$remote_ref' bloqueado — a main muda só via PR (merge no servidor)."
+      echo "   fluxo: branch → PR → merge; a main local você atualiza com 'git fetch && git reset --hard origin/main'."
+      fail=1 ;;
+  esac
+done
+
+if [ "$fail" = 1 ]; then
+  echo
+  echo "Push bloqueado (use 'git push --no-verify' se for realmente intencional)."
+  exit 1
+fi
+exit 0

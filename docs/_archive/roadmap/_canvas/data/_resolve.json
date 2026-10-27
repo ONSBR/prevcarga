@@ -1,0 +1,183 @@
+{
+ "generatedBy": "milestone-canvas",
+ "milestones": [
+  {
+   "id": "M1",
+   "slug": "FUNDACAO",
+   "title": "M1 — Fundação: fachada + runtime-guard + topologia + proveniência",
+   "docPath": "docs/roadmap/M1-FUNDACAO.md",
+   "status": "VERIFY-READY (ready:true · 0 blockers · 6/6 reviewers unânime, 2026-10-11)"
+  },
+  {
+   "id": "M2",
+   "slug": "DATAS",
+   "title": "M2 — Datas honestas (3 cortes) + validação model-agnóstica + `validate-deck` (gate-0)",
+   "docPath": "docs/roadmap/M2-DATAS.md",
+   "status": "VERIFY-READY (ready:true · 0 blockers · 0 decisions · 6/6 reviewers unânime, 2026-10-12)"
+  },
+  {
+   "id": "M3",
+   "slug": "AVALIACAO",
+   "title": "M3 — Avaliação fonte-única + honesty-gate + `score` + `check-coherence`",
+   "docPath": "docs/roadmap/M3-AVALIACAO.md",
+   "status": "VERIFY-READY (ready:true · 0 blockers · 6/6 reviewers unânime, 2026-10-13)"
+  },
+  {
+   "id": "M4",
+   "slug": "COMBINA",
+   "title": "M4 — Módulo combination (combina dissolvida, leak corrigido em voo)",
+   "docPath": "docs/roadmap/M4-COMBINA.md",
+   "status": "VERIFY-READY (ready:true · 6/6 reviewers unânime · 0 landmines/controles bloqueantes, 6 rounds)"
+  },
+  {
+   "id": "M5",
+   "slug": "TRAINING",
+   "title": "M5 — Training/Inference fachadas + FE-fachada + `train-models`/`infer-model` + registry",
+   "docPath": "docs/roadmap/M5-TRAINING.md",
+   "status": "VERIFY-READY (ready:true · 6/6 reviewers unânime · 0 landmines/controles bloqueantes)"
+  },
+  {
+   "id": "M6",
+   "slug": "FORECAST",
+   "title": "M6 — Forecast/Export/Reporting full-R + `build_long_output` + standalones de composição",
+   "docPath": "docs/roadmap/M6-FORECAST.md",
+   "status": "VERIFY-READY (ready:true · 6/6 reviewers unânime · 0 blockers · 0 false-claims)"
+  },
+  {
+   "id": "M7",
+   "slug": "ORQUESTRACAO",
+   "title": "M7 — Orquestração + cache content-addressed + `backtest` unificado",
+   "docPath": "docs/roadmap/M7-ORQUESTRACAO.md",
+   "status": "VERIFY-READY (ready:true · 0 blockers, 6 rounds R1–R6)"
+  },
+  {
+   "id": "M8",
+   "slug": "BUNDLE",
+   "title": "M8 — Runtime R-only (S3) + install bootstrap + `verificar` + `morning` + A/B completo (gate de corte) + remoção final do Python",
+   "docPath": "docs/roadmap/M8-BUNDLE.md",
+   "status": "VERIFY-READY (R22 2026-10-16 · ready:true · 0 blockers · consenso 6/6, 22 rounds)"
+  }
+ ],
+ "modules": [
+  {
+   "file": "scripts/lib/runtime.R",
+   "milestone": "M1",
+   "kind": "transversal",
+   "responsibility": "seta+assere determinismo (TZ/LC/BLAS 1-thread); roda PRIMEIRO em todo comando"
+  },
+  {
+   "file": "scripts/lib/topology.R",
+   "milestone": "M1",
+   "kind": "transversal",
+   "responsibility": "fonte única: carrega+valida config/topology.yaml (subsistemas/áreas/perdas + 8 membros); horizonte/janela lê models/<m>/run.yaml (ADR-0021)"
+  },
+  {
+   "file": "scripts/lib/provenance.R",
+   "milestone": "M1",
+   "kind": "transversal",
+   "responsibility": "version content-addressed + run-manifest + freeze saveRDS (contrato)"
+  },
+  {
+   "file": "scripts/lib/dates.R",
+   "milestone": "M2",
+   "kind": "transversal",
+   "responsibility": "3 cortes a partir de --as-of (origin; treino origem−1−horizonte por modelo; intradiário do dado)"
+  },
+  {
+   "file": "scripts/lib/validation.R",
+   "milestone": "M2",
+   "kind": "transversal",
+   "responsibility": "formato + completude (DST-aware) + sanidade física + clima honesto + janela mínima"
+  },
+  {
+   "file": "scripts/lib/evaluation.R",
+   "milestone": "M3",
+   "kind": "transversal",
+   "responsibility": "fonte única de WMAPE(abs)/MAPE(exclui-0)/MAE/RMSE/BIAS/peak-fixo-18-22h + skill-score vs baseline por-slot (persistência O−1 / sazonal O−7); read_actual canônico load_mwh; ramp/timing/peak-regime → M4"
+  },
+  {
+   "file": "scripts/lib/honesty_gate.R",
+   "milestone": "M3",
+   "kind": "transversal",
+   "responsibility": "gate falsificável in-process (FORBIDDEN/CONTROL/CLEAN2, limiar |Δ|≤1e-5; perturba só y_true) reusável por módulo; braço MORNING (só dessem, nowcast) → M5; reach-control p/ módulos-sem-y_true → M6 (com reconcile)"
+  },
+  {
+   "file": "scripts/lib/combination.R",
+   "milestone": "M4",
+   "kind": "module",
+   "responsibility": "ensemble convexo R-base (Duchi/FISTA/produce_combined/eqw), leak corrigido em voo (corte por data-alvo target<início(m) por mês-de-origem); IO/painel/descoberta run-mode-agnóstica do manifesto; freeze saveRDS content-addressed; gates G2/otimalidade/qualidade"
+  },
+  {
+   "file": "scripts/lib/features.R",
+   "milestone": "M5",
+   "kind": "module",
+   "responsibility": "FE-fachada: normaliza as 5 assinaturas divergentes num build_features(deck,params) (dispatch-fino + adapters, zero FE compartilhada, ADR-0009); transforms de alinhamento to_model_frame/to_display_frame (−granularity_min, ADR-0019)"
+  },
+  {
+   "file": "scripts/lib/training.R",
+   "milestone": "M5",
+   "kind": "module",
+   "responsibility": "fachada sobre os 5 plugins (train-models); corte honesto por-modelo/protocolo (daily origem−1−horizonte; retrain_harness série≤O−1 pós-superseder 0006); version content-addressed; --variant seletor p/ dessem"
+  },
+  {
+   "file": "scripts/lib/inference.R",
+   "milestone": "M5",
+   "kind": "module",
+   "responsibility": "fachada sobre os 5 plugins (infer-model); infer lê params do artefato (recusa re-especificar); --variant seletor p/ dessem"
+  },
+  {
+   "file": "scripts/lib/registry.R",
+   "milestone": "M1",
+   "kind": "transversal",
+   "responsibility": "M1: fronteira de contrato de tiers (ADR-0010, fail-loud wire-time) · M5: ciclo de vida (ls/show/promote-atômico/rollback/pin/gc-local; layout <model>/[<variant>/]<area>/{latest,v_<hash>})"
+  },
+  {
+   "file": "scripts/lib/build_long_output.R",
+   "milestone": "M6",
+   "kind": "module",
+   "responsibility": "espinha dorsal: montador do painel LONG 8-col do caminho model-native de folha (junção honesta de y_true por instante-30min naive-BRT anti-day-shift/anti-leak; load_mwh fail-high; re-ancoragem em O first_forecast_day do spec [trava |Δ|≤0.5s]; ramo origin_cut; validador). ADR-0002"
+  },
+  {
+   "file": "scripts/lib/forecast.R",
+   "milestone": "M6",
+   "kind": "module",
+   "responsibility": "orquestrador do verbo forecast (infer→camada-LONG→combine-apply→reconcile→recorte-por-origem→export; default só-dados) + reach-control unificado lendo topology.R; alias prever"
+  },
+  {
+   "file": "scripts/lib/exports.R",
+   "milestone": "M6",
+   "kind": "module",
+   "responsibility": "módulo 7: layout plano por nível + manifest.json (sha256/linhas) por byte-copy (nunca re-serializa); export standalone; nunca fala S3 (ADR-0016)"
+  },
+  {
+   "file": "scripts/lib/reconcile.R",
+   "milestone": "M6",
+   "kind": "module",
+   "responsibility": "módulo 6: porta reconcilia_baseline.R com topologia de topology.R (não hardcoded, ADR-0001); k̂ honesto calculado janela <O (não clamp); SIN=Σsubsistemas count-agnóstico; writer 8-col fino (forecast_origin=character); perfil content-addressed sobre registry.R/M5.4"
+  },
+  {
+   "file": "scripts/lib/reporting.R",
+   "milestone": "M6",
+   "kind": "transversal",
+   "responsibility": "módulo 10: motor humano HTML+PDF (primitivas de render; corte/proveniência em destaque); forecast --report diagnóstico NUNCA acurácia (M6); M7 estende com conteúdo de ACURÁCIA do backtest --report (WMAPE/horizonte/peak-fixo/skill, cálculo em evaluation.R/M3)"
+  },
+  {
+   "file": "scripts/lib/orchestrate.R",
+   "milestone": "M7",
+   "kind": "transversal",
+   "responsibility": "módulo 11: matriz membro×folha×origem (count-agnóstica, prevcarga_members() 8 não 5 dirs) + ledger LOCAL (presença de artefato content-addressed, nunca aws s3 ls — ADR-0016) + plan/--dry-run/--jobs/--resume/--keep-going (default fail-fast); entrega parcial → exit≠0 + SIN não-fabricado"
+  },
+  {
+   "file": "scripts/lib/cache.R",
+   "milestone": "M7",
+   "kind": "transversal",
+   "responsibility": "módulo 14: cache content-addressed chaveado pelo fingerprint de provenance.R/M1 com o corte available_until NA CHAVE, CLASS-AWARE (só data/feature-table + dessem re-treinado re-keyam; RF/LGBM/HW reusam — ADR-0007/0011); member_label=(mdir,exogena) obrigatório; identidade exclui o lateral; nunca fala S3; precisa do cut_invariant via model_spec/M1"
+  },
+  {
+   "file": "scripts/lib/backtest.R",
+   "milestone": "M7",
+   "kind": "module",
+   "responsibility": "motor do verbo backtest unificado: treino→infer-pra-trás→combina-full HONESTA por-mês (fita no y_pred combinado a+Xw, NUNCA em w)→reconcile→avaliação dia-a-dia; G5 (nunca infere, chama prevcarga_infer/M5); corte honesto por-origem; --resume/--corte; retrain não contamina o latest de produção"
+  }
+ ]
+}

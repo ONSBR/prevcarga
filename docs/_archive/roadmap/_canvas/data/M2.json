@@ -1,0 +1,265 @@
+{
+ "id": "M2",
+ "docPath": "docs/roadmap/M2-DATAS.md",
+ "title": "M2 — Datas honestas (3 cortes) + validação model-agnóstica + `validate-deck` (gate-0)",
+ "intent": "Colisão de datas é o risco #1 do sistema: um erro de ±1 dia no corte de treino infla a acurácia em silêncio e passa por todas as métricas (ADR-0006). M2 colapsa em R-only os três conceitos de data que \"cortar dados pra trás\" funde (forecast-origin, corte-de-treino, corte-intradiário) e sobe cedo o validate-deck (gate-0), barato, que protege compute e falsifica a camada de datas antes de combina (M4) e training (M5). Nada numérico de modelo migra aqui.",
+ "status": "VERIFY-READY (ready:true · 0 blockers · 0 decisions · 6/6 reviewers unânime, 2026-10-12). Pronto pra implement. ⚠ 3 pré-requisitos/decisões do Gabriel antes do implement (corte por-protocolo opção b; 3 correções de premissa repo-vence; 4 candidatos a ADR).",
+ "files": [
+  {
+   "path": "scripts/lib/dates.R",
+   "action": "ATIVAR",
+   "note": "M2.1 — implementa o stub (stop TODO M2 em :15/:20): prevcarga_train_origin() + prevcarga_resolve_cuts(), os 3 cortes da origem resolvida"
+  },
+  {
+   "path": "scripts/lib/validation.R",
+   "action": "ATIVAR",
+   "note": "M2.2 — implementa o stub (:21): prevcarga_validate_deck() + prevcarga_day_complete(); veredito estruturado model-agnóstico, completude flat-48"
+  },
+  {
+   "path": "scripts/lib/provenance.R",
+   "action": "ESTENDER",
+   "note": "M2.3 — novo primitivo prevcarga_data_hash(data_dir); módulo M1.3 é dono do content-addressing, M2 é o primeiro consumidor"
+  },
+  {
+   "path": "scripts/prevcarga",
+   "action": "EDITAR",
+   "note": "M2.3 — cmd_validate_deck() + wiring class→exit-code do veredito + re-liga cmd_describe; verbo validate-deck já na gramática docopt :25 (hoje stop de não-dono do M1.4)"
+  },
+  {
+   "path": "docs/ESTADO-ATUAL.md",
+   "action": "EDITAR",
+   "note": "DoD write-through: M2 vivo (3 cortes + validate-deck) + correção de premissa fill-0; :96 ≥24→48 slots/dia; NÃO tocar :94 (espelho ADR-0006, conforme sob opção b)"
+  },
+  {
+   "path": ".claude/workflows/implement-milestone.js",
+   "action": "EDITAR",
+   "note": "[feito pré-implement] entrada CHECKPOINTS['M2']/'M2-DATAS' → _M2_CP; deployByDefault:false, passCriteria testthat-only"
+  },
+  {
+   "path": "scripts/lib/tests/ (ou tests/)",
+   "action": "CRIAR",
+   "note": "suíte testthat nova do M2; fixtures de deck parquet Hive minúsculos materializados em tmp (nunca o data/ real)"
+  },
+  {
+   "path": "docs/reference/DECK-CANONICO.md",
+   "action": "EDITAR",
+   "note": "⚠ CONSUMIDO, NÃO muda no M2 — fonte única do contrato de deck (datasets/colunas R-O/tipos/Hive/emissão) que o validate-deck impõe; enum-fino de feriado [DEFERRED] a formalizar aqui"
+  },
+  {
+   "path": "scripts/lib/README.md",
+   "action": "EDITAR",
+   "note": "DoD write-through PARCIAL: só a linha de validation.R (completude DST-aware → flat-48); a linha de dates.R fica INTACTA/conforme ao ADR-0006 (opção b)"
+  }
+ ],
+ "functions": [
+  {
+   "name": "prevcarga_train_origin",
+   "module": "dates",
+   "signature": "prevcarga_train_origin(as_of, model, root = ...)",
+   "note": "M2.1 — corte-de-treino por-protocolo via model_spec; daily (RF/LGBM) = as_of−1−horizon_days (porta jl_train_origin job_lib.sh:230); retrain_harness (dessem/HW) stop [prevcarga/todo] [DEFERRED M5]; Date naive-BRT; root = alavanca de injeção de path"
+  },
+  {
+   "name": "prevcarga_resolve_cuts",
+   "module": "dates",
+   "signature": "prevcarga_resolve_cuts(as_of, data_dir, model = NULL)",
+   "note": "M2.1 — devolve {forecast_origin, train_cut, intraday_cut} ancorados na MESMA origem resolvida; origem default = último dia completo (chama day_complete); intraday do manifest.json; model=NULL → tabela por-modelo (daily computado, retrain_harness marcado [M5]), nunca escalar"
+  },
+  {
+   "name": "prevcarga_validate_deck",
+   "module": "validation",
+   "signature": "prevcarga_validate_deck(data_dir, as_of, scope = NULL, format = \"text\")",
+   "note": "M2.2 — abre store Hive, roda 5 classes de checagem acumulando (fail-por-origem, ADR-0005); devolve list(ok, class, findings[area/dataset/what/detail/class/level]); class-dona por severidade contract>completude>topology>window; NÃO devolve exit_code"
+  },
+  {
+   "name": "prevcarga_day_complete",
+   "module": "validation",
+   "signature": "prevcarga_day_complete(day)",
+   "note": "M2.2 — predicado único exposto: dia completo = 48 slots/dia (:00/:30), flat-48 (ADR-0002/0003, DST absorvido na malha); MESMO predicado que resolve_cuts chama (fonte única, anti-contador-paralelo)"
+  },
+  {
+   "name": "prevcarga_data_hash",
+   "module": "provenance",
+   "signature": "prevcarga_data_hash(data_dir)",
+   "note": "M2.3 — primitivo NOVO: sha256 sobre a lista ordenada por caminho Hive dos sha256 de cada area_code=/year=/data.parquet; exclui o 'corte' do manifest; model-agnóstico; é o data_fingerprint que train/forecast alimentam ao version_hash (M1.3)"
+  },
+  {
+   "name": "cmd_validate_deck",
+   "module": "prevcarga",
+   "signature": "cmd_validate_deck(args)",
+   "note": "M2.3 — dispatch fino: resolve --dados/--as-of/--model/--area/--format, chama resolve_cuts + validate_deck; mapeia class→exit-code (2/3/4/5) pelo handler M1.4; --format json emite {ok,class,exit_code,as_of,data_hash,findings}"
+  },
+  {
+   "name": "cmd_describe",
+   "module": "prevcarga",
+   "signature": "cmd_describe(args)",
+   "note": "M2.3 — re-ligado: substitui o placeholder 'derivado no M2' do M1.5; imprime origem + corte-de-treino daily via train_origin (sem --dados); retrain_harness = '[derivado no M5]'; aposenta o AC-negativo do M1.5:416",
+   "edited": true
+  }
+ ],
+ "functionality": [
+  "Deriva os 3 cortes (forecast-origin, train-cut, intraday-cut) do único --as-of, ou do último dia completo do store quando --as-of é NULL — os três ancorados na MESMA origem resolvida",
+  "Corte-de-treino daily (RF/LGBM) = origem−1−horizonte por-modelo (porta jl_train_origin); retrain_harness (dessem/HW) faz stop [DEFERRED M5] (opção b, não contradiz ADR-0006)",
+  "Validação model-agnóstica do deck em 5 classes: schema/tipo/tz-naive-BRT, completude flat-48, sanidade física (carga>0/dedup/clima −10..50 hard; outlier/flatline warning), clima honesto, janela mínima",
+  "Veredito estruturado acumulado por origem (ADR-0005 fail-por-origem) — não aborta no 1º erro; class-dona por severidade contract>completude>topology>window",
+  "Comando validate-deck (gate-0 standalone) com exit-codes por classe 2/3/4/5 (ADR-0020) + --format json com exit ortogonal à saída",
+  "prevcarga_data_hash: digest content-addressed do store parquet Hive (exclui o corte do manifest, ordem-estável por caminho Hive) — pin de entrada para --expect-data-hash de M5/M6",
+  "Honestidade do clima elevada ao nível-deck: issue_time ≤ intraday_cut no frame UTC (to_utc(t_BRT)=t_BRT+3h), reportado antes do compute",
+  "Re-liga describe mostrando os cortes deriváveis sem o deck (origem + corte daily; retrain_harness = [M5]) e aposenta o teste-irmão negativo do M1.5"
+ ],
+ "verbs": [
+  {
+   "name": "validate-deck",
+   "note": "M2.3 torna-se dono (já na gramática docopt do stub :25, hoje stop de não-dono do M1.4): veredito estruturado + exit-codes por classe 2/3/4/5 + --format json + data_hash; verbo GUARDADO (runtime-first, stdout-vazio sob env sujo)"
+  },
+  {
+   "name": "describe",
+   "note": "M2 EDITA (criado no M1.5): re-ligado p/ imprimir origem + corte-de-treino daily via train_origin (gramática M1 sem --dados); retrain_harness = '[derivado no M5]'; intraday anotado 'do deck, via validate-deck'"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "mod:dates",
+   "label": "dates.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "M2.1 — 3 cortes a partir de --as-of (forecast-origin; treino origem−1−horizonte por modelo daily; intradiário do dado)",
+   "milestone": "M2"
+  },
+  {
+   "id": "mod:validation",
+   "label": "validation.R",
+   "kind": "transversal",
+   "parent": "",
+   "note": "M2.2 — formato+completude flat-48+sanidade física+clima honesto+janela mínima; veredito estruturado acumulado",
+   "milestone": "M2"
+  },
+  {
+   "id": "fn:prevcarga_train_origin",
+   "label": "prevcarga_train_origin()",
+   "kind": "function",
+   "parent": "mod:dates",
+   "note": "corte-de-treino por-protocolo; daily O−1−horizon; retrain_harness [DEFERRED M5]",
+   "milestone": "M2"
+  },
+  {
+   "id": "fn:prevcarga_resolve_cuts",
+   "label": "prevcarga_resolve_cuts()",
+   "kind": "function",
+   "parent": "mod:dates",
+   "note": "{forecast_origin, train_cut, intraday_cut} da origem resolvida; model=NULL → tabela por-modelo",
+   "milestone": "M2"
+  },
+  {
+   "id": "fn:prevcarga_validate_deck",
+   "label": "prevcarga_validate_deck()",
+   "kind": "function",
+   "parent": "mod:validation",
+   "note": "veredito list(ok,class,findings); 5 classes acumuladas; class-dona por severidade",
+   "milestone": "M2"
+  },
+  {
+   "id": "fn:prevcarga_day_complete",
+   "label": "prevcarga_day_complete()",
+   "kind": "function",
+   "parent": "mod:validation",
+   "note": "predicado único flat-48 (48 slots/dia); fonte única compartilhada com resolve_cuts",
+   "milestone": "M2"
+  },
+  {
+   "id": "fn:prevcarga_data_hash",
+   "label": "prevcarga_data_hash()",
+   "kind": "function",
+   "parent": "mod:provenance",
+   "note": "primitivo NOVO em provenance.R (M1.3): sha256 ordenado por caminho Hive, exclui corte do manifest, model-agnóstico",
+   "milestone": "M2"
+  },
+  {
+   "id": "fn:cmd_validate_deck",
+   "label": "cmd_validate_deck()",
+   "kind": "function",
+   "parent": "verb:validate-deck",
+   "note": "dispatch fino na fachada scripts/prevcarga; compõe resolve_cuts+validate_deck; mapeia class→exit-code",
+   "milestone": "M2"
+  },
+  {
+   "id": "verb:validate-deck",
+   "label": "validate-deck",
+   "kind": "verb",
+   "parent": "",
+   "note": "gate-0 standalone: veredito + exit-codes 2/3/4/5 + --format json + data_hash; verbo guardado runtime-first",
+   "milestone": "M2"
+  }
+ ],
+ "edges": [
+  {
+   "from": "verb:validate-deck",
+   "to": "mod:validation",
+   "kind": "composes",
+   "label": "veredito estruturado",
+   "milestone": "M2"
+  },
+  {
+   "from": "verb:validate-deck",
+   "to": "mod:dates",
+   "kind": "composes",
+   "label": "resolve origem",
+   "milestone": "M2"
+  },
+  {
+   "from": "verb:validate-deck",
+   "to": "mod:provenance",
+   "kind": "composes",
+   "label": "data_hash",
+   "milestone": "M2"
+  },
+  {
+   "from": "verb:describe",
+   "to": "mod:dates",
+   "kind": "composes",
+   "label": "train_origin",
+   "milestone": "M2"
+  },
+  {
+   "from": "mod:dates",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "model_spec (horizon/protocol)",
+   "milestone": "M2"
+  },
+  {
+   "from": "mod:dates",
+   "to": "mod:validation",
+   "kind": "depends-on",
+   "label": "day_complete (fonte única)",
+   "milestone": "M2"
+  },
+  {
+   "from": "mod:dates",
+   "to": "mod:provenance",
+   "kind": "depends-on",
+   "label": "cutoff→version_hash",
+   "milestone": "M2"
+  },
+  {
+   "from": "mod:validation",
+   "to": "mod:topology",
+   "kind": "depends-on",
+   "label": "model_spec/escopo-área",
+   "milestone": "M2"
+  },
+  {
+   "from": "mod:dates",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "runtime-first (M1.4)",
+   "milestone": "M2"
+  },
+  {
+   "from": "mod:validation",
+   "to": "mod:runtime",
+   "kind": "depends-on",
+   "label": "C-locale/TZ (list.files ordem)",
+   "milestone": "M2"
+  }
+ ]
+}
