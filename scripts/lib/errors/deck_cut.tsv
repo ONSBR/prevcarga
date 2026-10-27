@@ -1,0 +1,4 @@
+id	class	message	hint
+completude.origin_day_gap	completude	buraco no dia da origem antes do ultimo intervalo de carga presente	reponha o intervalo indicado em where (area:HH:MM) no deck; o corte available_until nao encurta por causa de buraco
+completude.no_load	completude	nenhuma linha de carga no recorte pedido	confira --data, a janela e as areas; o deck precisa de carga ate a origem
+warning.available_until_spread	completude	as areas tem available_until diferentes; o corte global e o minimo	confira em where o ultimo intervalo de cada area (area:HH:MM) e complete as areas atrasadas se nao for esperado
