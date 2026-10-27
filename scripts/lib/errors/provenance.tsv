@@ -1,0 +1,2 @@
+id	class	message	hint
+integrity.freeze_file_missing	integrity	artefato congelado nao encontrado	regenere o artefato com prevcarga_freeze
