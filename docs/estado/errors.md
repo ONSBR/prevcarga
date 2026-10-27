@@ -8,3 +8,5 @@
 - `install/error-catalog.tsv` e GERADO por `scripts/tools/export_error_catalog.R` e nunca versionado.
 - Testes: `scripts/lib/tests/test-errors.R`, `test-errors-catalog-sync.R` (todo `prevcarga_abort("<id>")` consta no catalogo).
 - `partial.report_failed` e declarado pelo M6.10 em `errors/report.tsv`.
+- Dependencias: `docopt` (fachada da CLI) nao esta declarado no environment da spec; deve entrar no renv lock/bundle.
+- `scripts/tools/export_error_catalog.R` guarda `prevcarga_runtime_fix()` com `exists()` ate o ticket de runtime do M1 existir; manter a guarda ate la.
