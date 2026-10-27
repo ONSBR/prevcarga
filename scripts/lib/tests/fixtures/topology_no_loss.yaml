@@ -1,0 +1,18 @@
+# desvio: subsistema S sem loss
+schema_version: 1
+khat_range: [1.00, 1.15]
+subsystems:
+  SECO: {areas: [RJ, RO, MG, ES, MT, SP, AC, MS, GO, DF], loss: PESE}
+  S: {areas: [RS, PR, SC]}
+  "N": {areas: [PA, TON, AP, AM, MA], loss: PEN}
+  NE: {areas: [ALPE, CE, PBRN, BAOE, PI, BASE], loss: PENE}
+order: [SECO, S, "N", NE]
+members:
+  - {sigla: RF, mdir: random-forest, exogena: null}
+  - {sigla: LGBM, mdir: lgbm, exogena: null}
+  - {sigla: HW, mdir: holt-winters, exogena: null}
+  - {sigla: RGD_MED, mdir: dessem-regdin, exogena: MED}
+  - {sigla: RGD_MAX, mdir: dessem-regdin, exogena: MAX}
+  - {sigla: LIN_MED, mdir: dessem-linear, exogena: MED}
+  - {sigla: LIN_MAX, mdir: dessem-linear, exogena: MAX}
+  - {sigla: LIN_MXMN, mdir: dessem-linear, exogena: MXMN}

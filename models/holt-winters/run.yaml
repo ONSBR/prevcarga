@@ -1,0 +1,10 @@
+name: holt-winters
+split: origin_scoped
+granularity_min: 30
+horizon_days: 8
+history_days: {train: 730, infer: 45}
+seed: 1234
+modes: [train, infer, forecast]
+backtest: {protocol_default: retrain_harness}
+constraints: {}
+params: {}
