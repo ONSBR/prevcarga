@@ -1,0 +1,9 @@
+id	class	message	hint
+contract.manifest_missing	contract	manifest.json ausente no deck	crie manifest.json na raiz do deck (schema_version, timezone) ou regenere o store
+contract.manifest_invalid	contract	manifest.json invalido (JSON malformado ou valor fora do schema v1)	corrija o valor indicado em where: schema_version=1, load_label end|start, timezone como mapa
+contract.manifest_unknown_key	contract	manifest.json com chave desconhecida	remova a chave indicada em where; o schema v1 e fechado (a chave legada corte nao existe mais)
+contract.tz_missing	contract	fuso obrigatorio ausente no manifest.json	declare o fuso IANA da coluna indicada em timezone (dataset.coluna)
+contract.tz_invalid	contract	fuso do manifest.json fora da lista OlsonNames()	use um nome IANA valido, por exemplo Etc/GMT+3 ou UTC
+contract.tz_in_parquet	contract	coluna de data-hora do parquet ja tem fuso (o store deve ser ingenuo)	regrave o parquet como timestamp[ns] sem fuso e declare o fuso no manifest.json
+contract.load_label_conflict	contract	--load-label contradiz o load_label declarado no manifest.json	remova a flag (o manifest vence) ou corrija o manifest do deck
+contract.dataset_missing	contract	dataset obrigatorio ausente no deck	gere o dataset indicado em where no store ou aponte --data para o deck correto
