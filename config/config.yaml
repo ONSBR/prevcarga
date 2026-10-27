@@ -1,0 +1,13 @@
+# config.yaml -- schema v1 da instalacao do prevcarga (ADR-0037: a CLI nao le variavel de ambiente).
+# Precedencia: flag da CLI > este arquivo > default. O instalador copia este modelo para <raiz>/config.yaml.
+# Todas as chaves abaixo sao as unicas aceitas; chave desconhecida aborta (exit 8).
+
+schema_version: 1                       # int, obrigatorio, deve ser 1
+# data_dir: /caminho/do/deck            # chr; sem default (verbo que precisa => config.data_dir_missing)
+# state_dir: null                       # chr; default <raiz>/.state (so resolve, nao cria)
+# load_label: null                      # end|start; sem default no M1 (aplicado pelo leitor do M2)
+weather_issue_cutoff: available_until   # available_until|origin_midnight_utc (ADR-0024); default available_until
+color: auto                             # auto|always|never; default auto
+format: text                            # text|json; default text
+backtest:
+  corte_default: null                   # HH:MM ou null (consumido pelo M7)

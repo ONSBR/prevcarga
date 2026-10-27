@@ -63,3 +63,7 @@ renv/staging/
 
 # --- Catalogo de erros gerado (ADR-0040 item 7): derivado de scripts/lib/errors/*.tsv ---
 /install/error-catalog.tsv
+
+# --- Config local da instalacao/dev e estado local (M1.4a); o modelo config/config.yaml e versionado ---
+/config.yaml
+/.state/
