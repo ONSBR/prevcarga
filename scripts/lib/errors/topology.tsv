@@ -1,0 +1,2 @@
+id	class	message	hint
+contract.topology_bad_value	contract	valor invalido ou tipo errado na topologia	corrija o valor indicado em config/topology.yaml

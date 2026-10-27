@@ -1,0 +1,10 @@
+name: lgbm
+split: origin_agnostic
+granularity_min: 30
+horizon_days: 1
+history_days: {train: 730, infer: 45}
+seed: 123
+modes: [train, infer]
+backtest: {protocol_default: daily}
+constraints: {}
+params: {disable_loess: true, calendar_yearend: true, train_cv: true}
