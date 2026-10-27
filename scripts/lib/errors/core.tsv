@@ -1,0 +1,62 @@
+id	class	message	hint
+runtime.tz_unfixable	runtime	nao foi possivel fixar o fuso TZ no processo	verifique se o R suporta Sys.setenv(TZ) e reinstale o R
+runtime.locale_unavailable	runtime	locale C.UTF-8 indisponivel no processo	instale o locale C.UTF-8 no sistema
+runtime.blas_unfixable	runtime	nao foi possivel fixar o BLAS em 1 thread	instale RhpcBLASctl ou use o BLAS de referencia do R
+runtime.install_root_unresolved	runtime	nao foi possivel resolver a raiz da instalacao	rode a CLI pelo caminho do script scripts/prevcarga
+config.usage	config	uso invalido da linha de comando	rode prevcarga --help para ver a sintaxe
+config.unknown_key	config	chave desconhecida na configuracao	remova ou corrija a chave em config.yaml
+config.bad_type	config	valor de configuracao com tipo invalido	corrija o tipo do valor no config.yaml ou na flag
+config.bad_origin	config	--origin nao e uma data ISO YYYY-MM-DD	use --origin=2024-06-01
+config.bad_load_label	config	load_label invalido	use load_label: start ou end
+config.bad_weather_cutoff	config	weather_cutoff invalido	use um horario HH:MM valido
+config.bad_color	config	valor de color invalido	use color: auto, always ou never
+config.bad_format	config	valor de --format invalido	use --format=text ou --format=json
+config.data_dir_missing	config	diretorio de dados nao encontrado	aponte data_dir no config.yaml para o store de dados
+config.unknown_model	config	modelo desconhecido	rode prevcarga models para listar os modelos
+contract.topology_file_missing	contract	arquivo de topologia nao encontrado	restaure o arquivo de topologia do repositorio
+contract.topology_unknown_key	contract	chave desconhecida na topologia	remova a chave desconhecida da topologia
+contract.topology_schema_version	contract	schema_version da topologia nao suportado	atualize a topologia para a versao de schema suportada
+contract.topology_area_duplicated	contract	area duplicada na topologia	mantenha cada area uma unica vez
+contract.topology_loss_missing	contract	perda ausente na topologia	declare a perda de cada area
+contract.topology_loss_duplicated	contract	perda duplicada na topologia	declare a perda uma unica vez
+contract.topology_order_mismatch	contract	ordem das areas diverge da topologia	alinhe a ordem das areas com a topologia
+contract.topology_member_invalid	contract	membro invalido na topologia	corrija o membro indicado
+contract.khat_range_invalid	contract	k-hat fora do intervalo valido	reveja o k-hat declarado no modelo
+contract.run_yaml_missing	contract	run.yaml nao encontrado	crie o run.yaml do experimento
+contract.run_yaml_unknown_key	contract	chave desconhecida no run.yaml	remova a chave desconhecida do run.yaml
+contract.run_yaml_forbidden_key	contract	chave proibida no run.yaml	remova a chave proibida do run.yaml
+contract.run_yaml_bad_value	contract	valor invalido no run.yaml	corrija o valor indicado no run.yaml
+contract.run_yaml_name_mismatch	contract	nome do run.yaml diverge do diretorio	renomeie o run.yaml ou o diretorio
+contract.constraint_violated	contract	restricao do contrato violada	reveja a restricao indicada em onde
+contract.seed_missing	contract	seed ausente	declare a seed no run.yaml
+contract.fingerprint_missing_key	contract	chave ausente no fingerprint	complete as chaves do fingerprint
+contract.fingerprint_extra_key	contract	chave extra no fingerprint	remova a chave extra do fingerprint
+contract.fingerprint_lateral	contract	campo lateral dentro do fingerprint	mova o campo lateral para fora do fingerprint
+contract.fingerprint_partially_named	contract	fingerprint parcialmente nomeado	nomeie todos os campos do fingerprint
+contract.run_manifest_bad_value	contract	valor invalido no manifest da execucao	regenere o manifest da execucao
+contract.run_manifest_forbidden_key	contract	chave proibida no manifest da execucao	remova a chave proibida do manifest
+contract.freeze_dir_missing	contract	diretorio de freeze nao encontrado	restaure ou regenere o diretorio de freeze
+contract.registry_requires_unmet	contract	registry: dependencia requires nao satisfeita	declare o plugin requerido no registry
+contract.registry_tier_invalid	contract	registry: tier invalido	use um tier valido do registry
+contract.registry_duplicate_id	contract	registry: id duplicado	mantenha cada id uma unica vez no registry
+contract.registry_malformed	contract	registry: arquivo malformado	corrija o formato do registry
+contract.registry_unknown_member	contract	registry: membro desconhecido	declare o membro no registry
+contract.long_schema_constant	contract	constante do schema long alterada	nao altere a constante do schema long
+contract.error_catalog_dup	contract	error.id declarado em mais de um arquivo do catalogo	declare cada error.id em um unico scripts/lib/errors/<nome>.tsv
+contract.error_catalog_schema	contract	arquivo do catalogo de erros invalido	corrija scripts/lib/errors/*.tsv: colunas id/class/message/hint, classe da tabela, ASCII puro
+integrity.freeze_sha_mismatch	integrity	sha do freeze diverge do manifest	regenere o freeze ou restaure o artefato original
+integrity.freeze_manifest_missing	integrity	manifest do freeze ausente	restaure ou regenere o manifest do freeze
+integrity.release_forbidden_content	integrity	conteudo proibido no pacote de release	remova o conteudo proibido do release-pack
+bundle.package_missing	bundle	pacote R ausente no bundle	reinstale o bundle ou instale o pacote R indicado
+state.official_set_incomplete	state	conjunto oficial incompleto	complete o conjunto oficial antes de prosseguir
+todo.not_implemented	generic	funcionalidade ainda nao implementada	aguarde o ticket que implementa este modulo
+generic.unexpected	generic	erro inesperado	rode novamente com --debug e reporte o problema
+generic.unknown_error_id	generic	error.id inexistente no catalogo (bug do pacote)	declare o id em scripts/lib/errors/<nome>.tsv
+completude.unclassified	completude	falha de completude	reveja os dados de entrada
+topology.unclassified	topology	falha de topologia	reveja a topologia
+window.unclassified	window	falha de janela temporal	reveja a janela de datas
+network.unclassified	network	falha de rede	verifique a conexao e tente novamente
+coherence.unclassified	coherence	falha de coerencia	reveja a coerencia entre os artefatos
+repro.unclassified	repro	falha de reprodutibilidade	reveja o determinismo da execucao
+partial.unclassified	partial	execucao parcial	reveja as falhas parciais reportadas
+honesty.unclassified	honesty	violacao de honestidade	reveja o gate de honestidade do modulo

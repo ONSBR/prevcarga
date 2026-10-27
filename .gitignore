@@ -60,3 +60,6 @@ renv/staging/
 .specforge/
 .specforge-canary/
 .mcp.json
+
+# --- Catalogo de erros gerado (ADR-0040 item 7): derivado de scripts/lib/errors/*.tsv ---
+/install/error-catalog.tsv
