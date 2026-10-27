@@ -3,8 +3,8 @@
 ## Unico lugar do sistema que abre manifest.json e que chama arrow::open_dataset. Requer errors.R
 ## carregado antes (prevcarga_abort). Fuso so por lubridate com tz explicito (force_tz + with_tz);
 ## nenhum Sys.time/Sys.getenv e nenhuma aritmetica de data-hora fora do leitor. M2.2: corte intradiario
-## derivado do dado (available_until), filtro de saida e clima pela regra weather_issue_cutoff; feriados e
-## painel entram no M2.7. Saida de terminal: ASCII puro.
+## derivado do dado (available_until), filtro de saida e clima pela regra weather_issue_cutoff. M2.7: feriados
+## (calendario conhecido de antemao, sem corte) e painel do leitor. Saida de terminal: ASCII puro.
 ##
 ## Datasets canonicos (relativos a data_dir) e seus nomes no manifest/probe:
 .PREVCARGA_DECK_DATASETS <- c(load = "load", weather_observed = file.path("weather", "observed"),
@@ -127,7 +127,7 @@ prevcarga_resolve_load_label <- function(ctx, manifest) {
   fa <- arrow::Expression$field_ref("area_code")
   flt <- NULL
   and <- function(a, b) if (is.null(a)) b else a & b
-  if (!is.null(from)) flt <- and(flt, fy >= arrow::Expression$scalar(as.integer(lubridate::year(from)) - 1L))
+  if (!is.null(from)) flt <- and(flt, fy >= arrow::Expression$scalar(as.integer(lubridate::year(from - lubridate::days(1L)))))
   if (!is.null(to)) flt <- and(flt, fy <= arrow::Expression$scalar(as.integer(lubridate::year(to))))
   if (length(years))
     flt <- and(flt, Reduce(`|`, lapply(years, function(y) fy == arrow::Expression$scalar(as.integer(y)))))
@@ -332,6 +332,53 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
   }
   for (n in names(extra)) data.table::setattr(dt, n, extra[[n]])
   dt[]
+}
+
+## --- Feriados (M2.7): calendario conhecido de antemao ---------------------------------------------------------
+## `date` e a data civil no fuso da carga: sem deslocamento de 30 min e SEM filtro de available_until. Particao `year`
+## exata (data civil nao desloca); nao filtra nem corrige codigos (code_negative e do validate-deck).
+prevcarga_read_holidays <- function(ctx, areas, from, to) {
+  d <- .prevcarga_deck_ctx(ctx)
+  ds <- .prevcarga_open(d$dir, .PREVCARGA_DECK_DATASETS[["holidays"]], "holidays")
+  yrs <- seq(lubridate::year(from), lubridate::year(to))
+  h <- .prevcarga_scan(ds, c("area_code", "date", "holiday_type_id", "prevcarga_code", "simplified_code"),
+                       NULL, NULL, areas, years = yrs)
+  data.table::set(h, j = "date", value = lubridate::as_date(h$date))
+  h <- h[date >= lubridate::as_date(from) & date <= lubridate::as_date(to)]
+  data.table::setorderv(h, c("area_code", "date"))
+  data.table::setkeyv(h, c("area_code", "date"))
+  h[]
+}
+
+## --- Painel do leitor (M2.7) ---------------------------------------------------------------------------------
+## Agrega os atributos dos leitores sem recalcular; aborta se divergirem em tz ou available_until.
+.PREVCARGA_PANEL_LOAD_ATTRS <- c("available_until", "available_until_by_area", "load_label", "load_label_source", "tz")
+.PREVCARGA_PANEL_FC_ATTRS <- c("weather_issue_cutoff", "weather_issue_limit")
+
+pc_panel_attrs <- function(load, weather_obs, weather_fc) {
+  for (x in list(weather_obs, weather_fc)) {
+    if (!identical(attr(x, "tz"), attr(load, "tz")))
+      prevcarga_abort("contract.constraint_violated", where = "panel.tz")
+    if (!identical(attr(x, "available_until"), attr(load, "available_until")))
+      prevcarga_abort("contract.constraint_violated", where = "panel.available_until")
+  }
+  c(stats::setNames(lapply(.PREVCARGA_PANEL_LOAD_ATTRS, function(n) attr(load, n)), .PREVCARGA_PANEL_LOAD_ATTRS),
+    stats::setNames(lapply(.PREVCARGA_PANEL_FC_ATTRS, function(n) attr(weather_fc, n)), .PREVCARGA_PANEL_FC_ATTRS))
+}
+
+## Origem ja resolvida pelo chamador (o leitor nao depende de dates.R). Topologia: ctx$topology_path ou
+## <ctx$root>/config/topology.yaml; area fora dela => topology.area_undeclared antes de qualquer leitura.
+prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days) {
+  O <- lubridate::as_date(origin)
+  tp <- if (!is.null(ctx$topology_path)) ctx$topology_path else prevcarga_topology_path(ctx$root)
+  undeclared <- setdiff(areas, prevcarga_topology(path = tp)$leaves)
+  if (length(undeclared)) prevcarga_abort("topology.area_undeclared", where = undeclared[[1L]])
+  load <- prevcarga_read_load(ctx, areas, from = O - history_days, to = O, origin = O)
+  obs <- prevcarga_read_weather(ctx, "observed", areas, O - history_days, O, origin = O)
+  fc <- prevcarga_read_weather(ctx, "forecast", areas, O, O + horizon_days, origin = O)
+  hol <- prevcarga_read_holidays(ctx, areas, O - history_days, O + horizon_days)
+  list(load = load, weather_observed = obs, weather_forecast = fc, holidays = hol,
+       attrs = c(list(origin = O), pc_panel_attrs(load, obs, fc)))
 }
 
 ## --- Sonda: schema/tipos/Hive sem coletar linhas ---------------------------------------------------------

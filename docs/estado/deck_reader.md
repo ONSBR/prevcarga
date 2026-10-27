@@ -13,7 +13,7 @@
 - `prevcarga_read_load(ctx, areas, from, to)` => data.table chaveada `(area_code, interval_start)` com `interval_start/interval_end/load_mwh` (sem `timestamp`);
   `end` => -30 min, `start` => identidade; attrs `load_label`, `load_label_source`, `tz`. `prevcarga_read_weather(ctx, kind, areas, from, to, select)`:
   clima chaveado por `area_code`, sem deslocamento. Filtro de particao `year` via `arrow::Scanner` + `Expression` (o ambiente nao tem dplyr; nao use verbos dplyr).
-  Dataset ausente => `contract.dataset_missing`. Feriados/painel: M2.7.
+  Dataset ausente => `contract.dataset_missing`.
 - `prevcarga_deck_probe(data_dir)`: por dataset (`load`, `weather_observed`, `weather_forecast`, `holidays`) `present`, `files`, `hive_ok`, `columns`, `types`,
   `tz_in_parquet`, `unreadable`; so metadados (sem `collect`).
 - Catalogo: `scripts/lib/errors/deck_reader.tsv` (8 ids `contract.*`).
@@ -34,3 +34,16 @@
 - `prevcarga_read_weather(..., origin, truncate_at)`: observado `<= available_until`; previsto so a emissao mais fresca permitida (escolhida antes do recorte de `valid_time`);
   attrs `weather_issue_cutoff`, `weather_issue_cutoff_source`, `weather_issue_limit`, `freshest_issue_by_area`. `available_until` vem da carga lida pelo proprio leitor.
 - Catalogo: `scripts/lib/errors/deck_cut.tsv`. Testes: `test-deck-reader-cut.R`; helper ganhou `pc_deck_until`, `pc_deck_drop`, `pc_deck_perturb`, `pc_deck_issues`.
+
+## M2.7 (parte 3): feriados e painel do leitor
+- `prevcarga_read_holidays(ctx, areas, from, to)`: `auxiliary/holidays` (Hive `area_code=/year=`), colunas `area_code, date, holiday_type_id, prevcarga_code, simplified_code`;
+  `date` = data civil (`Date`) sem deslocamento e SEM corte de `available_until` (calendario conhecido de antemao); particao `year` exata; nao filtra codigos
+  (`simplified_code = -1` sai como esta; o finding `code_negative` e do validate-deck, M2.4). Chaveado `(area_code, date)`.
+- `prevcarga_read_panel(ctx, origin, areas, horizon_days, history_days)`: origem ja resolvida (o leitor nao depende de `dates.R`); valida `areas` contra
+  `prevcarga_topology(path)$leaves` (`ctx$topology_path` ou `<ctx$root>/config/topology.yaml`) antes de ler => `topology.area_undeclared` (exit 4, `where` = a area).
+  Devolve `load` (O-hist..O, cortada), `weather_observed` (O-hist..O, <= available_until), `weather_forecast` (O..O+horizon, emissao mais fresca permitida), `holidays`
+  (O-hist..O+horizon) e `attrs` (`origin`, `available_until`, `available_until_by_area`, `load_label`, `load_label_source`, `tz`, `weather_issue_cutoff`, `weather_issue_limit`).
+  `pc_panel_attrs` copia os atributos sem recalcular e aborta `contract.constraint_violated` se `tz`/`available_until` divergirem. O mapeamento area -> serie de clima e do plugin.
+- O limite inferior do filtro de particao `year` passou de `year(from)-1` para `year(from - 1 dia)` (nenhum ano fora da janela e coletado; o recorte fino segue em memoria).
+- Catalogo: `scripts/lib/errors/panel.tsv`. Testes: `test-read-panel.R`; helper ganhou `pc_deck_panel`, `pc_ctx_panel`, `pc_deck_topology`, `pc_deck_holidays_default`
+  e `pc_deck_perturb` cobre `holidays` (+1 em `prevcarga_code`).
