@@ -1,0 +1,7 @@
+id	class	message	hint
+contract.combina_input	contract	entrada invalida no nucleo da combina	confira em `where` a funcao e a coluna/condicao violada (X sem NA, length(y) == nrow(X), colunas lead/cut/ym/target_datetime/y_true e >= 1 f_*)
+contract.combina_run_mode_dup	contract	mais de um run-mode para a mesma identidade de membro	deixe um unico run por (modelo, area, corte) no root passado em --root
+contract.member_misaligned	contract	membro desalinhado com a grade comum	alinhe inicio/grade/fim do membro (delivery_days do run-manifest) antes de combinar
+contract.combina_artifact_mismatch	contract	artefato de pesos de outro conjunto de membros, load_label ou fuso	re-treine com --mode=train para o conjunto atual ou aponte --artifact-dir para o artefato certo
+state.combina_not_trained	state	nao ha pesos treinados para a area	rode `prevcarga combine --mode=train --area=<a> --root=<dir>` antes de --mode=apply
+config.bad_mode	config	--mode desconhecido	use --mode=train, --mode=apply ou --mode=full
