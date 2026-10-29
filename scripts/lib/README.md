@@ -28,3 +28,27 @@ Cada módulo é uma **função R importável** (`source()`), não um script vest
 
 Stubs atuais param com `stop(... "— TODO M<n>")` de propósito: a estrutura existe, a implementação chega
 no seu milestone. Nenhum stub finge estar pronto.
+
+## Módulos do M1 (fundação): dono e consumidores
+
+| Módulo | Dono | Consumidores |
+|---|---|---|
+| `runtime.R` | M1.1 | shim `scripts/prevcarga` (1a ação de todo verbo não isento), `introspect.R` (doctor/status), toda a CLI |
+| `errors.R` + `errors/<modulo>.tsv` | M1.4b (loader/catálogo); cada módulo dono do seu `.tsv` | todos os módulos (`prevcarga_abort`), `cli.R`, `scripts/tools/export_error_catalog.R` |
+| `config.R` | M1.4a | `cli.R` (ctx), `introspect.R`, `deck_reader.R`/M2 (via ctx) |
+| `banner.R` | M1.4c | `cli.R` (--help/--version/sem verbo/doctor) |
+| `cli.R` + `cli/<verbo>.R` | M1.4 (fachada); cada verbo dono do seu arquivo | `scripts/prevcarga`, `introspect.R` e verbos dos épicos |
+| `introspect.R` | M1.5 | `cli/{doctor,status,models,areas,describe}.R` |
+| `topology.R` | M1.2 | `introspect.R`, `provenance.R`, `registry.R`, `combination.R`, M4-M7 |
+| `schema_long.R` | M1.2b | `evaluation.R`, `combination.R`, M6 |
+| `provenance.R` | M1.3 | M4/M5/Reconcile/plugins (version, run-manifest, freeze) |
+| `registry.R` | M1.6 | `topology.R` (membros), M5 (ciclo de vida) |
+
+### Receitas de extensão (barrel por descoberta; ninguém edita lista central)
+- **Novo verbo:** crie `scripts/lib/cli/<verbo>.R` com o objeto `prevcarga_verb_<verbo>` (`name`, `usage`, `options`, `handler`,
+  `owner`, `exempt`, `modules`). A fachada o descobre; o stub `todo.not_implemented` do verbo some sozinho.
+- **Novos `error.id`:** crie `scripts/lib/errors/<nome>.tsv` (colunas `id class message hint`, id único, classe da tabela 1-15,
+  ASCII puro). `install/error-catalog.tsv` é gerado, nunca editado.
+- **Novo gate:** crie `scripts/tools/gates/<dono>.R`; gates de processo/fonte do M1 estão em `scripts/lib/tests/`
+  (`test-cli-process.R`, `test-ascii-bytes.R`, `test-static-greps.R`) e rodam por `scripts/tools/gates/m1.R`.
+- **Estado durável:** `docs/estado/<modulo>.md` por módulo/épico; o índice é `docs/ESTADO-ATUAL.md`.
