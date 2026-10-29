@@ -27,3 +27,20 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
   `(model, variant, area, split, train_origin, last_data_day, version, status, path)`.
 - Gate `registry_lifecycle` (`test-static-greps.R`): allow-list segue so `registry.R`; o padrao foi refinado para casar DEFINICAO/uso nu de promote/rollback/gc (e `prevcarga_registry_* <- function`) e poupar CHAMADAS da API (`prevcarga_registry_promote_latest(...)`), com CONTROLs. `training.R` so chama o registry.
 - Pendencia F1 (despachante): os estagios continuam com formals fixos; esta fachada NAO escolheu canal para repassar spec/cortes aos estagios (params e seed ja chegam por `spec$params`/`spec$seed`).
+
+## M5.4 -- verbo `train-models` (`scripts/lib/cli/train-models.R`; logica em `training.R`; catalogo `errors/train_models.tsv`; testes `test-train-models.R`)
+- Gramatica: `train-models [--model=<lista>] [--area=<a> | --subsistema=<s> | --areas=<a,b>] [--origin] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force]`
+  (+ globais). Handler `cmd_train_models(ctx, args)` (convencao da fachada). `--model/--area/--origin` ja sao flags globais/de outro verbo (nao redeclarados).
+- `prevcarga_resolve_areas(area, subsistema, areas, ctx)` (em `training.R`, nao em `topology.R`: o ticket o listava la, mas `topology.R` e arquivo disputado por outros
+  tickets; mover e trivial): >1 seletor => `contract.area_selector_conflict` (exit 2); fora da topologia => `topology.area_undeclared` (exit 4). `--area`/`--areas` aceitam folha ou no de
+  subsistema (a chave da celula e o proprio nome); `--subsistema S` expande para as folhas-filhas; nenhum seletor = todas as folhas. Seletores e `--model` sao validados antes de ler o deck.
+- `--model`: lista de `mdir` ou `mdir/exogena`; `--exogena`: filtro de variante (nao override de param). `--horizon` = override `horizon_days` (so chave declarada; M5.3).
+- Matriz `prevcarga_train_matrix` ordenada por (model, variant, area) radix; `--dry-run` = `prevcarga_train_plan` (le o painel como o treino, calcula cortes e `v_<hash>`, status `planned`, nada gravado;
+  a versao-alvo e identica a do treino real). Result: `{schema_version, dry_run, origin, available_until, load_label, weather_issue_cutoff, cells[]}`; `variant` NA => `null`.
+- `prevcarga_train_models(cells, ctx, origin, jobs, force)`: serial em ordem (1o erro aborta) ou `parallel::makePSOCKcluster` (sem fork). `prevcarga_worker_init` (R novo): carrega a lib
+  (`ctx$lib_dir`/`prevcarga.lib`), roda `prevcarga_runtime_enforce()` in-process e devolve dado (nunca levanta); falha => o pai re-levanta o id original (`runtime.*` => exit 7) ou
+  `runtime.worker_unfixable`. Celulas devolvem `prevcarga_cell_error` (id/where/details) re-levantado com a classe original; resultado reordenado pela chave. Semente: spec$seed aplicada pelo plugin no worker.
+  Hooks de teste so por `ctx$worker_hooks` (`pre_runtime`/`post_runtime`), nunca por env; a CLI nao os expoe.
+- INTERINO / lacuna conhecida (nao decidida aqui): o RF real (RF.1) nao treina via `prevcarga_train`: (1) o estagio de ingestao le `cuts$spec`/`cuts$phase`, que o despachante nao repassa (F1);
+  (2) a janela de carga do facade e `history_days.train` dias terminando em `last_data_day`, mas o RF exige `[train_origin - history_days.train, last_data_day]` (history_days + H dias). Os testes
+  usam o plugin-brinquedo `toy-rng` (toy-30 origin_agnostic que consome o RNG com o seed do spec).
