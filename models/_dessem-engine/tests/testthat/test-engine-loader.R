@@ -21,7 +21,7 @@ test_that("ac-8 o loader monta o env do motor com todas as required_functions e 
   m <- manifest_of()
   expect_identical(m$engine_id, "_dessem-engine")
   expect_identical(m$contract_version, 1L)
-  expect_length(m$required_functions, 12L)
+  expect_length(m$required_functions, 17L)
   expect_false(file.exists(file.path(eng_dir(), "run.yaml")))
   for (fn in m$required_functions) expect_true(is.function(get0(fn, envir = eng, inherits = FALSE)), info = fn)
   expect_true(all(c("desagregaModeloSH", "getConfig", "TransformaDeck") %in% m$required_functions))
@@ -49,7 +49,7 @@ test_that("ac-9 cada arquivo do motor so define funcoes e o grep de estado/nowca
   expect_length(hit, 0L)
   m <- manifest_of()
   expect_true(all(m$files %in% basename(files)))
-  expect_identical(m$files[[length(m$files)]], "engine.R")
+  expect_identical(utils::tail(m$files, 5L), c("engine.R", "robustez.R", "feriados.R", "exogena.R", "svm_serial.R"))
 })
 
 test_that("ac-9 CONTROL: arquivo com read.csv no topo => contract do loader nomeando o arquivo", {
