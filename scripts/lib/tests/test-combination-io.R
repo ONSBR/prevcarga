@@ -127,7 +127,8 @@ test_that("M4.2 - ac-4 join exato por interval_end sobre o deck sentinela", {
   m2 <- members[1:2, ]
   root <- withr::local_tempdir()
   pc_cmb_write_root(root, "SECO", lapply(m2$sigla, function(s)
-    list(sigla = s, origins = "2026-10-01", d_plus = 0:2, slots = 0:47)), m2)
+    list(sigla = s, origins = "2026-10-01", delivery_days = 3L,       # alinhado (M4.2b): 1o alvo = corte + 30 min
+         long = pc_cmb_aligned_long(s, "SECO", "2026-10-01", "0900", 3L, m2))), m2)
   panel <- fn("prevcarga_combina_load")(root, "SECO", ctx, members = m2)
   istart <- panel$target_datetime - lubridate::minutes(30)
   slot <- lubridate::hour(istart) * 2 + lubridate::minute(istart) / 30 + 1
@@ -142,11 +143,12 @@ test_that("M4.2 - ac-4 join exato por interval_end sobre o deck sentinela", {
   pre <- data.table::copy(panel); pre[, y_true := 9e9]
   expect_identical(fn("prevcarga_join_fresh_truth")(pre, ctx, "SECO")$y_true, panel$y_true)
   ## alteracao no deck anterior a origem e refletida so naquele intervalo
-  pc_eval_perturb(dir, "SECO", from = lubridate::ymd_hm("2026-10-01 00:00", tz = pc_cmb_tz),
-                  to = lubridate::ymd_hm("2026-10-01 00:30", tz = pc_cmb_tz), fn = function(x) x + 7)
+  pc_eval_perturb(dir, "SECO", from = lubridate::ymd_hm("2026-10-01 09:00", tz = pc_cmb_tz),
+                  to = lubridate::ymd_hm("2026-10-01 09:30", tz = pc_cmb_tz), fn = function(x) x + 7)
   again <- fn("prevcarga_join_fresh_truth")(panel, ctx, "SECO")
   d <- which(!is.na(again$y_true) & again$y_true != panel$y_true)
-  expect_identical(d, which(panel$target_datetime == lubridate::ymd_hm("2026-10-01 00:30", tz = pc_cmb_tz)))
+  expect_length(d, 1L)                                 # o intervalo perturbado esta no painel e no deck
+  expect_identical(d, which(panel$target_datetime == lubridate::ymd_hm("2026-10-01 09:30", tz = pc_cmb_tz)))
   expect_identical(again$y_true[d], panel$y_true[d] + 7)
   ## CONTROL: rotulo trocado (interval_start == target) casa o vizinho e diverge do sentinela
   act <- fn("prevcarga_read_actual")(ctx, "SECO", from = min(panel$target_datetime) - lubridate::seconds(1), to = max(panel$target_datetime))
