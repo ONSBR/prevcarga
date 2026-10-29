@@ -4,7 +4,8 @@
 ## A hora NAO e tocada aqui: o deslocamento de 60 min (ADR-0012/0019) e declarado em `model_time_offset_min` e
 ## aplicado SO pelo despachante da fundacao (to_model_frame/to_display_frame). Nenhuma aritmetica de hora no plugin.
 ##
-## Estagios training/inference_features/inference/forecast e freeze/thaw sao dos tickets DL.6/DL.7: este arquivo
+## Estagios training e freeze/thaw: DL.6 (training.R: dl_training; freeze.R: dl_freeze/dl_thaw). inference_features/inference/forecast: DL.7.
+## Cada um e resolvido por NOME (nao ha edicao aqui para trocar stubs): este arquivo
 ## resolve cada um por NOME (dl_training, dl_inference_features, dl_inference, dl_forecast, dl_freeze, dl_thaw) no env
 ## do plugin e, enquanto o arquivo do estagio nao existe, usa um stub que recusa com plugin.stage_missing.
 
