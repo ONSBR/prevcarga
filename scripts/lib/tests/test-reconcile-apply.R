@@ -45,7 +45,7 @@ ra_profile <- function(s, ss, origin = O, r = 1.1, load_label = "start", tz = pc
                load_label = load_label, timezone = tz, data_hash = env$prevcarga_khat_data_hash(ratio),
                code_commit = "abc", renv_lock_hash = strrep("a", 64))
   fz <- env$prevcarga_khat_freeze(fit, meta, s$ctx)
-  env$prevcarga_khat_advance_latest(ss, fz$version, o, s$ctx)
+  suppressWarnings(env$prevcarga_khat_advance_latest(ss, fz$version, o, s$ctx))
   fz$version
 }
 
@@ -99,17 +99,38 @@ test_that("AC2 state.khat_missing: sem latest => exit 13, hint e nada devolvido"
   expect_false(grepl("[^ -~]", conditionMessage(cond)))
 })
 
-test_that("AC3 honesty.khat_after_origin: O+1 aborta; CONTROL O-1 aplica com khat_age_days = 1", {
+test_that("AC3 politica por origem: O+1 aborta; O aplica (idade 0); O-1 sem pino => state.khat_missing; pino O-1 => idade 1", {
   s <- ra_setup(); leaves <- pc_leaves_long(s$topo, O, s$ctx)
   ra_profile(s, "SS1", origin = format(Od + 1L))
   expect_pc(apply_q(leaves, s$ctx, "SS1"), "honesty.khat_after_origin", 15L)
-  s2 <- ra_setup(); ra_profile(s2, "SS1", origin = format(Od - 1L))
-  r <- apply_q(leaves, s2$ctx, "SS1")
+  s2 <- ra_setup(); v1 <- ra_profile(s2, "SS1", origin = format(Od - 1L))
+  ## FORBIDDEN: nunca reusa o latest de outra origem
+  expect_pc(apply_q(leaves, s2$ctx, "SS1"), "state.khat_missing", 13L)
+  r <- apply_q(leaves, s2$ctx, "SS1", khat_version = v1)          # pino explicito
   expect_identical(r$khat$SS1$khat_origin, Od - 1L)
   expect_identical(r$khat$SS1$khat_age_days, 1L)
-  expect_match(r$khat$SS1$versao, "^v_[0-9a-f]{16}$")
-  expect_identical(env$prevcarga_khat_check_policy(env$prevcarga_khat_thaw(s2$ctx, "SS1", r$khat$SS1$versao),
-                                                   s2$ctx, Od), 1L)
+  ## CONTROL: perfil ajustado para a propria origem aplica com idade 0
+  v0 <- ra_profile(s2, "SS1", origin = O, r = 1.2)
+  r0 <- apply_q(leaves, s2$ctx, "SS1")
+  expect_identical(r0$khat$SS1$versao, v0)
+  expect_identical(r0$khat$SS1$khat_age_days, 0L)
+  expect_match(r0$khat$SS1$versao, "^v_[0-9a-f]{16}$")
+  expect_identical(env$prevcarga_khat_check_policy(env$prevcarga_khat_thaw(s2$ctx, "SS1", v0), s2$ctx, Od), 0L)
+})
+
+test_that("refit por origem: origens diferentes pegam perfis diferentes, mesmo com latest em outra origem (backtest para tras)", {
+  s <- ra_setup()
+  vA <- ra_profile(s, "SS1", origin = "2026-01-20", r = 1.05)
+  vB <- ra_profile(s, "SS1", origin = "2026-01-10", r = 1.15)      # treinada depois, origem anterior: latest segue em 01-20
+  expect_false(identical(vA, vB))
+  expect_identical(env$prevcarga_khat_resolve(s$ctx, "SS1"), vA)
+  lA <- pc_leaves_long(s$topo, "2026-01-20", s$ctx); lB <- pc_leaves_long(s$topo, "2026-01-10", s$ctx)
+  rA <- apply_q(lA, s$ctx, "SS1"); rB <- apply_q(lB, s$ctx, "SS1")
+  expect_identical(rA$khat$SS1$versao, vA); expect_identical(rB$khat$SS1$versao, vB)
+  expect_identical(rA$khat$SS1$khat_age_days, 0L); expect_identical(rB$khat$SS1$khat_age_days, 0L)
+  ## CONTROL: o y_pred reflete o k de cada origem (1,05 x 1,15 sobre o mesmo BU)
+  expect_equal(rB$long$SS1$y_pred[[1L]] / rA$long$SS1$y_pred[[1L]],
+               1.15 / 1.05 * (lB$y_pred[1L] / lA$y_pred[1L]), tolerance = 1e-9)
 })
 
 test_that("AC4 contract.khat_convention: load_label ou fuso divergente aborta; CONTROL mesma convencao aplica", {

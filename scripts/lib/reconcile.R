@@ -419,9 +419,12 @@ prevcarga_reconcile_train <- function(ctx, origin, subsystems = "all", window_da
   stats::setNames(out, sss)
 }
 
-## --- Politica de uso do perfil (unico lugar): perfil de uma origem vale para O >= khat_origin --------------
-## [TBD: ADR-0015 emenda]. Devolve khat_age_days (inteiro).
-prevcarga_khat_check_policy <- function(prof, ctx, origin) {
+## --- Politica de uso do perfil (unico lugar): cada origem usa o perfil AJUSTADO PARA ELA --------------------
+## Como o oraculo (reajusta o k-hat por origem; Delta = 0): khat_origin == O. Posterior a O => honesty.khat_after_origin;
+## anterior a O sem pino explicito => state.khat_missing (nao ha perfil ajustado para esta origem; nunca reusa o latest).
+## `pinned` = versao fixada de proposito (--khat-version): vale khat_origin <= O, relatando khat_age_days.
+## Devolve khat_age_days (inteiro).
+prevcarga_khat_check_policy <- function(prof, ctx, origin, pinned = FALSE) {
   m <- prof$meta
   conv <- .prevcarga_reconcile_convention(ctx)
   if (!identical(m$load_label, conv$load_label))
@@ -435,7 +438,24 @@ prevcarga_khat_check_policy <- function(prof, ctx, origin) {
   if (ko > origin)
     prevcarga_abort("honesty.khat_after_origin",
                     details = list(khat_origin = format(ko), origem = format(origin)))
+  if (ko < origin && !isTRUE(pinned))
+    prevcarga_abort("state.khat_missing", where = paste0(m$ss, "@", format(origin)),
+                    details = list(khat_origin = format(ko), origem = format(origin)))
   as.integer(origin - ko)
+}
+
+## Versao do perfil ajustado para a origem O: o latest se for dele; senao varre as versoes da celula (o backtest
+## treina em sequencia para tras e o latest.txt so anda para frente). Sem correspondencia devolve o latest, e a
+## politica decide o erro (futuro => honesty; antigo => state.khat_missing). Sem latest => state.khat_missing.
+.prevcarga_khat_resolve_for_origin <- function(ctx, ss, origin) {
+  latest <- prevcarga_khat_resolve(ctx, ss, NULL)
+  key <- prevcarga_khat_key(ss, ctx)
+  ko <- function(v) tryCatch(lubridate::ymd(prevcarga_read_run_manifest(file.path(key, v))$khat_origin),
+                             error = function(e) as.Date(NA))
+  if (identical(ko(latest), origin)) return(latest)
+  vs <- sort(list.files(key, pattern = "^v_[0-9a-f]{16}$"), method = "radix")
+  hit <- vs[vapply(vs, function(v) identical(ko(v), origin), NA)]
+  if (length(hit)) hit[[length(hit)]] else latest
 }
 
 ## verdade por area pelo leitor unico (um read_actual por area: a saida nao traz a coluna da area)
@@ -470,9 +490,10 @@ prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat
     for (ss in sss) {
       areas <- topo$subsystems[[ss]]$areas
       bu <- prevcarga_reconcile_bottomup(all_leaves, ss, topo, ctx)
-      ver <- prevcarga_khat_resolve(ctx, ss, khat_version)
+      ver <- if (is.null(khat_version)) .prevcarga_khat_resolve_for_origin(ctx, ss, origin)
+             else prevcarga_khat_resolve(ctx, ss, khat_version)
       prof <- prevcarga_khat_thaw(ctx, ss, ver)
-      age <- prevcarga_khat_check_policy(prof, ctx, origin)
+      age <- prevcarga_khat_check_policy(prof, ctx, origin, pinned = !is.null(khat_version))
       ap <- prevcarga_khat_apply(bu, list(profile = prof$profile, glob = prof$glob), ctx)
       m <- prof$meta
       khat[[ss]] <- list(versao = ver, khat_origin = lubridate::as_date(m$khat_origin), khat_age_days = age,
