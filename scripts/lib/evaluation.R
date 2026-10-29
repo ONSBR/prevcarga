@@ -76,8 +76,15 @@ prevcarga_peak_wmape <- function(interval_start, y_true, y_pred, hours = prevcar
 
 ## Confere nome+ordem (schema_long.R), tipos, tz e d_plus; devolve o data.frame normalizado
 ## (forecast_origin continua texto yyyy-MM-dd) com `interval_start` anexado UMA vez pela borda do LONG.
+## Idempotente: LONG ja entregue pelo leitor (8 colunas + interval_start no fim) e re-conferido, e a coluna
+## tem de bater com a borda.
 prevcarga_assert_long <- function(long, ctx) {
   if (!is.data.frame(long)) prevcarga_abort("contract.long_schema", where = "data.frame")
+  given <- NULL
+  if (identical(names(long), c(names(prevcarga_schema_long), "interval_start"))) {
+    given <- long$interval_start
+    long <- as.data.frame(long)[names(prevcarga_schema_long)]
+  }
   tryCatch(prevcarga_schema_long_check(long),
            prevcarga_error = function(e) {
              if (identical(e$id, "contract.long_schema_constant"))
@@ -103,6 +110,8 @@ prevcarga_assert_long <- function(long, ctx) {
   o <- lubridate::ymd(fo, tz = ctx$tz, quiet = TRUE)
   if (anyNA(o)) prevcarga_abort("contract.long_schema", where = "forecast_origin")
   long <- prevcarga_long_attach_interval_start(long, ctx$tz)
+  if (!is.null(given) && !identical(as.numeric(given), as.numeric(long$interval_start)))
+    prevcarga_abort("contract.long_schema", where = "interval_start")
   want <- as.integer(lubridate::as_date(long$interval_start, tz = ctx$tz) - lubridate::as_date(o))
   bad <- which(want != long$d_plus)
   if (length(bad))
@@ -121,6 +130,7 @@ prevcarga_read_long <- function(path, ctx) {
     prevcarga_abort("contract.long_schema", where = "forecast_origin")
   if ("forecast_origin" %in% names(long) && anyNA(lubridate::ymd(long$forecast_origin, tz = ctx$tz, quiet = TRUE)))
     prevcarga_abort("contract.long_schema", where = "forecast_origin")
+  if ("interval_start" %in% names(long)) prevcarga_abort("contract.long_schema", where = "interval_start")  # so em memoria
   prevcarga_assert_long(long, ctx)
 }
 
@@ -375,7 +385,7 @@ prevcarga_score <- function(long, ctx, area = NULL, baseline_kind = NULL, origin
 ## (d) Area do LONG fora da topologia: uma linha por area, nao por instante.
 .prevcarga_coh_topology <- function(long, nodes) {
   unk <- sort(setdiff(unique(long$area), nodes$declared), method = "radix")
-  lapply(unk, function(a) .prevcarga_coh_finding("topology", a, id = "topology.area_unknown",
+  lapply(unk, function(a) .prevcarga_coh_finding("topology", a, id = "topology.area_undeclared",
                                                  detail = sprintf("%d linhas", sum(long$area == a))))
 }
 

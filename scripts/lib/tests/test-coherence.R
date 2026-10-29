@@ -87,7 +87,7 @@ test_that("(c) completude: SIN ausente, cobertura parcial legitima, folha ausent
 
 test_that("(d) area fora da topologia e precedencia completude > coherence (ac-4)", {
   r <- chk(pc_coh_add_area(base, "RR"))
-  expect_identical(r$findings$check, "topology"); expect_identical(r$findings$id, "topology.area_unknown")
+  expect_identical(r$findings$check, "topology"); expect_identical(r$findings$id, "topology.area_undeclared")
   expect_equal(nrow(r$findings), 1L); expect_identical(r$class, "topology")
   both <- pc_coh_set_khat(pc_coh_drop(base, "SIN", at = 1L), topo, S1, 1.20, at = 2L)
   rb <- chk(both)

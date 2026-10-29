@@ -246,8 +246,11 @@ test_that("leitor anexa interval_start 1x pela borda do LONG; scorecard usa a co
   l <- pc_eval_long("A1", O, 0:1, ctx = ctx)
   out <- prevcarga_assert_long(l, ctx)
   expect_identical(out$interval_start, prevcarga_long_interval_start(l$target_datetime, l$granularity_min, ctx$tz))
-  st <- l; st$interval_start <- st$target_datetime                       # LONG em disco nunca traz a coluna
-  expect_pc_error(prevcarga_assert_long(st, ctx), "contract.long_schema")
+  expect_identical(prevcarga_assert_long(out, ctx), out)                 # re-asserir o LONG do leitor e idempotente
+  st <- l; st$interval_start <- st$target_datetime                       # coluna que nao bate com a borda reprova
+  expect_identical(fail(prevcarga_assert_long(st, ctx))$where, "interval_start")
+  e <- fail(prevcarga_read_long(pc_eval_write_long(out), ctx))           # LONG em disco nunca traz a coluna
+  expect_identical(e$id, "contract.long_schema"); expect_identical(e$where, "interval_start")
   hit <- format(out$interval_start, "%H:%M") == "17:30"                 # 17:30-18:00: fora do pico
   out$y_pred[hit] <- out$y_pred[hit] + 200
   sk <- out; sk$interval_start <- sk$target_datetime                     # CONTROL: o scorecard le a coluna

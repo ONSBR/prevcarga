@@ -6,15 +6,16 @@
   `prevcarga_check_coherence`. `--area` e recusado no handler (`config.usage`, exit 8): a flag existe na gramatica global
   (score/validate-deck) e o docopt a aceitaria.
 - `prevcarga_check_coherence(long, topology, tol = 1e-5, ctx = NULL)` em `evaluation.R`: PURO, topologia como dado
-  (`prevcarga_topology`). Acumula todos os findings; ordem de execucao (e) alinhamento -> (d) `topology.area_unknown` (1 linha por
+  (`prevcarga_topology`). Acumula todos os findings; ordem de execucao (e) alinhamento -> (d) `topology.area_undeclared` (1 linha por
   area) -> (c) `completude.node_missing` (regras R1-R4 da cobertura-comum, ADR-0015) -> (a) `coherence.sin_sum` e (b) `coherence.khat`
   (faixa efetiva por subsistema vinda de `prevcarga_topology`; `indefinido` quando soma de folhas <= 0, sem dividir). Origens com
   grade deslocada ficam fora de (c)/(a)/(b). Findings ordenados por (check, forecast_origin, target_datetime, area). Classe-dona
   por `prevcarga_exit_precedence()` (completude 3 > topology 4 > coherence 11). Linha duplicada por (instante, area) =
-  `contract.long_schema`. Sem nenhum `error.id` novo (todos de `errors/evaluation.tsv`, M3.1).
+  `contract.long_schema`. Sem nenhum `error.id` novo (de `errors/evaluation.tsv`, M3.1, e `topology.area_undeclared` de `errors/topology.tsv`).
 - Falha: `prevcarga_abort(id, result = ...)` -> o envelope JSON de falha carrega `result.findings` (mudanca minima em `errors.R`: argumento
   opcional `result` na condicao e `render_error` repassa `cond$result` ao envelope). No texto a tabela ASCII vai para stdout e o erro
   classificado para stderr.
 - `ctx$tz` ausente em chamada de modulo: o fuso do proprio LONG e usado (a conferencia contra o fuso do deck e do verbo).
-- Em aberto (nao decidido aqui): `topology.area_unknown` x `topology.area_undeclared` duplicados; faixa default de k-hat [TBD: ADR-0028].
+- Resolvido (fix/topology-ids-hour): `topology.area_unknown` fundido em `topology.area_undeclared`. Alinhamento (e) compara
+  conjuntos de `target_datetime` (sem aritmetica de hora). Em aberto: faixa default de k-hat [TBD: ADR-0028].
 - Testes: `scripts/lib/tests/test-coherence.R` + `helper-coherence.R` (reusado pelo M3.V).

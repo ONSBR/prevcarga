@@ -11,7 +11,9 @@
 - Borda do LONG: `prevcarga_assert_long` (nome+ordem via `prevcarga_schema_long_check`, re-emitido como
   `contract.long_schema`; tipos; tz; `d_plus` pelo dia do interval_start => `contract.long_dplus_label`) e o leitor unico
   `prevcarga_read_long(path, ctx)`; `forecast_origin` e texto `yyyy-MM-dd`, coluna Date e recusada. O frame devolvido tem 9
-  colunas (8 do schema + `interval_start`); LONG em disco com `interval_start` e recusado (`contract.long_schema`).
+  colunas (8 do schema + `interval_start`); LONG em disco com `interval_start` e recusado (`contract.long_schema`,
+  `where = interval_start`). `prevcarga_assert_long` e idempotente: o frame do leitor (8 + `interval_start` no fim) e
+  re-conferido e a coluna tem de bater com a borda (ex.: `prevcarga_check_coherence` re-asserta o LONG do verbo).
 - `prevcarga_read_actual(ctx, area, from, to)`: wrapper sobre `prevcarga_read_load` sem `origin` (ex-post, sem corte),
   janela `(from, to]` por `interval_end`; particao ausente = 0 linhas. Falta de `load_mwh` (erro cru do arrow no leitor)
   e reclassificada aqui como `contract.dataset_missing` (`where = load.load_mwh`).
