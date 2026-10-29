@@ -1,0 +1,5 @@
+id	class	message	hint
+engine.dessem_unknown_model_key	contract	chave de modelo desconhecida no model_parameters.json do motor	use uma das chaves Linear.Tmp* ou RegDin.* declaradas no motor
+engine.dessem_svm_thaw_failed	integrity	SVM congelado do artefato nao pode ser reconstruido	retreine o membro ou restaure o artefato oficial
+warning.engine_empty_model_guard	contract	ajuste de SVM devolveu modelo vazio; nova tentativa com dummies raras removidas (aviso)	nenhuma acao: aviso informativo da robustez do motor
+warning.engine_cross_clamped	contract	parametro cross do tune_wsvm reduzido ao numero de linhas disponiveis (aviso)	nenhuma acao: aviso informativo da robustez do motor
