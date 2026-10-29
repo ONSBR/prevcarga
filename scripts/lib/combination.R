@@ -3,7 +3,7 @@
 ## Responsabilidade: modulo numerico in-process (base + data.table + lubridate, sem dependencia nova).
 ## Pipeline da combina: discover -> assert_members_aligned -> build_panel -> join_fresh_truth ->
 ## fit por (lead, cut, ym) -> produce. Cobre fit/produce (M4.1) e a camada de IO (M4.2: discover,
-## build_panel, join_fresh_truth, combina_load, panel_hash); o alinhamento e do M4.2b.
+## build_panel, join_fresh_truth, combina_load, panel_hash) e o alinhamento (M4.2b: assert_members_aligned).
 ## Requer (alem de errors.R): topology.R, provenance.R, schema_long.R, deck_reader.R, evaluation.R.
 ##
 ## Leak-fix: o treino de peso de um mes-de-ORIGEM m so usa alvos ja conhecidos em inicio(m); o filtro e
@@ -295,7 +295,7 @@ prevcarga_combina_run_modes <- c("infer", "fixed", "daily", "retrain_harness")
   }
   load_tz <- chr("load_tz")
   au_raw <- m[["available_until"]]
-  au <- as.POSIXct(NA)
+  au <- lubridate::as_datetime(NA_real_)
   cut <- NA_character_
   if (file.exists(mf) && "available_until" %in% names(m) && is.null(au_raw)) {
     cut <- ""                                    # available_until nulo = corte unico
@@ -427,9 +427,106 @@ prevcarga_join_fresh_truth <- function(panel, ctx, area) {
   panel[]
 }
 
-## unico pipeline de montagem (M4.4); o M4.2b insere o alinhamento entre discover e build_panel
+## =================================================================================================
+## M4.2b -- recusa de membro desalinhado: INICIO e GRADE comuns; o FIM e por membro (delivery_days)
+## =================================================================================================
+## A combina nunca agrega nem desloca tempo: membros horarios chegam ja em 48 intervalos (to_semihourly, a
+## montante). A faixa de entrega vem so do `delivery_days` do run-manifest do membro (ADR-0032 c); faixas
+## diferentes ENTRE membros nao sao desalinhamento. Unico ponto de abort: .prevcarga_cmb_misaligned.
+.prevcarga_cmb_misaligned <- function(member, field, expected, got) {
+  prevcarga_abort("contract.member_misaligned",
+    where = sprintf("%s:%s esperado=%s obtido=%s", member, field,
+                    paste(expected, collapse = ","), paste(got, collapse = ",")))
+}
+
+## convencoes esperadas do ctx; o rotulo vem de ctx$load_label ou, sem ele, do deck (manifest > flag > config)
+.prevcarga_cmb_ctx_conv <- function(ctx) {
+  ll <- ctx$load_label
+  if (is.null(ll)) ll <- .prevcarga_deck_ctx(ctx)$label$value
+  list(load_label = ll, tz = .prevcarga_eval_tz(ctx),
+       weather_issue_cutoff = if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff)
+}
+
+.prevcarga_cmb_check_convention <- function(p, conv) {
+  need <- c("origin", "available_until", "load_label", "load_tz", "weather_issue_cutoff", "delivery_days")
+  miss <- need[!need %in% names(p) | vapply(need, function(k) !k %in% names(p) || anyNA(p[[k]]), logical(1))]
+  if (length(miss))
+    .prevcarga_cmb_misaligned(p$member, "proveniencia", "run_manifest.json completo",
+                              paste0("ausente:", paste(miss, collapse = "+")))
+  if (p$load_label != conv$load_label)
+    .prevcarga_cmb_misaligned(p$member, "load_label vs ctx", conv$load_label, p$load_label)
+  if (p$load_tz != conv$tz)
+    .prevcarga_cmb_misaligned(p$member, "load_tz vs ctx", conv$tz, p$load_tz)
+  if (p$weather_issue_cutoff != conv$weather_issue_cutoff)
+    .prevcarga_cmb_misaligned(p$member, "weather_issue_cutoff vs ctx", conv$weather_issue_cutoff,
+                              p$weather_issue_cutoff)
+  invisible(TRUE)
+}
+
+## fim da faixa declarada (delivery_days) e grade completa entre o primeiro e o ultimo alvo esperados
+.prevcarga_cmb_check_band <- function(t_o, first_exp, last_exp, p) {
+  if (max(t_o) != last_exp)
+    .prevcarga_cmb_misaligned(p$member, "delivery_days", format(last_exp), format(max(t_o)))
+  n_exp <- length(seq(first_exp, last_exp, by = "30 min"))
+  if (length(unique(t_o)) != n_exp)
+    .prevcarga_cmb_misaligned(p$member, "grade", paste0(n_exp, " alvos de 30 min"), length(unique(t_o)))
+  invisible(TRUE)
+}
+
+.prevcarga_cmb_check_times <- function(d, p, tz) {
+  td <- d$target_datetime
+  if (!identical(lubridate::tz(td), tz))
+    .prevcarga_cmb_misaligned(p$member, "tzone", tz, lubridate::tz(td))
+  if (any(!lubridate::minute(td) %in% c(0L, 30L) | lubridate::second(td) != 0))
+    .prevcarga_cmb_misaligned(p$member, "grade", "minuto em {0,30}", "fora da grade")
+  if (nzchar(p$cut_suffix) && !identical(p$cut_suffix, paste0("_c", p$cut)))
+    .prevcarga_cmb_misaligned(p$member, "available_until", paste0("_c", p$cut), p$cut_suffix)
+  hh <- as.integer(substr(p$cut, 1L, 2L)); mm <- as.integer(substr(p$cut, 3L, 4L))
+  for (o in sort(unique(d$forecast_origin), method = "radix")) {
+    t_o  <- td[d$forecast_origin == o]
+    au_o <- lubridate::ymd(o, tz = tz) + lubridate::hours(hh) + lubridate::minutes(mm)
+    if (identical(o, p$origin) && au_o != p$available_until)
+      .prevcarga_cmb_misaligned(p$member, "available_until", format(au_o), format(p$available_until))
+    first_exp <- au_o + lubridate::minutes(30)
+    last_exp  <- lubridate::ymd(o, tz = tz) + lubridate::days(p$delivery_days)
+    if (min(t_o) != first_exp) {
+      shifted <- any(min(t_o) == first_exp + lubridate::minutes(c(-30, 30))) &&
+                 any(max(t_o) == last_exp + lubridate::minutes(c(-30, 30)))
+      .prevcarga_cmb_misaligned(p$member, if (shifted) "deslocamento" else "primeira_entrega",
+                                format(first_exp), format(min(t_o)))
+    }
+    .prevcarga_cmb_check_band(t_o, first_exp, last_exp, p)
+  }
+  invisible(TRUE)
+}
+
+## Ordem fixa (veredito deterministico): membros na ordem declarada, runs por run_id; por run, convencao
+## (proveniencia, load_label, load_tz, weather_issue_cutoff) e depois tempo (tzone, grade, available_until,
+## primeira entrega, fim da faixa). A primeira falha e a reportada.
+prevcarga_assert_members_aligned <- function(long, ctx) {
+  prov <- attr(long, "provenance")
+  if (is.null(prov) || !is.data.frame(prov) || !nrow(prov) ||
+      !all(c("member", "run_id", "cut_suffix", "cut") %in% names(prov)))
+    .prevcarga_cmb_misaligned("-", "proveniencia", "run_manifest.json completo", "ausente")
+  conv <- .prevcarga_cmb_ctx_conv(ctx)
+  prov <- data.table::as.data.table(prov)
+  decl <- attr(long, "members_declared")
+  ord <- if (is.null(decl)) unique(prov$member) else c(intersect(decl, prov$member), setdiff(prov$member, decl))
+  prov <- prov[order(match(prov$member, ord), prov$run_id, method = "radix")]
+  for (i in seq_len(nrow(prov))) {
+    p <- prov[i]
+    .prevcarga_cmb_check_convention(p, conv)
+    d <- long[long$member == p$member & long$run_id == p$run_id, ]
+    if (!nrow(d)) .prevcarga_cmb_misaligned(p$member, "grade", "alvos do run", "nenhum")
+    .prevcarga_cmb_check_times(d, p, conv$tz)
+  }
+  invisible(TRUE)
+}
+
+## unico pipeline de montagem (M4.4): discover -> assert_members_aligned -> build_panel -> join_fresh_truth
 prevcarga_combina_load <- function(root, area, ctx, members = prevcarga_members(root = ctx$root)) {
   long <- prevcarga_combina_discover(root, area, ctx, members)
+  prevcarga_assert_members_aligned(long, ctx)
   panel <- prevcarga_build_panel(long, members)
   prevcarga_join_fresh_truth(panel, ctx, area)
 }

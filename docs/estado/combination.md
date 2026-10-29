@@ -32,3 +32,19 @@
 - `read_actual` e `(from, to]`: o join recua `from` em 1 s para nao perder o primeiro alvo.
 - Em aberto (humano): conversoes de -30 min (`train_mask`, `evaluation.R`) fora do leitor unico (principio 7); M4.2 nao adiciona nenhuma.
 - Testes: `test-combination-io.R` + `helper-combination-io.R` (fixtures em tempdir; CONTROL io.py e de rotulo trocado).
+
+## M4.2b -- recusa de membro desalinhado
+- `prevcarga_assert_members_aligned(long, ctx)` (combination.R), inserido em `prevcarga_combina_load` entre discover e
+  build_panel (unico caminho de montagem). Exige INICIO e GRADE comuns; o FIM e por membro: ultimo `target_datetime` =
+  `O + delivery_days` 00:00 lido so do run-manifest (faixas diferentes entre membros nao sao desalinhamento).
+- Aborta `contract.member_misaligned` (exit 2), `where = "<sigla>:<campo> esperado=.. obtido=.."`. Ordem fixa: membros na
+  ordem declarada, runs por run_id; por run: proveniencia (f) -> load_label/load_tz/weather_issue_cutoff vs ctx (a) ->
+  tzone (b) -> grade (c) -> sufixo `_cHHMM`/available_until (d) -> primeira entrega/deslocamento (d) -> delivery_days e
+  buraco de grade (e). A primeira falha e a reportada.
+- Acoplamento: o rotulo esperado vem de `ctx$load_label` ou, sem ele, do deck (`.prevcarga_deck_ctx`, manifest > flag >
+  config); `ctx$tz` ou o fuso do manifest do deck. A grade e checada localmente (sem `prevcarga_delivery_grid` do P.0a, ainda
+  nao integrado); trocar por ela depois e opcional. `first = available_until + 30 min` e aritmetica de grade da combina,
+  nao conversao de rotulo (nao toca o leitor unico).
+- `tzone` fora do fuso da carga: o leitor unico (`read_long`) ja recusa com `contract.long_tz` no discover; a recusa da
+  combina cobre LONG montado em memoria. Teste exercita os dois.
+- Testes: `test-combination-align.R` + `helper-combination-align.R` (8 membros alinhados, 10 mutacoes, CONTROL do sentinela).

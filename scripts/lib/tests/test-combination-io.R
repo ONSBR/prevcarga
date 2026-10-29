@@ -127,7 +127,8 @@ test_that("M4.2 - ac-4 join exato por interval_end sobre o deck sentinela", {
   m2 <- members[1:2, ]
   root <- withr::local_tempdir()
   pc_cmb_write_root(root, "SECO", lapply(m2$sigla, function(s)
-    list(sigla = s, origins = "2026-10-01", d_plus = 0:2, slots = 0:47)), m2)
+    list(sigla = s, origins = "2026-10-01", delivery_days = 3L,       # alinhado (M4.2b): 1o alvo = corte + 30 min
+         long = pc_cmb_aligned_long(s, "SECO", "2026-10-01", "0900", 3L, m2))), m2)
   panel <- fn("prevcarga_combina_load")(root, "SECO", ctx, members = m2)
   istart <- panel$target_datetime - lubridate::minutes(30)
   slot <- lubridate::hour(istart) * 2 + lubridate::minute(istart) / 30 + 1
