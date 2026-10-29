@@ -82,7 +82,7 @@ pc_grep_gates <- data.frame(
     "[\\x80-\\xFF]"),
   allow = I(list(
     "scripts/lib/runtime.R", character(), character(), "scripts/lib/schema_long.R",
-    "scripts/lib/combination.R",      # divida conhecida: as.POSIXct(NA) em combination.R (discovery M1.V)
+    character(),                      # divida do combination.R quitada em M4.2b (lubridate::as_datetime): zero hits
     "scripts/lib/config.R",           # lateral run_id (unico relogio permitido)
     character(), character(), character(), "config/topology.yaml", character(), character(),
     character(), character())),
