@@ -85,7 +85,7 @@ test_that("[ac-1] manifest, 3 emissoes por dia, clima por area, feriados, painel
   p <- env$prevcarga_read_panel(ctx, O, c("A", "B"), horizon_days = 10, history_days = 5)
   expect_identical(p$attrs$available_until, until)
   expect_identical(max(p$load$interval_end), until)
-  expect_identical(max(p$weather_observed$timestamp), until)
+  expect_identical(max(p$weather_observed$valid_time), until)
   ta <- p$weather_observed[area_code == "A"]$temperature; tb <- p$weather_observed[area_code == "B"]$temperature
   expect_false(isTRUE(all.equal(ta, tb)))
   la <- p$load[area_code == "A"]$load_mwh; lb <- p$load[area_code == "B"]$load_mwh
@@ -114,7 +114,7 @@ test_that("[ac-2] sentinela decodifica ao interval_start/valid_time; CONTROL: ro
     ob <- env$prevcarga_read_weather(ctx, "observed", "A")
     fc <- env$prevcarga_read_weather(ctx, "forecast", "A")
     list(load = as.numeric(pc_decode_sentinel(ld$load_mwh, TZ)) - as.numeric(ld$interval_start),
-         obs = as.numeric(pc_decode_sentinel(ob$temperature, TZ)) - as.numeric(ob$timestamp),
+         obs = as.numeric(pc_decode_sentinel(ob$temperature, TZ)) - as.numeric(ob$valid_time),
          fc = as.numeric(pc_decode_sentinel(fc$temperature, TZ)) - as.numeric(fc$valid_time))
   }
   ok_start <- sent(mk(11, "start", sentinel = TRUE, days = days))

@@ -31,7 +31,8 @@
 - `prevcarga_last_load_day(ctx, areas = NULL)`: dia (`as_date(interval_start, tz)`) do ultimo intervalo; le so a particao `year` mais alta nao vazia.
 - `prevcarga_weather_issue_limit(rule, origin, available_until, tz_load)`: `available_until` => ele mesmo; `origin_midnight_utc` => `O 00:00 UTC` no fuso da carga.
   Regra vem de `ctx$weather_issue_cutoff` (fonte `ctx$sources$weather_issue_cutoff`, default `default` se ausente). `prevcarga_freshest_issue(fc, limit)`: emissao mais fresca <= limite por area.
-- `prevcarga_read_weather(..., origin, truncate_at)`: observado `<= available_until`; previsto so a emissao mais fresca permitida (escolhida antes do recorte de `valid_time`);
+- `prevcarga_read_weather(..., origin, truncate_at)`: o observado sai com `valid_time` (F4: a coluna crua `timestamp` do store e renomeada na borda de entrada, logo
+  apos o fuso; chave `(area_code, valid_time)`; nenhum consumidor ve `timestamp`); observado `<= available_until`; previsto so a emissao mais fresca permitida (escolhida antes do recorte de `valid_time`);
   attrs `weather_issue_cutoff`, `weather_issue_cutoff_source`, `weather_issue_limit`, `freshest_issue_by_area`. `available_until` vem da carga lida pelo proprio leitor.
 - Catalogo: `scripts/lib/errors/deck_cut.tsv`. Testes: `test-deck-reader-cut.R`; helper ganhou `pc_deck_until`, `pc_deck_drop`, `pc_deck_perturb`, `pc_deck_issues`.
 

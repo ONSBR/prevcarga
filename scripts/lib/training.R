@@ -66,9 +66,7 @@ prevcarga_train_inputs <- function(member, area, origin, ctx) {
   in_window <- function(x) day_of(x) <= cuts$last_data_day & day_of(x) >= first_day
   panel <- p
   panel$load <- p$load[in_window(p$load$interval_start)]
-  obs <- p$weather_observed[in_window(p$weather_observed$timestamp)]
-  data.table::setnames(obs, "timestamp", "valid_time")          # adaptador: o leitor entrega `timestamp`; o despachante exige `valid_time`
-  panel$weather_observed <- obs
+  panel$weather_observed <- p$weather_observed[in_window(p$weather_observed$valid_time)]
   have <- length(unique(day_of(panel$load$interval_start)))
   if (have < need)
     prevcarga_abort("window.history_short", where = member$mdir,

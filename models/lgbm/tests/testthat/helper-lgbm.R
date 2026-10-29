@@ -88,7 +88,7 @@ lgbm_fx_panel <- function(deck, ctx, mode = c("train", "infer"), cuts = lgbm_fx_
   p$weather_forecast <- fc[issue_time <= cuts$weather_issue_limit]
   if (mode == "train") {
     p$load <- p$load[lubridate::as_date(interval_start, tz = cuts$tz) <= cuts$last_data_day]
-    p$weather_observed <- p$weather_observed[lubridate::as_date(timestamp, tz = cuts$tz) <= cuts$last_data_day]
+    p$weather_observed <- p$weather_observed[lubridate::as_date(valid_time, tz = cuts$tz) <= cuts$last_data_day]
   }
   p
 }

@@ -74,15 +74,6 @@ z <- function(h) lubridate::ymd_h(paste("2026-10-01", h), tz = "UTC")
   dir
 }
 
-## o leitor entrega o observado com a coluna crua `timestamp`; o despachante e to_hourly esperam `valid_time`.
-## [discovery D1 desta sessao] adaptador de nome so no teste; nenhum valor e alterado nem cortado.
-.hz_adapt <- function(panel) {
-  wo <- data.table::copy(panel$weather_observed)
-  data.table::setnames(wo, "timestamp", "valid_time")
-  panel$weather_observed <- wo
-  panel
-}
-
 ## --- montagem ponta a ponta --------------------------------------------------------------------------------------
 ## `rule` = weather_issue_cutoff. Devolve as funcoes do fluxo leitor -> cortes -> despachante -> plugin.
 .hz_setup <- function(rule, deck = .hz_deck("09:00")) {
@@ -100,7 +91,7 @@ z <- function(h) lubridate::ymd_h(paste("2026-10-01", h), tz = "UTC")
     available_until = rc$available_until, weather_issue_limit = rc$weather_issue_limit,
     train_origin = row$train_origin, last_data_day = row$last_data_day)
   read <- function(m, dir, origin, hist, horizon) {
-    p <- .hz_adapt(env$prevcarga_read_panel(ctx_for(dir), origin, AREAS, horizon, hist))
+    p <- env$prevcarga_read_panel(ctx_for(dir), origin, AREAS, horizon, hist)
     if (plugins[[m]]$spec$granularity_min == 60L) env$to_hourly(p) else p
   }
   prep <- function(m, dir) {
@@ -193,7 +184,7 @@ test_that("ac-0 treino: o molde acusa VAZA quando o corte de treino vaza (CONTRO
   leaky <- function(p) {
     store <- .hz_store_for_gate(s, base, p)
     ctx <- s$ctx_for(store); sp <- x$plugin$spec
-    panel <- .hz_adapt(suppressWarnings(env$prevcarga_read_panel(ctx, O, AREAS, sp$horizon_days, sp$history_days$train)))
+    panel <- suppressWarnings(env$prevcarga_read_panel(ctx, O, AREAS, sp$horizon_days, sp$history_days$train))
     ld <- panel$load
     ## nivel por slot = media do ultimo dia lido (inclui o dia O parcial no fim da serie)
     v <- tapply(ld$load_mwh, ld$area_code, function(a) mean(utils::tail(a, 2L)))

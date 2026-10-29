@@ -242,9 +242,6 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
   sp <- plugin$spec
   read <- function(origin, hist) {
     p <- suppressWarnings(prevcarga_read_panel(ctx, origin, unit$area, sp$horizon_days, hist))
-    wo <- data.table::copy(p$weather_observed)
-    if ("timestamp" %in% names(wo)) data.table::setnames(wo, "timestamp", "valid_time")   # adaptador interino (P.0i)
-    p$weather_observed <- wo
     if (identical(as.integer(sp$granularity_min), 60L)) to_hourly(p) else p
   }
   art <- prevcarga_plugin_train(plugin, read(row$last_data_day, sp$history_days$train), cuts, sp, list())

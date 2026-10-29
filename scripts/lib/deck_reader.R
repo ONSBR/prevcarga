@@ -285,6 +285,7 @@ prevcarga_freshest_issue <- function(fc, limit) {
 ## --- Clima por area (exogenas instantaneas: nao deslocadas) --------------------------------------------
 ## Com `origin`: observado so <= available_until (derivado da carga lida pelo proprio leitor, mesmo
 ## origin/truncate_at); previsto so emissoes <= weather_issue_limit, a mais fresca por area.
+## O observado sai com `valid_time` (a coluna crua `timestamp` do store so existe aqui dentro).
 prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas = NULL, from = NULL,
                                    to = NULL, select = NULL, origin = NULL, truncate_at = NULL) {
   kind <- match.arg(kind)
@@ -294,11 +295,12 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
   tzs <- d$manifest$timezone
   if (kind == "observed") {
     tcols <- c(timestamp = tzs$weather_observed)
-    key <- "timestamp"; base <- c("timestamp", "temperature", "heat_index", "rh")
+    base <- c("timestamp", "temperature", "heat_index", "rh")
   } else {
     tcols <- c(issue_time = tzs$weather_forecast$issue_time, valid_time = tzs$weather_forecast$valid_time)
-    key <- "valid_time"; base <- c("issue_time", "valid_time", "temperature", "heat_index")
+    base <- c("issue_time", "valid_time", "temperature", "heat_index")
   }
+  key <- "valid_time"
   for (col in names(tcols)) .prevcarga_check_naive(ds$schema, dataset, col)
   want <- if (is.null(select)) base else intersect(base, union(select, names(tcols)))
   cols <- c("area_code", intersect(want, ds$schema$names))
@@ -307,10 +309,11 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
   dt <- .prevcarga_scan(ds, cols, from, to, areas)
   for (col in intersect(names(tcols), names(dt)))
     data.table::set(dt, j = col, value = .prevcarga_apply_tz(dt[[col]], tcols[[col]], d$tz))
+  if (kind == "observed" && "timestamp" %in% names(dt)) data.table::setnames(dt, "timestamp", "valid_time")
   extra <- list()
   if (!is.null(au)) {
     if (kind == "observed") {
-      dt <- dt[timestamp <= au$available_until]
+      dt <- dt[valid_time <= au$available_until]
     } else {
       rule <- if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff
       src <- ctx$sources$weather_issue_cutoff

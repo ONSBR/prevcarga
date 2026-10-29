@@ -123,8 +123,11 @@ test_that("[FORBIDDEN] issue_time UTC 00Z vira 21:00 do dia anterior; [CONTROL] 
   expect_true(lubridate::ymd_hms("2026-10-01 00:00:00", tz = TZ) %in% fc2$issue_time)
   obs <- prevcarga_read_weather(pc_ctx_deck(d), "observed", areas = "B", from = D[1], to = D[1])
   expect_identical(unique(obs$area_code), "B"); expect_identical(nrow(obs), 24L)
-  expect_identical(attr(obs$timestamp, "tzone"), TZ)
-  expect_identical(format(obs$timestamp[1L], "%Y-%m-%d %H"), "2026-09-30 00")
+  expect_identical(attr(obs$valid_time, "tzone"), TZ)
+  expect_identical(format(obs$valid_time[1L], "%Y-%m-%d %H"), "2026-09-30 00")
+  ## F4: o observado sai do leitor com `valid_time`; a coluna crua `timestamp` do store nao atravessa a borda
+  expect_false("timestamp" %in% names(obs))
+  expect_identical(data.table::key(obs), c("area_code", "valid_time"))
 })
 
 test_that("[FORBIDDEN] delta=0 sob TZ/locale de sessao diferentes antes do runtime", {
@@ -145,7 +148,7 @@ test_that("[FORBIDDEN] delta=0 sob TZ/locale de sessao diferentes antes do runti
   a <- session("UTC", "C.UTF-8")
   b <- session("America/Sao_Paulo", "pt_BR.UTF-8")
   expect_identical(a, b)
-  for (x in list(a$load$interval_start, a$load$interval_end, a$obs$timestamp, a$fc$issue_time, a$fc$valid_time))
+  for (x in list(a$load$interval_start, a$load$interval_end, a$obs$valid_time, a$fc$issue_time, a$fc$valid_time))
     expect_identical(attr(x, "tzone"), TZ)
 })
 

@@ -13,8 +13,7 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
 - Painel (W1): janela de treino = a que o plugin confere. origin_agnostic: `[train_origin - history_days.train, last_data_day]` (history_days.train + H + 1 -
   data_lag_days dias; o RF exige o 1o dia `train_origin - 365`, senao `plugin.window`); origin_scoped: `history_days.train` dias ate `last_data_day` (inalterado).
   Cortes so de `prevcarga_resolve_cuts`/`prevcarga_train_cut`; a fachada so mede a janela a partir deles. `prevcarga_read_panel` le a janela + 1 dia; carga e clima
-  observado cortados nela; `weather_observed$timestamp` renomeado para `valid_time` (INTERINO ate o follow-up do deck_reader; adaptador do defeito de integracao do P.0i: o leitor entrega `timestamp`, o
-  despachante e `to_hourly` exigem `valid_time`); plugin com `weather_forecast_in_train` recebe todas as emissoes `<= weather_issue_limit` (nao so a mais fresca) (INTERINO, pendente da decisao do Gabriel sobre emissoes historicas do painel).
+  observado cortados nela; o clima observado chega do leitor com `valid_time` (F4; sem adaptador na fachada); plugin com `weather_forecast_in_train` recebe todas as emissoes `<= weather_issue_limit` (nao so a mais fresca) (INTERINO, pendente da decisao do Gabriel sobre emissoes historicas do painel).
   Dias distintos de carga < dias da janela => `window.history_short` (exit 5; `details`: `available_days`, `required_days` = dias da janela, `member`), antes de qualquer escrita.
   Granularidade 60 => `to_hourly`. O mapeamento area -> serie de clima (ex.: LGBM SECO -> SP) e do plugin: o painel traz o clima da propria area.
 - Identidade: `prevcarga_train_fingerprint` preenche as 8 chaves do contrato de `provenance.R`: `model_id` = `member$mdir`; `data_fingerprint` = sha256 do CONTEUDO do painel ja
