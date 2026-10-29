@@ -1,0 +1,12 @@
+id	class	message	hint
+contract.reconcile_input	contract	Folhas com lead ou d_plus divergentes para o mesmo (forecast_origin, target_datetime), ou entrada do reconcile malformada	Confira o LONG de cada folha (error.where nomeia a folha) antes do reconcile
+contract.khat_convention	contract	Perfil k-hat com convencao de rotulo incompativel: bucket deve ser por interval_start	Reajuste o perfil com reconcile --mode train na versao atual
+contract.khat_profile	contract	Perfil k-hat malformado (colunas, chaves ou glob fora do esperado)	Regenere o perfil com reconcile --mode train
+completude.leaf_missing	completude	Folha ausente impede fechar o subsistema	Rode infer-model para a folha ausente ou aceite a folha em stray
+completude.khat_no_truth	completude	Nenhum ratio na janela do k-hat terminando em O-1	Amplie window_days ou confira a verdade lida do deck
+integrity.khat_conflict	integrity	Perfil k-hat ja promovido difere do recem-ajustado para a mesma chave	Resolva o conflito antes de promover (compare os metas)
+state.khat_missing	state	Perfil k-hat ausente para a origem	rode reconcile --mode train antes
+honesty.khat_after_origin	honesty	Perfil k-hat ajustado com verdade posterior a O-1	Reajuste com janela terminando em O-1
+reconcile.coverage_dropped	completude	Instantes sem cobertura comum das folhas descartados do Bottom-Up (aviso)	Veja attr dropped (contagem por d_plus) e complete as folhas
+reconcile.khat_fallback	completude	Buckets sem observacao na janela usaram o glob (aviso)	Veja n_fallback; amplie a janela se for frequente
+reconcile.khat_not_promoted	completude	Perfil k-hat ajustado mas nao promovido (aviso)	Rode reconcile --promote para torna-lo o perfil corrente
