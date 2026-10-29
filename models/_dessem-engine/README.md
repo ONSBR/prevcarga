@@ -14,8 +14,8 @@ o motor nao a contem. Cada arquivo de `R/` so cria funcoes (sem estado, sem expr
 
 `R/manifest.R` (lido primeiro pelo loader) e depois `engine_manifest()$files`:
 `funcoes_apoio.R`, `dados_entrada.R`, `entrada_demanda_media.R`, `entrada_perfil.R`,
-`modelos_demanda_media.R`, `modelos_perfil.R`, `exec_modelos.R`, `engine.R`. O DL.2 acrescenta robustez,
-feriados, exogena e svm_serial.
+`modelos_demanda_media.R`, `modelos_perfil.R`, `exec_modelos.R`, `engine.R`, e (DL.2) `robustez.R`, `feriados.R`,
+`exogena.R`, `svm_serial.R`.
 
 O env do motor so enxerga `base` e os pacotes que o descriptor do plugin lista em `attach`
 (o loader copia as exportacoes; nao ha `library()`): o plugin deve anexar `data.table`, `lubridate`,
@@ -27,6 +27,11 @@ O env do motor so enxerga `base` e os pacotes que o descriptor do plugin lista e
 ```
 obterEntradaFormulaDM -> funcoes_apoio.R -> pkgfun_funcoesApoio.R:316
 getConfig -> funcoes_apoio.R -> pkgfun_funcoesApoio.R:361
+engine_svm_freeze -> svm_serial.R -> novo (sem equivalente no oraculo)
+engine_svm_thaw -> svm_serial.R -> novo (sem equivalente no oraculo)
+normalize_special_day_codes -> feriados.R -> scripts/lib/normalize_holiday_codes.R:33
+fill_forecast_tail -> exogena.R -> scripts/lib/fill_forecast_tail.R:68
+dessem_engine_guard -> robustez.R -> novo (condicao classificada no lugar do texto de message)
 desagregaModeloSH -> funcoes_apoio.R -> pkgfun_funcoesApoio.R:389
 TransformaDeck -> dados_entrada.R -> pkgfun_dadosEntrada.R:9
 SVM_DemandaMedia -> modelos_demanda_media.R -> pkgfun_modelosDemandaMedia.R:2
@@ -37,6 +42,20 @@ execDemandaMedia -> exec_modelos.R -> pkgfun_execModelos.R:4
 execDemandaMediaTS -> exec_modelos.R -> pkgfun_execModelos.R:16
 processaModelosDMPerfil -> exec_modelos.R -> pkgfun_execModelos.R:82
 processaModelosDMTSPerfil -> exec_modelos.R -> pkgfun_execModelos.R:106
+```
+
+## Robustez do tune_wsvm (DL.2): funcao -> arquivo -> `_load_engine.R:linha` do oraculo (vendor de dessem-linear)
+
+O oraculo aplicava estas guardas como patch pos-source no globalenv; aqui vivem no env do motor
+(SVM_DemandaMedia/SVMhorario chamam `tune_wsvm` sem `::`, que resolve no env do motor antes do pacote anexado).
+`.tune_wsvm_real` (`_load_engine.R:264`, alias do pacote) vira funcao que chama `WeightSVM::tune_wsvm`. Caminho feliz bit-identico (chama o real primeiro). Sinalizam `dessem_engine_guard` (subclasse de `message`,
+codigos `warning.engine_empty_model_guard` e `warning.engine_cross_clamped` do catalogo); o despachante do plugin
+as coleta com `withCallingHandlers`; o motor nao guarda estado.
+
+```
+.wsvm_guard_retry -> robustez.R -> _load_engine.R:265
+.wsvm_clamp_cross -> robustez.R -> _load_engine.R:311
+tune_wsvm -> robustez.R -> _load_engine.R:331
 ```
 
 ## Demais funcoes portadas (mesmo mapa)
@@ -115,7 +134,7 @@ md5 `56f8fc5ed7b8db4275827a3a8122c0b0`, sha256 `463f61c3a184e1ef1960b6fd804ec4eb
 
 `aplicaPesos`, `writeOutDP`, `writeOutCSV`, `plotOutputData`, `RN_DemandaMedia` (neuralnet), `modelCores`,
 paralelismo (`pkgfun_paralelismo.R`, `mclapply`), self-location (`_load_engine.R:61-102` e
-`PREVCARGA_MODEL_R_DIR`), kill-switches por ENV, wrappers de nowcast (`_load_engine.R:213-251`) e a cabeca
+`PREVCARGA_MODEL_R_DIR`), kill-switches por ENV (`DESSEM_NORMALIZE_CODES`, `DESSEM_EXOG_TAIL_FILL`: sempre ligados, como o default do oraculo), wrappers de nowcast (`_load_engine.R:213-251`) e a cabeca
 `.dessem_nowcast`.
 
 ## Testes
