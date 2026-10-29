@@ -342,14 +342,16 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
 ## --- Feriados (M2.7): calendario conhecido de antemao ---------------------------------------------------------
 ## `date` e a data civil no fuso da carga: sem deslocamento de 30 min e SEM filtro de available_until. Particao `year`
 ## exata (data civil nao desloca); nao filtra nem corrige codigos (code_negative e do validate-deck).
-prevcarga_read_holidays <- function(ctx, areas, from, to) {
+## `from`/`to` NULL => todos os feriados da area (todas as particoes), como o oraculo le o calendario.
+prevcarga_read_holidays <- function(ctx, areas, from = NULL, to = NULL) {
   d <- .prevcarga_deck_ctx(ctx)
   ds <- .prevcarga_open(d$dir, .PREVCARGA_DECK_DATASETS[["holidays"]], "holidays")
-  yrs <- seq(lubridate::year(from), lubridate::year(to))
+  yrs <- if (is.null(from) || is.null(to)) NULL else seq(lubridate::year(from), lubridate::year(to))
   h <- .prevcarga_scan(ds, c("area_code", "date", "holiday_type_id", "prevcarga_code", "simplified_code"),
                        NULL, NULL, areas, years = yrs)
   data.table::set(h, j = "date", value = lubridate::as_date(h$date))
-  h <- h[date >= lubridate::as_date(from) & date <= lubridate::as_date(to)]
+  if (!is.null(from)) h <- h[date >= lubridate::as_date(from)]
+  if (!is.null(to)) h <- h[date <= lubridate::as_date(to)]
   data.table::setorderv(h, c("area_code", "date"))
   data.table::setkeyv(h, c("area_code", "date"))
   h[]
@@ -394,7 +396,7 @@ prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days,
   load <- prevcarga_read_load(ctx, areas, from = O - history_days, to = O, origin = O, truncate_at = truncate_at)
   obs <- prevcarga_read_weather(ctx, "observed", areas, O - history_days, O, origin = O, truncate_at = truncate_at)
   fc <- prevcarga_read_weather(ctx, "forecast", areas, O, O + horizon_days, origin = O, truncate_at = truncate_at)
-  hol <- prevcarga_read_holidays(ctx, areas, O - history_days, O + horizon_days)
+  hol <- prevcarga_read_holidays(ctx, areas)                    # calendario: todos os feriados da area, sem janela
   list(load = load, weather_observed = obs, weather_forecast = fc, holidays = hol,
        attrs = c(list(origin = O), pc_panel_attrs(load, obs, fc)))
 }

@@ -125,7 +125,7 @@ test_that("[AC5] janelas de carga/observado/previsto e filtro de particao year",
   expect_lte(unique(p$weather_forecast$issue_time), O_09h)
   expect_lt(max(p$weather_forecast$valid_time), at("2026-10-10 00:00"))
   expect_true(all(p$weather_forecast$valid_time >= at("2026-10-01 00:00")))
-  expect_identical(p$holidays$date, O + c(-10, 3, 9))
+  expect_identical(p$holidays$date, O + c(-10, 3, 9, 12))             # calendario inteiro da area (O+12 > O+horizon)
 })
 
 ## ---- corte da manha (O 00:00) num store que ja tem o dia O: truncate_at unico para os tres leitores -----------------
@@ -170,4 +170,25 @@ test_that("[corte da manha] deck fisicamente truncado (sem linha no dia O) == tr
   ## CONTROL: a origem seguinte sem nenhuma carga continua no_load
   e <- fail(prevcarga_read_panel(pc_ctx_panel(cut), O + 2L, "A", horizon_days = 9, history_days = 1))
   expect_identical(e$id, "completude.no_load")
+})
+
+## ---- feriados: o painel traz o calendario INTEIRO da area (oraculo .read_holidays), nao a janela do painel ---------------
+test_that("[feriados] RS 2023-09-20 antes do inicio do historico chega ao painel; CONTROL a janela antiga o perde", {
+  O2 <- lubridate::ymd("2023-10-05")
+  days <- O2 + (-3:0)
+  hol <- data.table::data.table(area_code = "RS", date = lubridate::ymd(c("2023-09-08", "2023-09-20", "2023-10-12")),
+                                holiday_type_id = bit64::as.integer64(1:3), prevcarga_code = bit64::as.integer64(1:3),
+                                simplified_code = bit64::as.integer64(1:3))
+  d <- pc_deck_panel(areas = "RS", days = days, until = lubridate::ymd_hm("2023-10-05 09:00", tz = TZ), holidays = hol,
+                     dir = withr::local_tempdir())
+  p <- prevcarga_read_panel(pc_ctx_panel(d), O2, "RS", horizon_days = 3, history_days = 3)
+  expect_true(lubridate::ymd("2023-09-20") %in% p$holidays$date)       # 2023-09-20 < O2 - history_days (2023-10-02)
+  expect_identical(p$holidays$date, hol$date)
+  ## days_since_last_holiday na origem: 15 dias (2023-09-20), nunca 27 (2023-09-08)
+  expect_identical(as.integer(O2 - max(p$holidays$date[p$holidays$date < O2])), 15L)
+  ## CONTROL: a janela antiga [O - history_days, O + horizon] perde o feriado anterior ao inicio do historico
+  old <- prevcarga_read_holidays(pc_ctx_panel(d), "RS", O2 - 3, O2 + 3)
+  expect_false(lubridate::ymd("2023-09-20") %in% old$date)
+  ## FORBIDDEN: feriado de outra area nao entra
+  expect_true(all(p$holidays$area_code == "RS"))
 })

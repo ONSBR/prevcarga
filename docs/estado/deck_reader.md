@@ -43,13 +43,14 @@
 - Catalogo: `scripts/lib/errors/deck_cut.tsv`. Testes: `test-deck-reader-cut.R`; helper ganhou `pc_deck_until`, `pc_deck_drop`, `pc_deck_perturb`, `pc_deck_issues`.
 
 ## M2.7 (parte 3): feriados e painel do leitor
-- `prevcarga_read_holidays(ctx, areas, from, to)`: `auxiliary/holidays` (Hive `area_code=/year=`), colunas `area_code, date, holiday_type_id, prevcarga_code, simplified_code`;
+- `prevcarga_read_holidays(ctx, areas, from = NULL, to = NULL)` (FIX 6: `from`/`to` NULL => todos os feriados da area, todas as particoes): `auxiliary/holidays` (Hive `area_code=/year=`), colunas `area_code, date, holiday_type_id, prevcarga_code, simplified_code`;
   `date` = data civil (`Date`) sem deslocamento e SEM corte de `available_until` (calendario conhecido de antemao); particao `year` exata; nao filtra codigos
   (`simplified_code = -1` sai como esta; o finding `code_negative` e do validate-deck, M2.4). Chaveado `(area_code, date)`.
 - `prevcarga_read_panel(ctx, origin, areas, horizon_days, history_days)`: origem ja resolvida (o leitor nao depende de `dates.R`); valida `areas` contra
   `prevcarga_topology(path)$leaves` (`ctx$topology_path` ou `<ctx$root>/config/topology.yaml`) antes de ler => `topology.area_undeclared` (exit 4, `where` = a area).
   Devolve `load` (O-hist..O, cortada), `weather_observed` (O-hist..O, <= available_until), `weather_forecast` (O..O+horizon, emissao mais fresca permitida), `holidays`
-  (O-hist..O+horizon) e `attrs` (`origin`, `available_until`, `available_until_by_area`, `load_label`, `load_label_source`, `tz`, `weather_issue_cutoff`, `weather_issue_limit`).
+  (FIX 6: o calendario INTEIRO da area, sem janela, como o `.read_holidays` do oraculo; a janela antiga perdia o feriado anterior ao inicio do historico e
+  o `days_since_last_holiday` do RF divergia, ex. RS 2023-09-20 em rs-2024-10-01) e `attrs` (`origin`, `available_until`, `available_until_by_area`, `load_label`, `load_label_source`, `tz`, `weather_issue_cutoff`, `weather_issue_limit`).
   `pc_panel_attrs` copia os atributos sem recalcular e aborta `contract.constraint_violated` se `tz`/`available_until` divergirem. O mapeamento area -> serie de clima e do plugin.
 - O limite inferior do filtro de particao `year` passou de `year(from)-1` para `year(from - 1 dia)` (nenhum ano fora da janela e coletado; o recorte fino segue em memoria).
 - Catalogo: `topology.area_undeclared` mora em `scripts/lib/errors/topology.tsv` (o `panel.tsv` foi removido). Testes: `test-read-panel.R`; helper ganhou `pc_deck_panel`, `pc_ctx_panel`, `pc_deck_topology`, `pc_deck_holidays_default`
