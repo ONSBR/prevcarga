@@ -143,11 +143,12 @@ test_that("M4.2 - ac-4 join exato por interval_end sobre o deck sentinela", {
   pre <- data.table::copy(panel); pre[, y_true := 9e9]
   expect_identical(fn("prevcarga_join_fresh_truth")(pre, ctx, "SECO")$y_true, panel$y_true)
   ## alteracao no deck anterior a origem e refletida so naquele intervalo
-  pc_eval_perturb(dir, "SECO", from = lubridate::ymd_hm("2026-10-01 00:00", tz = pc_cmb_tz),
-                  to = lubridate::ymd_hm("2026-10-01 00:30", tz = pc_cmb_tz), fn = function(x) x + 7)
+  pc_eval_perturb(dir, "SECO", from = lubridate::ymd_hm("2026-10-01 09:00", tz = pc_cmb_tz),
+                  to = lubridate::ymd_hm("2026-10-01 09:30", tz = pc_cmb_tz), fn = function(x) x + 7)
   again <- fn("prevcarga_join_fresh_truth")(panel, ctx, "SECO")
   d <- which(!is.na(again$y_true) & again$y_true != panel$y_true)
-  expect_identical(d, which(panel$target_datetime == lubridate::ymd_hm("2026-10-01 00:30", tz = pc_cmb_tz)))
+  expect_length(d, 1L)                                 # o intervalo perturbado esta no painel e no deck
+  expect_identical(d, which(panel$target_datetime == lubridate::ymd_hm("2026-10-01 09:30", tz = pc_cmb_tz)))
   expect_identical(again$y_true[d], panel$y_true[d] + 7)
   ## CONTROL: rotulo trocado (interval_start == target) casa o vizinho e diverge do sentinela
   act <- fn("prevcarga_read_actual")(ctx, "SECO", from = min(panel$target_datetime) - lubridate::seconds(1), to = max(panel$target_datetime))
