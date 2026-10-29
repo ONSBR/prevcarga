@@ -1,0 +1,54 @@
+id	class	message	hint
+plugin.contract	contract	Plugin violou o contrato de interface	Veja details$model e details$where; confira register.R do plugin
+plugin.descriptor	contract	Descriptor do plugin invalido ou incompleto	Confira os campos obrigatorios do descriptor (model_id, stages, granularity_min, delivery_days)
+plugin.stage_missing	contract	Estagio obrigatorio ausente no plugin	Implemente o estagio em register.R (ingest, features, train, infer, forecast)
+plugin.cut	contract	Plugin recebeu dados alem do corte permitido	Confira cuts (train_origin, last_data_day, available_until) antes do despacho
+plugin.artifact	contract	Artefato do plugin fora do contrato (campos ou tipos)	Regenere o artefato com train-models e confira o freeze do plugin
+plugin.completude	completude	Insumo incompleto para o plugin	Veja details$model e o periodo ausente; complete o deck ou reduza a janela
+plugin.window	window	Janela de historico insuficiente para o plugin	Amplie history_days no run.yaml ou use um deck com mais historico
+plugin.rng	repro	RNG do plugin fora do isolamento esperado	Use so a semente do run.yaml via o despachante; nenhum set.seed solto
+features.bad_granularity	contract	granularity_min fora de {30, 60}	Passe granularity_min numerico escalar 30 ou 60
+features.bad_offset	contract	offset_min invalido (esperado inteiro escalar >= 0 em minutos)	Passe offset_min inteiro nao negativo, o model_time_offset_min do descriptor
+features.bad_time_col	contract	Coluna de tempo ausente, nao POSIXct ou sem tzone	Informe time_col existente, POSIXct e com tz explicito igual ao do painel
+features.semihourly_rule	contract	Regra semi-horaria devolveu saida fora do contrato	A regra deve devolver 2 linhas por hora, passo 30 min e interval_end horario preservado
+features.bad_delivery_args	contract	Argumentos de prevcarga_delivery_grid invalidos	available_until na grade de 30 min e no tz de cuts; delivery_days inteiro >= 1
+plugin.not_found	contract	Plugin nao encontrado em models/<model_id>/	Confira o model_id e a pasta do plugin
+plugin.bad_run_yaml	contract	run.yaml do plugin invalido	Confira split, granularity_min, seed e params no run.yaml
+plugin.bad_descriptor	contract	Descriptor devolvido por register.R invalido	Devolva a lista com os campos exigidos pelo contrato Tier A
+plugin.unknown_key	contract	Chave desconhecida no run.yaml ou no descriptor	Remova a chave ou use o nome canonico do schema
+plugin.toplevel_code	contract	register.R executa codigo de topo fora de definicoes	Deixe em register.R so definicoes de funcao e o descriptor
+plugin.engine_missing	contract	Motor declarado em engine_manifest nao encontrado	Confira models/_dessem-engine/ e o engine_manifest
+plugin.engine_function_missing	contract	Funcao do motor exigida pelo plugin nao existe	Confira o nome exportado pelo motor no engine_manifest
+plugin.history_window	contract	history_days do plugin incompativel com o split	Ajuste history_days ou o split no run.yaml
+plugin.params_formal	contract	params do run.yaml nao batem com os formais do plugin	Declare todo param em params do run.yaml e no descriptor
+plugin.bad_signature	contract	Assinatura de estagio fora da forma canonica	Use a assinatura canonica (panel, cuts, ctx, params, artifact)
+plugin.provides_gap	contract	descriptor$provides nao cobre o que os estagios exigem	Alinhe provides com as colunas consumidas
+plugin.mode_unavailable	contract	Modo pedido nao disponivel neste plugin	Use um modo listado no descriptor
+plugin.package_missing	bundle	Pacote R exigido pelo plugin ausente do bundle	Acrescente o pacote ao manifest do bundle (M8) ou remova a dependencia
+plugin.train_beyond_cut	contract	Treino recebeu dados apos last_data_day	Despache o treino so com dados ate last_data_day
+plugin.infer_beyond_cut	contract	Infer recebeu carga apos available_until	Despache o infer so com carga ate available_until
+plugin.weather_beyond_limit	contract	Clima previsto com issue_time apos weather_issue_limit	Confira weather_issue_cutoff e o corte do despachante
+plugin.cuts_mismatch	contract	cuts do painel diferem dos cuts do despacho	Use o mesmo objeto cuts de dates.R em painel e despacho
+plugin.missing_column	contract	Coluna exigida ausente no painel ou na saida do plugin	Veja details$column; confira provides e o leitor
+plugin.raw_timestamp	contract	Timestamp sem tz ou fora da grade na saida do plugin	Devolva POSIXct com tz de cuts na grade de 30 min
+plugin.output_misaligned	contract	Saida do plugin fora da grade de entrega	Alinhe interval_end a prevcarga_delivery_grid(cuts, delivery_days)
+plugin.global_side_effect	contract	Plugin alterou estado global (options, env, RNG, wd)	Remova o efeito colateral; o despachante restaura e acusa
+plugin.artifact_mismatch	contract	Artefato nao corresponde ao descriptor ou a origem	Re-treine para a origem ou confira o fingerprint
+plugin.impure_artifact	contract	Artefato contem caminho, ambiente ou relogio	Congele so parametros e dados; nada de caminhos absolutos
+plugin.artifact_corrupt	integrity	Artefato ilegivel ou com sha256 divergente	Regenere o artefato; confira o manifest do bundle
+tools.bad_units	contract	Unidades incompativeis na ferramenta	Confira MW x MWh e a granularidade de entrada
+tools.bad_args	contract	Argumentos invalidos para a ferramenta	Veja o uso no cabecalho do script
+tools.out_inside_oracle	contract	--out dentro do repositorio do oraculo	Use um --out fora de /opt/ons-source/prevcargadessem3
+tools.oracle_dirty	contract	Repositorio do oraculo com alteracoes locais	Limpe o oraculo antes de rodar (git status limpo)
+tools.oracle_touched	contract	A rodada modificou o repositorio do oraculo	O oraculo e so leitura; confira o runner
+tools.bad_layout	contract	Layout de saida desconhecido para o comparador	Use um layout declarado em plugin_parity.R
+tools.bad_tier	contract	Tier de gate desconhecido	Use fast, full ou deploy
+tools.fixture_empty_region	contract	Regiao sem dados na fixture	Confira areas e o periodo pedido ao fixture_store
+tools.fixture_bad_args	contract	Argumentos invalidos para fixture_store	Confira origin, days, areas e tz
+tools.oracle_failed	generic	O oraculo terminou com erro	Veja o log do oraculo em details$log
+tools.golden_missing	generic	Golden do oraculo ausente	Gere o golden com o runner antes da paridade
+tools.golden_stale	generic	Golden mais antigo que o oraculo ou a fixture	Regenere o golden
+tools.parity_failed	generic	Paridade com o oraculo fora da tolerancia	Veja details$max_rel_delta e o layout
+tools.gate_failed	generic	Gate reprovado	Veja a linha do gate em details$gate
+tools.gate_unowned	generic	Gate sem dono declarado	Declare applies_to no pack do gate (scripts/tools/gates/<dono>.R)
+tools.oracle_nondeterministic	repro	O oraculo deu saidas diferentes em duas rodadas	Fixe semente e threads do oraculo antes do golden
