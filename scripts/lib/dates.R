@@ -45,7 +45,10 @@ prevcarga_input_cut <- function(available_until, granularity_min) {
     prevcarga_abort("contract.granularity_invalid", where = "dates.R"))
 }
 
-prevcarga_first_delivery <- function(available_until) available_until + lubridate::minutes(30L)
+## interval_end da 1a entrega = proxima fronteira da grade de 30 min apos available_until (o 1o interval_start;
+## available_until do leitor ja vem na grade, deck_reader.R)
+prevcarga_first_delivery <- function(available_until)
+  lubridate::ceiling_date(available_until, "30 mins", change_on_boundary = TRUE)
 
 ## --- Composicao: campos run-level + tabela `cuts` por modelo ---------------------------------------------
 ## `data_lag_days`: named integer (nome = diretorio do modelo) vindo do descriptor do plugin; ausente => 0L.

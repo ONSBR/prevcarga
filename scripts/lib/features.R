@@ -135,7 +135,8 @@ to_display_frame <- function(x, offset_min, time_col = "DataHora")
   .prevcarga_feat_shift(x, offset_min, time_col, 1L, "to_display_frame")
 
 ## --- Grade de entrega -----------------------------------------------------------------------------------
-## interval_end de available_until + 30 min ate 00:00 do dia (origem + delivery_days), em cuts$tz.
+## interval_end de available_until + 30 min ate 00:00 do dia (origem + delivery_days), em cuts$tz: os passos
+## de 30 min a partir de available_until (1o interval_start), sem o proprio available_until.
 prevcarga_delivery_grid <- function(cuts, delivery_days) {
   w <- "prevcarga_delivery_grid"
   bad <- function(field) prevcarga_abort("features.bad_delivery_args", where = w, details = list(field = field))
@@ -148,5 +149,5 @@ prevcarga_delivery_grid <- function(cuts, delivery_days) {
   origin <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
   if (!inherits(origin, "Date") || length(origin) != 1L || is.na(origin)) bad("origin_day")
   end <- lubridate::force_tz(lubridate::as_datetime(origin + delivery_days), cuts$tz)
-  seq(au + lubridate::minutes(30), end, by = "30 min")
+  seq(au, end, by = "30 min")[-1L]
 }

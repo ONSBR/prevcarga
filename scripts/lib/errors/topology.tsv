@@ -1,2 +1,3 @@
 id	class	message	hint
 contract.topology_bad_value	contract	valor invalido ou tipo errado na topologia	corrija o valor indicado em config/topology.yaml
+topology.area_undeclared	topology	area pedida fora da topologia	declare a area em config/topology.yaml ou corrija a lista de areas; where e a area

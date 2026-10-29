@@ -45,7 +45,7 @@
   (O-hist..O+horizon) e `attrs` (`origin`, `available_until`, `available_until_by_area`, `load_label`, `load_label_source`, `tz`, `weather_issue_cutoff`, `weather_issue_limit`).
   `pc_panel_attrs` copia os atributos sem recalcular e aborta `contract.constraint_violated` se `tz`/`available_until` divergirem. O mapeamento area -> serie de clima e do plugin.
 - O limite inferior do filtro de particao `year` passou de `year(from)-1` para `year(from - 1 dia)` (nenhum ano fora da janela e coletado; o recorte fino segue em memoria).
-- Catalogo: `scripts/lib/errors/panel.tsv`. Testes: `test-read-panel.R`; helper ganhou `pc_deck_panel`, `pc_ctx_panel`, `pc_deck_topology`, `pc_deck_holidays_default`
+- Catalogo: `topology.area_undeclared` mora em `scripts/lib/errors/topology.tsv` (o `panel.tsv` foi removido). Testes: `test-read-panel.R`; helper ganhou `pc_deck_panel`, `pc_ctx_panel`, `pc_deck_topology`, `pc_deck_holidays_default`
   e `pc_deck_perturb` cobre `holidays` (+1 em `prevcarga_code`).
 
 ## manifest.json do store atual (M2.6)

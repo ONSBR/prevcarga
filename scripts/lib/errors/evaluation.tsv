@@ -6,7 +6,6 @@ contract.metric_length	contract	y_true e y_pred com comprimentos diferentes	pass
 contract.baseline_kind	contract	tipo de baseline desconhecido	use --baseline=persistence ou --baseline=seasonal_naive
 contract.honesty_gate_args	contract	argumentos invalidos para o honesty-gate	confira em where o argumento ausente ou fora do contrato do gate
 completude.node_missing	completude	no da topologia sem previsao ou sem carga no recorte	complete as previsoes e a carga do no indicado em where antes de reconciliar
-topology.area_unknown	topology	area fora da topologia	use uma area declarada em config/topology.yaml
 coherence.sin_sum	coherence	soma das areas diverge do SIN	reveja a reconciliacao: a soma ponderada pelas perdas deve fechar o SIN
 coherence.khat	coherence	k-hat incoerente entre previsao e topologia	reveja o k-hat declarado e o aplicado no artefato indicado em where
 coherence.alignment	coherence	artefatos desalinhados no tempo ou nas chaves	alinhe area, origem e target_datetime entre os artefatos indicados em where

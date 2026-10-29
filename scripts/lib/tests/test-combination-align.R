@@ -32,6 +32,11 @@ test_that("M4.2b - ac-0 alinhado com fins diferentes passa; delivery_days sem ca
   expect_identical(format(min(long$target_datetime), "%Y-%m-%d %H:%M:%S"), "2024-03-01 09:30:00")
   expect_warning(r <- assert_al(long), NA)
   expect_true(r)
+  ## CONTROL: sem o interval_start do leitor unico o alinhamento aborta (nunca o deriva)
+  ni <- data.table::copy(long)[, interval_start := NULL]
+  for (n in c("members_declared", "provenance")) data.table::setattr(ni, n, attr(long, n))
+  e <- fail(assert_al(ni))
+  expect_identical(e$id, "contract.combina_input"); expect_identical(e$where, "members_aligned:interval_start")
   ## a faixa vem do run-manifest, nao do nome do modelo: dd = 9 sem a cauda aborta em delivery_days
   pc_cmb_edit_manifest(pc_cmb_run_dir(root, short_m, members), function(m) { m$delivery_days <- 9L; m })
   expect_misaligned(assert_al(discover(root)), short_m, "delivery_days")

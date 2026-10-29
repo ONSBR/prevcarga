@@ -1,2 +1,0 @@
-id	class	message	hint
-topology.area_undeclared	topology	area pedida fora da topologia	declare a area em config/topology.yaml ou corrija a lista de areas; where e a area

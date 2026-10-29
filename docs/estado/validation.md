@@ -18,7 +18,7 @@
   window (`window_train_deficit` ate `last_data_day` do membro; `window_infer_deficit` ate O-1; um finding por membro, area e tipo). Avisos (level warning, nao reprovam): `outlier` (IQR 1.5x e |z| > 3), `flatline` (>= 6 identicos),
   `climate_after_cut` (emissao do dia O apos `weather_issue_limit`, nas duas regras), `available_until_spread`.
 - Premissas: a referencia nao preenche com zero (carga NA/0 reprova); completude flat-48; sem faixa de MW por subsistema; sem monotonicidade.
-- Catalogo: `scripts/lib/errors/validation.tsv` (15 ids proprios; os demais vem de `deck_reader.tsv`, `dates.tsv`, `deck_cut.tsv`, `panel.tsv`).
+- Catalogo: `scripts/lib/errors/validation.tsv` (15 ids proprios; os demais vem de `deck_reader.tsv`, `dates.tsv`, `deck_cut.tsv`, `topology.tsv`).
 - `deck_reader.R` ganhou `prevcarga_read_holiday_codes(ctx, areas)` (codigos crus, sem manifest/origem) para o `code_negative` seguir acumulando sem manifest.
 - Limite conhecido: a sonda do leitor (M2.1) so le o schema do PRIMEIRO parquet legivel por dataset; coluna ausente apenas em outras particoes nao e vista pelo contrato.
 - Testes: `scripts/lib/tests/test-validation.R` (pares limpo/mutacao, md5 do data_dir antes/depois em toda chamada); `helper-deck.R` ganhou `pc_mut_load|drop_col|retype|flatten|corrupt|holiday|add_area|issue|weather`, `pc_deck_days`.

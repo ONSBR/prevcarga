@@ -99,7 +99,7 @@ test_that("M4.2 - ac-3 painel canonico, duplicata e target divergente", {
   expect_true(all(is.finite(long$y_true)))            # y_true embutido nao-NA no LONG
   panel <- fn("prevcarga_build_panel")(long, m3)
   expect_identical(nrow(panel), 2L * 2L * 2L)
-  expect_identical(names(panel), c("area", "forecast_origin", "target_datetime", "lead", "d_plus",
+  expect_identical(names(panel), c("area", "forecast_origin", "target_datetime", "interval_start", "lead", "d_plus",
                                    "granularity_min", "cut", "ym", "y_true", paste0("f_", m3$sigla)))
   expect_true(all(panel$cut == "0900"))
   expect_true(all(panel$ym == "2026-09" | panel$ym == "2026-10"))
@@ -119,6 +119,9 @@ test_that("M4.2 - ac-3 painel canonico, duplicata e target divergente", {
   dv[i, target_datetime := target_datetime + lubridate::minutes(30)]
   dv <- with_attrs(dv, long)
   expect_pcerr(fn("prevcarga_build_panel")(dv, m3), "contract.combina_input", where = "target_datetime divergente")
+  ## CONTROL: sem o interval_start do leitor unico o painel aborta (nunca o deriva)
+  ni <- with_attrs(data.table::copy(long)[, interval_start := NULL], long)
+  expect_pcerr(fn("prevcarga_build_panel")(ni, m3), "contract.combina_input", where = "build_panel:interval_start")
 })
 
 test_that("M4.2 - ac-4 join exato por interval_end sobre o deck sentinela", {

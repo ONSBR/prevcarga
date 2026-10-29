@@ -6,8 +6,9 @@
   `prevcarga_proj_grad_norm`, `prevcarga_combina_month_start`, `prevcarga_combina_train_mask`,
   `prevcarga_combina_fit` (1 linha por celula `(lead, cut, ym)`), `prevcarga_produce_combined`, `prevcarga_produce_eqw`
   e `prevcarga_combina_defaults` (n_min 24, iters 500, grad_tol 1e-6).
-- Leak-fix em UMA funcao: `train_mask` = dia do `interval_start` (`target_datetime - 30 min`, ADR-0035) anterior a
-  inicio(m) no fuso da carga; eixo de agrupamento = mes-de-ORIGEM. Nao usa `prevcarga_train_origin`.
+- Leak-fix em UMA funcao: `train_mask` = coluna `interval_start` do painel (anexada pela borda do LONG, ADR-0035; exige
+  a coluna, sem aritmetica de hora propria) anterior a inicio(m) no fuso da carga; eixo de agrupamento = mes-de-ORIGEM.
+  Nao usa `prevcarga_train_origin`.
 - `grad_tol` e ABSOLUTO: em carga real (~1000 MW) bate o cap; normalizar por `||b||` da falsa parada [TBD: ADR-0026].
   Fixtures de teste em escala O(1) (`helper-combination.R`, formula fechada, sem RNG).
 - Coluna `f_*` toda-NA na celula fica fora do X (base da regra por lead do M4.2c); fallbacks `first_month|no_member|n_min` = EQW (`a = 0`).
@@ -30,7 +31,9 @@
   `topology.area_undeclared`.
 - `cut` do painel = HHMM de `available_until` do run-manifest (lido por `ymd_hms(tz = load_tz)`), nunca do nome do diretorio.
 - `read_actual` e `(from, to]`: o join recua `from` em 1 s para nao perder o primeiro alvo.
-- Em aberto (humano): conversoes de -30 min (`train_mask`, `evaluation.R`) fora do leitor unico (principio 7); M4.2 nao adiciona nenhuma.
+- Painel carrega `interval_start` logo apos `target_datetime`, vindo SO do `read_long` (discover): `build_panel` e
+  `assert_members_aligned` exigem a coluna (ausente => `contract.combina_input`, `where = build_panel:interval_start` /
+  `members_aligned:interval_start`). Nenhuma conversao -30 min na combina; fixtures em memoria usam `pc_long_mem`.
 - Testes: `test-combination-io.R` + `helper-combination-io.R` (fixtures em tempdir; CONTROL io.py e de rotulo trocado).
 
 ## M4.2b -- recusa de membro desalinhado
@@ -43,8 +46,10 @@
   buraco de grade (e). A primeira falha e a reportada.
 - Acoplamento: o rotulo esperado vem de `ctx$load_label` ou, sem ele, do deck (`.prevcarga_deck_ctx`, manifest > flag >
   config); `ctx$tz` ou o fuso do manifest do deck. A grade e checada localmente (sem `prevcarga_delivery_grid` do P.0a, ainda
-  nao integrado); trocar por ela depois e opcional. `first = available_until + 30 min` e aritmetica de grade da combina,
-  nao conversao de rotulo (nao toca o leitor unico).
+  nao integrado); trocar por ela depois e opcional. Comparacao pelo `interval_start` do leitor: 1o esperado = o proprio
+  `available_until` (sem +30); fim = ultimo `target_datetime` == `O + delivery_days`; n de alvos = passos de 30 min entre os
+  dois. Deslocamento (faixa 1 passo fora) e lido so pelas bordas `prevcarga_long_interval_start/target_datetime`; o `where`
+  continua reportando o rotulo do LONG (interval_end).
 - `tzone` fora do fuso da carga: o leitor unico (`read_long`) ja recusa com `contract.long_tz` no discover; a recusa da
   combina cobre LONG montado em memoria. Teste exercita os dois.
 - Testes: `test-combination-align.R` + `helper-combination-align.R` (8 membros alinhados, 10 mutacoes, CONTROL do sentinela).

@@ -15,6 +15,10 @@ pc_source_lib <- function(mods, env = new.env(parent = globalenv())) {
   env
 }
 
+## LONG montado em memoria como o leitor unico o entrega: `interval_start` anexado pela borda do LONG (schema_long.R).
+pc_long_mem <- function(long, tz = NULL)
+  pc_source_lib(c("errors", "schema_long"))$prevcarga_long_attach_interval_start(long, tz)
+
 ## Seta/restaura variaveis do processo de TESTE (NA = remover) para lancar filhos sujos; portavel
 ## Linux/Windows (system2(env=) nao funciona no Windows). `code` e avaliado com as variaveis ativas.
 pc_with_env <- function(vars, code) {
