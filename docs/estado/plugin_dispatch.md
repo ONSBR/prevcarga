@@ -16,4 +16,7 @@
 - Canais: y_true/treino por `prevcarga_honesty_gate` (ponte molde -> store em copia, conferida contra o leitor), intradiario (deck ragged: A alem de `available_until`; deck 09:30 para a meia hora isolada do toy-60) e clima por `prevcarga_honesty_gate_weather` nas duas regras; a emissao 06Z e CONTROL sob `available_until` e FORBIDDEN sob `origin_midnight_utc`.
 - Forecast ponta a ponta (toy-60, deck ragged 09:30): carga do dia O apos `available_until` => delta 0 e nivel treinado identico (FORBIDDEN); hora 08:00-09:00 do dia O muda a
   entrega (CONTROL infer) sem mudar o nivel treinado (FORBIDDEN treino); manha de `last_data_day` muda o nivel (CONTROL treino).
+- Corte da manha (FIX 5): `prevcarga_resolve_cuts` e `prevcarga_read_panel` com o mesmo `truncate_at = O 00:00` num store com o dia O; o observado guarda o ponto
+  `O 00:00` (<= available_until) e o corte de treino do forecast o tira (o treino nunca ve o dia O). Teste: dia O inteiro perturbado => delta 0 (FORBIDDEN);
+  ultima hora da vespera muda a entrega (CONTROL); grade comeca em O 00:30.
 - O leitor entrega `weather_observed` com `valid_time` (F4, deck_reader.md); o adaptador de teste `.hz_adapt` saiu e o painel do leitor chega ao despachante sem retoque.

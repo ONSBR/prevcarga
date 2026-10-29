@@ -127,3 +127,47 @@ test_that("[AC5] janelas de carga/observado/previsto e filtro de particao year",
   expect_true(all(p$weather_forecast$valid_time >= at("2026-10-01 00:00")))
   expect_identical(p$holidays$date, O + c(-10, 3, 9))
 })
+
+## ---- corte da manha (O 00:00) num store que ja tem o dia O: truncate_at unico para os tres leitores -----------------
+O_00h <- lubridate::ymd_hm("2026-10-01 00:00", tz = TZ)
+morning <- function(d, truncate_at = O_00h)
+  prevcarga_read_panel(pc_ctx_panel(d), O, "A", horizon_days = 9, history_days = 30, truncate_at = truncate_at)
+
+test_that("[corte da manha] truncate_at = O 00:00 num store com o dia O: available_until O 00:00, sem no_load", {
+  d <- panel_deck()
+  p <- morning(d)
+  expect_identical(p$attrs$available_until, O_00h)
+  expect_identical(max(p$load$interval_end), O_00h)
+  expect_lte(max(p$weather_observed$valid_time), O_00h)
+  expect_true(all(p$weather_forecast$issue_time <= p$attrs$weather_issue_limit))
+  expect_identical(p$attrs$weather_issue_limit, O_00h)
+  ## o leitor de clima sozinho tambem deriva o corte (antes: completude.no_load com a janela so do dia O)
+  w <- prevcarga_read_weather(pc_ctx_panel(d), "observed", "A", O, O, origin = O, truncate_at = O_00h)
+  expect_identical(attr(w, "available_until"), O_00h)
+  ## CONTROL: sem truncate_at o mesmo store da 09:00
+  expect_identical(panel(d)$attrs$available_until, O_09h)
+})
+
+test_that("[corte da manha] FORBIDDEN carga/clima do dia O nao chegam (delta 0); CONTROL a vespera chega", {
+  d <- panel_deck()
+  p0 <- morning(d)
+  expect_gt(pc_deck_perturb(d, "load", quote(interval_end > O_00h & interval_end <= O_09h)), 0L)
+  expect_gt(pc_deck_perturb(d, "weather_observed", quote(timestamp > O_00h)), 0L)
+  expect_identical(morning(d), p0)
+  pc_deck_perturb(d, "load", quote(interval_end == O_00h))                 # ultimo intervalo da vespera (23:30)
+  expect_false(identical(morning(d)$load, p0$load))
+})
+
+test_that("[corte da manha] deck fisicamente truncado (sem linha no dia O) == truncate_at no store com o dia O", {
+  full <- panel_deck()
+  cut <- pc_deck_panel(days = DAYS, until = O_00h, dir = withr::local_tempdir())
+  a <- morning(full)
+  b <- prevcarga_read_panel(pc_ctx_panel(cut), O, "A", horizon_days = 9, history_days = 30)
+  expect_identical(b$attrs$available_until, O_00h)
+  expect_identical(a$load, b$load)
+  expect_identical(a$weather_observed, b$weather_observed)
+  expect_identical(a$attrs, b$attrs)
+  ## CONTROL: a origem seguinte sem nenhuma carga continua no_load
+  e <- fail(prevcarga_read_panel(pc_ctx_panel(cut), O + 2L, "A", horizon_days = 9, history_days = 1))
+  expect_identical(e$id, "completude.no_load")
+})

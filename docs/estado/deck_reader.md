@@ -28,6 +28,12 @@
   `interval_end <= available_until` e carimba `available_until`, `available_until_by_area`, `available_until_spread`, `origin`. Buraco no dia O =>
   `completude.origin_day_gap` (`where = area:HH:MM`); sem linha => `completude.no_load`; areas divergentes => aviso `warning.available_until_spread`.
   `truncate_at` remove `interval_end > truncate_at` antes da derivacao (== deck fisicamente truncado). Sem `origin` o comportamento e o do M2.1.
+  Corte da manha (FIX 5): a janela de derivacao vai de `min(from, O-1)` a `max(to, O)` (inclui a vespera), e `prevcarga_read_weather` repassa `from/to`
+  a `.prevcarga_derive_cut` como `prevcarga_read_load`. `truncate_at = O 00:00` num store com o dia O, ou um deck sem linha no dia O, dao `available_until = O 00:00`
+  (antes `completude.no_load`, porque a janela era so o dia O). Sem carga nem na vespera segue `completude.no_load`.
+- `prevcarga_read_panel(..., truncate_at = NULL)` repassa o MESMO `truncate_at` aos tres leitores (carga, observado, previsto); o par e
+  `prevcarga_resolve_cuts(..., truncate_at)` (dates.R), com o mesmo valor. Testes: `test-read-panel.R` (corte da manha, FORBIDDEN dia O, CONTROL vespera,
+  truncate_at == deck fisicamente truncado) e `test-dates.R`.
 - `prevcarga_last_load_day(ctx, areas = NULL)`: dia (`as_date(interval_start, tz)`) do ultimo intervalo; le so a particao `year` mais alta nao vazia.
 - `prevcarga_weather_issue_limit(rule, origin, available_until, tz_load)`: `available_until` => ele mesmo; `origin_midnight_utc` => `O 00:00 UTC` no fuso da carga.
   Regra vem de `ctx$weather_issue_cutoff` (fonte `ctx$sources$weather_issue_cutoff`, default `default` se ausente). `prevcarga_freshest_issue(fc, limit)`: emissao mais fresca <= limite por area.

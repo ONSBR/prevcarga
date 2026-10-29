@@ -202,9 +202,11 @@ prevcarga_available_until <- function(load, origin, areas = NULL) {
 }
 
 ## Deriva o corte da carga (apos truncate_at) ou aborta: sem linha => completude.no_load; buraco no dia O =>
-## completude.origin_day_gap (o corte nunca encurta por causa do buraco).
+## completude.origin_day_gap (o corte nunca encurta por causa do buraco). A janela de derivacao inclui a vespera de O:
+## corte da manha (truncate_at = O 00:00) ou deck sem linha no dia O => available_until = O 00:00, nao no_load.
 .prevcarga_derive_cut <- function(ctx_d, areas, origin, truncate_at, from, to) {
-  lo <- if (is.null(from)) origin else min(from, origin)
+  eve <- lubridate::as_date(origin) - 1L
+  lo <- if (is.null(from)) eve else min(lubridate::as_date(from), eve)
   hi <- if (is.null(to)) origin else max(to, origin)
   ext <- .prevcarga_load_raw(ctx_d, areas, lo, hi)
   if (!is.null(truncate_at)) ext <- ext[interval_end <= truncate_at]
@@ -305,7 +307,7 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
   want <- if (is.null(select)) base else intersect(base, union(select, names(tcols)))
   cols <- c("area_code", intersect(want, ds$schema$names))
   au <- NULL
-  if (!is.null(origin)) au <- .prevcarga_derive_cut(d, areas, origin, truncate_at, NULL, NULL)$au
+  if (!is.null(origin)) au <- .prevcarga_derive_cut(d, areas, origin, truncate_at, from, to)$au
   dt <- .prevcarga_scan(ds, cols, from, to, areas)
   for (col in intersect(names(tcols), names(dt)))
     data.table::set(dt, j = col, value = .prevcarga_apply_tz(dt[[col]], tcols[[col]], d$tz))
@@ -383,14 +385,15 @@ pc_panel_attrs <- function(load, weather_obs, weather_fc) {
 
 ## Origem ja resolvida pelo chamador (o leitor nao depende de dates.R). Topologia: ctx$topology_path ou
 ## <ctx$root>/config/topology.yaml; area fora dela => topology.area_undeclared antes de qualquer leitura.
-prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days) {
+## `truncate_at` (opcional) vai IGUAL aos tres leitores: carga, observado e previsto derivam o mesmo available_until.
+prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days, truncate_at = NULL) {
   O <- lubridate::as_date(origin)
   tp <- if (!is.null(ctx$topology_path)) ctx$topology_path else prevcarga_topology_path(ctx$root)
   undeclared <- setdiff(areas, prevcarga_topology(path = tp)$leaves)
   if (length(undeclared)) prevcarga_abort("topology.area_undeclared", where = undeclared[[1L]])
-  load <- prevcarga_read_load(ctx, areas, from = O - history_days, to = O, origin = O)
-  obs <- prevcarga_read_weather(ctx, "observed", areas, O - history_days, O, origin = O)
-  fc <- prevcarga_read_weather(ctx, "forecast", areas, O, O + horizon_days, origin = O)
+  load <- prevcarga_read_load(ctx, areas, from = O - history_days, to = O, origin = O, truncate_at = truncate_at)
+  obs <- prevcarga_read_weather(ctx, "observed", areas, O - history_days, O, origin = O, truncate_at = truncate_at)
+  fc <- prevcarga_read_weather(ctx, "forecast", areas, O, O + horizon_days, origin = O, truncate_at = truncate_at)
   hol <- prevcarga_read_holidays(ctx, areas, O - history_days, O + horizon_days)
   list(load = load, weather_observed = obs, weather_forecast = fc, holidays = hol,
        attrs = c(list(origin = O), pc_panel_attrs(load, obs, fc)))

@@ -15,6 +15,7 @@ Documento de estado do epico M2, indexado por `docs/ESTADO-ATUAL.md` (so o M1.V 
 - **`weather_issue_cutoff`** (`available_until` | `origin_midnight_utc`): limite de emissao do clima previsto; emissao do dia O depois do limite => aviso `climate_after_cut` no validate-deck.
 - **`dates.R`** (M2.3): os tres cortes distintos. `--origin` e o unico flag humano de data; omitido, vale o dia do ultimo intervalo de carga do deck (`origin_source = deck`), nunca o relogio.
   `train_origin` por classe de split (`origin_agnostic`: `O-1-H`; `origin_scoped`: `O`, 1 re-treino por dia) e `last_data_day = O-1-data_lag_days` (teto O-1).
+  `prevcarga_resolve_cuts(..., truncate_at)` leva o mesmo `truncate_at` do painel ao leitor: corte da manha (O 00:00) num store que ja tem o dia O; o corte de treino nao muda.
 - **Grade flat-48**: o store escreve 48 intervalos por dia, contados por `interval_start`; dia de 46 ou 47 e buraco (`completude.day_incomplete`). A contagem independe de DST.
 - **`validate-deck`** (`scripts/lib/cli/validate-deck.R`, auto-registrado pela descoberta da fachada): gate-0 do deck com veredito acumulativo; exit 0 limpo, 2 contract,
   3 completude, 4 topology, 5 window, 8 config. `result` com `data_hash` (identidade do deck, model-agnostica: nao muda com `--model`; muda com 1 byte do parquet, com o `load_label` ou com o fuso do manifest).

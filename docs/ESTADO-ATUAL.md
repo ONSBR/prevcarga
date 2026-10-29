@@ -255,6 +255,8 @@
 - **Painel do modo forecast (2026-10-29):** `prevcarga_plugin_forecast` recebe o painel de INFER (dia O até `available_until`); o
   despachante corta o treino em `cuts$last_data_day` (dates.R) e infere sobre o painel inteiro. Treino nunca vê o dia O; infer vê
   exatamente até `available_until`. Ver `docs/estado/plugin_dispatch.md`.
+- **Corte da manhã (2026-10-29):** um só `truncate_at` vai a `prevcarga_resolve_cuts` (dates.R) e a `prevcarga_read_panel` (os três
+  leitores); `O 00:00` num store que já tem o dia O dá `available_until = O 00:00`, igual ao deck fisicamente truncado. Ver `docs/estado/deck_reader.md`.
 - **Um id para área fora da topologia:** `topology.area_undeclared` (`errors/topology.tsv`, exit 4); `topology.area_unknown` removido.
 
 ## Decisões estruturantes já tomadas

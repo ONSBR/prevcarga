@@ -260,6 +260,39 @@ test_that("ac-5 forecast (origin_scoped): treino corta em last_data_day, infer v
   expect_false(identical(ldd$values, base$values))
 })
 
+test_that("ac-5 forecast no corte da manha (O 00:00) num store que ja tem o dia O: um truncate_at para cortes e painel", {
+  s <- .hz_setup("available_until")
+  m <- "toy-60"; p <- s$plugins[[m]]; sp <- p$spec
+  t0 <- at("00:00")
+  fc <- function(dir) {
+    lag <- stats::setNames(p$descriptor$data_lag_days, m)
+    rc <- suppressWarnings(env$prevcarga_resolve_cuts(s$ctx_for(dir), origin = O, model = m, data_lag_days = lag,
+                                                      truncate_at = t0))
+    panel <- suppressWarnings(env$prevcarga_read_panel(s$ctx_for(dir), O, AREAS, sp$horizon_days,
+                                                       sp$history_days$train, truncate_at = t0))
+    list(rc = rc, panel = panel,
+         env = env$prevcarga_plugin_forecast(p, env$to_hourly(panel), s$dcuts(rc, rc$cuts[rc$cuts$model == m, ]), sp, list()))
+  }
+  base <- fc(s$deck)
+  expect_identical(base$rc$available_until, t0)
+  expect_identical(base$panel$attrs$available_until, t0)
+  expect_identical(base$env$available_until, t0)
+  ## (c) o observado guarda o ponto O 00:00 (<= available_until); o corte de treino do forecast o tira
+  expect_true(any(base$panel$weather_observed$valid_time == t0))
+  x <- base$rc$cuts[base$rc$cuts$model == m, ]
+  expect_identical(x$last_data_day, O - 1L)
+  grid <- env$prevcarga_delivery_grid(s$dcuts(base$rc, x), p$descriptor$delivery_days)
+  expect_identical(base$env$delivery$interval_end, grid)
+  expect_identical(min(grid), at("00:30"))
+  ## FORBIDDEN: toda a carga do dia O no store (00:00-09:00) nao chega
+  forb <- fc(perturb_load(s$deck, after = t0 - lubridate::minutes(30L)))
+  expect_lte(delta(base$env, forb$env), TOL)
+  expect_identical(forb$env$values, base$env$values)
+  ## CONTROL: a ultima hora da vespera (23:00-24:00) chega ao infer e ao treino
+  ctrl <- fc(perturb_load(s$deck, after = at("22:30", "2026-09-30"), at_or_before = at("23:30", "2026-09-30")))
+  expect_gt(delta(base$env, ctrl$env), TOL)
+})
+
 ## molde M3.5: run_fn(painel, clima) refaz o recorte de emissoes no store (copia) e confere contra o leitor
 .hz_store_for_weather <- function(s, base, w) {
   ch <- which(abs(w$temperature - base$temperature) > 0)
