@@ -345,3 +345,92 @@ pc_units_two <- function(root, model = "toy-30", extra = NULL) {
     "    oracle_env: {LGBM_TRAIN_CV: \"0\"}", "    oracle_cut: start_label", extra), f)
   f
 }
+
+## --- Goldens-brinquedo do comparador de paridade (P.0g) ------------------------------------------------------------
+## Valor sintetico por celula e por interval_end; nao ha oraculo nem modelo. Usa as funcoes de plugin_golden.R/plugin_parity.R
+## carregadas no env do teste (achadas pela pilha, como .pc_find_lib).
+.pc_toy_fp <- new.env()
+.pc_toy_fingerprint <- function(packages = c("lubridate", "data.table")) {
+  key <- paste(packages, collapse = ",")
+  if (is.null(.pc_toy_fp[[key]])) .pc_toy_fp[[key]] <- .pc_find_lib("pc_runtime_fingerprint")(packages, pc_rscript_bin())
+  .pc_toy_fp[[key]]
+}
+
+.pc_toy_cell <- function(r, c) 100 + 10 * r + 0.25 * c
+.pc_toy_y <- function(end) 200 + (as.numeric(end) %/% 1800) %% 97
+
+## Grava native.rds/long.parquet/invocation.json em <out>/plugins/<model>/_/<area>/<origin>/ e o golden.lock da unidade
+## em <lock_root>/<model>/tests/parity/. Devolve o diretorio da unidade.
+.pc_toy_golden_write <- function(unit, native, long, model, out, lock_root, data_dir = NULL,
+                                 packages = c("lubridate", "data.table")) {
+  d <- .pc_find_lib(".pc_golden_unit_dir")(out, model, unit)
+  dir.create(d, recursive = TRUE, showWarnings = FALSE)
+  saveRDS(native, file.path(d, "native.rds"))
+  lg <- data.frame(timestamp = lubridate::force_tz(long$timestamp, "UTC"), y_pred = long$y_pred)
+  arrow::write_parquet(lg, file.path(d, "long.parquet"))
+  writeLines("{}", file.path(d, "invocation.json"))
+  sha <- .pc_find_lib(".pc_golden_sha")
+  files <- vapply(c("native.rds", "long.parquet", "invocation.json"), function(f) sha(file.path(d, f)), "")
+  lockf <- file.path(lock_root, model, "tests", "parity", "golden.lock")
+  dir.create(dirname(lockf), recursive = TRUE, showWarnings = FALSE)
+  .pc_find_lib("pc_golden_lock_update")(lockf, model, unit$id, files, "toycommit",
+    .pc_find_lib("pc_data_digest")(data_dir, unit), .pc_toy_fingerprint(packages))
+  d
+}
+
+## layout: um dos 4 comparaveis. n_days: dias entregues (1 ou 2 no lgbm; n nos de matriz). extra_day: o oraculo calcula 1 dia
+## alem da faixa (long e matriz). day0_source: default por layout (rf: oracle_origin_minus_1; hw: oracle_discarded_step; demais: native).
+pc_toy_golden <- function(layout, n_days = 2L, origin = "2026-10-01", extra_day = FALSE, day0_source = NULL,
+                          tz = "Etc/GMT+3", model = "toy-30", out = tempfile("golden-"), lock_root = tempfile("lockroot-")) {
+  O <- lubridate::ymd(origin)
+  au <- lubridate::ymd_hm(paste(origin, "09:00"), tz = tz)
+  if (is.null(day0_source)) day0_source <- switch(layout, rf_wide_hourly_216 = "oracle_origin_minus_1",
+                                                  hw_matrix_nx48 = "oracle_discarded_step", "native")
+  nr <- if (layout == "rf_wide_hourly_216") 2L else n_days + as.integer(extra_day)
+  nc <- if (layout == "rf_wide_hourly_216") 216L else 48L
+  truth <- outer(seq_len(nr), seq_len(nc), .pc_toy_cell)
+  t0 <- lubridate::force_tz(lubridate::as_datetime(O), tz)
+  first_end <- au + lubridate::minutes(30L)
+  ds <- 123.5
+  col0 <- as.integer(round(as.numeric(difftime(first_end, t0, units = "mins")) / 30))
+  native_values <- truth
+  meta <- list()
+  sister <- NULL
+  if (day0_source == "oracle_discarded_step") { truth[1L, col0] <- ds; native_values[1L, col0] <- NA_real_; meta$discarded_step <- ds }
+  if (day0_source == "oracle_origin_minus_1") {
+    native_values[1L, ] <- truth[1L, ] + 7                      # o oraculo nao grava a linha O-1 de forma util
+    sister <- list(layout = layout, values = rbind(truth[1L, ] - 1, truth[1L, ]), meta = list())
+  }
+  ends_n <- 48L * (n_days + as.integer(extra_day)) - as.integer(round(as.numeric(difftime(au, t0, units = "mins")) / 30))
+  ends <- au + lubridate::minutes(30L * seq_len(ends_n))
+  y <- .pc_toy_y(ends)
+  long <- data.frame(timestamp = ends - lubridate::minutes(30L), y_pred = y)
+  if (day0_source == "oracle_discarded_step") long <- long[-1L, ]
+  unit <- list(id = "u1", area = "SE", origin = O, available_until = au, weather_issue_cutoff = "available_until",
+               day0_source = day0_source, variant = NULL, history_days = NULL)
+  native <- list(layout = layout, values = native_values, meta = meta)
+  dir <- .pc_toy_golden_write(unit, native, long, model, out, lock_root)
+  ## o long em memoria, ja no tz da unidade (como .pc_parity_read_dir o devolve)
+  lg <- list(native = native, long = long, sister = sister)
+  if (!is.null(sister)) {
+    su <- modifyList(unit, list(id = "u0", origin = O - 1L))
+    .pc_toy_golden_write(su, sister, long, model, out, lock_root)
+  }
+  list(layout = layout, unit = unit, truth = truth, golden = lg, dir = dir, out = out, lock_root = lock_root, model = model,
+       n_days = n_days, tz = tz, yfun = .pc_toy_y, ds = ds, au = au)
+}
+
+## Envelope do clean-room igual ao golden (values = a verdade; delivery = a grade do membro); `delta` soma a uma celula de `where`.
+pc_toy_envelope_from <- function(g, cuts = NULL, delivery_days = g$n_days, delta = 0, where = c("values", "delivery")) {
+  where <- match.arg(where)
+  if (is.null(cuts)) cuts <- list(available_until = g$au, tz = g$tz, origin_day = g$unit$origin)
+  grid <- .pc_find_lib("prevcarga_delivery_grid")(cuts, delivery_days)
+  y <- g$yfun(grid)
+  if (g$unit$day0_source == "oracle_discarded_step") y[1L] <- g$ds
+  v <- g$truth
+  if (g$layout != "rf_wide_hourly_216") v <- v[seq_len(min(nrow(v), delivery_days)), , drop = FALSE]   # o membro so entrega a faixa
+  if (where == "values") v[1L, 3L] <- v[1L, 3L] + delta else y[3L] <- y[3L] + delta
+  list(model_id = g$model, variant = NULL, area = "SE", origin_day = g$unit$origin, available_until = g$au,
+       weather_issue_cutoff = "available_until", layout = g$layout, granularity_min = 30L, values = v,
+       delivery = data.table::data.table(interval_end = grid, y_pred = y), meta = list())
+}
