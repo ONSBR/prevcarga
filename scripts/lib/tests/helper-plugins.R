@@ -516,3 +516,74 @@ pc_toy_gates_topology <- function(base, models = c("toy-30", "toy-60", "toy-none
   }
   file.path(base, "models")
 }
+
+## ---- P.0j: higiene (grep de codigo) ------------------------------------------------------------------
+## `allow`: lista nomeada "<basename> <padrao>" -> justificativa. Linhas so-comentario nunca contam.
+## `lines`: vetor de pares (ini, fim) opcional por arquivo nao usado; use copia do trecho se precisar.
+pc_grep_code <- function(paths, patterns, allow = list()) {
+  out <- lapply(paths, function(f) {
+    txt <- readLines(f, encoding = "UTF-8", warn = FALSE)
+    keep <- !grepl("^\\s*#", txt, perl = TRUE)
+    hits <- lapply(names(patterns), function(p) {
+      i <- which(keep & grepl(patterns[[p]], txt, perl = TRUE, useBytes = TRUE))
+      if (length(i)) data.table::data.table(file = f, line = i, pattern = p, text = txt[i])
+    })
+    data.table::rbindlist(hits)
+  })
+  res <- data.table::rbindlist(out)
+  if (!nrow(res)) res <- data.table::data.table(file = character(), line = integer(), pattern = character(), text = character())
+  if (length(allow)) res <- res[!paste(basename(file), pattern) %in% names(allow)]
+  res[]
+}
+
+## Padroes proibidos no codigo da fundacao (ADR-0012/0019/0035, CLAUDE.md principios 2 e 7).
+pc_foundation_forbidden <- list(
+  env      = "Sys[.](getenv|setenv)",   clock = "Sys[.](time|Date)[(]",
+  base_dt  = "as[.]POSIXct|strptime|difftime|as[.]Date[(]", setwd = "setwd[(]",
+  superass = "<<-",                       system = "(^|[^2a-z_])system[(]",
+  fork     = "mclapply|parallel::mc",     global = "(^|[^.])library[(]|(^|[^.])source[(]",
+  byname   = "switch[(]model|grepl[(]\"dessem|%in% c[(]\"lgbm",
+  upper    = "PREVCARGA_[A-Z_]+"
+)
+
+## Bytes > 127 dentro de literais de mensagem (prevcarga_abort/message/cat/stop/warning).
+pc_bytes_over_127 <- function(paths) {
+  out <- lapply(paths, function(f) {
+    txt <- readLines(f, warn = FALSE)
+    keep <- !grepl("^\\s*#", txt, perl = TRUE)
+    msg <- grepl("(prevcarga_abort|message|cat|stop|warning)[(]", txt, perl = TRUE)
+    hi <- vapply(txt, function(s) any(as.integer(charToRaw(s)) > 127L), logical(1L), USE.NAMES = FALSE)
+    i <- which(keep & msg & hi)
+    if (length(i)) data.table::data.table(file = f, line = i, pattern = "bytes_127", text = txt[i])
+  })
+  res <- data.table::rbindlist(out)
+  if (!nrow(res)) res <- data.table::data.table(file = character(), line = integer(), pattern = character(), text = character())
+  res[]
+}
+
+## Aritmetica de hora proibida em models/ (so o despachante desloca hora). to_hourly/to_semihourly sao permitidos.
+pc_time_arith_patterns <- function() list(
+  period_arith = "[%+-]\\s*(lubridate::)?(hours|minutes|seconds|period)[(]|%m[+-]%",
+  hours_call   = "(^|[^_a-zA-Z.])(lubridate::)?hours[(]\\s*[0-9]*\\s*[)]",
+  minutes_30   = "(lubridate::)?minutes[(]\\s*30L?\\s*[)]",
+  secs_3600    = "[+-]\\s*3600L?|[+-]\\s*60L?\\s*\\*\\s*60L?",
+  day_secs     = "86400",
+  difftime     = "as[.]difftime|difftime[(]",
+  frame_fns    = "to_model_frame[(]|to_display_frame[(]",
+  tz_fns       = "force_tz[(]|with_tz[(]"
+)
+
+## Excecoes versionadas e FECHADAS (arquivo + padrao -> justificativa). Nada alem destas.
+pc_time_arith_allow <- function() list(
+  "holt_winters.R period_arith" = "flag de horario de verao do HW: `+ hours(6)` (rotulo, nao deslocamento de frame)",
+  "holt_winters.R hours_call"   = "mesmo `+ hours(6)` do HW (o padrao hours() tambem casa a linha)",
+  "dessem_engine.R hours_call"  = "lag de feature hours(lagh) de obtemLagHora/obtemLagSemiHora (busca do valor defasado)",
+  "dessem_engine.R period_arith" = "lag de feature `- hours(lagh)` de obtemLagHora/obtemLagSemiHora (busca do valor defasado)"
+)
+
+## Varre <model_dir>/R/*.R (+ o motor de descriptor$engine, quando existir `engine_dir`).
+pc_grep_time_arith <- function(model_dir, allow = pc_time_arith_allow(), engine_dir = NULL) {
+  files <- list.files(file.path(model_dir, "R"), pattern = "[.]R$", full.names = TRUE)
+  if (!is.null(engine_dir)) files <- c(files, list.files(file.path(engine_dir, "R"), pattern = "[.]R$", full.names = TRUE))
+  pc_grep_code(sort(files, method = "radix"), pc_time_arith_patterns(), allow)
+}
