@@ -31,7 +31,7 @@ test_that("[PLUGINS] no_env: freeze escreve so no diretorio pedido (artefato + m
   expect_identical(list.files(other, all.files = TRUE, no.. = TRUE), character())
 })
 
-test_that("[PLUGINS] no_env CONTROL: seed 124 no run.yaml efetivo da sha256 diferente", {
+test_that("[PLUGINS] no_env: CONTROL seed 124 no run.yaml efetivo da sha256 diferente", {
   expect_false(identical(rf_tr_sha(rf_tr_run(spec = rf_tr_spec(seed = 123L))$art),
                          rf_tr_sha(rf_tr_run(spec = rf_tr_spec(seed = 124L))$art)))
 })

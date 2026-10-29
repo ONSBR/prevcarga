@@ -4,7 +4,7 @@
 ## pc_golden_units, confere o golden.lock (mesmas funcoes do P.0f) e compara o envelope do clean-room com o golden.
 ##
 ##   Rscript --vanilla scripts/tools/plugin_parity.R --model <m> --units <units.yaml> --golden <dir> --data <store>
-##       [--root <models>] [--topology <yaml>] [--out <report.json>] [--rscript <Rscript>] [--format text|json]
+##       [--root <models>] [--topology <yaml>] [--out <report.json>] [--rscript <Rscript>] [--format text|json] [--lock <golden.lock>]
 ##
 ## Dispatch SEMPRE por `layout` (nunca por nome de modelo). Limiar fixo 1e-5 MW absoluto (trilho mesmo-hardware,
 ## ADR-0017); nenhuma outra tolerancia, nenhuma excecao de A/B (tests/ab/ab_excecoes.yaml e outro trilho) e nenhuma metrica de acuracia.
@@ -51,13 +51,14 @@ prevcarga_parity_layouts <- list(
 }
 
 ## interval_end (segundos) por celula. Dia: linha i = dia O+i-1, coluna j termina em 00:00 + 30 min * j. RF horario:
-## linha r e a origem O-(n-r), coluna k termina em 00:00 da origem + k horas.
+## linha r e a origem T = O-(n-r); a origem nativa T preve do dia T+1 em diante (lead 1 = T+1 00:00-01:00; run_pipeline.R:296-306,
+## day_of_horizon >= 1), logo a coluna k termina em 00:00 de T+1 + k horas (nunca em 00:00 de T: erro de 24 h do P.0g).
 .pc_parity_cell_ends <- function(layout, dims, origin, tz) {
   lay <- .pc_parity_layout(layout)
   nr <- dims[[1L]]; nc <- dims[[2L]]
   out <- matrix(NA_real_, nr, nc)
   for (r in seq_len(nr)) {
-    day <- if (lay$step_min == 60L) origin - (nr - r) else origin + (r - 1L)
+    day <- if (lay$step_min == 60L) origin - (nr - r) + 1L else origin + (r - 1L)
     t0 <- lubridate::force_tz(lubridate::as_datetime(day), tz)
     ends <- if (lay$step_min == 60L) t0 + lubridate::hours(seq_len(nc)) else t0 + lubridate::minutes(30L * seq_len(nc))
     out[r, ] <- as.numeric(ends)
@@ -75,10 +76,11 @@ prevcarga_parity_layouts <- list(
   be <- .pc_parity_band_end(cuts, delivery_days)
   m <- golden_cells$m; e <- golden_cells$ends
   rows <- which(e[, 1L] <= be)
-  if (!length(rows)) return(list(m = m[0L, , drop = FALSE], ends = e[0L, , drop = FALSE], fora = length(m), band_end = be))
+  if (!length(rows)) return(list(m = m[0L, , drop = FALSE], ends = e[0L, , drop = FALSE], fora = length(m), band_end = be,
+                                 rows = rows, cols = integer(), full_dim = dim(m)))
   cols <- which(e[max(rows), ] <= be)
   list(m = m[rows, cols, drop = FALSE], ends = e[rows, cols, drop = FALSE],
-       fora = length(m) - length(rows) * length(cols), band_end = be)
+       fora = length(m) - length(rows) * length(cols), band_end = be, rows = rows, cols = cols, full_dim = dim(m))
 }
 
 ## Dia O esperado, pela fonte declarada na unidade. Devolve list(source, m, fill) (fill = celula de entrega que o
@@ -93,10 +95,14 @@ prevcarga_parity_layouts <- list(
     if (.pc_parity_layout(layout)$step_min != 60L)
       prevcarga_abort("tools.bad_units", where = paste0(unit$id, ".day0_source"),
                       details = list(unit = unit$id, field = "day0_source", why = "oracle_origin_minus_1 so vale p/ layout horario de 2 origens"))
-    if (is.null(golden$sister))
+    ## golden de uma rodada com as 2 origens (long_Om1 presente): a linha O-1 do native.rds ja e a do oraculo e o dia O da
+    ## entrega vem do d_plus 1 de long_Om1 (montado em .pc_parity_read_dir). Sem long_Om1, a irma (origem O-1) e a fonte.
+    if (is.null(golden$sister) && !isTRUE(golden$has_om1))
       prevcarga_abort("tools.golden_missing", where = unit$id, details = list(unit = unit$id, item = "golden da origem O-1"))
-    sm <- .pc_parity_as_matrix(golden$sister$values, layout)
-    m[1L, ] <- sm[nrow(sm), ]
+    if (!is.null(golden$sister)) {
+      sm <- .pc_parity_as_matrix(golden$sister$values, layout)
+      m[1L, ] <- sm[nrow(sm), ]
+    }
   } else if (identical(src, "oracle_discarded_step")) {
     ds <- golden$native$meta$discarded_step
     if (!is.numeric(ds) || length(ds) != 1L || is.na(ds))
@@ -162,6 +168,9 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
   gm <- .pc_parity_as_matrix(d0$m, layout)
   band <- .pc_parity_band(list(m = gm, ends = .pc_parity_cell_ends(layout, dim(gm), unit$origin, tz)), cuts, delivery_days)
   em <- .pc_parity_as_matrix(envelope$values, layout)
+  ## RF: o envelope entrega a matriz nativa inteira (2 x 216, inclui a cauda alem da faixa); as duas matrizes sao recortadas
+  ## pela MESMA faixa. Forma diferente da do golden cheio => comparacao direta com o golden recortado (reprova por forma).
+  if (identical(dim(em), band$full_dim)) em <- em[band$rows, band$cols, drop = FALSE]
   cl <- .pc_parity_cells(em, band$m, tol)
   dv <- .pc_parity_delivery(envelope$delivery, golden$long, unit$available_until, grid, band$band_end, tol,
                             shift_min = join_shift_min, fill = d0$fill)
@@ -207,16 +216,30 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
 
 ## --- 5. golden em disco e envelope do clean-room -----------------------------------------------------------------
 ## timestamp do oraculo e naive (rotulo local): le o rotulo em UTC e reancora no tz da unidade.
+.pc_parity_read_long <- function(f, tz) {
+  lg <- as.data.frame(arrow::read_parquet(f))
+  if (!("timestamp" %in% names(lg)) && "target_datetime" %in% names(lg)) names(lg)[names(lg) == "target_datetime"] <- "timestamp"   # long do oraculo
+  lg$timestamp <- lubridate::ymd_hms(format(lg$timestamp, "%Y-%m-%d %H:%M:%S", tz = "UTC"), tz = tz)
+  lg
+}
+
+## long.parquet da unidade; ou, em rodada de 2 origens (RF), long_O.parquet (O+1..) + o d_plus 1 de long_Om1.parquet (dia O).
 .pc_parity_read_dir <- function(dir, tz) {
   nat <- readRDS(file.path(dir, "native.rds"))
-  lg <- as.data.frame(arrow::read_parquet(file.path(dir, "long.parquet")))
-  lg$timestamp <- lubridate::ymd_hms(format(lg$timestamp, "%Y-%m-%d %H:%M:%S", tz = "UTC"), tz = tz)
-  list(native = nat, long = lg)
+  fo <- file.path(dir, "long_O.parquet"); fm <- file.path(dir, "long_Om1.parquet")
+  if (file.exists(fo) && file.exists(fm)) {
+    lo <- .pc_parity_read_long(fo, tz); lm <- .pc_parity_read_long(fm, tz)
+    lm <- lm[lm$d_plus == 1L, , drop = FALSE]
+    cols <- intersect(names(lo), names(lm))
+    lg <- rbind(lm[, cols, drop = FALSE], lo[, cols, drop = FALSE])
+    return(list(native = nat, long = lg[order(lg$timestamp), , drop = FALSE], has_om1 = TRUE))
+  }
+  list(native = nat, long = .pc_parity_read_long(file.path(dir, "long.parquet"), tz), has_om1 = FALSE)
 }
 
 .pc_parity_read_golden <- function(unit, units, golden, model, tz) {
   g <- .pc_parity_read_dir(.pc_golden_unit_dir(golden, model, unit), tz)
-  if (identical(unit$day0_source, "oracle_origin_minus_1")) {
+  if (identical(unit$day0_source, "oracle_origin_minus_1") && !isTRUE(g$has_om1)) {
     sis <- Filter(function(u) identical(u$area, unit$area) && identical(u$variant, unit$variant) &&
                     u$origin == unit$origin - 1L, units)
     d <- if (length(sis)) .pc_golden_unit_dir(golden, model, sis[[1L]]) else NA_character_
@@ -227,10 +250,37 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
   g
 }
 
+## Deck de leitura da unidade: copia (em tempdir) do store com a carga das `data_areas` cortada em `available_until` da unidade
+## (o corte intradiario e DERIVADO do dado: o store real tem o dia O inteiro, o deck da unidade so ate o corte). Clima e
+## feriados por symlink (so Linux); o manifest e copiado. Nunca escreve no store.
+.pc_parity_deck <- function(unit, data_dir, deck = tempfile("parity-deck-")) {
+  man <- jsonlite::read_json(file.path(data_dir, "manifest.json"), simplifyVector = TRUE)
+  dir.create(deck, recursive = TRUE)
+  file.copy(file.path(data_dir, "manifest.json"), file.path(deck, "manifest.json"))
+  for (d in c("weather", "auxiliary")) if (dir.exists(file.path(data_dir, d))) file.symlink(normalizePath(file.path(data_dir, d)), file.path(deck, d))
+  au <- lubridate::with_tz(unit$available_until, man$timezone$load)
+  au_digits <- lubridate::force_tz(lubridate::ymd_hms(format(au, "%Y-%m-%d %H:%M:%S"), tz = "UTC"), "UTC")
+  shift <- if (identical(man$load_label, "end")) 0L else 30L
+  for (a in if (length(unit$data_areas)) unit$data_areas else unit$area) {
+    base <- file.path(data_dir, "load", paste0("area_code=", a))
+    for (f in list.files(base, pattern = "[.]parquet$", recursive = TRUE)) {
+      tb <- arrow::read_parquet(file.path(base, f), as_data_frame = FALSE)
+      ts <- as.data.frame(tb[, "timestamp"])$timestamp
+      keep <- as.numeric(ts) + shift * 60 <= as.numeric(au_digits)
+      dst <- file.path(deck, "load", paste0("area_code=", a), f)
+      dir.create(dirname(dst), recursive = TRUE, showWarnings = FALSE)
+      if (any(keep)) arrow::write_parquet(tb$Filter(arrow::Array$create(keep)), dst)
+    }
+  }
+  deck
+}
+
 ## Envelope do clean-room pelos despachantes (leitor -> cortes -> train/infer), como em P.0i, com os cortes da unidade.
 .pc_parity_envelope <- function(model, unit, models_dir, data_dir, topology = NULL) {
   plugin <- prevcarga_plugin_load(model, models_dir)
-  ctx <- list(data_dir = data_dir, root = dirname(models_dir), weather_issue_cutoff = unit$weather_issue_cutoff)
+  deck <- .pc_parity_deck(unit, data_dir)
+  on.exit(unlink(deck, recursive = TRUE), add = TRUE)
+  ctx <- list(data_dir = deck, root = dirname(models_dir), weather_issue_cutoff = unit$weather_issue_cutoff)
   if (!is.null(topology)) ctx$topology_path <- topology
   lag <- stats::setNames(plugin$descriptor$data_lag_days, model)
   rc <- suppressWarnings(prevcarga_resolve_cuts(ctx, origin = unit$origin, model = model, data_lag_days = lag))
@@ -240,15 +290,35 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
                available_until = rc$available_until, weather_issue_limit = rc$weather_issue_limit,
                train_origin = row$train_origin, last_data_day = row$last_data_day)
   sp <- plugin$spec
+  ## cortes e parametros LITERAIS da unidade (nunca os defaults do run.yaml quando a unidade os declara)
+  if (length(unit$params)) sp$params <- utils::modifyList(sp$params, unit$params)
+  if (!is.null(unit$seed)) sp$seed <- unit$seed
+  if (!is.null(unit$cuts$train$train_origin) && !identical(format(row$train_origin), unit$cuts$train$train_origin))
+    prevcarga_abort("tools.parity_failed", where = unit$id,
+                    details = list(unit = unit$id, field = "train_origin", unit_value = unit$cuts$train$train_origin,
+                                   derived = format(row$train_origin)))
   read <- function(origin, hist) {
     p <- suppressWarnings(prevcarga_read_panel(ctx, origin, unit$area, sp$horizon_days, hist))
     wo <- data.table::copy(p$weather_observed)
     if ("timestamp" %in% names(wo)) data.table::setnames(wo, "timestamp", "valid_time")   # adaptador interino (P.0i)
     p$weather_observed <- wo
-    if (identical(as.integer(sp$granularity_min), 60L)) to_hourly(p) else p
+    ## previsto: o painel do leitor entrega so a emissao mais fresca; o plugin precisa de TODAS as emissoes ate o limite
+    ## (safra por origem nativa), como nos testes do plugin (rf_fx_panel)
+    lim <- attr(p$weather_forecast, "weather_issue_limit")
+    fc <- prevcarga_read_weather(ctx, "forecast", unit$area, origin - hist, origin + sp$horizon_days + 1L)
+    p$weather_forecast <- fc[issue_time <= lim]
+    ## painel de 30 min CRU: a agregacao horaria e do estagio de ingestao do plugin (RF: .rf_hourly_load -> to_hourly);
+    ## converter aqui antes do despachante a aplicaria duas vezes (hora com 1 intervalo some).
+    p
   }
-  art <- prevcarga_plugin_train(plugin, read(row$last_data_day, sp$history_days$train), cuts, sp, list())
-  prevcarga_plugin_infer(plugin, art, read(unit$origin, sp$history_days$infer), cuts, list())
+  ## `spec` e a fase viajam em cuts (interino do RF.1: o despachante P.0c ainda nao os repassa ao estagio de ingestao)
+  ## janela de leitura = a da unidade (history_start literal da fase); sem `cuts`, a do run.yaml
+  hist <- function(phase, origin, default) {
+    h <- unit$cuts[[phase]]$history_start
+    if (is.null(h)) default else as.integer(origin - lubridate::ymd(h))
+  }
+  art <- prevcarga_plugin_train(plugin, read(row$last_data_day, hist("train", row$last_data_day, sp$history_days$train)), c(cuts, list(spec = sp, phase = "train")), sp, list())
+  prevcarga_plugin_infer(plugin, art, read(unit$origin, hist("infer", unit$origin, sp$history_days$infer)), c(cuts, list(spec = sp, phase = "infer")), list())
 }
 
 ## --- 6. relatorio e CLI -----------------------------------------------------------------------------------------
@@ -260,7 +330,7 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
 }
 
 pc_parity_parse_args <- function(argv, repo) {
-  known <- c("model", "units", "golden", "root", "data", "topology", "out", "rscript", "format")
+  known <- c("model", "units", "golden", "root", "data", "topology", "out", "rscript", "format", "lock")
   if (length(argv) %% 2L != 0L || any(!grepl("^--", argv[seq(1L, length(argv), by = 2L)])))
     prevcarga_abort("tools.bad_args", where = "argv")
   k <- if (length(argv)) sub("^--", "", argv[seq(1L, length(argv), by = 2L)]) else character()
@@ -272,21 +342,24 @@ pc_parity_parse_args <- function(argv, repo) {
   if (is.null(a$format)) a$format <- "text"
   if (!(a$format %in% c("text", "json"))) prevcarga_abort("tools.bad_args", where = "--format")
   if (!grepl("^[A-Za-z0-9_][A-Za-z0-9._-]*$", a$model)) prevcarga_abort("tools.bad_args", where = "--model")
-  if (!file.exists(a$units)) prevcarga_abort("tools.bad_args", where = "--units", details = list(expected = a$units))
   if (is.null(a$out)) a$out <- file.path(a$golden, "parity_report.json")
+  ## topologia da paridade do modelo (areas de subsistema como SECO), quando o modelo a declara
+  dtop <- file.path(a$root, a$model, "tests", "parity", "topology.yaml")
+  if (is.null(a$topology) && file.exists(dtop)) a$topology <- dtop
   a
 }
 
 pc_parity_main <- function(argv, repo) {
   args <- pc_parity_parse_args(argv, repo)
-  spec <- pc_golden_units(args$units)
-  lockf <- file.path(args$root, args$model, "tests", "parity", "golden.lock")
+  ru <- pc_golden_resolve_units(args$units, args$root, args$model)
+  spec <- pc_golden_units(ru$path)
+  lockf <- if (is.null(args$lock)) file.path(args$root, args$model, "tests", "parity", "golden.lock") else args$lock
   if (!dir.exists(args$golden) || !file.exists(lockf))
     prevcarga_abort("tools.golden_missing", where = args$golden,
                     details = list(item = if (!dir.exists(args$golden)) "golden" else "golden.lock"))
   lock <- jsonlite::read_json(lockf, simplifyVector = FALSE)
   res <- list()
-  for (u in spec$units) {
+  for (u in pc_golden_group_units(spec, ru$group)) {
     d <- .pc_golden_unit_dir(args$golden, args$model, u)
     if (!dir.exists(d)) prevcarga_abort("tools.golden_missing", where = u$id, details = list(unit = u$id, item = d))
     .pc_parity_check_lock(lock, u, args$data, d, args$rscript)
@@ -328,7 +401,7 @@ pc_parity_cli <- function(argv = commandArgs(trailingOnly = TRUE)) {
   ## plugin_golden.R tem guarda propria (so roda no globalenv): carregado num env filho e as funcoes reusadas aqui.
   ge <- new.env(parent = globalenv())
   sys.source(file.path(tools_dir, "plugin_golden.R"), envir = ge)
-  for (n in c("pc_golden_units", "pc_runtime_fingerprint", "pc_data_digest", ".pc_golden_sha", ".pc_golden_unit_dir",
+  for (n in c("pc_golden_units", "pc_golden_resolve_units", "pc_golden_group_units", "pc_runtime_fingerprint", "pc_data_digest", ".pc_golden_sha", ".pc_golden_unit_dir",
               ".pc_golden_canon")) assign(n, get(n, envir = ge), envir = globalenv())
   fmt <- if (length(i <- which(argv == "--format")) && i[[1L]] < length(argv)) argv[[i[[1L]] + 1L]] else "text"
   out <- prevcarga_with_errors(pc_parity_main(argv, repo))

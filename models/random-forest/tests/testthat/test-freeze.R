@@ -52,7 +52,7 @@ test_that("[PLUGINS] freeze: scan_pure limpo, carimbos presentes, sem trained_at
   expect_identical(pl$y_h001$model$call, quote(randomForest()))
 })
 
-test_that("[PLUGINS] freeze CONTROL: trained_at = Sys.time() muda o sha256 e e acusado pelo scan; env/closure/caminho tambem", {
+test_that("[PLUGINS] freeze: CONTROL trained_at = Sys.time() muda o sha256 e e acusado pelo scan; env/closure/caminho tambem", {
   a <- rf_tr_run(); art <- a$art
   bad <- art; bad$payload$trained_at <- Sys.time()
   e <- fail(rf_lib$prevcarga_plugin_scan_pure(bad))
@@ -70,7 +70,7 @@ test_that("[PLUGINS] freeze CONTROL: trained_at = Sys.time() muda o sha256 e e a
   }
 })
 
-test_that("[PLUGINS] freeze CONTROL: bytes adulterados => [prevcarga/integrity] exit 9", {
+test_that("[PLUGINS] freeze: CONTROL bytes adulterados => [prevcarga/integrity] exit 9", {
   a <- rf_tr_run(); fz <- freeze_to(a$art)
   on.exit(unlink(c(fz$path, paste0(fz$path, ".manifest.json"))), add = TRUE)
   raw <- readBin(fz$path, "raw", file.size(fz$path))
@@ -82,7 +82,7 @@ test_that("[PLUGINS] freeze CONTROL: bytes adulterados => [prevcarga/integrity] 
   expect_identical(e$id, "plugin.artifact_corrupt")
 })
 
-test_that("[PLUGINS] freeze CONTROL: outro model_id ou granularity_min 30 => contract em plugin_thaw; train_origin > cuts => contract", {
+test_that("[PLUGINS] freeze: CONTROL outro model_id ou granularity_min 30 => contract em plugin_thaw; train_origin > cuts => contract", {
   a <- rf_tr_run(); art <- a$art; p <- rf_plug()
   o <- art; o$stamp$model_id <- "lightgbm"
   g <- art; g$stamp$granularity_min <- 30L

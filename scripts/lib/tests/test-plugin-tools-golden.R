@@ -140,3 +140,63 @@ test_that("pc_golden_units: oracle_cut e minutos no tz; variantes no layout", {
   expect_identical(env$.pc_golden_unit_dir("/o", "m", u), "/o/plugins/m/MAX/SE/2026-10-01")
   expect_identical(env$.pc_golden_child_env(u)[-(1:4)], character())
 })
+
+## --- RF.4: grupos, cortes por fase, rules e `--units <grupo>` -------------------------------------------------------
+RF_UNITS <- file.path(pc_root(), "models", "random-forest", "tests", "parity", "units.yaml")
+bad_id <- function(expr) tryCatch({ force(expr); NA_character_ }, prevcarga_error = function(e) paste(e$id, e$where))
+mutate_units <- function(from, to, all = FALSE) {
+  l <- readLines(RF_UNITS, warn = FALSE)
+  i <- grep(from, l, fixed = TRUE)
+  stopifnot(length(i) >= 1L)
+  l[if (all) i else i[[1L]]] <- sub(from, to, l[if (all) i else i[[1L]]], fixed = TRUE)
+  f <- tempfile("units-", fileext = ".yaml"); writeLines(l, f); f
+}
+
+test_that("[RF.4] units.yaml do random-forest: grupos e cortes por fase validos", {
+  s <- env$pc_golden_units(RF_UNITS)
+  expect_identical(lengths(s$groups)[c("smoke", "foundation", "walk_forward")], c(smoke = 3L, foundation = 15L, walk_forward = 31L))
+  for (u in s$units) {
+    O <- u$origin
+    expect_identical(u$cuts$train$train_origin, format(O - 10L), info = u$id)
+    expect_identical(u$cuts$train$history_start, format(O - 375L), info = u$id)
+    expect_identical(u$cuts$infer$history_start, format(O - 45L), info = u$id)
+    expect_identical(u$day0_source, "oracle_origin_minus_1"); expect_null(u$oracle_cut); expect_identical(length(u$oracle_env), 0L)
+    expect_identical(u$seed, 123L); expect_identical(u$params$ntree, 100L); expect_identical(u$data_areas, u$area)
+    expect_identical(lubridate::minute(u$available_until), 0L)
+    expect_identical(u$weather_issue_cutoff, "origin_midnight_utc")
+  }
+  expect_identical(anyDuplicated(vapply(s$units, function(u) u$id, "")), 0L)
+  expect_setequal(s$groups$smoke, c("seco-2024-10-01", "rs-2024-07-01", "baoe-2024-01-01"))
+})
+
+test_that("[RF.4] CONTROL: oracle_cut, day0_source native, id duplicado, corte errado, env, hora quebrada => tools.bad_units nomeando unidade.campo", {
+  expect_identical(bad_id(env$pc_golden_units(mutate_units("    day0_source: oracle_origin_minus_1", "    day0_source: native"))),
+                   "tools.bad_units seco-2024-01-01.day0_source")
+  expect_identical(bad_id(env$pc_golden_units(mutate_units("    seed: 123", "    seed: 123\n    oracle_cut: start_label"))),
+                   "tools.bad_units seco-2024-01-01.oracle_cut")
+  expect_identical(bad_id(env$pc_golden_units(mutate_units("  - id: sp-2024-01-01", "  - id: seco-2024-01-01"))),
+                   "tools.bad_units seco-2024-01-01.id")
+  expect_identical(bad_id(env$pc_golden_units(mutate_units("train_origin: 2023-12-22", "train_origin: 2023-12-23"))),
+                   "tools.bad_units seco-2024-01-01.cuts.train.train_origin")
+  expect_identical(bad_id(env$pc_golden_units(mutate_units("history_start: 2023-11-17", "history_start: 2023-11-18"))),
+                   "tools.bad_units seco-2024-01-01.cuts.infer.history_start")
+  expect_identical(bad_id(env$pc_golden_units(mutate_units("oracle_env: {}", "oracle_env: { X: \"1\" }"))),
+                   "tools.bad_units seco-2024-01-01.oracle_env")
+  expect_identical(bad_id(env$pc_golden_units(mutate_units("T09:00", "T09:30"))), "tools.bad_units seco-2024-01-01.available_until")
+  expect_identical(bad_id(env$pc_golden_units(mutate_units("params: { ntree: 100 }", "params: { ntree: 99 }"))),
+                   "tools.bad_units seco-2024-01-01.params")
+  expect_match(bad_id(env$pc_golden_units(mutate_units("- seco-2024-10-02", "- seco-2024-10-99"))), "^tools.bad_units ")
+})
+
+test_that("[RF.4] --units <grupo> resolve o units.yaml do modelo; grupo desconhecido => exit 2; caminho continua valendo", {
+  s <- setup(); data <- withr::local_tempdir()
+  pd <- file.path(s$root, "toy-30", "tests", "parity")
+  writeLines(c("groups:", "  g1: [u1]", readLines(units_file(U1))), file.path(pd, "units.yaml"))
+  expect_identical(env$pc_golden_resolve_units("g1", s$root, "toy-30")$group, "g1")
+  expect_identical(bad_id(env$pc_golden_resolve_units("g9", s$root, "toy-30")), "tools.bad_args --units")
+  r <- gen(s$root, s$oracle, s$out, units = "g1")
+  expect_identical(r$status, 0L)
+  expect_true(file.exists(file.path(s$out, "plugins/toy-30/_/SE/2026-10-01/native.rds")))
+  r9 <- gen(s$root, s$oracle, s$out, units = "g9")
+  expect_identical(r9$status, 2L)
+})

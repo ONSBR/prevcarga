@@ -9,17 +9,23 @@
 ## Sem switch por modelo: roda `<root>/<model>/tests/parity/oracle_driver.R` (contrato `--oracle <dir> --unit <unit.json>
 ## --out <dir> --available-until <ISO>`; o driver grava `native.rds` e `long.parquet` em --out). Contrato de units.yaml:
 ##   units: [{id, area, origin, available_until, weather_issue_cutoff, day0_source, variant?, history_days?,
-##            oracle_env?, oracle_cut?}]  (+ opcionais de topo: tz, packages)
+##            oracle_env?, oracle_cut?, cuts?, params?, seed?, data_areas?}]  (+ opcionais de topo: tz, packages, groups, rules)
+## `--units` e um caminho de units.yaml OU o nome de um grupo de `groups` do `<root>/<model>/tests/parity/units.yaml`.
+## `cuts` = cortes POR FASE literais ({train: {train_origin, history_start}, infer: {history_start, available_until,
+## weather_issue_cutoff}}); available_until e weather_issue_cutoff podem vir de `cuts.infer` (sobem para a unidade).
+## `rules` (topo, opcional) = regras declarativas conferidas em toda unidade (ver .pc_golden_check_rules).
 ## Saidas sob --out: plugins/<model>/<variant|_>/<area>/<origin>/{native.rds, long.parquet, invocation.json}; o lock
 ## versionado `<root>/<model>/tests/parity/golden.lock` e atualizado so apos provar o oraculo intacto.
 ## Saida: 0 ok; 2 [contract] args/units/out/oraculo sujo ou tocado; 1 driver falhou; 12 [repro] saidas diferentes.
 
 .PC_GOLDEN_ALLOWED <- c("id", "area", "origin", "available_until", "weather_issue_cutoff", "day0_source", "variant",
-                        "history_days", "oracle_env", "oracle_cut")
+                        "history_days", "oracle_env", "oracle_cut", "cuts", "params", "seed", "data_areas")
+.PC_GOLDEN_TOP <- c("units", "tz", "packages", "groups", "rules")
+.PC_GOLDEN_RULES <- c("train_origin_offset", "train_history_offset", "infer_history_offset", "forbid", "day0_source",
+                      "full_hour", "equals", "oracle_env_empty", "data_areas_is_area")
 .PC_GOLDEN_DAY0 <- c("native", "oracle_origin_minus_1", "oracle_discarded_step")
 .PC_GOLDEN_CUTOFF <- c("available_until", "origin_midnight_utc")
 .PC_GOLDEN_PINS <- c("TZ=UTC", "LC_ALL=C.UTF-8", "OMP_NUM_THREADS=1", "OPENBLAS_NUM_THREADS=1")
-.PC_GOLDEN_FILES <- c("native.rds", "long.parquet", "invocation.json")
 .PC_GOLDEN_DATASETS <- c("load", "weather/observed", "weather/forecast", "auxiliary/holidays")
 
 ## --- units.yaml ------------------------------------------------------------------------------------------------
@@ -28,12 +34,39 @@
 
 .pc_golden_scalar_chr <- function(x) is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
 
-## Le e valida; devolve list(tz, packages, units = lista de unidades com origin (Date) e available_until (POSIXct no tz)).
+## Regras declarativas de topo (`rules`), conferidas em CADA unidade; a violacao e tools.bad_units (exit 2) nomeando unidade.campo:
+## train_origin_offset (O - cuts.train.train_origin), train_history_offset (O - cuts.train.history_start), infer_history_offset
+## (O - cuts.infer.history_start), forbid (campos que a unidade nao pode ter), day0_source (fontes aceitas), full_hour
+## (available_until em hora cheia), equals (mapa campo -> valor exigido; `params` e mapa), oracle_env_empty, data_areas_is_area.
+.pc_golden_check_rules <- function(rules, u, o, au) {
+  id <- u$id
+  days <- function(x) as.integer(o - lubridate::ymd(x, quiet = TRUE))
+  chk <- function(field, ok, why) if (!isTRUE(ok)) .pc_golden_bad_units(id, field, why)
+  if (!is.null(rules$train_origin_offset))
+    chk("cuts.train.train_origin", identical(days(u$cuts$train$train_origin), as.integer(rules$train_origin_offset)),
+        sprintf("train_origin deve ser O - %d", as.integer(rules$train_origin_offset)))
+  if (!is.null(rules$train_history_offset))
+    chk("cuts.train.history_start", identical(days(u$cuts$train$history_start), as.integer(rules$train_history_offset)),
+        sprintf("history_start.train deve ser O - %d", as.integer(rules$train_history_offset)))
+  if (!is.null(rules$infer_history_offset))
+    chk("cuts.infer.history_start", identical(days(u$cuts$infer$history_start), as.integer(rules$infer_history_offset)),
+        sprintf("history_start.infer deve ser O - %d", as.integer(rules$infer_history_offset)))
+  for (f in unlist(rules$forbid)) chk(f, is.null(u[[f]]), "campo proibido nesta familia")
+  if (!is.null(rules$day0_source)) chk("day0_source", u$day0_source %in% unlist(rules$day0_source),
+                                       paste(unlist(rules$day0_source), collapse = " | "))
+  if (isTRUE(rules$full_hour)) chk("available_until", lubridate::minute(au) == 0L && lubridate::second(au) == 0, "hora cheia")
+  for (f in names(rules$equals)) chk(f, identical(.pc_golden_canon(u[[f]]), .pc_golden_canon(rules$equals[[f]])),
+                                     "diferente do valor exigido por rules.equals")
+  if (isTRUE(rules$oracle_env_empty)) chk("oracle_env", !length(u$oracle_env), "oracle_env deve ser vazio")
+  if (isTRUE(rules$data_areas_is_area)) chk("data_areas", identical(unlist(u$data_areas), u$area), "data_areas deve ser a area")
+}
+
+## Le e valida; devolve list(tz, packages, groups, units = lista de unidades com origin (Date) e available_until (POSIXct no tz)).
 pc_golden_units <- function(path, tz = "Etc/GMT+3") {
   doc <- tryCatch(yaml::read_yaml(path), error = function(e) NULL)
   if (!is.list(doc) || is.null(names(doc)) || !is.list(doc$units) || !length(doc$units))
     prevcarga_abort("tools.bad_units", where = path, details = list(field = "units", why = "units.yaml sem a lista `units`"))
-  extra <- setdiff(names(doc), c("units", "tz", "packages"))
+  extra <- setdiff(names(doc), .PC_GOLDEN_TOP)
   if (length(extra))
     prevcarga_abort("tools.bad_units", where = path, details = list(field = extra[[1L]], why = "campo de topo desconhecido"))
   if (!is.null(doc$tz)) tz <- doc$tz
@@ -47,6 +80,9 @@ pc_golden_units <- function(path, tz = "Etc/GMT+3") {
     u <- doc$units[[i]]
     id <- if (is.list(u) && .pc_golden_scalar_chr(u$id)) u$id else paste0("#", i)
     if (!is.list(u) || is.null(names(u))) .pc_golden_bad_units(id, "id", "a unidade deve ser um mapa")
+    ## cortes por fase: available_until e weather_issue_cutoff podem ser declarados em cuts.infer (sobem para a unidade)
+    for (f in c("available_until", "weather_issue_cutoff"))
+      if (is.null(u[[f]]) && is.list(u$cuts) && is.list(u$cuts$infer) && !is.null(u$cuts$infer[[f]])) u[[f]] <- u$cuts$infer[[f]]
     if (!.pc_golden_scalar_chr(u$id) || !grepl("^[A-Za-z0-9][A-Za-z0-9._-]*$", u$id))
       .pc_golden_bad_units(id, "id", "id obrigatorio (letras, digitos, . _ -)")
     if (id %in% ids) .pc_golden_bad_units(id, "id", "id duplicado")
@@ -69,6 +105,28 @@ pc_golden_units <- function(path, tz = "Etc/GMT+3") {
                                       !is.na(u$history_days) && u$history_days >= 1 && u$history_days == round(u$history_days)))
       .pc_golden_bad_units(id, "history_days", "inteiro >= 1")
     if (!is.null(u$oracle_cut) && !identical(u$oracle_cut, "start_label")) .pc_golden_bad_units(id, "oracle_cut", "so start_label")
+    day <- function(x) is.character(x) && length(x) == 1L && grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", x) &&
+      !is.na(lubridate::ymd(x, quiet = TRUE))
+    if (!is.null(u$cuts)) {
+      if (!is.list(u$cuts) || !all(names(u$cuts) %in% c("train", "infer")))
+        .pc_golden_bad_units(id, "cuts", "mapa com as fases train e infer")
+      for (ph in names(u$cuts)) {
+        cp <- u$cuts[[ph]]
+        if (!is.list(cp) || is.null(names(cp))) .pc_golden_bad_units(id, paste0("cuts.", ph), "mapa de cortes da fase")
+        for (f in c("train_origin", "history_start"))
+          if (!is.null(cp[[f]]) && !day(cp[[f]])) .pc_golden_bad_units(id, paste0("cuts.", ph, ".", f), "ISO AAAA-MM-DD")
+        if (is.null(cp$history_start)) .pc_golden_bad_units(id, paste0("cuts.", ph, ".history_start"), "obrigatorio (ISO AAAA-MM-DD)")
+      }
+      if (!is.null(u$cuts$train) && is.null(u$cuts$train$train_origin))
+        .pc_golden_bad_units(id, "cuts.train.train_origin", "obrigatorio (ISO AAAA-MM-DD)")
+    }
+    if (!is.null(u$params) && (!is.list(u$params) || is.null(names(u$params)))) .pc_golden_bad_units(id, "params", "mapa")
+    if (!is.null(u$seed) && !(is.numeric(u$seed) && length(u$seed) == 1L && !is.na(u$seed) && u$seed == round(u$seed)))
+      .pc_golden_bad_units(id, "seed", "inteiro")
+    if (!is.null(u$data_areas) && !(is.character(unlist(u$data_areas)) && length(u$data_areas) >= 1L &&
+                                    all(grepl("^[A-Za-z0-9_]+$", unlist(u$data_areas)))))
+      .pc_golden_bad_units(id, "data_areas", "lista de areas")
+    if (is.list(doc$rules)) .pc_golden_check_rules(doc$rules, u, o, au)
     ev <- u$oracle_env
     if (!is.null(ev)) {
       if (!is.list(ev) || is.null(names(ev)) || any(!grepl("^[A-Za-z_][A-Za-z0-9_]*$", names(ev))) ||
@@ -77,9 +135,52 @@ pc_golden_units <- function(path, tz = "Etc/GMT+3") {
     }
     list(id = u$id, area = u$area, origin = o, available_until = au, weather_issue_cutoff = u$weather_issue_cutoff,
          day0_source = u$day0_source, variant = u$variant, history_days = u$history_days,
-         oracle_env = if (length(ev)) lapply(ev, identity) else list(), oracle_cut = u$oracle_cut)
+         oracle_env = if (length(ev)) lapply(ev, identity) else list(), oracle_cut = u$oracle_cut,
+         cuts = u$cuts, params = u$params, seed = if (is.null(u$seed)) NULL else as.integer(u$seed),
+         data_areas = if (is.null(u$data_areas)) NULL else as.character(unlist(u$data_areas)))
   })
-  list(tz = tz, packages = pk, units = units)
+  groups <- .pc_golden_groups(doc$groups, ids, path)
+  if (is.list(doc$rules)) {
+    bad <- setdiff(names(doc$rules), .PC_GOLDEN_RULES)
+    if (length(bad)) prevcarga_abort("tools.bad_units", where = path, details = list(field = paste0("rules.", bad[[1L]]), why = "regra desconhecida"))
+  } else if (!is.null(doc$rules)) {
+    prevcarga_abort("tools.bad_units", where = path, details = list(field = "rules", why = "mapa"))
+  }
+  list(tz = tz, packages = pk, units = units, groups = groups)
+}
+
+## groups: nome -> ids de unidades existentes (nome e id validos; id inexistente => tools.bad_units).
+.pc_golden_groups <- function(g, ids, path) {
+  if (is.null(g)) return(list())
+  if (!is.list(g) || is.null(names(g)) || any(!grepl("^[A-Za-z0-9_][A-Za-z0-9_-]*$", names(g))))
+    prevcarga_abort("tools.bad_units", where = path, details = list(field = "groups", why = "mapa nome -> lista de ids"))
+  lapply(g, function(v) {
+    v <- unlist(v)
+    miss <- setdiff(v, ids)
+    if (!is.character(v) || !length(v) || length(miss))
+      prevcarga_abort("tools.bad_units", where = path, details = list(field = "groups", why = paste0("id de unidade inexistente: ",
+                      if (length(miss)) miss[[1L]] else "?")))
+    v
+  })
+}
+
+## `--units`: caminho de units.yaml (todas as unidades) OU nome de grupo de `<root>/<model>/tests/parity/units.yaml`.
+## Devolve list(path, group); nenhum dos dois => tools.bad_args em --units.
+pc_golden_resolve_units <- function(value, root, model) {
+  if (file.exists(value) && !dir.exists(value)) return(list(path = value, group = NULL))
+  dflt <- file.path(root, model, "tests", "parity", "units.yaml")
+  if (grepl("^[A-Za-z0-9_][A-Za-z0-9_-]*$", value) && file.exists(dflt)) {
+    g <- pc_golden_units(dflt)$groups
+    if (value %in% names(g)) return(list(path = dflt, group = value))
+  }
+  prevcarga_abort("tools.bad_args", where = "--units", details = list(expected = value))
+}
+
+## Unidades do grupo, na ordem do grupo (grupo NULL => todas).
+pc_golden_group_units <- function(spec, group) {
+  if (is.null(group)) return(spec$units)
+  by_id <- stats::setNames(spec$units, vapply(spec$units, function(u) u$id, ""))
+  unname(by_id[spec$groups[[group]]])
 }
 
 ## --- argumentos do filho -----------------------------------------------------------------------------------------
@@ -97,7 +198,8 @@ pc_golden_units <- function(path, tz = "Etc/GMT+3") {
   list(id = unit$id, area = unit$area, origin = format(unit$origin), available_until = format(unit$available_until, "%Y-%m-%dT%H:%M"),
        tz = tz, weather_issue_cutoff = unit$weather_issue_cutoff, day0_source = unit$day0_source, variant = unit$variant,
        history_days = unit$history_days, oracle_cut = unit$oracle_cut, oracle_env = unit$oracle_env,
-       oracle_available_until = .pc_golden_cut_arg(unit), data_dir = data_dir)
+       oracle_available_until = .pc_golden_cut_arg(unit), data_dir = data_dir,
+       cuts = unit$cuts, params = unit$params, seed = unit$seed, data_areas = unit$data_areas)
 }
 
 ## --- preflight ---------------------------------------------------------------------------------------------------
@@ -144,17 +246,22 @@ pc_golden_oracle_touched <- function(pre) {
   on.exit(setwd(old), add = TRUE)
   rc <- suppressWarnings(system2(args$rscript, cargs, env = .pc_golden_child_env(unit), stdout = log, stderr = log))
   tail <- if (file.exists(log)) utils::tail(readLines(log, warn = FALSE), 20L) else character()
-  miss <- setdiff(c("native.rds", "long.parquet"), list.files(run))
+  miss <- c(setdiff("native.rds", list.files(run)), if (!length(.pc_golden_longs(run))) "long.parquet")
   if (!identical(as.integer(rc), 0L) || length(miss))
     prevcarga_abort("tools.oracle_failed", where = unit$id,
                     details = list(unit = unit$id, status = as.integer(rc), missing = miss, log = log, log_tail = tail))
   list(dir = run, args = cargs, env = .pc_golden_child_env(unit))
 }
 
+## long*.parquet do diretorio (long.parquet, ou long_O.parquet + long_Om1.parquet quando o oraculo roda mais de uma origem)
+.pc_golden_longs <- function(dir) sort(list.files(dir, pattern = "^long[A-Za-z0-9_]*[.]parquet$"), method = "radix")
+
+.pc_golden_raw <- function(f) readBin(f, "raw", file.size(f))
+
 .pc_golden_same <- function(a, b) {
-  identical(readRDS(file.path(a, "native.rds")), readRDS(file.path(b, "native.rds"))) &&
-    identical(readBin(file.path(a, "long.parquet"), "raw", file.size(file.path(a, "long.parquet"))),
-              readBin(file.path(b, "long.parquet"), "raw", file.size(file.path(b, "long.parquet"))))
+  la <- .pc_golden_longs(a)
+  identical(readRDS(file.path(a, "native.rds")), readRDS(file.path(b, "native.rds"))) && identical(la, .pc_golden_longs(b)) &&
+    all(vapply(la, function(f) identical(.pc_golden_raw(file.path(a, f)), .pc_golden_raw(file.path(b, f))), NA))
 }
 
 .pc_golden_unit_dir <- function(out, model, unit)
@@ -165,7 +272,7 @@ pc_golden_oracle_touched <- function(pre) {
 pc_golden_publish <- function(unit, run, out, model, paths, commit, rversion) {
   dst <- .pc_golden_unit_dir(out, model, unit)
   dir.create(dst, recursive = TRUE, showWarnings = FALSE)
-  for (f in c("native.rds", "long.parquet")) file.copy(file.path(run$dir, f), file.path(dst, f), overwrite = TRUE)
+  for (f in c("native.rds", .pc_golden_longs(run$dir))) file.copy(file.path(run$dir, f), file.path(dst, f), overwrite = TRUE)
   inv <- list(model = model, unit = unit$id, args = .pc_golden_sanitize(run$args, paths$scratch),
               env = run$env, pins = .PC_GOLDEN_PINS, cwd = "<scratch>", oracle_commit = commit, r_version = rversion)
   writeLines(jsonlite::toJSON(.pc_golden_canon(inv), auto_unbox = TRUE, null = "null", pretty = TRUE),
@@ -189,8 +296,12 @@ pc_data_digest <- function(data_dir, unit) {
   none <- list(aggregate = digest::digest("", algo = "sha256", serialize = FALSE), partitions = stats::setNames(list(), character()))
   if (is.null(data_dir) || !dir.exists(data_dir)) return(none)
   y1 <- lubridate::year(unit$origin)
-  y0 <- lubridate::year(unit$origin - lubridate::days(if (is.null(unit$history_days)) 0L else as.integer(unit$history_days)))
-  parts <- unlist(lapply(.PC_GOLDEN_DATASETS, function(d) file.path(d, paste0("area_code=", unit$area), paste0("year=", y0:y1))))
+  first <- if (!is.null(unit$cuts)) min(lubridate::ymd(unlist(lapply(unit$cuts, function(p) p$history_start)))) else
+    unit$origin - lubridate::days(if (is.null(unit$history_days)) 0L else as.integer(unit$history_days))
+  y0 <- lubridate::year(first)
+  areas <- if (length(unit$data_areas)) unit$data_areas else unit$area
+  parts <- unlist(lapply(areas, function(a) lapply(.PC_GOLDEN_DATASETS, function(d)
+    file.path(d, paste0("area_code=", a), paste0("year=", y0:y1)))))
   parts <- parts[dir.exists(file.path(data_dir, parts))]
   parts <- sort(parts, method = "radix")
   sh <- vapply(parts, function(p) {
@@ -217,6 +328,10 @@ pc_runtime_fingerprint <- function(packages, rscript, env = .PC_GOLDEN_PINS) {
 }
 
 pc_golden_lock_update <- function(lock_path, model, unit_id, files, oracle_commit, data_digest, fingerprint) {
+  ## exclusao mutua (geradores de grupos distintos em paralelo): mkdir e atomico
+  mtx <- paste0(lock_path, ".lck")
+  for (i in seq_len(600L)) { if (dir.create(mtx, showWarnings = FALSE)) break; Sys.sleep(0.1) }
+  on.exit(unlink(mtx, recursive = TRUE), add = TRUE)
   lock <- if (file.exists(lock_path)) jsonlite::read_json(lock_path, simplifyVector = FALSE) else list()
   if (is.null(lock$units)) lock$units <- stats::setNames(list(), character())
   lock$model <- model
@@ -254,10 +369,10 @@ pc_golden_main <- function(argv, repo) {
   if (!grepl("^[A-Za-z0-9_][A-Za-z0-9._-]*$", args$model) || !dir.exists(parity))
     prevcarga_abort("tools.bad_args", where = "--model", details = list(expected = parity))
   if (!file.exists(driver)) prevcarga_abort("tools.bad_args", where = "--model", details = list(expected = driver))
-  if (!file.exists(args$units)) prevcarga_abort("tools.bad_args", where = "--units", details = list(expected = args$units))
+  ru <- pc_golden_resolve_units(args$units, args$root, args$model)
   pre <- pc_golden_preflight(args)
-  spec <- pc_golden_units(args$units)
-  units <- Filter(function(u) is.null(args$variant) || identical(u$variant, args$variant), spec$units)
+  spec <- pc_golden_units(ru$path)
+  units <- Filter(function(u) is.null(args$variant) || identical(u$variant, args$variant), pc_golden_group_units(spec, ru$group))
   scratch <- tempfile("golden-scratch-")
   dir.create(scratch)
   on.exit(unlink(scratch, recursive = TRUE), add = TRUE)
@@ -279,7 +394,7 @@ pc_golden_main <- function(argv, repo) {
     prevcarga_abort("tools.oracle_touched", where = pre$oracle, details = list(files = utils::head(touched, 20L), n = length(touched)))
   lock <- file.path(parity, "golden.lock")
   for (d in done) {
-    files <- vapply(.PC_GOLDEN_FILES, function(f) .pc_golden_sha(file.path(d$dir, f)), "")
+    files <- vapply(c("native.rds", .pc_golden_longs(d$dir), "invocation.json"), function(f) .pc_golden_sha(file.path(d$dir, f)), "")
     pc_golden_lock_update(lock, args$model, d$unit$id, files, pre$commit, pc_data_digest(args$data, d$unit), d$fingerprint)
   }
   list(model = args$model, oracle_commit = pre$commit, out = pre$out, lock = lock,
