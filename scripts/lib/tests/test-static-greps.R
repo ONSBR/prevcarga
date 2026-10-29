@@ -88,7 +88,8 @@ pc_grep_gates <- data.frame(
     character(),                      # divida do combination.R quitada em M4.2b (lubridate::as_datetime): zero hits
     "scripts/lib/config.R",           # lateral run_id (unico relogio permitido)
     character(), character(), character(), "config/topology.yaml", character(), character(),
-    character(), character(),
+    "scripts/lib/registry.R",         # registry_lifecycle: M5.2 aloja o ciclo de vida (promote/latest.txt) no registry.R
+    character(),
     ## minutes30: o rotulo de hora da carga e operado 1x na entrada e 1x na saida (ESTADO-ATUAL, ADR-0035)
     c("scripts/lib/deck_reader.R",    # borda do deck: rotulo end -> interval_start/interval_end e passo do available_until
       "scripts/lib/features.R",       # reamostragem to_semihourly (2 meias-horas por ancora horaria), nao rotulo
