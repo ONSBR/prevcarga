@@ -7,3 +7,8 @@
 - Efeitos: `.prevcarga_plugin_guarded` (unico ponto que toca `globalenv()`): `prevcarga_preserve_rng` restaura `.Random.seed` (inclusive em erro); simbolo novo ou pacote anexado => `plugin.global_side_effect` (e removido); `uses_rng = FALSE` com consumo do gerador => `plugin.rng` (classe repro).
 - Fixtures: variantes em `helper-plugins.R` (`pc_toy_disp`, `pc_toy_lag/offset/leaky/misaligned`, `pc_spy`, `pc_train_slice/infer_slice`, `pc_panel_with`) acrescentam `R/zz_dispatch.R` aos brinquedos (a saida original de `inference` era o payload). `pc_toy_cuts` ganhou `weather_issue_limit`.
 - Teste: `scripts/lib/tests/test-plugin-dispatch.R`. A fiacao com o leitor real e o honesty_gate sao do P.0i.
+
+## P.0i: honestidade model-agnostic ponta a ponta
+- `scripts/lib/tests/test-plugin-dispatch-honesty.R`: deck `prevcarga_fixture_deck(seed = 11, areas = A,B)` -> `prevcarga_read_panel` -> `prevcarga_resolve_cuts` -> `prevcarga_plugin_train/_infer` -> toy-30/toy-60 (variantes com sensibilidade ao infer, `R/zz_dispatch.R` gerado no teste). Treino lido com origem = `last_data_day`; infer com origem O; toy-60 via `to_hourly`.
+- Canais: y_true/treino por `prevcarga_honesty_gate` (ponte molde -> store em copia, conferida contra o leitor), intradiario (deck ragged: A alem de `available_until`; deck 09:30 para a meia hora isolada do toy-60) e clima por `prevcarga_honesty_gate_weather` nas duas regras; a emissao 06Z e CONTROL sob `available_until` e FORBIDDEN sob `origin_midnight_utc`.
+- Defeito de integracao achado (nao corrigido aqui): o leitor entrega `weather_observed` com a coluna `timestamp`; o despachante recusa `timestamp` (`plugin.raw_timestamp`) e `to_hourly` exige `valid_time`. O teste renomeia a coluna (adaptador `.hz_adapt`).
