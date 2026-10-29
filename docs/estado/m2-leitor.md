@@ -43,8 +43,8 @@ Documento de estado do epico M2, indexado por `docs/ESTADO-ATUAL.md` (so o M1.V 
 
 ## Pendencias conhecidas (nao decididas aqui)
 - **Receita do `data_hash`** sem ADR proprio: arquivos, ordem, manifest e `load_label` entram hoje por implementacao (`prevcarga_data_hash`, provenance.R); falta o ADR que a fixa.
-- **`data_lag_days` dos descriptors** ainda nao chega ao `describe`/`validate-deck` por processo (`data_lag_source = default`; LGBM sai com `last_data_day` O-1 ate o repasse do P.0b/M5);
-  o `O-3` do LGBM so e exercido com o valor injetado no construtor (teste in-process do M2.V).
+- **`data_lag_days` dos descriptors** chega ao `describe`/`validate-deck` por processo (`prevcarga_plugin_data_lags`, registry.R): LGBM O-3, RF O-1, ambos `descriptor`
+  (gate de processo do M2.V); membro sem plugin fica `default`.
 - O resultado do `validate-deck` nao depende do fuso da sessao (todo calculo usa `tz` explicito): a sujeira do shell so e observavel na sonda de instante, por isso o CONTROL e a sonda e nao o json.
 - `docs/roadmap/M2-DATAS.md` ja foi arquivado em `docs/_archive/roadmap/M2-DATAS.md` (somente leitura); nada a apagar neste PR.
 - Smoke do `validate-deck` sobre o store real segue pendente do `manifest.json` do store (M2.6); nada foi gravado em `data/`.

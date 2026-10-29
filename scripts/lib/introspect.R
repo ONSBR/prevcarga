@@ -186,7 +186,8 @@ cmd_areas <- function(ctx, args = NULL) prevcarga_build_areas(ctx)
 ## M2.5: os cortes saem de dates.R. Com origem e deck legivel, prevcarga_resolve_cuts (inclui available_until,
 ## derivado do deck via validate-deck); sem deck legivel so o que nao depende do dado (corte de treino por
 ## membro, prevcarga_train_cut) e available_until fica indisponivel. `data_lag_days` (named integer) vem dos
-## descriptors quando existirem (P.0b/M5); ate la a fonte e `default`. Requer dates.R e deck_reader.R.
+## descriptors (cmd_describe: prevcarga_plugin_data_lags, registry.R); membro sem plugin => `default`.
+## Requer dates.R, deck_reader.R e registry.R.
 .prevcarga_describe_au_label <- "derivado do deck (via validate-deck)"
 
 .prevcarga_describe_fmt_date <- function(x) if (is.null(x) || is.na(x)) NULL else format(x, "%Y-%m-%d")
@@ -269,5 +270,6 @@ prevcarga_render_describe <- function(result) {
 
 cmd_describe <- function(ctx, args = NULL) {
   ctx$model <- if (!is.null(args)) args[["--model"]] else NULL
-  prevcarga_build_describe(ctx)
+  mdirs <- unique(prevcarga_members(root = ctx$root)$mdir)
+  prevcarga_build_describe(ctx, data_lag_days = prevcarga_plugin_data_lags(mdirs, ctx$root))
 }

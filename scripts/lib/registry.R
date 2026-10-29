@@ -463,6 +463,15 @@ prevcarga_plugin_check_signature <- function(plugin) {
   invisible(TRUE)
 }
 
+## data_lag_days declarados pelos descriptors (named integer, nome = diretorio do modelo), o argumento que dates.R
+## recebe (ADR-0023). Membro sem plugin (sem R/) fica de fora => `default` em dates.R; outra falha de carga aborta.
+prevcarga_plugin_data_lags <- function(mdirs, root) {
+  lag <- lapply(stats::setNames(mdirs, mdirs), function(m) tryCatch(
+    as.integer(prevcarga_plugin_load(m, prevcarga_models_root(root))$descriptor$data_lag_days),
+    prevcarga_error = function(e) if (identical(e$id, "plugin.not_found")) NULL else stop(e)))
+  unlist(Filter(Negate(is.null), lag))
+}
+
 prevcarga_plugin_env <- function(model, root) prevcarga_plugin_load(model, root)$env
 prevcarga_plugin_descriptor <- function(model, root) prevcarga_plugin_load(model, root)$descriptor
 prevcarga_plugin_unload_all <- function() {

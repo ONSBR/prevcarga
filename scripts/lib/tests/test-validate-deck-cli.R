@@ -9,7 +9,7 @@ M2_TZ <- "Etc/GMT+3"
 
 ## ---- instalacao-copia com historicos pequenos (editaveis) ------------------------------------------------------------
 m2_root <- function(hw = c(30, 10)) {
-  pc_install_copy(mutate = function(r) {
+  pc_install_copy(plugins = TRUE, mutate = function(r) {
     set <- function(m, tr, inf) {
       f <- file.path(r, "models", m, "run.yaml"); y <- yaml::read_yaml(f)
       y$history_days <- list(train = tr, infer = inf); yaml::write_yaml(y, f)
@@ -252,9 +252,24 @@ test_that("describe --origin 2026-10-01 por processo: uma linha por membro com t
   for (x in list(de, dl)) {
     expect_identical(x$train_origin, "2026-10-01"); expect_identical(x$last_data_day, "2026-09-30")   # origin_scoped
   }
-  ## data_lag_days chega com os descriptors (P.0b/M5): ate la o processo usa o default 0 e o declara
-  expect_identical(lg$data_lag_days, 0L); expect_identical(lg$data_lag_source, "default")
-  expect_identical(lg$last_data_day, "2026-09-30")
+  ## data_lag_days do descriptor do plugin, como no caminho in-process (ADR-0023): LGBM O-3
+  expect_identical(lg$data_lag_days, 2L); expect_identical(lg$data_lag_source, "descriptor")
+  expect_identical(lg$last_data_day, "2026-09-28")
+  ## CONTROL: RF declara data_lag_days 0 => O-1 pela mesma fonte; membro sem plugin (dessem-regdin) segue `default`
+  expect_identical(rf$data_lag_days, 0L); expect_identical(rf$data_lag_source, "descriptor")
+  expect_identical(de$data_lag_source, "default")
+})
+
+test_that("validate-deck por processo: LGBM last_data_day O-3 do descriptor; CONTROL RF O-1 (ADR-0023)", {
+  r <- m2_vd(root_ok, m2_clean())
+  expect_identical(r$status, 0L)
+  cuts <- m2_doc(r)$result$cuts
+  row <- function(m) Filter(function(x) identical(x$model, m), cuts)[[1L]]
+  lg <- row("lgbm"); rf <- row("random-forest")
+  expect_identical(lg$last_data_day, "2026-09-28"); expect_identical(lg$data_lag_days, 2L)
+  expect_identical(lg$data_lag_source, "descriptor")
+  expect_identical(rf$last_data_day, "2026-09-30"); expect_identical(rf$data_lag_days, 0L)
+  expect_identical(rf$data_lag_source, "descriptor")
 })
 
 test_that("LGBM last_data_day = O-3 (data_lag_days 2 do descriptor) pelo mesmo construtor do describe (AC 13)", {

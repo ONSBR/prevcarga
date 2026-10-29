@@ -6,5 +6,6 @@ prevcarga_verb_describe <- list(
   handler = function(ctx, args) cmd_describe(ctx, args),
   owner   = "M1",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "introspect.R")
+  modules = c("topology.R", "provenance.R", "deck_reader.R", "validation.R", "dates.R", "features.R", "registry.R",
+              "introspect.R")
 )
