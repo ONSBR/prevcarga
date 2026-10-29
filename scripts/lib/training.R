@@ -318,7 +318,7 @@ prevcarga_train_models <- function(cells, ctx, origin = NULL, jobs = 1L, force =
   idx <- seq_len(nrow(cells))
   if (!length(idx))
     return(data.frame(model = character(), variant = character(), area = character(), split = character(),
-                      train_origin = as.Date(character()), last_data_day = as.Date(character()),
+                      train_origin = lubridate::as_date(character()), last_data_day = lubridate::as_date(character()),
                       version = character(), status = character(), path = character(), stringsAsFactors = FALSE))
   res <- list()
   if (jobs <= 1L) {
