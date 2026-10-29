@@ -35,3 +35,4 @@ Escopo do LGBM.1: contrato (`run.yaml` + `register.R`) e ingestao. FE, treino e 
   `sazonalidade_fallbacks`, `colunas_entrada_BLF`, `colunas_nao_normalizar`, `train_cutoff`, `val_cutoff`). Com `tipodia_legacy`, `Feriado` vira 0/1 no `feature_table`.
 - `lgbm_split_cutoffs`: `train_cv` => ambos `last_data_day`; v2_old/legacy_month/rolling replicam `default_val/train_cutoff` (v2_old: treino = fim do mes anterior ao de `val`); corte > `last_data_day` => `lgbm.contract`.
 - Custo: o `rollapply` de `dwt` e ~40 s por 36k linhas (igual ao oraculo); os testes usam deck de 120 dias.
+- INTERIM (decisao do Gabriel): `attr(frame, "cuts")` (anexado por `lgbm_ingest`) e o canal provisorio dos cortes para a FE, ja que o loader fixa o estagio em `(frame, params)`; o seed fica so no treino. O canal definitivo (F1) sera decidido apos a implementacao; nao mexer no despachante nem em `register.R` ate la.
