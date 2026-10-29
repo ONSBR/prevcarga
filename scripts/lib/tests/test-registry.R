@@ -77,12 +77,11 @@ test_that("reset volta a list() e nenhum arquivo e criado (estado so em memoria)
   expect_identical(after, before)
 })
 
-test_that("fonte sem lista de siglas nem ciclo de vida (com CONTROL de arquivo-isca)", {
+test_that("fonte sem lista de siglas (ciclo de vida: M5.2 o aloja no registry.R; CONTROL de arquivo-isca)", {
   src <- readLines(file.path(pc_root(), "scripts", "lib", "registry.R"), warn = FALSE)
   siglas <- "\\b(RF|LGBM|HW)\\b|RGD_|LIN_"
   vida <- "\\b(promote|rollback|gc|pin)\\b|latest\\.txt"
   expect_false(any(grepl(siglas, src)))
-  expect_false(any(grepl(vida, src)))
   isca <- tempfile(fileext = ".R")
   writeLines(c("promote <- function() NULL", "x <- c('RF', 'RGD_MED')"), isca)
   txt <- readLines(isca)

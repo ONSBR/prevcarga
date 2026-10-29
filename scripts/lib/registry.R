@@ -896,3 +896,164 @@ prevcarga_plugin_forecast <- function(plugin, panel, cuts, spec, ctx = list()) {
   art <- prevcarga_plugin_train(plugin, panel, cuts, spec, ctx)
   .prevcarga_plugin_infer_impl(plugin, art, panel, cuts, spec)
 }
+
+## =====================================================================================================
+## M5.2 -- nucleo do registry local no layout do bucket (ADR-0039/ADR-0030). Requer provenance.R (freeze/thaw/
+## run_manifest) alem de errors.R. Layout:
+##   <state_dir>/artifacts/<mdir>/[<exogena>/]<area>/{latest.txt, .pin, .history, .tmp-*/, v_<hash>/}
+##   v_<hash>/ = {artifact.rds, artifact.rds.manifest.json, run_manifest.json, SHA256SUMS} imutavel.
+## So locais: .pin, .history, .tmp-*. Texto UTF-8 com LF. O pacote nunca fala rede: os oficiais chegam pelo
+## `prevcarga-sync` (M8) neste mesmo layout e sao tratados igual aos proprios, sem conversao.
+## Erros declarados em errors/registry_core.tsv. Publicacao/promocao atomicas = tempfile irmao + file.rename.
+## =====================================================================================================
+.prevcarga_reg_version_rx <- "^v_[0-9a-f]+$"
+
+## normalizePath nao colapsa `..` em caminho inexistente: colapso lexical depois (links existentes ja resolvidos).
+.prevcarga_reg_norm <- function(p) {
+  p <- normalizePath(p, winslash = "/", mustWork = FALSE)
+  m <- regmatches(p, regexec("^([A-Za-z]:/|/)(.*)$", p))[[1L]]
+  head <- if (length(m)) m[[2L]] else ""
+  parts <- strsplit(if (length(m)) m[[3L]] else p, "/", fixed = TRUE)[[1L]]
+  out <- character()
+  for (s in parts[nzchar(parts) & parts != "."]) {
+    if (identical(s, "..")) out <- out[-length(out)] else out <- c(out, s)
+  }
+  paste0(head, paste(out, collapse = "/"))
+}
+
+prevcarga_registry_root <- function(ctx) {
+  if (!is.character(ctx$state_dir) || length(ctx$state_dir) != 1L || is.na(ctx$state_dir) || !nzchar(ctx$state_dir))
+    prevcarga_abort("contract.path_outside_root", where = "state_dir ausente no ctx")
+  .prevcarga_reg_norm(file.path(ctx$state_dir, "artifacts"))
+}
+
+## Aborta se o caminho normalizado nao estiver contido na raiz (recusa `..` e links que saiam dela).
+prevcarga_registry_contain <- function(path, ctx) {
+  root <- prevcarga_registry_root(ctx)
+  p <- .prevcarga_reg_norm(path)
+  if (!(identical(p, root) || startsWith(p, paste0(root, "/"))))
+    prevcarga_abort("contract.path_outside_root", where = path, details = list(root = root))
+  p
+}
+
+## Segmento de variante sse `member$exogena` nao for NA/vazia: decisao so pelo membro, nunca pelo nome do modelo.
+prevcarga_registry_key <- function(member, area, ctx) {
+  if (is.null(member$mdir) || is.null(member$exogena))
+    prevcarga_abort("contract.variant_required", where = "membro sem mdir/exogena")
+  exo <- member$exogena
+  seg <- c(member$mdir, if (!is.na(exo) && nzchar(exo)) exo, area)
+  prevcarga_registry_contain(do.call(file.path, as.list(c(prevcarga_registry_root(ctx), seg))), ctx)
+}
+
+.prevcarga_reg_read_lines <- function(path) {
+  if (!file.exists(path)) return(character())
+  x <- readLines(path, warn = FALSE, encoding = "UTF-8")
+  x <- trimws(x)
+  x[nzchar(x)]
+}
+
+## Resolve uma versao existente da celula; nunca devolve NULL/vazio (todo caminho sem resposta aborta).
+prevcarga_resolve_version <- function(key, mode = c("latest", "version", "pin"), version = NULL, ctx = NULL) {
+  mode <- match.arg(mode)
+  if (!is.null(ctx)) key <- prevcarga_registry_contain(key, ctx)
+  v <- switch(mode,
+    latest  = {
+      lp <- file.path(key, "latest.txt")
+      if (!file.exists(lp)) prevcarga_abort("state.artifact_missing", where = lp)
+      utils::head(.prevcarga_reg_read_lines(lp), 1L)
+    },
+    version = version,
+    pin     = {
+      pl <- .prevcarga_reg_read_lines(file.path(key, ".pin"))
+      if (!length(pl)) prevcarga_abort("state.pin_missing", where = file.path(key, ".pin"))
+      utils::tail(pl, 1L)
+    })
+  if (!is.character(v) || length(v) != 1L || is.na(v) || !grepl(.prevcarga_reg_version_rx, v))
+    prevcarga_abort("contract.version_malformed", where = key,
+                    details = list(version = if (is.character(v) && length(v)) v[[1L]] else NA_character_))
+  dir <- file.path(key, v)
+  if (!is.null(ctx)) prevcarga_registry_contain(dir, ctx)
+  if (!dir.exists(dir)) prevcarga_abort("state.artifact_missing", where = dir, details = list(version = v))
+  v
+}
+
+.prevcarga_reg_write_bytes <- function(path, txt) {
+  con <- file(path, open = "wb")
+  on.exit(close(con), add = TRUE)
+  writeBin(charToRaw(enc2utf8(txt)), con)
+  invisible(path)
+}
+
+## SHA256SUMS: '<sha256>  <arquivo>' por linha (radix), LF, cobrindo todos os arquivos da pasta exceto ele mesmo.
+.prevcarga_reg_sums_write <- function(dir) {
+  fs <- setdiff(list.files(dir, all.files = TRUE, no.. = TRUE), "SHA256SUMS")
+  fs <- fs[order(fs, method = "radix")]
+  sha <- vapply(file.path(dir, fs), function(f) digest::digest(file = f, algo = "sha256"), "", USE.NAMES = FALSE)
+  .prevcarga_reg_write_bytes(file.path(dir, "SHA256SUMS"), paste0(sha, "  ", fs, "\n", collapse = ""))
+}
+
+## Publica `v_<hash>/` de forma atomica (staging .tmp-<rand>/ irmao + file.rename). Devolve list(version, path, reused).
+prevcarga_registry_publish <- function(artifact, manifest, key, version, force = FALSE, ctx = NULL) {
+  if (!is.character(version) || length(version) != 1L || is.na(version) || !grepl(.prevcarga_reg_version_rx, version))
+    prevcarga_abort("contract.version_malformed", where = key, details = list(version = as.character(version)))
+  if (!is.null(ctx)) key <- prevcarga_registry_contain(key, ctx)
+  final <- file.path(key, version)
+  if (dir.exists(final) && !isTRUE(force))
+    return(list(version = version, path = final, reused = TRUE))
+  dir.create(key, recursive = TRUE, showWarnings = FALSE)
+  stg <- tempfile(".tmp-", tmpdir = key)
+  dir.create(stg)
+  ok <- FALSE
+  on.exit(if (!ok) unlink(stg, recursive = TRUE), add = TRUE)
+  prevcarga_freeze(artifact, file.path(stg, "artifact.rds"))
+  prevcarga_write_run_manifest(manifest, stg)
+  .prevcarga_reg_sums_write(stg)
+  fail <- function() prevcarga_abort("state.promote_failed", where = final)
+  if (dir.exists(final)) {                                  # force: o antigo so sai depois de o novo entrar
+    old <- tempfile(".tmp-old-", tmpdir = key)
+    if (!isTRUE(file.rename(final, old))) fail()
+    if (!isTRUE(file.rename(stg, final))) {
+      file.rename(old, final)                               # restaura o anterior
+      fail()
+    }
+    unlink(old, recursive = TRUE)
+  } else if (!isTRUE(file.rename(stg, final))) fail()
+  ok <- TRUE
+  list(version = version, path = final, reused = FALSE)
+}
+
+## Carga: confere cada linha de SHA256SUMS ANTES do thaw; divergencia => integrity.artifact_hash (exit 9).
+prevcarga_load_artifact <- function(key, version, ctx = NULL) {
+  v <- prevcarga_resolve_version(key, "version", version, ctx = ctx)
+  dir <- file.path(key, v)
+  sp <- file.path(dir, "SHA256SUMS")
+  if (!file.exists(sp)) prevcarga_abort("integrity.artifact_hash", where = sp, details = list(reason = "SHA256SUMS ausente"))
+  ln <- .prevcarga_reg_read_lines(sp)
+  m <- regmatches(ln, regexec("^([0-9a-f]{64})  (.+)$", ln))
+  if (!length(ln) || any(lengths(m) != 3L))
+    prevcarga_abort("integrity.artifact_hash", where = sp, details = list(reason = "SHA256SUMS malformado"))
+  for (e in m) {
+    f <- e[[3L]]
+    fp <- file.path(dir, f)
+    got <- if (!grepl("[/\\\\]", f) && file.exists(fp)) digest::digest(file = fp, algo = "sha256") else NA_character_
+    if (is.na(got) || !identical(got, e[[2L]]))
+      prevcarga_abort("integrity.artifact_hash", where = fp, details = list(file = f, want = e[[2L]], got = got))
+  }
+  prevcarga_thaw(file.path(dir, "artifact.rds"))
+}
+
+## Promove `latest.txt` (tempfile irmao + file.rename; nunca escrita direta sobre o ponteiro) e registra em .history.
+prevcarga_registry_promote_latest <- function(key, version, ctx = NULL) {
+  v <- prevcarga_resolve_version(key, "version", version, ctx = ctx)
+  tmp <- tempfile(".tmp-latest-", tmpdir = key)
+  .prevcarga_reg_write_bytes(tmp, paste0(v, "\n"))
+  if (!isTRUE(file.rename(tmp, file.path(key, "latest.txt")))) {
+    unlink(tmp)
+    prevcarga_abort("state.promote_failed", where = file.path(key, "latest.txt"))
+  }
+  hp <- file.path(key, ".history")
+  con <- file(hp, open = "ab")
+  on.exit(close(con), add = TRUE)
+  writeBin(charToRaw(paste0(v, "\n")), con)
+  invisible(v)
+}

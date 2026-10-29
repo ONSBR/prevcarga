@@ -1,0 +1,8 @@
+id	class	message	hint
+state.artifact_missing	state	versao ou artefato inexistente no registry	rode `prevcarga train` para essa celula ou sincronize os artefatos oficiais (prevcarga-sync)
+state.pin_missing	state	.pin ausente ou vazio para a celula do registry	grave uma versao v_<hash> no .pin da celula ou use --version/latest
+state.promote_failed	state	falha ao mover/promover no registry (rename); a versao anterior segue intacta	confira permissao e espaco no state_dir; os .tmp-* orfaos sao do `registry gc`
+contract.version_malformed	contract	versao fora do formato v_<hex minusculo>	use uma versao no formato v_<hash> (ex.: v_0123abcd) ou latest/pin
+contract.variant_required	contract	membro sem o campo exogena/mdir para compor a chave do registry	passe o membro de prevcarga_members() (exogena NA quando nao ha variante)
+contract.path_outside_root	contract	caminho fora da raiz <state_dir>/artifacts	recuse `..` e links que saiam de artifacts/; use chaves de prevcarga_registry_key
+integrity.artifact_hash	integrity	SHA256SUMS nao confere com o artefato do registry	baixe/regere a versao; nao edite arquivos dentro de v_<hash>/
