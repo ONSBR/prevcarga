@@ -256,7 +256,9 @@ test_that("[FORBIDDEN] shell sujo (TZ/LC_ALL/OPENBLAS) == shell limpo: mesmo sha
 test_that("[CONTROL] runtime nao fixavel no pai (copia com setter de TZ quebrado): exit 7, stdout vazio, nada gravado", {
   root_bad <- pc_install_copy(broken_tz = TRUE)
   st <- pc5_state_tmp()
-  r <- tm(c(paste0("--model=", MD), "--area=A", paste0("--origin=", O)), root = root_bad, state = st, fmt = "text")
+  ## shell com TZ diferente do alvo: o setter quebrado precisa agir (com TZ=UTC no shell o CONTROL nao teria dentes)
+  r <- tm(c(paste0("--model=", MD), "--area=A", paste0("--origin=", O)), root = root_bad, state = st, fmt = "text",
+          env = c(TZ = "America/Sao_Paulo"))
   expect_identical(r$status, 7L)
   expect_length(r$stdout, 0L)
   expect_length(list.files(st, recursive = TRUE), 0L)
