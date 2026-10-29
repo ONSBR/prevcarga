@@ -1,0 +1,9 @@
+id	class	message	hint
+plugin.dessem_linear_bad_exogena	contract	params$exogena invalido para o dessem-linear	use MED, MAX ou MXMN conforme o membro LIN_*
+plugin.dessem_linear_mm_missing_origin	completude	sem horas completas do dia O para a cabeca mm	confira available_until e a carga do dia O no deck
+plugin.dessem_linear_train_sees_day_o	contract	painel de treino contem o dia O	confira cuts$last_data_day (O-1) vindo de prevcarga_resolve_cuts
+plugin.dessem_linear_rng_deviation	repro	consumo de RNG da cabeca DM(O) diverge do oraculo	declare descriptor$rng_deviation (plano B) e liste no A/B
+plugin.dessem_linear_artifact_mismatch	contract	artefato de outra variante ou model_key	treine o membro desta variante ou aponte a versao certa
+plugin.dessem_linear_series_gap	completude	serie do deck do dessem-linear com hora ou dia faltante ou NA	complete o deck (carga, temperatura observada, previsao) ate o corte; veja o dia e as horas no motivo
+plugin.dessem_linear_window_short	window	historico do deck menor que history_days.train	amplie a janela do painel ou reduza history_days.train no run.yaml
+warning.dessem_linear_desagrega_fallback	contract	desagregaModeloSH falhou; usada a duplicacao :00/:30 do oraculo (aviso)	nenhuma acao: aviso registrado em meta$warnings

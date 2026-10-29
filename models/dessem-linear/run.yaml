@@ -7,4 +7,4 @@ seed: 42
 modes: [train, infer, forecast]
 backtest: {protocol_default: retrain_harness}
 constraints: {}
-params: {}
+params: {exogena: MED}
