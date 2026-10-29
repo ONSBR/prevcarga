@@ -95,3 +95,4 @@
   Nota de acoplamento: M6.1 (`build_long_output.R`, em outro branch) deve reaproveitar o mesmo par de bordas; este writer fica local em `combination.R`.
 - `prevcarga_assert_long` (M3.1) coage `lead` double inteiro-valido; o CONTROL do teste checa a classe, e o de fuso (UTC) falha a asserção.
 - Testes: `test-combination-freeze.R` + `helper-combination-freeze.R` (AC 13-16 do epico; CONTROLs de split-parity, hash, bucket e `.tmp-*` orfao).
+- Follow-ups abertos (decisao do Gabriel; M4.3 fecha com o contorno atual): (1) relax-manifest (M1.3): `prevcarga_run_manifest` deve aceitar `model_versions` como lista nomeada vazia; ao chegar, remover o placeholder `v_0000000000000000` + sobrescrita em `prevcarga_combina_train`; (2) strict-long (M3.1): `prevcarga_assert_long` deve rejeitar `lead/d_plus/granularity_min` nao-integer em vez de coagir; ao chegar, o CONTROL de `lead` double do teste ac-4 passa a ser `expect_error(prevcarga_assert_long(...))`.
