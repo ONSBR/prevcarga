@@ -104,3 +104,46 @@ pc_toy_variant <- function(base, run_yaml = list(), descriptor = list(), files =
 }
 
 pc_globalenv_snapshot <- function() list(globalenv = ls(globalenv(), all.names = TRUE), search = search())
+
+## --- Artefatos-brinquedo do contrato freeze/thaw (P.0d) ------------------------------------------------------------
+## cuts literais (sem M2.3): origin_agnostic => train_origin = O - 1 - H; origin_scoped => train_origin = O e origin_day = O.
+pc_toy_cuts <- function(origin, available_until = NULL, split = c("origin_agnostic", "origin_scoped"),
+                        horizon_days = 1L, tz = "Etc/GMT+3") {
+  split <- match.arg(split)
+  O <- lubridate::as_date(origin)
+  au <- if (is.null(available_until)) lubridate::force_tz(lubridate::as_datetime(O), tz) else available_until
+  list(forecast_origin = O, origin_day = O, split = split, tz = tz, load_label = "end",
+       weather_issue_cutoff = "available_until", available_until = au,
+       train_origin = if (split == "origin_scoped") O else O - 1L - as.integer(horizon_days),
+       last_data_day = O - 1L)
+}
+
+## Treina o brinquedo pelos estagios do env carregado e devolve o artefato carimbado.
+pc_toy_artifact <- function(model = c("toy-30", "toy-60"), cuts, spec_overrides = list()) {
+  model <- match.arg(model)
+  lib <- parent.frame()  # o env do teste, onde o pc_source_lib carregou registry.R
+  p <- get("prevcarga_plugin_load", envir = lib)(model, pc_toy_root())
+  spec <- modifyList(p$spec, spec_overrides)
+  tz <- cuts$tz
+  panel <- pc_sentinel_panel(cuts$forecast_origin - 10L, 10L, "SE", tz = tz)
+  st <- p$descriptor$stages
+  frame <- st$ingestion$fn(panel, cuts)
+  feats <- st$feature_engineering$fn(frame, spec$params)
+  fit <- st$training$fn(feats, spec$params, spec$seed)
+  payload <- p$descriptor$freeze(fit)
+  get("prevcarga_plugin_stamp", envir = lib)(payload, p, spec, cuts,
+                         ctx = list(load_label = panel$attrs$load_label, timezone = tz,
+                                    weather_issue_cutoff = panel$attrs$weather_issue_cutoff))
+}
+
+## Planta `value` num caminho do artefato (ex.: "$payload$fit$x" ou "$payload$model"); cria niveis de lista.
+pc_inject <- function(artifact, path, value) {
+  keys <- strsplit(sub("^\\$", "", path), "$", fixed = TRUE)[[1L]]
+  keys <- keys[nzchar(keys)]
+  set <- function(x, ks) {
+    if (length(ks) == 1L) { x[[ks]] <- value; return(x) }
+    x[[ks[1L]]] <- set(if (is.null(x[[ks[1L]]])) list() else x[[ks[1L]]], ks[-1L])
+    x
+  }
+  set(artifact, keys)
+}

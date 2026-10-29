@@ -441,3 +441,107 @@ prevcarga_plugin_unload_all <- function() {
   rm(list = ls(.prevcarga_plugin_cache, all.names = TRUE), envir = .prevcarga_plugin_cache)
   invisible(NULL)
 }
+
+## =====================================================================================================
+## Contrato comum de freeze/thaw dos plugins (P.0d; ADR-0023). O plugin devolve DADO PURO em `freeze`; o
+## despachante o carimba (stamp), varre a pureza e grava com prevcarga_freeze (M1.3, serializacao v3). Nada de
+## `available_until`, relogio, caminho ou host no artefato: dois treinos identicos tem o mesmo sha256.
+## `cuts` aqui = lista com origin_day, train_origin (Date) e tz; `ctx` = load_label/timezone/weather_issue_cutoff.
+## =====================================================================================================
+
+.prevcarga_plg_or <- function(x, y) if (is.null(x) || length(x) == 0L) y else x
+
+prevcarga_plugin_stamp <- function(artifact, plugin, spec, cuts, ctx = list()) {
+  d <- plugin$descriptor
+  vp <- d$variant_param
+  variant <- NA_character_
+  if (is.character(vp) && length(vp) == 1L && !is.na(vp) && !is.null(spec$params[[vp]]))
+    variant <- as.character(spec$params[[vp]])
+  scoped <- identical(spec$split, "origin_scoped")
+  stamp <- list(
+    model_id = d$model_id, variant = variant, split = spec$split,
+    granularity_min = as.integer(spec$granularity_min),
+    load_label = .prevcarga_plg_or(ctx$load_label, .prevcarga_plg_or(cuts$load_label, NA_character_)),
+    timezone = .prevcarga_plg_or(ctx$timezone, .prevcarga_plg_or(cuts$tz, NA_character_)),
+    weather_issue_cutoff = .prevcarga_plg_or(ctx$weather_issue_cutoff,
+                                             .prevcarga_plg_or(cuts$weather_issue_cutoff, NA_character_)),
+    params = spec$params, seed = as.integer(spec$seed), contract_version = as.integer(d$contract_version),
+    train_origin = cuts$train_origin)
+  if (scoped) stamp$origin_day <- cuts$origin_day
+  structure(list(stamp = stamp, payload = artifact), class = "prevcarga_plugin_artifact")
+}
+
+.prevcarga_plg_clock_name <- "^(trained_at|created_at|created|timestamp|time_stamp|sys_time|now|hostname|host)$"
+
+## Varredura recursiva (listas, atributos, slots S4). O primeiro achado aborta com o caminho no objeto.
+prevcarga_plugin_scan_pure <- function(x, path = "$", allow_times = character()) {
+  bad <- function(why) .prevcarga_plugin_abort("plugin.impure_artifact", where = path,
+                                               reason = paste0(path, " (", why, ")"), details = list(reason = why, path = path))
+  if (is.environment(x)) bad("environment")
+  if (typeof(x) == "externalptr") bad("externalptr")
+  if (is.function(x) && !is.primitive(x)) {
+    e <- environment(x)
+    if (!(identical(e, baseenv()) || identical(e, emptyenv()) || isNamespace(e) || is.null(e))) bad("closure")
+  }
+  if (inherits(x, "POSIXct") && !path %in% allow_times) bad("clock-like POSIXct")
+  if (is.character(x) && any(grepl("^(/|[A-Za-z]:[\\\\/])", x))) bad("absolute path")
+  if (isS4(x) && !is.environment(x)) {
+    for (s in methods::slotNames(x))
+      prevcarga_plugin_scan_pure(methods::slot(x, s), sprintf("slot(%s, '%s')", path, s), allow_times)
+  }
+  at <- attributes(x)
+  for (a in setdiff(names(at), c("names", "dim", "dimnames", "class", "row.names", "levels")))
+    if (!isS4(x)) prevcarga_plugin_scan_pure(at[[a]], sprintf("attr(%s, '%s')", path, a), allow_times)
+  if (is.list(x)) {
+    nm <- names(x)
+    for (i in seq_along(x)) {
+      lab <- if (!is.null(nm) && !is.na(nm[i]) && nzchar(nm[i])) nm[i] else as.character(i)
+      sub <- paste0(path, "$", lab)
+      if (grepl(.prevcarga_plg_clock_name, lab)) {
+        path <- sub
+        bad("clock field")
+      }
+      prevcarga_plugin_scan_pure(x[[i]], sub, allow_times)
+    }
+  }
+  invisible(TRUE)
+}
+
+## Chamada pelo despachante de infer (P.0c). Cada divergencia => plugin.artifact_mismatch (contract, exit 2).
+prevcarga_plugin_check_artifact <- function(artifact, plugin, spec, cuts) {
+  fmt <- function(v) if (is.null(v)) "NULL" else paste(format(v), collapse = ",")
+  chk <- function(ok, field, got, exp) if (!isTRUE(ok))
+    .prevcarga_plugin_abort("plugin.artifact_mismatch", where = plugin$descriptor$model_id,
+      reason = sprintf("%s: artefato=%s esperado=%s", field, fmt(got), fmt(exp)),
+      details = list(field = field, artifact = got, expected = exp))
+  chk(inherits(artifact, "prevcarga_plugin_artifact") && is.list(artifact$stamp), "class",
+      class(artifact)[[1L]], "prevcarga_plugin_artifact")
+  s <- artifact$stamp
+  d <- plugin$descriptor
+  chk(identical(s$model_id, d$model_id), "model_id", s$model_id, d$model_id)
+  chk(identical(s$contract_version, as.integer(d$contract_version)), "contract_version",
+      s$contract_version, d$contract_version)
+  chk(identical(s$granularity_min, as.integer(spec$granularity_min)), "granularity_min",
+      s$granularity_min, spec$granularity_min)
+  chk(identical(s$split, spec$split), "split", s$split, spec$split)
+  if (identical(spec$split, "origin_scoped"))
+    chk(identical(s$origin_day, cuts$origin_day), "origin_day", s$origin_day, cuts$origin_day)
+  ok <- inherits(s$train_origin, "Date") && length(s$train_origin) == 1L && !is.na(s$train_origin) &&
+    isTRUE(s$train_origin <= cuts$train_origin)
+  chk(ok, "train_origin", s$train_origin, cuts$train_origin)
+  invisible(TRUE)
+}
+
+## Bytes portaveis: varre a pureza e congela (sha256 do arquivo). Persistencia/layout v_<hash>: M5.2.
+prevcarga_plugin_freeze_bytes <- function(artifact, path) {
+  prevcarga_plugin_scan_pure(artifact)
+  prevcarga_freeze(artifact, path)
+}
+
+## Qualquer falha de leitura/integridade/classe vira plugin.artifact_corrupt (integrity, exit 9).
+prevcarga_plugin_thaw <- function(path, plugin = NULL) {
+  corrupt <- function(why) .prevcarga_plugin_abort("plugin.artifact_corrupt", where = path, reason = why)
+  a <- tryCatch(prevcarga_thaw(path), error = function(e) corrupt(conditionMessage(e)))
+  if (!inherits(a, "prevcarga_plugin_artifact")) corrupt("classe diferente de prevcarga_plugin_artifact")
+  a
+}
