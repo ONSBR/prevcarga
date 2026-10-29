@@ -4,7 +4,7 @@
 > (store limpo) + auditoria dos 5 adapters da referência `/opt/ons-source/prevcargadessem3` (o que cada modelo
 > de fato lê). **Decisões associadas:** [ADR-0004/0005](../adr/0004-store-parquet-hive.md) (schema fail-high),
 > [ADR-0002](../adr/0002-grade-semihoraria-schema-long.md) (grade), [ADR-0003](../adr/0003-tempo-naive-brt-runtime-env.md)
-> (tempo/emissão), [ADR-0007](../adr/0007-contrato-corte-intradiario.md) (corte intradiário).
+> (tempo/emissão), [ADR-0007](../adr/0007-contrato-corte-intradiario.md) (corte intradiário; superado: o corte é derivado do dado).
 
 ## Princípio
 O deck é um **store parquet Hive-particionado**, em nomes **canônicos** já padronizados. Os 5 modelos da
@@ -14,6 +14,35 @@ pós-leitura, e não pertencem ao deck). A padronização real acontece **uma ve
 (tabela de alias no fim), nunca espalhada pelos modelos (ADR-0004/0005).
 
 Tempo: colunas `timestamp[ns]` **sem fuso**; o fuso de cada dataset/coluna é **declarado no `manifest.json`** (`timezone`, ADR-0037). Store atual: carga e clima observado `Etc/GMT+3` (−03:00 fixo, sem horário de verão), `weather_forecast.valid_time` `Etc/GMT+3`, `weather_forecast.issue_time` `UTC`. ⚠ Lidas numa sessão R com o fuso do host, essas colunas aparecem deslocadas.
+
+## `manifest.json`
+Arquivo na raiz do `data_dir`, lido **só** pelo leitor único (`prevcarga_deck_manifest()`, M2.1). Schema **v1 fechado**:
+chave desconhecida ⇒ `contract.manifest_unknown_key`. O produto nunca o escreve; o utilitário de desenvolvimento
+`scripts/tools/write_store_manifest.R --target <copia>` grava o template versionado `config/deck-manifest.store.json`
+numa cópia/overlay do store (valida pelo leitor; manifest existente idêntico ⇒ no-op; diferente ⇒ `contract.manifest_exists_different`).
+
+| chave | valor | nota |
+|---|---|---|
+| `schema_version` | `1` | obrigatório |
+| `load_label` | `start` \| `end` | rótulo da carga do store (ADR-0035) |
+| `timezone.load` / `.weather_observed` / `.holidays` | nome Olson | fuso do dataset (ADR-0037) |
+| `timezone.weather_forecast.valid_time` / `.issue_time` | nome Olson | fuso por coluna do clima previsto |
+
+Precedência do `load_label`: **manifest > `--load-label` > `config.yaml` > `end`**; flag/config em conflito com o manifest ⇒ `contract`.
+Fusos nunca têm default: ausente ⇒ `contract.tz_missing`, inválido ⇒ `contract.tz_invalid`. A chave legada `corte` **não existe**
+(o corte intradiário é derivado do dado, `available_until`). Exemplo do store atual (valores a confirmar pelo Gabriel):
+```json
+{ "schema_version": 1, "load_label": "start",
+  "timezone": { "load": "Etc/GMT+3", "weather_observed": "Etc/GMT+3",
+                "weather_forecast": { "valid_time": "Etc/GMT+3", "issue_time": "UTC" }, "holidays": "Etc/GMT+3" } }
+```
+
+## Painel do leitor
+`prevcarga_read_panel(ctx, origin, areas, horizon_days, history_days)` agrega, por `area_code`: `load` (`interval_start`/`interval_end`,
+`load_mwh`), `weather_observed`, `weather_forecast` (emissão escolhida pela regra `weather_issue_cutoff`, padrão `available_until`)
+e `holidays` (`area_code`, `date`, `holiday_type_id`, `prevcarga_code`, `simplified_code`; os três códigos de feriado; data civil no fuso da
+carga, sem filtro de `available_until`). `attrs`: `origin`, `available_until`, `available_until_by_area`, `load_label`, `load_label_source`,
+`tz`, `weather_issue_cutoff`, `weather_issue_limit`. Divergência de `tz` ou `available_until` entre os leitores ⇒ `contract`.
 
 ## Datasets, particionamento e colunas
 
