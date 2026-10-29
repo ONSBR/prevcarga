@@ -66,10 +66,13 @@ test_that("ac-1 CONTROL: run.yaml com history_days.infer 365 => [prevcarga/contr
   expect_identical(cond$class_name, "contract")
 })
 
-test_that("estagios de DL.6/DL.7 ainda nao existem: stubs recusam com plugin.stage_missing", {
+test_that("estagios de DL.7 ainda nao existem (stubs recusam); training/freeze/thaw de DL.6 sao as funcoes reais", {
   p <- dl_load()
-  expect_dl_error(p$descriptor$stages$training$fn(NULL, list(), 42L), "plugin.stage_missing", "training")
-  expect_dl_error(p$descriptor$freeze(NULL), "plugin.stage_missing", "freeze")
+  expect_identical(p$descriptor$stages$training$fn, p$env$dl_training)
+  expect_identical(p$descriptor$freeze, p$env$dl_freeze)
+  expect_identical(p$descriptor$thaw, p$env$dl_thaw)
+  expect_dl_error(p$descriptor$stages$inference$fn(NULL, NULL, NULL), "plugin.stage_missing", "inference")
+  expect_dl_error(p$descriptor$stages$forecast$fn(NULL, NULL, NULL), "plugin.stage_missing", "forecast")
 })
 
 test_that("catalogo de erros do plugin: ids unicos na uniao, ASCII, classes da tabela de exit-codes", {
