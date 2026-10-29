@@ -82,7 +82,8 @@ prevcarga_plugin_signatures <- list(
 
 ## Layouts nativos de saida aceitos no descriptor (conjunto provisorio, ver discovery do P.0b).
 prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list", "dessem_hourly_24",
-                              "dessem_semihourly_48")
+                              "dessem_semihourly_48",
+                              "rf_wide_hourly_216")
 
 .prevcarga_run_yaml_keys <- c("name", "split", "granularity_min", "horizon_days", "history_days", "seed",
                               "modes", "backtest", "constraints", "params")

@@ -7,4 +7,4 @@ seed: 123
 modes: [train, infer]
 backtest: {protocol_default: daily}
 constraints: {}
-params: {}
+params: {ntree: 100}
