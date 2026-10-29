@@ -1,0 +1,8 @@
+name: toy-60
+split: origin_scoped
+granularity_min: 60
+horizon_days: 9
+history_days: {train: 10, infer: 10}
+seed: 2
+modes: [train, infer, forecast]
+params: {}
