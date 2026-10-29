@@ -66,4 +66,6 @@ renv/staging/
 
 # --- Config local da instalacao/dev e estado local (M1.4a); o modelo config/config.yaml e versionado ---
 /config.yaml
+# Golden de paridade regeneravel (.state/golden/plugins/..., P.0f): nunca versionado; so o
+# models/<m>/tests/parity/golden.lock e versionado.
 /.state/
