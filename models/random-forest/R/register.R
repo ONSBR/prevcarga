@@ -70,8 +70,8 @@ plugin_descriptor <- function() list(
   freeze = rf_freeze, thaw = rf_thaw,
   stages = list(
     ingestion = list(fn = rf_stage_ingest, requires = rf_deck_tokens(), provides = "rf_frame"),
-    feature_engineering = list(fn = plugin_build_features, requires = "rf_frame", provides = "rf_features"),
-    training = list(fn = plugin_train, requires = "rf_features", provides = "rf_artifact"),
+    feature_engineering = list(fn = rf_feature_engineering, requires = "rf_frame", provides = "rf_features"),
+    training = list(fn = rf_training, requires = "rf_features", provides = "rf_artifact"),
     inference_features = list(fn = plugin_inference_features, requires = c("rf_frame", "rf_artifact"),
                               provides = "rf_inf_features"),
     inference = list(fn = plugin_infer, requires = c("rf_artifact", "rf_inf_features"),
