@@ -212,7 +212,7 @@ test_that("ac-5 infer separado == forecast acoplado no dia D; WMAPE da cauda; CO
   expect_lte(d_day, 1e-5)
   wm <- sum(abs(fc$values[-1L, ] - sep$values[-1L, ])) / sum(abs(sep$values[-1L, ]))
   expect_lte(wm, 0.01)                                                 # [TBD: ADR-0031]
-  message(sprintf("DL.7 ac-5: max|d| dia D = %.3g; max|d| total = %.3g; WMAPE cauda = %.3g", d_day, d_all, wm))
+  cat(sprintf("DL.7 ac-5: max|d| dia D = %.3g; max|d| total = %.3g; WMAPE cauda = %.3g", d_day, d_all, wm), "\n")
   spec43 <- spec; spec43$seed <- 43L
   spy <- di_spy(st$eng)
   fc43 <- dl_with_cli(suppressMessages(suppressWarnings(p$env$plugin_forecast(m$panel, m$cuts, spec43))))
@@ -221,7 +221,7 @@ test_that("ac-5 infer separado == forecast acoplado no dia D; WMAPE da cauda; CO
   ## tune_wsvm escolhe os mesmos hiperparametros nas duas sementes, entao a saida em si nao muda (medido: ver message).
   expect_false(identical(seed42, spy$log$seed0))
   set.seed(43L); expect_identical(spy$log$seed0, get(".Random.seed", globalenv()))
-  message(sprintf("DL.7 ac-5 CONTROL seed 43: max|d| dia D = %.3g", max(abs(fc43$values[1L, ] - sep$values[1L, ]))))
+  cat(sprintf("DL.7 ac-5 CONTROL seed 43: max|d| dia D = %.3g", max(abs(fc43$values[1L, ] - sep$values[1L, ]))), "\n")
 })
 
 test_that("ac-6 ENV ignorado, formals sem params, cauda de EXOGENAPREV curta completa 9x48", {
