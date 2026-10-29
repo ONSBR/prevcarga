@@ -1,0 +1,4 @@
+id	class	message	hint
+contract.long_grid	contract	grade do LONG fora de 48 rotulos por dia ou d_plus com buraco	confira a entrega do membro: dias completos D 00:30 .. D+1 00:00 e d_plus contiguo; where e o conversor
+contract.long_offbyone	contract	target_datetime do LONG nao bate com a origem 00:00 mais lead * 30 min	carimbo deslocado: rotule por interval_end (fim do intervalo) e confira d_plus e slot pelo interval_start
+contract.long_duplicate_lead	contract	lead repetido no LONG de um membro	cada lead (d_plus * 48 + slot) deve aparecer uma unica vez por membro e area
