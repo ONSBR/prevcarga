@@ -137,17 +137,16 @@ prevcarga_combina_month_start <- function(ym, tz) {
 }
 
 ## O horizonte por membro so decide quais colunas f_* sao nao-NA; o corte de treino dos MEMBROS (M2)
-## nao se aplica ao peso. target_datetime e interval_end (ADR-0035): o intervalo cujo fim e inicio(m)
-## entra, o do dia da 1a origem de m nao. Releitura do corte do ADR-0026 sob rotulo de fim [TBD: ADR-0026].
+## nao se aplica ao peso. Corte pelo `interval_start` do painel (anexado pela borda do LONG, ADR-0035): o
+## intervalo cujo fim e inicio(m) entra, o do dia da 1a origem de m nao. Releitura do ADR-0026 [TBD: ADR-0026].
 prevcarga_combina_train_mask <- function(panel, m) {
-  .prevcarga_cmb_need(panel, c("target_datetime", "y_true"), "train_mask")
+  .prevcarga_cmb_need(panel, c("target_datetime", "interval_start", "y_true"), "train_mask")
   if (!inherits(panel$target_datetime, "POSIXct"))
     prevcarga_abort("contract.combina_input", where = "train_mask:target_datetime sem POSIXct")
   tz <- attr(panel$target_datetime, "tzone")
   if (is.null(tz) || !nzchar(tz[1L]))
     prevcarga_abort("contract.combina_input", where = "train_mask:target_datetime sem tzone")
-  istart <- panel$target_datetime - lubridate::minutes(30)   # interval_start (ADR-0035)
-  istart < prevcarga_combina_month_start(m, tz[1L]) & !is.na(panel$y_true)
+  panel$interval_start < prevcarga_combina_month_start(m, tz[1L]) & !is.na(panel$y_true)
 }
 
 ## --- fit expansivel por celula (lead, cut, ym) ---------------------------------------------------
@@ -402,7 +401,7 @@ prevcarga_build_panel <- function(long, members = NULL) {
     if (is.null(decl)) prevcarga_abort("contract.combina_input", where = "build_panel:members")
     members <- data.frame(sigla = decl, stringsAsFactors = FALSE)
   }
-  long <- data.table::as.data.table(long)
+  long <- data.table::as.data.table(prevcarga_long_attach_interval_start(as.data.frame(long)))
   long <- merge(long, data.table::as.data.table(prov)[, c("member", "run_id", "cut"), with = FALSE],
                 by = c("member", "run_id"), sort = FALSE)
   if (anyNA(long$cut))
@@ -416,7 +415,7 @@ prevcarga_build_panel <- function(long, members = NULL) {
                                     r$member, r$forecast_origin, r$lead, r$cut))
   }
   kk <- c("area", "forecast_origin", "lead", "cut")
-  tgt <- unique(long[, c(kk, "target_datetime", "d_plus", "granularity_min"), with = FALSE])
+  tgt <- unique(long[, c(kk, "target_datetime", "interval_start", "d_plus", "granularity_min"), with = FALSE])
   if (anyDuplicated(tgt, by = kk)) {
     r <- tgt[duplicated(tgt, by = kk)][1L]
     prevcarga_abort("contract.combina_input",
@@ -432,7 +431,7 @@ prevcarga_build_panel <- function(long, members = NULL) {
   panel <- merge(tgt, wide, by = kk, sort = FALSE)
   panel[, ym := substr(forecast_origin, 1L, 7L)]       # mes-de-ORIGEM
   panel[, y_true := NA_real_]                           # o y_true do LONG do membro e descartado
-  data.table::setcolorder(panel, c("area", "forecast_origin", "target_datetime", "lead", "d_plus",
+  data.table::setcolorder(panel, c("area", "forecast_origin", "target_datetime", "interval_start", "lead", "d_plus",
                                    "granularity_min", "cut", "ym", "y_true", paste0("f_", members$sigla)))
   data.table::setorderv(panel, c("area", "cut", "lead", "forecast_origin"))
   if ("delivery_days" %in% names(prov)) {   # mascara de faixa: fora de delivery_days = AUSENTE (NA), nunca 0
@@ -507,16 +506,19 @@ prevcarga_join_fresh_truth <- function(panel, ctx, area) {
   invisible(TRUE)
 }
 
-## fim da faixa declarada (delivery_days) e grade completa entre o primeiro e o ultimo alvo esperados
-.prevcarga_cmb_check_band <- function(t_o, first_exp, last_exp, p) {
-  if (max(t_o) != last_exp)
-    .prevcarga_cmb_misaligned(p$member, "delivery_days", format(last_exp), format(max(t_o)))
-  n_exp <- length(seq(first_exp, last_exp, by = "30 min"))
+## fim da faixa declarada (delivery_days) e grade completa: n passos de 30 min de available_until (1o
+## interval_start) ate o fim da faixa (ultimo interval_end)
+.prevcarga_cmb_check_band <- function(t_o, first_start, last_end, p) {
+  if (max(t_o) != last_end)
+    .prevcarga_cmb_misaligned(p$member, "delivery_days", format(last_end), format(max(t_o)))
+  n_exp <- length(seq(first_start, last_end, by = "30 min")) - 1L
   if (length(unique(t_o)) != n_exp)
     .prevcarga_cmb_misaligned(p$member, "grade", paste0(n_exp, " alvos de 30 min"), length(unique(t_o)))
   invisible(TRUE)
 }
 
+## Compara o LONG pelo `interval_start` anexado no leitor: o 1o esperado e o proprio available_until.
+## Deslocamento = faixa inteira 1 passo fora (rotulo por inicio ou dobrado), lido so pelas bordas do LONG.
 .prevcarga_cmb_check_times <- function(d, p, tz) {
   td <- d$target_datetime
   if (!identical(lubridate::tz(td), tz))
@@ -527,19 +529,22 @@ prevcarga_join_fresh_truth <- function(panel, ctx, area) {
     .prevcarga_cmb_misaligned(p$member, "available_until", paste0("_c", p$cut), p$cut_suffix)
   hh <- as.integer(substr(p$cut, 1L, 2L)); mm <- as.integer(substr(p$cut, 3L, 4L))
   for (o in sort(unique(d$forecast_origin), method = "radix")) {
-    t_o  <- td[d$forecast_origin == o]
+    sel <- d$forecast_origin == o
+    t_o <- td[sel]; s_o <- d$interval_start[sel]
     au_o <- lubridate::ymd(o, tz = tz) + lubridate::hours(hh) + lubridate::minutes(mm)
     if (identical(o, p$origin) && au_o != p$available_until)
       .prevcarga_cmb_misaligned(p$member, "available_until", format(au_o), format(p$available_until))
-    first_exp <- au_o + lubridate::minutes(30)
-    last_exp  <- lubridate::ymd(o, tz = tz) + lubridate::days(p$delivery_days)
-    if (min(t_o) != first_exp) {
-      shifted <- any(min(t_o) == first_exp + lubridate::minutes(c(-30, 30))) &&
-                 any(max(t_o) == last_exp + lubridate::minutes(c(-30, 30)))
+    first_start <- au_o
+    last_end    <- lubridate::ymd(o, tz = tz) + lubridate::days(p$delivery_days)
+    if (min(s_o) != first_start) {
+      first_end  <- prevcarga_long_target_datetime(first_start, 30L)
+      last_start <- prevcarga_long_interval_start(last_end, 30L)
+      shifted <- (min(t_o) == first_start || min(s_o) == first_end) &&
+                 (max(t_o) == last_start || max(s_o) == last_end)
       .prevcarga_cmb_misaligned(p$member, if (shifted) "deslocamento" else "primeira_entrega",
-                                format(first_exp), format(min(t_o)))
+                                format(first_end), format(min(t_o)))
     }
-    .prevcarga_cmb_check_band(t_o, first_exp, last_exp, p)
+    .prevcarga_cmb_check_band(t_o, first_start, last_end, p)
   }
   invisible(TRUE)
 }

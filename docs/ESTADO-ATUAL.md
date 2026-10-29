@@ -247,6 +247,12 @@
   é stub `todo.not_implemented` com o dono.
 - **Sub-gates por descoberta:** `scripts/tools/gates/<dono>.R` (o do M1 é `m1.R`: processo, bytes ASCII e grep gates de fonte).
 - Windows nativo do M1.V: rodada pendente de máquina Windows (ver `docs/estado/m1-fundacao.md`).
+- **Rótulo de hora da carga operado 1x na entrada e 1x na saída (2026-10-29):** deck → `deck_reader.R` (−30 min de
+  `load_label: end`); LONG → par único em `schema_long.R` (`prevcarga_long_interval_start` na leitura, anexado pelo leitor
+  único; `prevcarga_long_target_datetime` no writer). Consumidores (d_plus, buckets, `train_mask`, alinhamento da combina) usam a
+  coluna `interval_start`; grade de entrega é passo de grade, não conversão. Gate `minutes30` em `test-static-greps.R` (allow:
+  `deck_reader.R`, `schema_long.R`, `features.R`). Ver `docs/estado/schema_long.md`.
+- **Um id para área fora da topologia:** `topology.area_undeclared` (`errors/topology.tsv`, exit 4); `topology.area_unknown` removido.
 
 ## Decisões estruturantes já tomadas
 - **R-only por acreção** (sem flip); Python só existe na referência, não entra no bundle final.

@@ -68,14 +68,15 @@ test_that("pico por interval_start: 22:30-23:00 conta, 17:30-18:00 nao; CONTROL 
   sa <- prevcarga_scorecard(a, by = "d_plus"); sb <- prevcarga_scorecard(b, by = "d_plus")
   expect_true(all(sa$peak > 0)); expect_true(all(sa$peak > sa$wmape))
   expect_true(all(sb$peak == 0)); expect_true(all(sb$wmape > 0))
-  expect_gt(prevcarga_peak_wmape(prevcarga_long_interval_start(a, ctx), a$y_true, a$y_pred), 0)
-  expect_equal(prevcarga_peak_wmape(prevcarga_long_interval_start(b, ctx), b$y_true, b$y_pred), 0)
+  istart <- function(l) prevcarga_long_interval_start(l$target_datetime, l$granularity_min, ctx$tz)
+  expect_gt(prevcarga_peak_wmape(istart(a), a$y_true, a$y_pred), 0)
+  expect_equal(prevcarga_peak_wmape(istart(b), b$y_true, b$y_pred), 0)
   by_target <- function(l) prevcarga_peak_wmape(l$target_datetime, l$y_true, l$y_pred)
   expect_equal(by_target(a), 0); expect_gt(by_target(b), 0)          # CONTROL: carimbo-fim inverte
   expect_identical(prevcarga_peak_wmape(o0 + lubridate::hours(1), 1, 1), NA_real_)
   bad <- a; bad$granularity_min[1L] <- 60L
-  expect_pc_error(prevcarga_long_interval_start(bad), "contract.long_schema")
-  expect_pc_error(prevcarga_long_interval_start(a, list(tz = "UTC")), "contract.long_tz")
+  expect_pc_error(prevcarga_long_interval_start(bad$target_datetime, bad$granularity_min), "contract.long_schema")
+  expect_pc_error(prevcarga_long_interval_start(a$target_datetime, a$granularity_min, "UTC"), "contract.long_tz")
 })
 
 test_that("assert_long: correto passa; dplus_label, tz e schema reprovam", {
@@ -211,7 +212,7 @@ test_that("catalogo distribuido: ids do M3 na classe certa, ASCII, sem duplicata
   cat <- prevcarga_errors_load(dir)
   want <- c(contract.long_schema = "contract", contract.long_dplus_label = "contract", contract.long_tz = "contract",
             contract.metric_length = "contract", contract.baseline_kind = "contract",
-            contract.honesty_gate_args = "contract", topology.area_unknown = "topology",
+            contract.honesty_gate_args = "contract", topology.area_undeclared = "topology",
             completude.node_missing = "completude", coherence.sin_sum = "coherence", coherence.khat = "coherence",
             coherence.alignment = "coherence", honesty.leak = "honesty")
   expect_true(all(names(want) %in% cat$id))
@@ -236,5 +237,18 @@ test_that("catalogo distribuido: ids do M3 na classe certa, ASCII, sem duplicata
 test_that("unica definicao de WMAPE: sum(abs( so em evaluation.R no modulo", {
   src <- readLines(file.path(pc_root(), "scripts", "lib", "evaluation.R"), warn = FALSE)
   expect_identical(sum(grepl("sum(abs(", src, fixed = TRUE)), 1L)
-  expect_identical(sum(grepl("minutes(30)", src[!grepl("^\\s*##", src)], fixed = TRUE)), 1L)
+  expect_identical(sum(grepl("minutes(30", src[!grepl("^\\s*##", src)], fixed = TRUE)), 0L)   # borda do LONG: schema_long.R
+})
+
+test_that("leitor anexa interval_start 1x pela borda do LONG; scorecard usa a coluna [CONTROL]", {
+  l <- pc_eval_long("A1", O, 0:1, ctx = ctx)
+  out <- prevcarga_assert_long(l, ctx)
+  expect_identical(out$interval_start, prevcarga_long_interval_start(l$target_datetime, l$granularity_min, ctx$tz))
+  st <- l; st$interval_start <- st$target_datetime                       # LONG em disco nunca traz a coluna
+  expect_pc_error(prevcarga_assert_long(st, ctx), "contract.long_schema")
+  hit <- format(out$interval_start, "%H:%M") == "17:30"                 # 17:30-18:00: fora do pico
+  out$y_pred[hit] <- out$y_pred[hit] + 200
+  sk <- out; sk$interval_start <- sk$target_datetime                     # CONTROL: o scorecard le a coluna
+  expect_true(all(prevcarga_scorecard(out, by = "d_plus")$peak == 0))
+  expect_true(all(prevcarga_scorecard(sk, by = "d_plus")$peak > 0))
 })

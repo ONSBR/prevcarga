@@ -64,7 +64,7 @@ run_forbidden <- pc_source_lib(c("errors", "topology"))$.prevcarga_run_forbidden
 ## allow = arquivos onde o padrao e permitido (conjunto EXATO). debt: ver discoveries do M1.V.
 pc_grep_gates <- data.frame(
   gate = c("env", "env_names", "verbs_central", "schema_long_def", "date_base", "clock", "unix_only", "net",
-           "topo_literal", "khat_literal", "dessem_switch", "run_yaml_keys", "registry_lifecycle", "bytes"),
+           "topo_literal", "khat_literal", "dessem_switch", "run_yaml_keys", "registry_lifecycle", "bytes", "minutes30"),
   pattern = c(
     "Sys\\.(getenv|setenv|unsetenv)\\(",
     "(?<![.A-Za-z0-9_])PREVCARGA_[A-Z_]+",
@@ -79,21 +79,26 @@ pc_grep_gates <- data.frame(
     "\"dessem-(linear|regdin)\"",
     paste0("^\\s*(", paste(run_forbidden, collapse = "|"), ")\\s*:"),
     "promote|rollback|(?<![A-Za-z0-9_])gc(?![A-Za-z0-9_])",
-    "[\\x80-\\xFF]"),
+    "[\\x80-\\xFF]",
+    "(?<![A-Za-z0-9_.])d?(minutes|seconds)\\(\\s*(c\\([^)]*)?-?\\s*(30|1800)(?![0-9])|[-+]\\s*1800(?![0-9])"),
   allow = I(list(
     "scripts/lib/runtime.R", character(), character(), "scripts/lib/schema_long.R",
     character(),                      # divida do combination.R quitada em M4.2b (lubridate::as_datetime): zero hits
     "scripts/lib/config.R",           # lateral run_id (unico relogio permitido)
     character(), character(), character(), "config/topology.yaml", character(), character(),
-    character(), character())),
+    character(), character(),
+    ## minutes30: o rotulo de hora da carga e operado 1x na entrada e 1x na saida (ESTADO-ATUAL, ADR-0035)
+    c("scripts/lib/deck_reader.R",    # borda do deck: rotulo end -> interval_start/interval_end e passo do available_until
+      "scripts/lib/features.R",       # reamostragem to_semihourly (2 meias-horas por ancora horaria), nao rotulo
+      "scripts/lib/schema_long.R"))), # borda do LONG: unico par target_datetime <-> interval_start (leitor e writer)
   bait = c("x <- Sys.getenv('TZ')", "p <- 'PREVCARGA_DATA'", "prevcarga_verbs <- c('a')",
            "prevcarga_schema_long <- c(a = 'b')", "d <- as.Date('2024-01-01')", "t0 <- Sys.time()",
            "system('ls')", "download.file(u, f)", NA_character_, "k <- c(1.00, 1.15)",
            "f <- 'dessem-regdin'  ; x == \"dessem-regdin\"", "cut_invariant: true", "promote <- function() 1",
-           "msg <- 'a\\u00e7ao'"),
+           "msg <- 'a\\u00e7ao'", "s <- t - lubridate::minutes(c(-30, 30))"),
   scope = c("r_code", "code", "r_code", "r_code", "r_code", "r_code", "code", "code", "r_code", "code", "r_code",
-            "run_yaml", "registry", "messages"),
-  strip = c(rep(TRUE, 13), FALSE),
+            "run_yaml", "registry", "messages", "r_code"),
+  strip = c(rep(TRUE, 13), FALSE, TRUE),
   stringsAsFactors = FALSE)
 
 ## o gate de topologia monta o padrao do config carregado (nao ha literal aqui)
@@ -132,6 +137,17 @@ for (i in seq_len(nrow(pc_grep_gates))) local({
 test_that("[CONTROL] o corte de comentario nao esconde codigo nem inventa match", {
   expect_identical(pc_strip_comment(c("x <- 1  # Sys.time()", "# so comentario", "s <- 'a # b'; Sys.time()")),
                    c("x <- 1  ", "", "s <- 'a # b'; Sys.time()"))
+})
+
+test_that("[CONTROL] minutes30 casa as formas de +-30 min e poupa passo de grade e minutos variaveis", {
+  pat <- pc_grep_gates$pattern[pc_grep_gates$gate == "minutes30"]
+  hit <- function(code) length(pc_grep(pat, write_bait(code))) == 1L
+  for (code in c("e <- s + lubridate::minutes(30)", "e <- s + minutes(30L)", "s <- e - lubridate::dminutes(30)",
+                 "s <- e - 1800", "e <- s + lubridate::seconds(1800)"))
+    expect_true(hit(code), info = code)
+  for (code in c("g <- seq(au, end, by = \"30 min\")", "a <- o + lubridate::minutes(mm)", "x <- minutes(300)",
+                 "e <- s + lubridate::minutes(60)  # minutes(30)"))
+    expect_false(hit(code), info = code)
 })
 
 test_that("[CONTROL] a lista de chaves proibidas do loader nao e vazia e inclui cut_invariant", {

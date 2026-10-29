@@ -60,15 +60,7 @@ prevcarga_bias <- function(y_true, y_pred) {
 ## --- Ponto unico de agrupamento temporal e pico -------------------------------------------------------
 prevcarga_peak_hours <- 18:22  # janela fixa comunicavel [TBD: ADR-0028]
 
-## interval_start = target_datetime (interval_end) - 30 min: usado por TODO bucket hora/dia/pico/d_plus.
-prevcarga_long_interval_start <- function(long, ctx = NULL) {
-  if (any(long$granularity_min != 30L))
-    prevcarga_abort("contract.long_schema", where = "granularity_min")
-  if (!is.null(ctx) && !identical(lubridate::tz(long$target_datetime), ctx$tz))
-    prevcarga_abort("contract.long_tz", where = "target_datetime")
-  long$target_datetime - lubridate::minutes(30)  # unico minutes(30) do modulo
-}
-
+## Todo bucket hora/dia/pico/d_plus usa a coluna `interval_start` anexada pela borda do LONG (schema_long.R).
 prevcarga_peak_wmape <- function(interval_start, y_true, y_pred, hours = prevcarga_peak_hours) {
   sel <- lubridate::hour(interval_start) %in% hours
   if (!any(sel)) return(NA_real_)
@@ -83,7 +75,7 @@ prevcarga_peak_wmape <- function(interval_start, y_true, y_pred, hours = prevcar
 }
 
 ## Confere nome+ordem (schema_long.R), tipos, tz e d_plus; devolve o data.frame normalizado
-## (forecast_origin continua texto yyyy-MM-dd).
+## (forecast_origin continua texto yyyy-MM-dd) com `interval_start` anexado UMA vez pela borda do LONG.
 prevcarga_assert_long <- function(long, ctx) {
   if (!is.data.frame(long)) prevcarga_abort("contract.long_schema", where = "data.frame")
   tryCatch(prevcarga_schema_long_check(long),
@@ -110,8 +102,8 @@ prevcarga_assert_long <- function(long, ctx) {
                     details = list(found = lubridate::tz(long$target_datetime), expected = ctx$tz))
   o <- lubridate::ymd(fo, tz = ctx$tz, quiet = TRUE)
   if (anyNA(o)) prevcarga_abort("contract.long_schema", where = "forecast_origin")
-  istart <- prevcarga_long_interval_start(long, ctx)
-  want <- as.integer(lubridate::as_date(istart, tz = ctx$tz) - lubridate::as_date(o))
+  long <- prevcarga_long_attach_interval_start(long, ctx$tz)
+  want <- as.integer(lubridate::as_date(long$interval_start, tz = ctx$tz) - lubridate::as_date(o))
   bad <- which(want != long$d_plus)
   if (length(bad))
     prevcarga_abort("contract.long_dplus_label", where = "d_plus",
@@ -207,7 +199,7 @@ prevcarga_scorecard <- function(long, by = c("d_plus", "area"), baseline_long = 
   miss <- setdiff(by, names(long))
   if (length(miss)) prevcarga_abort("contract.long_schema", where = paste(miss, collapse = ","))
   long <- as.data.frame(long)
-  long$interval_start <- prevcarga_long_interval_start(long)
+  long <- prevcarga_long_attach_interval_start(long)
   long <- long[is.finite(long$y_true) & is.finite(long$y_pred), , drop = FALSE]
   if (!nrow(long)) {
     out <- data.frame(long[0L, by, drop = FALSE], n = integer(), wmape = double(), mape = double(),
@@ -239,12 +231,12 @@ prevcarga_scorecard <- function(long, by = c("d_plus", "area"), baseline_long = 
 }
 
 ## Areas pontuaveis = folhas + subsistemas (sem nos de perda). NULL/"SIN" = todas as presentes no LONG, na
-## ordem da topologia; fora da topologia => topology.area_unknown (antes de qualquer leitura do deck).
+## ordem da topologia; fora da topologia => topology.area_undeclared (antes de qualquer leitura do deck).
 .prevcarga_score_areas <- function(long, area, topo) {
   scorable <- unique(c(topo$order, topo$leaves))
   if (is.null(area) || identical(area, "SIN")) return(scorable[scorable %in% long$area])
   if (!(is.character(area) && length(area) == 1L && area %in% scorable))
-    prevcarga_abort("topology.area_unknown", where = "--area")
+    prevcarga_abort("topology.area_undeclared", where = "--area")
   area
 }
 

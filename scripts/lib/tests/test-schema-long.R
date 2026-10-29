@@ -59,3 +59,37 @@ test_that("coluna extra no fim tambem falha nomeando a extra", {
   expect_identical(e$id, "contract.long_schema_constant")
   expect_identical(e$where, "extra")
 })
+
+## --- borda do rotulo: o unico par interval_end <-> interval_start do LONG ---
+TZL <- "Etc/GMT+3"
+ends <- lubridate::ymd_hm(c("2026-10-01 00:00", "2026-10-01 00:30", "2026-10-02 00:00"), tz = TZL)
+fail_edge <- function(expr) tryCatch({ force(expr); NULL }, prevcarga_error = identity)
+
+test_that("borda do LONG: ida e volta exata; interval_start = fim - 30 min no mesmo fuso", {
+  s <- env$prevcarga_long_interval_start(ends, 30L, TZL)
+  expect_identical(s, lubridate::ymd_hm(c("2026-09-30 23:30", "2026-10-01 00:00", "2026-10-01 23:30"), tz = TZL))
+  expect_identical(env$prevcarga_long_target_datetime(s, 30L, TZL), ends)
+  expect_identical(env$prevcarga_long_target_datetime(env$prevcarga_long_interval_start(ends, rep(30L, 3L)), 30L), ends)
+  expect_false(identical(s, ends))                                          # CONTROL: a borda desloca
+})
+
+test_that("borda do LONG: granularidade != 30 e fuso divergente reprovam nos dois sentidos", {
+  for (f in list(env$prevcarga_long_interval_start, env$prevcarga_long_target_datetime)) {
+    e <- fail_edge(f(ends, c(30L, 60L, 30L), TZL))
+    expect_identical(e$id, "contract.long_schema"); expect_identical(e$where, "granularity_min")
+    e <- fail_edge(f(ends, 30L, "UTC"))
+    expect_identical(e$id, "contract.long_tz")
+    expect_null(fail_edge(f(ends, 30L)))                                     # sem tz: nao confere fuso
+  }
+  expect_identical(fail_edge(env$prevcarga_long_target_datetime(ends, 30L, "UTC"))$where, "interval_start")
+})
+
+test_that("attach_interval_start anexa uma vez e nao recalcula coluna presente", {
+  d <- mk(canon)
+  a <- env$prevcarga_long_attach_interval_start(d, "UTC")
+  expect_identical(names(a), c(canon, "interval_start"))
+  expect_identical(a$interval_start, d$target_datetime - 1800)
+  a2 <- a; a2$interval_start <- a2$target_datetime
+  expect_identical(env$prevcarga_long_attach_interval_start(a2), a2)
+  expect_identical(fail_edge(env$prevcarga_long_attach_interval_start(d, TZL))$id, "contract.long_tz")
+})

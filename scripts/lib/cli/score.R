@@ -92,7 +92,7 @@ cmd_score <- function(ctx, args) {
   area <- .prevcarga_sc_opt(args, "--area")
   if (!is.null(model)) prevcarga_model_spec(model, root = ctx$root)
   prevcarga_require_data_dir(ctx)
-  if (!is.null(area)) .prevcarga_score_areas(NULL, area, .prevcarga_score_topo(ctx))   # topology.area_unknown antes de ler o deck
+  if (!is.null(area)) .prevcarga_score_areas(NULL, area, .prevcarga_score_topo(ctx))   # topology.area_undeclared antes de ler o deck
   if (!isTRUE(args[["--skip-validate"]])) .prevcarga_sc_gate0(ctx, list(model = model, area = area))
   ctx$tz <- .prevcarga_eval_tz(ctx)
   long <- prevcarga_read_long(.prevcarga_sc_opt(args, "--long"), ctx)

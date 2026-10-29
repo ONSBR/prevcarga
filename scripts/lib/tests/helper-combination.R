@@ -35,7 +35,7 @@ pc_cmb_illcond <- function(d = 3e-4, n = 60L) {
 }
 
 ## painel largo de teste: uma linha por (origem, d_plus, slot, cut); target_datetime = interval_end
-## no fuso da carga; ym = mes-de-ORIGEM. `bias` nomeado por membro; `drop` = lista nomeada por membro de
+## no fuso da carga (interval_start como o anexado pela borda do LONG); ym = mes-de-ORIGEM. `bias` nomeado por membro; `drop` = lista nomeada por membro de
 ## funcoes(painel) -> logical (onde a coluna vira NA); `truth_until` = "YYYY-MM-DD" (y_true NA depois).
 pc_cmb_panel <- function(origins, d_plus = 0:9, slots = c(0L, 18L, 36L, 47L),
                          members = c("A", "B", "C"), cuts = "",
@@ -47,7 +47,7 @@ pc_cmb_panel <- function(origins, d_plus = 0:9, slots = c(0L, 18L, 36L, 47L),
   istart <- o0 + lubridate::days(g$d) + lubridate::minutes(30L * g$slot)
   tdt <- istart + lubridate::minutes(30)
   k <- g$oi * 7 + g$d * 3 + g$slot
-  p <- data.frame(area = "X", forecast_origin = origins[g$oi], target_datetime = tdt,
+  p <- data.frame(area = "X", forecast_origin = origins[g$oi], target_datetime = tdt, interval_start = istart,
                   lead = g$d * 48L + g$slot, d_plus = g$d, cut = cuts[g$ci],
                   ym = substr(origins[g$oi], 1L, 7L), stringsAsFactors = FALSE)
   truth <- pc_cmb_truth(istart)

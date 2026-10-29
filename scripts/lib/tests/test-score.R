@@ -103,7 +103,7 @@ test_that("escopo de areas: NULL == SIN, area sem particao some, area unica (ac-
   expect_identical(unique(r_ss$scorecard$area), ss)
   expect_false(any(r_ss$long$y_true >= 1e6, na.rm = TRUE))
   expect_identical(fail <- tryCatch(prevcarga_score(long, ctx0, area = "XX"), prevcarga_error = function(e) e$id),
-                   "topology.area_unknown")
+                   "topology.area_undeclared")
 })
 
 test_that("matriz de exits JSON in-process: 2 / 2 / 2 / 4 / 0 com envelope unico e stderr vazio (ac-3)", {
@@ -120,7 +120,7 @@ test_that("matriz de exits JSON in-process: 2 / 2 / 2 / 4 / 0 com envelope unico
   chk(cli_score(root1, d, lg[, setdiff(names(lg), "y_pred")]), 2L, "contract.long_schema", "contract")
   chk(cli_score(root1, d, lg, c("--baseline", "xx")), 2L, "contract.baseline_kind", "contract")
   chk(run_s(root1, c("score", "--long", pc_eval_write_long(lg), "--data", file.path(tempdir(), "sem-deck"), "--area", "XX",
-                     "--skip-validate", "--format", "json")), 4L, "topology.area_unknown", "topology")
+                     "--skip-validate", "--format", "json")), 4L, "topology.area_undeclared", "topology")
   dfut <- sc_deck(last = -1L)
   fut <- cli_score(root1, dfut, lg, c("--area", "A1"))
   j <- chk(fut, 0L)
