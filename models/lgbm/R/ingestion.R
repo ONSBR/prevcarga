@@ -74,9 +74,12 @@ lgbm_load_grid <- function(load, days, cuts, mode = c("train", "infer")) {
     lgbm_abort("lgbm.contract", sprintf("carga com interval_start duplicado: %s",
                                         format(load$interval_start[anyDuplicated(load$interval_start)])))
   grid <- data.table::CJ(Data = days, Hora = 0:47)
-  grid[, DataHora := lubridate::force_tz(lubridate::as_datetime(Data), tz) + lubridate::minutes(30L * Hora)]
+  ## indice de slot (Hora 0..47) sobre a meia-noite civil do dia: nao e deslocamento de rotulo da carga
   grid[, Minuto := (Hora %% 2L) * 30L]
-  ld <- data.table::data.table(DataHora = load$interval_start, CargaGlobal = load$load_mwh)
+  grid[, DataHora := lubridate::force_tz(lubridate::as_datetime(Data), tz) + lubridate::hours(Hora %/% 2L) +
+         lubridate::minutes(Minuto)]
+  ld <- data.table::data.table(DataHora = load$interval_start, interval_end = load$interval_end,
+                               CargaGlobal = load$load_mwh)
   dt <- merge(grid, ld, by = "DataHora", all.x = TRUE)
   data.table::setorder(dt, DataHora)
   hist_end <- if (mode == "infer") O else max(days) + 1L
@@ -86,7 +89,7 @@ lgbm_load_grid <- function(load, days, cuts, mode = c("train", "infer")) {
     lgbm_abort("lgbm.completude", sprintf("dia %s com %d intervalos de 48", format(inc$Data[[1L]]), inc$n[[1L]]))
   dt[, is_synthetic := FALSE]
   if (mode == "infer") {
-    dt[, is_synthetic := (DataHora + lubridate::minutes(30L)) > cuts$available_until]
+    dt[, is_synthetic := is.na(interval_end) | interval_end > cuts$available_until]
     holes <- dt[Data == O & !is_synthetic & is.na(CargaGlobal)]
     if (nrow(holes))
       lgbm_abort("lgbm.completude", sprintf("dia %s sem carga no intervalo %s (antes de available_until)",

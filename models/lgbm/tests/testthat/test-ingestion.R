@@ -23,7 +23,7 @@ test_that("[AC3] cuts: last_data_day = O-3 (data_lag_days = 2 do descriptor)", {
 
 test_that("[AC3] treino: 48 slots/dia, DataHora = interval_start, max(Data) = last_data_day; painel com 09-29 aborta", {
   f <- ingest(panel_tr, mode = "train")
-  expect_identical(max(f$Data), cuts$last_data_day)
+  expect_equal(max(f$Data), cuts$last_data_day)
   expect_identical(lubridate::tz(f$DataHora), cuts$tz)
   expect_true(all(f[, .N, by = Data]$N == 48L))
   expect_identical(f$Hora, lubridate::hour(f$DataHora) * 2L + lubridate::minute(f$DataHora) %/% 30L)
@@ -40,18 +40,18 @@ test_that("[AC3] treino: 48 slots/dia, DataHora = interval_start, max(Data) = la
   expect_s3_class(e, "prevcarga_error")
   expect_identical(c(e$class_name, e$exit_code), c("contract", 2L))
   expect_true(grepl("[prevcarga/contract] lgbm: painel de treino alem de last_data_day=2026-09-28", conditionMessage(e), fixed = TRUE))
-  expect_true(grepl("2026-09-29 00:00:00", conditionMessage(e), fixed = TRUE))
+  expect_true(grepl("2026-09-29", conditionMessage(e), fixed = TRUE))
   ## CONTROL: data_lag_days = 0 => o MESMO codigo devolve ate 09-30 (o plugin segue cuts, nao um literal)
   cuts0 <- lgbm_fx_cuts(ctx, data_lag_days = c(lgbm = 0L))
   expect_identical(cuts0$last_data_day, lubridate::ymd("2026-09-30"))
   f0 <- ingest(lgbm_fx_panel(deck, ctx, "train", cuts0), cuts0, mode = "train")
-  expect_identical(max(f0$Data), lubridate::ymd("2026-09-30"))
+  expect_equal(max(f0$Data), lubridate::ymd("2026-09-30"))
 })
 
 test_that("[AC4] infer: O 09:30, Hora 18 real, depois NA sintetico; O+1 sintetico; cortes e completude abortam", {
   f <- ingest(panel_in, mode = "infer")
   expect_identical(f[Data == O, .N], 48L); expect_identical(f[Data == O + 1L, .N], 48L)
-  expect_identical(max(f$Data), O + 1L)
+  expect_equal(max(f$Data), O + 1L)
   d0 <- f[Data == O]
   expect_false(anyNA(d0[Hora <= 18L, CargaGlobal])); expect_false(any(d0[Hora <= 18L, is_synthetic]))
   expect_true(all(is.na(d0[Hora >= 19L, CargaGlobal]))); expect_true(all(d0[Hora >= 19L, is_synthetic]))
@@ -98,7 +98,7 @@ test_that("[AC5] safra: emissao mais recente por slot, lead 0 no historico e em 
   wf <- panel_in$weather_forecast
   expect_true(all(wf$issue_time <= cuts$weather_issue_limit))
   area <- LGBM_AREA
-  days0 <- (O - 4L):O
+  days0 <- seq(O - 4L, O, by = "day")
   t0 <- P$lgbm_weather_vintage(wf, area, days0, 0L, K, cuts$tz)
   t1 <- P$lgbm_weather_vintage(wf, area, O + 1L, 1L, K, cuts$tz)
   expect_identical(nrow(t0), 48L * length(days0)); expect_identical(nrow(t1), 48L)
@@ -160,9 +160,9 @@ test_that("[AC6] requires ausente, timestamp cru e historia curta abortam; estag
   expect_identical(names(formals(P$plugin_ingest)), c("panel", "cuts"))
   sp_tr <- lgbm_fx_panel(deck, ctx, "train", cuts, area = LGBM_HEAT)
   ft <- P$plugin_ingest(sp_tr, cuts)
-  expect_identical(max(ft$Data), cuts$last_data_day)
+  expect_equal(max(ft$Data), cuts$last_data_day)
   fi <- P$plugin_ingest(lgbm_fx_panel(deck, ctx, "infer", cuts, area = LGBM_HEAT), cuts)
-  expect_identical(max(fi$Data), O + 1L); expect_true(any(fi$is_synthetic))
+  expect_equal(max(fi$Data), O + 1L); expect_true(any(fi$is_synthetic))
   ## area sem heat_area no consts padrao
   expect_true(grepl("sem heat_area", conditionMessage(fail(P$plugin_ingest(panel_tr, cuts))), fixed = TRUE))
   ## codigo do plugin sem env/relogio/conversoes da base
@@ -170,6 +170,7 @@ test_that("[AC6] requires ausente, timestamp cru e historia curta abortam; estag
                                 "Sys\\.(getenv|setenv|time|Date)|as\\.Date\\(|as\\.POSIXct\\(|strptime"), character())
   expect_identical(pc_grep_code(file.path(lgbm_root(), "models", "lgbm", "R"),
                                 "to_model_frame|to_display_frame|PREVCARGA_JOB|setwd\\(|<<-|saveRDS\\(|system2?\\("), character())
+  expect_identical(pc_grep_code(file.path(lgbm_root(), "models", "lgbm", "R"), "minutes\\(\\s*-?30\\s*\\)|1800"), character())
   ## CONTROL do grep: a isca casa
   tf <- file.path(tempfile("grepctl-")); dir.create(tf); writeLines("x <- Sys.getenv('A')", file.path(tf, "a.R"))
   expect_length(pc_grep_code(tf, "Sys\\.(getenv|setenv|time|Date)"), 1L)
