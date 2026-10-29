@@ -4,7 +4,7 @@
 ## ASCII prevcarga_render_<verbo>(result) e cmd_<verbo>(ctx, args) fino, que SO devolve o resultado: quem
 ## imprime (texto/JSON, banner, exit) e prevcarga_emit() na fachada (cli.R). Os registros dos verbos moram em
 ## scripts/lib/cli/<verbo>.R (barrel por descoberta). Nenhum valor/contagem local: topologia, specs e
-## runtime vem de topology.R/runtime.R/provenance.R. Sem variaveis de ambiente; sem datas de corte (M2).
+## runtime vem de topology.R/runtime.R/provenance.R; cortes de data vem de dates.R (M2.5). Sem variaveis de ambiente.
 ##
 ## Requer errors.R, runtime.R, config.R carregados; topology.R/provenance.R nos verbos guardados.
 
@@ -183,9 +183,51 @@ prevcarga_render_areas <- function(result) {
 cmd_areas <- function(ctx, args = NULL) prevcarga_build_areas(ctx)
 
 ## --- describe ----------------------------------------------------------------------------------------
-.prevcarga_describe_note <- "corte de treino: derivado no M2; available_until: derivado do dado no M2"
+## M2.5: os cortes saem de dates.R. Com origem e deck legivel, prevcarga_resolve_cuts (inclui available_until,
+## derivado do deck via validate-deck); sem deck legivel so o que nao depende do dado (corte de treino por
+## membro, prevcarga_train_cut) e available_until fica indisponivel. `data_lag_days` (named integer) vem dos
+## descriptors quando existirem (P.0b/M5); ate la a fonte e `default`. Requer dates.R e deck_reader.R.
+.prevcarga_describe_au_label <- "derivado do deck (via validate-deck)"
 
-prevcarga_build_describe <- function(ctx, model = ctx$model) {
+.prevcarga_describe_fmt_date <- function(x) if (is.null(x) || is.na(x)) NULL else format(x, "%Y-%m-%d")
+
+.prevcarga_describe_fallback <- function(ctx, mdirs, data_lag_days) {
+  O <- ctx$origin
+  rows <- lapply(mdirs, function(m) {
+    spec <- prevcarga_model_spec(m, root = ctx$root)
+    declared <- if (!is.null(data_lag_days) && m %in% names(data_lag_days)) data_lag_days[[m]] else NULL
+    lag <- if (is.null(declared)) 0L else as.integer(declared)
+    tc <- prevcarga_train_cut(spec, O, lag)
+    list(model = m, split = spec$split, horizon_days = as.integer(spec$horizon_days),
+         train_origin = .prevcarga_describe_fmt_date(tc$train_origin),
+         last_data_day = .prevcarga_describe_fmt_date(tc$last_data_day),
+         data_lag_days = lag, data_lag_source = if (is.null(declared)) "default" else "descriptor")
+  })
+  list(rows = rows, available_until = NULL)
+}
+
+.prevcarga_describe_cuts <- function(ctx, mdirs, data_lag_days) {
+  O <- if (inherits(ctx$origin, "Date")) ctx$origin else NULL
+  if (is.null(O)) return(list(rows = list(), available_until = NULL, note = "sem --origin: cortes nao calculados"))
+  deck <- !is.null(ctx$data_dir) && dir.exists(ctx$data_dir)
+  cv <- if (deck) tryCatch(prevcarga_resolve_cuts(ctx, O, mdirs, data_lag_days),
+                           prevcarga_error = function(e) if (e$class_name %in% c("contract", "completude")) NULL else stop(e)) else NULL
+  if (is.null(cv)) {
+    out <- .prevcarga_describe_fallback(ctx, mdirs, data_lag_days)
+    out$note <- if (deck) "deck ilegivel: available_until indisponivel" else "sem deck: available_until indisponivel"
+    return(out)
+  }
+  ct <- cv$cuts
+  rows <- lapply(seq_len(nrow(ct)), function(i) list(
+    model = ct$model[[i]], split = ct$split[[i]], horizon_days = as.integer(ct$horizon_days[[i]]),
+    train_origin = .prevcarga_describe_fmt_date(ct$train_origin[[i]]),
+    last_data_day = .prevcarga_describe_fmt_date(ct$last_data_day[[i]]),
+    data_lag_days = as.integer(ct$data_lag_days[[i]]), data_lag_source = ct$data_lag_source[[i]]))
+  list(rows = rows, note = NULL,
+       available_until = format(lubridate::with_tz(cv$available_until, cv$tz), "%Y-%m-%d %H:%M"))
+}
+
+prevcarga_build_describe <- function(ctx, model = ctx$model, data_lag_days = NULL) {
   mem <- prevcarga_members(root = ctx$root)
   mdirs <- unique(mem$mdir)
   if (!is.null(model) && !identical(model, FALSE)) {
@@ -197,10 +239,11 @@ prevcarga_build_describe <- function(ctx, model = ctx$model) {
   for (m in mdirs) specs[[m]] <- prevcarga_model_spec(m, root = ctx$root)
   origin <- if (is.null(ctx$origin)) NULL else
     if (inherits(ctx$origin, "Date")) format(ctx$origin, "%Y-%m-%d") else NULL
+  cu <- .prevcarga_describe_cuts(ctx, mdirs, data_lag_days)
   list(schema_version = 1L, origin = origin, topology = prevcarga_build_areas(ctx), models = specs,
        member_set_hash = prevcarga_member_set_hash(mem),
-       cuts = list(train_origin = NULL, last_data_day = NULL, available_until = NULL,
-                   note = .prevcarga_describe_note))
+       cuts = list(members = cu$rows, available_until = cu$available_until,
+                   available_until_source = .prevcarga_describe_au_label, note = cu$note))
 }
 
 prevcarga_render_describe <- function(result) {
@@ -208,11 +251,20 @@ prevcarga_render_describe <- function(result) {
     sprintf("  %s: split=%s gran=%dmin horizonte=%dd historico=%d/%d seed=%d modos=%s protocolo=%s",
             s$name, s$split, s$granularity_min, s$horizon_days, s$history_days$train, s$history_days$infer,
             s$seed, paste(s$modes, collapse = ","), s$backtest$protocol_default)))
+  cu <- result$cuts
+  cuts <- if (length(cu$members)) c("cortes por membro:",
+    vapply(cu$members, function(r)
+      sprintf("  %-14s split=%s horizonte=%dd train_origin=%s last_data_day=%s data_lag_days=%d (%s)",
+              r$model, r$split, r$horizon_days, r$train_origin, r$last_data_day, r$data_lag_days,
+              r$data_lag_source), ""))
+  au <- sprintf("available_until: %s%s", cu$available_until_source,
+                if (!is.null(cu$available_until)) paste0(" = ", cu$available_until) else
+                  paste0(" [indisponivel", if (!is.null(cu$note)) paste0(": ", cu$note), "]"))
   c("describe: topologia e contratos",
     if (!is.null(result$origin)) paste("origin:", result$origin),
     prevcarga_render_areas(result$topology), "modelos:", specs,
     paste("member_set_hash:", result$member_set_hash),
-    "corte de treino: derivado no M2", "available_until: derivado do dado no M2")
+    cuts, au)
 }
 
 cmd_describe <- function(ctx, args = NULL) {
