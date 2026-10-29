@@ -177,7 +177,10 @@ test_that("[PLUGINS] ingest_puro: duas rodadas identical, insensiveis a env/relo
   expect_identical(ctv$Data[[1L]], cuts$origin_day - 730L)
   expect_identical(ctv$Data[[nrow(ctv)]], cuts$last_data_day)
   expect_identical(nrow(ctv), 730L)      # o ingest nao completa a janela com dia sintetico
-  expect_length(hw_grep_code(file.path(hw_root(), "models", "holt-winters", "R"), "Sys\\.|set\\.seed|Sys.getenv"), 0L)
+  ## a ingestao nao toca relogio/ambiente/RNG (o set.seed(spec$seed) antes do MO1 e do feature_engineering.R, HW.2)
+  ing <- tempfile("hw-ing-"); dir.create(ing)
+  file.copy(file.path(hw_root(), "models", "holt-winters", "R", "ingestion.R"), ing)
+  expect_length(hw_grep_code(ing, "Sys\\.|set\\.seed|Sys.getenv"), 0L)
 })
 
 test_that("[PLUGINS] hv_lubridate: .hw_compute_hv identical a formula do oraculo (2010..2025); sem POSIXct/as.Date/3600", {
