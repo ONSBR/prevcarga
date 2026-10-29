@@ -12,8 +12,10 @@ hi_spec <- function() { s <- hw_spec(); s$history_days$train <- 59L; s }
 ## fundacao no global so durante `code` (o plugin carregado pelo loader a procura la; interino como engine_abort)
 hi_with_cli <- function(code) {
   nm <- c("prevcarga_abort", "prevcarga_condition", "prevcarga_plugin_scan_pure", "prevcarga_delivery_grid")
-  for (n in nm) assign(n, hw_lib[[n]], envir = globalenv())
-  on.exit(rm(list = nm, envir = globalenv()), add = TRUE)
+  g <- globalenv(); had <- nm[vapply(nm, exists, NA, envir = g, inherits = FALSE)]; old <- mget(had, envir = g)
+  for (n in nm) assign(n, hw_lib[[n]], envir = g)
+  ## restaura o que o runner (plugin_gates.R) ja tinha no global (HW.5): rm() puro apagava prevcarga_abort do runner
+  on.exit({ rm(list = nm, envir = g); for (n in had) assign(n, old[[n]], envir = g) }, add = TRUE)
   force(code)
 }
 
