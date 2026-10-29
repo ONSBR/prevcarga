@@ -1,0 +1,8 @@
+name: toy-30
+split: origin_agnostic
+granularity_min: 30
+horizon_days: 1
+history_days: {train: 10, infer: 3}
+seed: 1
+modes: [train, infer]
+params: {k: 3}
