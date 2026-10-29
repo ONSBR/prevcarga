@@ -1,0 +1,2 @@
+id	class	message	hint
+warning.combina_nonstationary	contract	celulas da combina pararam no cap de iteracoes sem estacionariedade (aviso)	o resultado e valido mas a celula nao convergiu; confira details.cells e a escala dos dados (grad_tol absoluto, ADR-0026)
