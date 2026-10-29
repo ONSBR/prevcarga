@@ -252,6 +252,9 @@
   único; `prevcarga_long_target_datetime` no writer). Consumidores (d_plus, buckets, `train_mask`, alinhamento da combina) usam a
   coluna `interval_start`; grade de entrega é passo de grade, não conversão. Gate `minutes30` em `test-static-greps.R` (allow:
   `deck_reader.R`, `schema_long.R`, `features.R`). Ver `docs/estado/schema_long.md`.
+- **Painel do modo forecast (2026-10-29):** `prevcarga_plugin_forecast` recebe o painel de INFER (dia O até `available_until`); o
+  despachante corta o treino em `cuts$last_data_day` (dates.R) e infere sobre o painel inteiro. Treino nunca vê o dia O; infer vê
+  exatamente até `available_until`. Ver `docs/estado/plugin_dispatch.md`.
 - **Um id para área fora da topologia:** `topology.area_undeclared` (`errors/topology.tsv`, exit 4); `topology.area_unknown` removido.
 
 ## Decisões estruturantes já tomadas

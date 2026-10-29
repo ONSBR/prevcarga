@@ -229,6 +229,37 @@ test_that("ac-1 toy-60 horario: a meia hora isolada 09:00-09:30 e descartada; a 
   expect_gt(delta(b30, s$infer("toy-30", art30, half)), TOL)
 })
 
+test_that("ac-5 forecast (origin_scoped): treino corta em last_data_day, infer ve o dia O ate available_until", {
+  s <- .hz_setup("available_until", deck = .hz_deck("09:30", ragged = TRUE))
+  m <- "toy-60"
+  ## painel de INFER do leitor (dia O ate available_until); o despachante corta o treino em last_data_day
+  fc <- function(dir) {
+    x <- s$prep(m, dir); sp <- x$plugin$spec
+    panel <- suppressWarnings(env$prevcarga_read_panel(s$ctx_for(dir), O, AREAS, sp$horizon_days, sp$history_days$train))
+    if (sp$granularity_min == 60L) panel <- env$to_hourly(panel)
+    expect_true(any(lubridate::as_date(panel$load$interval_start, tz = TZ) == O))   # o dia O chega ao forecast
+    env$prevcarga_plugin_forecast(x$plugin, panel, s$dcuts(x$rc, x$row), sp, list())
+  }
+  x <- s$prep(m, s$deck)
+  expect_identical(x$row$last_data_day, O - 1L)
+  expect_identical(x$rc$available_until, at("09:00"))
+  base <- fc(s$deck)
+  expect_identical(base$available_until, at("09:00"))
+  ## FORBIDDEN: carga do dia O depois de available_until (A 09:00-09:30) nao muda nada
+  forb <- fc(perturb_load(s$deck, after = at("08:30")))
+  expect_lte(delta(base, forb), TOL)
+  expect_identical(forb$values, base$values)
+  ## CONTROL infer: a hora 08:00-09:00 do dia O (antes de available_until) muda a entrega...
+  day_o <- fc(perturb_load(s$deck, after = at("07:30"), at_or_before = at("08:30")))
+  expect_gt(delta(base, day_o), TOL)
+  ## ...e FORBIDDEN treino: o mesmo dia O nao entra no artefato (nivel treinado identico)
+  expect_identical(day_o$values, base$values)
+  ## CONTROL treino: a manha de last_data_day muda o nivel treinado
+  ldd <- fc(perturb_load(s$deck, after = at("00:00", "2026-09-30") - lubridate::minutes(30L),
+                         at_or_before = at("10:30", "2026-09-30")))
+  expect_false(identical(ldd$values, base$values))
+})
+
 ## molde M3.5: run_fn(painel, clima) refaz o recorte de emissoes no store (copia) e confere contra o leitor
 .hz_store_for_weather <- function(s, base, w) {
   ch <- which(abs(w$temperature - base$temperature) > 0)

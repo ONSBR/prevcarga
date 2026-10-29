@@ -900,9 +900,25 @@ prevcarga_plugin_infer <- function(plugin, artifact, panel, cuts, ctx = list()) 
   .prevcarga_plugin_infer_impl(plugin, artifact, panel, cuts, plugin$spec)
 }
 
+## Painel de treino do forecast: o painel de infer (carga do dia O ate available_until) cortado em cuts$last_data_day
+## (dates.R) na carga e no clima observado; clima previsto e feriados intocados. O corte vem de cuts, nunca e calculado.
+.prevcarga_plugin_train_slice <- function(panel, cuts) {
+  keep <- function(x, col) {
+    if (!NROW(x)) return(x)
+    i <- which(lubridate::as_date(x[[col]], tz = cuts$tz) <= cuts$last_data_day)
+    if (data.table::is.data.table(x)) x[i] else x[i, , drop = FALSE]
+  }
+  out <- panel
+  out$load <- keep(panel$load, "interval_start")
+  out$weather_observed <- keep(panel$weather_observed, "valid_time")
+  out
+}
+
+## forecast: `panel` = painel de INFER (ate available_until). Treino ve so ate last_data_day; infer ve o painel inteiro.
 prevcarga_plugin_forecast <- function(plugin, panel, cuts, spec, ctx = list()) {
   .prevcarga_plugin_check_mode(plugin, spec, "forecast")
-  art <- prevcarga_plugin_train(plugin, panel, cuts, spec, ctx)
+  .prevcarga_plugin_check_infer_panel(panel, cuts, plugin$descriptor)
+  art <- prevcarga_plugin_train(plugin, .prevcarga_plugin_train_slice(panel, cuts), cuts, spec, ctx)
   .prevcarga_plugin_infer_impl(plugin, art, panel, cuts, spec)
 }
 
