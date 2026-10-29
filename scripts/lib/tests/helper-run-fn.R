@@ -126,3 +126,72 @@ pc_wf_spy <- function(limit, env) {
     inner(panel, weather)
   }
 }
+
+## --- Bateria do M3.V ---------------------------------------------------------------------------------------
+## Saida no contrato do gate (area, forecast_origin, target_datetime, lead, y_pred) a partir de linhas do painel
+## (target_datetime = interval_end do alvo; lead sequencial). Cobre d_plus 0..9 quando o painel tem O..O+9.
+pc_hg_long <- function(rows, y_pred, origin = NULL) {
+  tz <- lubridate::tz(rows$interval_end)
+  o <- if (is.null(origin)) as.character(lubridate::as_date(rows$interval_end[[1L]], tz = tz)) else origin
+  data.frame(area = if (nrow(rows)) rows$area else character(), forecast_origin = o,
+             target_datetime = rows$interval_end, lead = seq_len(nrow(rows)), y_pred = as.numeric(y_pred),
+             stringsAsFactors = FALSE)
+}
+
+.pc_hg_origin <- function(cut) as.character(lubridate::as_date(cut, tz = lubridate::tz(cut)))
+.pc_hg_dplus <- function(panel, cut) {
+  tz <- lubridate::tz(panel$interval_start)
+  as.integer(lubridate::as_date(panel$interval_start, tz = tz) - lubridate::as_date(cut, tz = tz))
+}
+## base honesta: media das ultimas 48 observacoes com interval_end <= cut
+.pc_hg_base <- function(panel, cut) mean(utils::tail(panel$y_true[panel$interval_end <= cut], 48L))
+
+## Honesto exceto nos alvos de d_plus == d, onde le o y_true do proprio alvo (vazamento so no horizonte d).
+pc_rf_spill <- function(cut, d = 9L) {
+  force(cut); force(d)
+  function(panel) {
+    fut <- panel[panel$interval_end > cut, , drop = FALSE]
+    y <- .pc_hg_base(panel, cut) + 0.01 * seq_len(nrow(fut))
+    hit <- .pc_hg_dplus(fut, cut) == d
+    y[hit] <- fut$y_true[hit]
+    pc_hg_long(fut, y, .pc_hg_origin(cut))
+  }
+}
+
+## Nunca le y_true: so os membros futuros.
+pc_rf_members_only <- function(cut) {
+  force(cut)
+  function(panel) {
+    fut <- panel[panel$interval_end > cut, , drop = FALSE]
+    pc_hg_long(fut, (fut$m1 + fut$m2) / 2, .pc_hg_origin(cut))
+  }
+}
+
+## Estilo combina: peso convexo por minimos quadrados fechados de y_true ~ m1, m2 no dia antes do corte,
+## projetado em [0, 1], aplicado aos membros futuros (so le y_true ANTES do corte).
+pc_rf_combina <- function(cut) {
+  force(cut)
+  function(panel) {
+    past <- panel[panel$interval_end > cut - lubridate::days(1) & panel$interval_end <= cut, , drop = FALSE]
+    dm <- past$m1 - past$m2
+    w <- min(1, max(0, sum((past$y_true - past$m2) * dm) / sum(dm^2)))
+    fut <- panel[panel$interval_end > cut, , drop = FALSE]
+    pc_hg_long(fut, w * fut$m1 + (1 - w) * fut$m2, .pc_hg_origin(cut))
+  }
+}
+
+## Honesto + k * media do y_true futuro (vazamento minusculo de magnitude controlada).
+pc_rf_tiny <- function(cut, k) {
+  force(cut); force(k)
+  function(panel) {
+    fut <- panel[panel$interval_end > cut, , drop = FALSE]
+    y <- .pc_hg_base(panel, cut) + 0.01 * seq_len(nrow(fut)) + k * mean(panel$y_true[panel$interval_end > cut])
+    pc_hg_long(fut, y, .pc_hg_origin(cut))
+  }
+}
+
+## Painel que termina em `cut` (regiao proibida vazia).
+pc_hg_panel_no_future <- function(cut, origin = "2026-10-01", ...) {
+  p <- pc_hg_panel(origin, ...)
+  p[p$interval_end <= cut, , drop = FALSE]
+}

@@ -49,3 +49,32 @@ pc_eval_write_long <- function(long) {
   arrow::write_parquet(long, p)
   p
 }
+
+## --- Runner de processo do M3.V (portavel Linux/Windows; sem bash) ------------------------------------------------
+## Roda `<R.home>/bin/Rscript --vanilla <root>/scripts/prevcarga <args>`; stdout/stderr em arquivos separados, devolvidos
+## como bytes crus. `envvars` (vetor nomeado, NA = remover) vale so para o filho (withr::with_envvar no TESTE); o pacote
+## nao le variavel de ambiente. `root` = instalacao-copia (pc_install_copy) ou a raiz do repo.
+pc_m3_cli <- function(args, envvars = character(), root = pc_repo_root()) {
+  out <- tempfile("m3-out"); err <- tempfile("m3-err")
+  on.exit(unlink(c(out, err)), add = TRUE)
+  rscript <- file.path(R.home("bin"), "Rscript")
+  cli <- file.path(root, "scripts", "prevcarga")
+  status <- withr::with_envvar(as.list(envvars),
+    suppressWarnings(system2(rscript, c("--vanilla", shQuote(cli), shQuote(args)), stdout = out, stderr = err)))
+  rd <- function(f) if (file.exists(f) && file.size(f) > 0) readBin(f, "raw", file.size(f)) else raw()
+  list(status = as.integer(status), stdout = rd(out), stderr = rd(err))
+}
+
+pc_m3_lines <- function(bytes) if (!length(bytes)) character() else strsplit(rawToChar(bytes), "\n", fixed = TRUE)[[1L]]
+
+## Parseia o stdout como UM unico documento JSON (aborta se houver 0 ou mais de um).
+pc_m3_json <- function(res) {
+  txt <- rawToChar(res$stdout)
+  if (!nzchar(trimws(txt))) stop("pc_m3_json: stdout vazio")
+  jsonlite::fromJSON(txt, simplifyVector = FALSE)
+}
+
+## Remove o campo lateral `run_id` (unico relogio permitido) para comparacoes de delta = 0.
+pc_m3_strip_run_id <- function(json) { json$run_id <- NULL; json }
+
+pc_m3_ascii <- function(res) all(as.integer(c(res$stdout, res$stderr)) <= 127L)
