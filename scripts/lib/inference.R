@@ -102,7 +102,22 @@ prevcarga_infer <- function(plugin, artifact, panel, cuts, ctx = list(), spec = 
   list(forecast_origin = origin, origin_day = origin, origin = origin, tz = rc$tz, load_label = rc$load_label,
        available_until = rc$available_until, weather_issue_cutoff = rc$weather_issue_cutoff,
        weather_issue_limit = rc$weather_issue_limit, split = spec$split, train_origin = tc$train_origin,
-       last_data_day = tc$last_data_day, data_lag_days = as.integer(row$data_lag_days))
+       last_data_day = tc$last_data_day, data_lag_days = as.integer(row$data_lag_days),
+       deck_areas = as.character(rc$available_until_by_area$area_code))
+}
+
+## O available_until e o MINIMO entre as areas do deck (M2.2): o painel e lido com todas as areas do deck para que o corte
+## seja o global e a area pedida nao veja carga alem dele; depois so se SELECIONA a area (nenhum corte e calculado aqui).
+.prevcarga_inf_select_area <- function(panel, area) {
+  pick <- function(x) {
+    if (!is.data.frame(x) || !"area_code" %in% names(x)) return(x)
+    keep <- attributes(x)[setdiff(names(attributes(x)), c("names", "row.names", "class", ".internal.selfref", "sorted", "index"))]
+    out <- x[x$area_code == area, ]
+    for (a in names(keep)) data.table::setattr(out, a, keep[[a]])
+    out
+  }
+  for (nm in c("load", "weather_observed", "weather_forecast", "holidays")) panel[[nm]] <- pick(panel[[nm]])
+  panel
 }
 
 ## O artefato nao pode ter visto dado alem do teto desta origem: origin_scoped => last_data_day do treino da MESMA regra
@@ -118,6 +133,54 @@ prevcarga_infer <- function(plugin, artifact, panel, cuts, ctx = list(), spec = 
     prevcarga_abort("contract.cut_mismatch", where = mdir,
       details = list(member = mdir, artifact_last_data_day = if (inherits(got, "Date")) format(got) else NA_character_,
                      data_lag_days = alag))
+  invisible(TRUE)
+}
+
+## --- Conferencias de convencao e de alinhamento (M5.6; ADR-0023, ADR-0024, ADR-0032, ADR-0040) ------------------------
+## Tabela de conferencias artefato x efetivo; `available_until` nunca entra (o mesmo artefato serve todas as rodadas de O).
+.prevcarga_inf_checks <- list(
+  list(field = "load_label",           eff = function(c, x) x$load_label,           id = "contract.load_label_mismatch"),
+  list(field = "timezone",             eff = function(c, x) c$tz,                   id = "contract.timezone_mismatch"),
+  list(field = "weather_issue_cutoff", eff = function(c, x) c$weather_issue_cutoff, id = "contract.weather_cutoff_mismatch",
+       when = "isTRUE(descriptor$weather_forecast_in_train)"),
+  list(field = "origin",               eff = function(c, x) c$origin,               id = "contract.origin_mismatch",
+       when = "identical(spec$split, 'origin_scoped')"))
+
+## Todas as divergencias acumulam e abortam uma vez (exit 2); o id do aborto e o da 1a divergencia da tabela.
+prevcarga_infer_check_conventions <- function(artifact, cuts, ctx, descriptor) {
+  spec <- artifact$spec_efetivo
+  gaps <- list()
+  for (ck in .prevcarga_inf_checks) {
+    if (!is.null(ck$when) && !isTRUE(eval(parse(text = ck$when)))) next
+    got <- format(artifact[[ck$field]])
+    eff <- format(ck$eff(cuts, ctx))
+    if (!identical(got, eff)) gaps[[ck$id]] <- list(convencao = ck$field, artefato = got, efetivo = eff)
+  }
+  if (length(gaps))
+    prevcarga_abort(names(gaps)[[1L]], where = descriptor$model_id, details = gaps)
+  invisible(TRUE)
+}
+
+## O painel ja chega do leitor unico cortado em available_until (nenhum corte e calculado aqui): so confere que nada
+## passou do corte e aplica to_hourly nos modelos horarios (hora completa; meia hora isolada ignorada).
+prevcarga_infer_panel <- function(panel, cuts, spec) {
+  ie <- panel$load$interval_end
+  if (length(ie) && any(ie > cuts$available_until))
+    prevcarga_abort("contract.panel_beyond_cut", where = "prevcarga_infer_panel",
+                    details = list(available_until = format(cuts$available_until, "%Y-%m-%d %H:%M")))
+  if (spec$granularity_min == 60L) panel <- to_hourly(panel)    # INTERINO: migra para o despachante (fix/foundation-w1-f4-lag)
+  panel
+}
+
+## A entrega tem que ser identica a grade de entrega: 1o = available_until + 30, passo 30, sem buraco, ate O + delivery_days.
+prevcarga_infer_check_alignment <- function(pred, cuts, descriptor) {
+  esperado <- prevcarga_delivery_grid(cuts, descriptor$delivery_days)
+  got <- pred$target_datetime
+  if (!identical(got, esperado)) {
+    rng <- function(x) if (length(x)) format(range(x), "%Y-%m-%d %H:%M") else c(NA_character_, NA_character_)
+    prevcarga_abort("contract.output_misaligned", where = descriptor$model_id,
+      details = list(esperado = rng(esperado), obtido = rng(got), n_esperado = length(esperado), n_obtido = length(got)))
+  }
   invisible(TRUE)
 }
 
@@ -140,18 +203,21 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
       details = list(artifact_variant = got_variant, member_variant = want_variant))
 
   cuts <- .prevcarga_inf_cuts(plugin, spec, origin, ctx, member$mdir)
+  prevcarga_infer_check_conventions(art, cuts, list(load_label = cuts$load_label), plugin$descriptor)
   .prevcarga_inf_check_artifact_cut(art, spec, cuts, member$mdir)
-  panel <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, spec$history_days$infer)
+  panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, spec$history_days$infer)
   au <- panel$attrs$available_until
   cuts$available_until <- if (inherits(au, "POSIXct") && length(au) == 1L && !is.na(au)) au else cuts$available_until
   wl <- panel$attrs$weather_issue_limit
   if (inherits(wl, "POSIXct") && length(wl) == 1L && !is.na(wl)) cuts$weather_issue_limit <- wl
+  panel <- .prevcarga_inf_select_area(panel, area)
   obs <- panel$weather_observed
   data.table::setnames(obs, "timestamp", "valid_time")           # INTERINO: o leitor entrega `timestamp`; o despachante exige `valid_time` (ver training.md)
   panel$weather_observed <- obs
-  if (spec$granularity_min == 60L) panel <- to_hourly(panel)
+  panel <- prevcarga_infer_panel(panel, cuts, spec)
 
   pred <- prevcarga_infer(plugin, art, panel, cuts, list(), spec = NULL)
+  prevcarga_infer_check_alignment(pred, cuts, plugin$descriptor)
   list(model = member$mdir, variant = if (is.na(want_variant)) NULL else want_variant, area = area,
        origin = format(origin, "%Y-%m-%d"), available_until = .prevcarga_inf_iso(cuts$available_until),
        weather_issue_cutoff = cuts$weather_issue_cutoff, version = res$version, resolved_by = res$resolved_by,
