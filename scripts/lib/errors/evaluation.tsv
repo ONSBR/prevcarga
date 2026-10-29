@@ -1,0 +1,13 @@
+id	class	message	hint
+contract.long_schema	contract	LONG fora do schema de 8 colunas (nome, ordem ou tipo)	confira em where a coluna ofensora contra prevcarga_schema_long; forecast_origin e texto yyyy-MM-dd, nunca Date
+contract.long_dplus_label	contract	d_plus do LONG nao bate com o dia do interval_start menos a origem	recalcule d_plus pelo dia do interval_start (target_datetime - 30 min), nao pelo dia do interval_end
+contract.long_tz	contract	target_datetime do LONG em fuso diferente do fuso da carga	converta target_datetime para o fuso declarado no manifest.json do deck antes de gravar o LONG
+contract.metric_length	contract	y_true e y_pred com comprimentos diferentes	passe vetores de mesmo comprimento, alinhados por intervalo
+contract.baseline_kind	contract	tipo de baseline desconhecido	use --baseline=persistence ou --baseline=seasonal_naive
+contract.honesty_gate_args	contract	argumentos invalidos para o honesty-gate	confira em where o argumento ausente ou fora do contrato do gate
+completude.node_missing	completude	no da topologia sem previsao ou sem carga no recorte	complete as previsoes e a carga do no indicado em where antes de reconciliar
+topology.area_unknown	topology	area fora da topologia	use uma area declarada em config/topology.yaml
+coherence.sin_sum	coherence	soma das areas diverge do SIN	reveja a reconciliacao: a soma ponderada pelas perdas deve fechar o SIN
+coherence.khat	coherence	k-hat incoerente entre previsao e topologia	reveja o k-hat declarado e o aplicado no artefato indicado em where
+coherence.alignment	coherence	artefatos desalinhados no tempo ou nas chaves	alinhe area, origem e target_datetime entre os artefatos indicados em where
+honesty.leak	honesty	vazamento de informacao detectado no gate de honestidade	reveja o corte de treino e a leitura de dados >= origem no modulo indicado em where
