@@ -6,7 +6,7 @@
 ## Caminho so por argumento (path/root); o pacote nao le variaveis de ambiente.
 ## Qualquer violacao => prevcarga_abort() classe contract, sem objeto parcial. Requer errors.R carregado.
 ##
-## Expoe: prevcarga_topology(path, root), prevcarga_members(path, root), prevcarga_model_spec(model, root).
+## Expoe: prevcarga_topology(path, root), prevcarga_members(path, root), prevcarga_model_spec(model, root, overrides).
 
 .prevcarga_read_yaml <- function(file, missing_id) {
   if (!file.exists(file)) prevcarga_abort(missing_id, where = file)
@@ -132,7 +132,48 @@ prevcarga_members <- function(path = prevcarga_topology_path(root), root) {
   spec
 }
 
-prevcarga_model_spec <- function(model, root) {
+## Spec EFETIVO (M5.3): run.yaml (+ `overrides`, lista de chaves pontilhadas, ex.: horizon_days, params.exogena) so sobre
+## chaves DECLARADAS. Chave inexistente => config.override_unknown (exit 8); valor de tipo diferente do declarado (ou
+## horizon_days nao inteiro >= 1) => config.override_bad_value (exit 8). Devolve lista ordenada por nome (hash estavel).
+.prevcarga_override_walk <- function(spec, path) {
+  node <- spec
+  for (p in path) {
+    if (!is.list(node) || is.null(names(node)) || !p %in% names(node)) return(NULL)
+    node <- node[[p]]
+  }
+  node
+}
+
+.prevcarga_override_set <- function(x, path, value) {
+  if (length(path) == 1L) {
+    x[[path]] <- value
+    return(x)
+  }
+  x[[path[[1L]]]] <- .prevcarga_override_set(x[[path[[1L]]]], path[-1L], value)
+  x
+}
+
+.prevcarga_override_apply <- function(spec, overrides, model) {
+  if (!length(overrides)) return(spec)
+  nm <- names(overrides)
+  if (!is.list(overrides) || is.null(nm) || anyNA(nm) || any(!nzchar(nm)))
+    prevcarga_abort("config.override_bad_value", where = model, details = list(model = model, key = "overrides"))
+  for (k in nm) {
+    path <- strsplit(k, ".", fixed = TRUE)[[1L]]
+    old <- .prevcarga_override_walk(spec, path)
+    if (is.null(old)) prevcarga_abort("config.override_unknown", where = k, details = list(model = model, key = k))
+    new <- overrides[[k]]
+    kind <- function(v) if (is.numeric(v)) "numeric" else typeof(v)
+    ok <- if (identical(k, "horizon_days")) .prevcarga_is_int1(new, min = 1) else
+      length(new) == length(old) && !is.list(new) && !anyNA(new) && identical(kind(new), kind(old))
+    if (!ok) prevcarga_abort("config.override_bad_value", where = k, details = list(model = model, key = k))
+    if (identical(k, "horizon_days")) new <- as.integer(new)
+    spec <- .prevcarga_override_set(spec, path, new)
+  }
+  spec
+}
+
+prevcarga_model_spec <- function(model, root, overrides = list()) {
   if (!.prevcarga_is_chr1(model) || grepl("[/\\\\]", model))
     prevcarga_abort("contract.run_yaml_missing", where = as.character(model)[[1L]])
   file <- file.path(prevcarga_models_root(root), model, "run.yaml")
@@ -177,5 +218,7 @@ prevcarga_model_spec <- function(model, root) {
                seed = as.integer(raw$seed), modes = modes,
                backtest = list(protocol_default = bt$protocol_default),
                constraints = cons, params = par)
-  .prevcarga_apply_constraints(spec)
+  spec <- .prevcarga_override_apply(spec, overrides, model)
+  spec <- .prevcarga_apply_constraints(spec)
+  spec[order(names(spec), method = "radix")]
 }

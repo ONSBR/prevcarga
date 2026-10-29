@@ -88,7 +88,8 @@ pc_grep_gates <- data.frame(
     character(),                      # divida do combination.R quitada em M4.2b (lubridate::as_datetime): zero hits
     "scripts/lib/config.R",           # lateral run_id (unico relogio permitido)
     character(), character(), character(), "config/topology.yaml", character(), character(),
-    "scripts/lib/registry.R",         # registry_lifecycle: ciclo de vida (promote/rollback/gc) so no registry.R (M5.2); resto do codigo R proibido
+    c("scripts/lib/registry.R",       # registry_lifecycle: ciclo de vida (promote/rollback/gc) so no registry.R (M5.2); resto do codigo R proibido
+      "scripts/lib/training.R"),      # M5.3: a fachada so CHAMA prevcarga_registry_promote_latest (nao o reimplementa)
     character(),
     ## minutes30: o rotulo de hora da carga e operado 1x na entrada e 1x na saida (ESTADO-ATUAL, ADR-0035)
     c("scripts/lib/deck_reader.R",    # borda do deck: rotulo end -> interval_start/interval_end e passo do available_until
