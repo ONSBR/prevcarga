@@ -95,12 +95,14 @@ test_that("catalogo: ids lgbm.* existem em errors/lgbm.tsv com a classe esperada
 
 test_that("estagios ainda nao portados abortam lgbm.stage_missing (nao ha codigo silencioso)", {
   p <- lgbm_source_plugin()
-  e <- fail(p$lgbm_stage_features(NULL, list()))
+  ## o estagio de FE foi definido pelo LGBM.2; o treino (LGBM.3) ainda nao
+  e <- fail(p$lgbm_stage_training(NULL, list(), 1L))
   expect_identical(e$id, "lgbm.stage_missing")
-  expect_true(grepl("plugin_build_features", conditionMessage(e), fixed = TRUE))
+  expect_true(grepl("plugin_train", conditionMessage(e), fixed = TRUE))
   ## quando o ticket seguinte define o estagio por nome, o despacho o encontra
-  p$plugin_build_features <- function(frame, params) "ok"
-  expect_identical(p$lgbm_stage_features(NULL, list()), "ok")
+  p$plugin_train <- function(features, params, seed) "ok"
+  expect_identical(p$lgbm_stage_training(NULL, list(), 1L), "ok")
+  expect_true(is.function(p$plugin_build_features))   # LGBM.2
 })
 
 test_that("plugin_constants: hiperparametros, spans, heat_area e feriados fixos do oraculo", {
