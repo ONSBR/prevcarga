@@ -1,6 +1,6 @@
 ## errors.R -- contrato unico de erros da CLI (ADR-0040, M1.4b)
 ##
-## Unico criador/modificador deste arquivo e o ticket M1.4b. Epicos seguintes declaram seus
+## Unico criador deste arquivo e o ticket M1.4b; extensoes aditivas: M2.5 e M3.4 (argumento opcional `result` em prevcarga_condition/prevcarga_abort, repassado ao envelope de falha). Epicos seguintes declaram seus
 ## error.id criando scripts/lib/errors/<nome>.tsv (barrel por descoberta) e apenas LEEM este arquivo.
 ## Saida de terminal/catalogo: ASCII puro, sem acento. Sem variaveis de ambiente.
 
@@ -120,18 +120,19 @@ prevcarga_error_lookup <- function(id) {
 }
 
 ## --- Condicoes classificadas -----------------------------------------------------------------------
-prevcarga_condition <- function(id, where = NULL, details = NULL, type = "prevcarga_error") {
+prevcarga_condition <- function(id, where = NULL, details = NULL, type = "prevcarga_error", result = NULL) {
   row <- prevcarga_error_lookup(id)
   structure(
     class = c(type, if (type == "prevcarga_error") "error" else "warning", "condition"),
     list(message = sprintf("[prevcarga/%s] %s", row$class, row$message),
          call = NULL, id = row$id, class_name = row$class,
          exit_code = unname(prevcarga_exit_codes[[row$class]]),
-         where = where, hint = row$hint, details = details))
+         where = where, hint = row$hint, details = details, result = result))
 }
 
-prevcarga_abort <- function(id, where = NULL, details = NULL) {
-  stop(prevcarga_condition(id, where = where, details = details))
+## `result` (opcional) viaja na condicao e sai em `result` do envelope de falha (ex.: findings do check-coherence).
+prevcarga_abort <- function(id, where = NULL, details = NULL, result = NULL) {
+  stop(prevcarga_condition(id, where = where, details = details, result = result))
 }
 
 prevcarga_warn <- function(id, where = NULL, details = NULL) {
@@ -192,7 +193,7 @@ prevcarga_render_error <- function(cond, format = c("text", "json"), verb = NULL
   if (format == "text")
     return(c(prevcarga_render_error_text(cond),
              vapply(warnings, prevcarga_render_warning_text, "")))
-  env <- prevcarga_envelope(verb = verb, cond = cond, warnings = warnings, run_id = run_id,
+  env <- prevcarga_envelope(verb = verb, result = cond$result, cond = cond, warnings = warnings, run_id = run_id,
                             version = version)
   as.character(jsonlite::toJSON(env, auto_unbox = TRUE, null = "null", digits = NA))
 }

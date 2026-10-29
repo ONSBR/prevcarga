@@ -298,3 +298,170 @@ prevcarga_score <- function(long, ctx, area = NULL, baseline_kind = NULL, origin
        warnings = if (nrow(sc)) list() else
          list(list(type = "nothing_to_score", message = "nenhum intervalo com previsao e carga realizada")))
 }
+
+## --- Coerencia hierarquica (check-coherence; M3.4) -------------------------------------------------------------
+## Gate duro de entrega sobre um LONG reconciliado. PURO: a topologia chega como DADO (prevcarga_topology), nada e
+## lido do disco e nenhum nome de area, faixa de k-hat ou lista literal mora aqui (so a tolerancia default, ADR-0008).
+## Acumula TODOS os findings por instante (forecast_origin, target_datetime): (e) alinhamento -> (d) escopo ->
+## (c) completude -> (a) soma do SIN / (b) k-hat. Classe/exit de cada finding vem do catalogo (errors/evaluation.tsv);
+## a classe-dona do veredito e prevcarga_exit_precedence() do M1.4b, nunca reimplementada. [TBD: ADR-0028]
+.prevcarga_coh_sin <- "SIN"  # raiz da hierarquia (nao e area de topologia.yaml)
+
+.prevcarga_coh_cols <- c("check", "area", "forecast_origin", "target_datetime", "value", "expected", "class", "id", "detail")
+
+## 1 linha no schema de findings; `class` sai do catalogo pelo `id`. forecast_origin = texto yyyy-MM-dd ou NA.
+.prevcarga_coh_finding <- function(check, area, forecast_origin = NA, target_datetime = NA, value = NA_real_,
+                                   expected = NA_real_, id, detail = "") {
+  data.frame(check = check, area = area,
+             forecast_origin = lubridate::ymd(as.character(forecast_origin), tz = "UTC", quiet = TRUE),
+             target_datetime = lubridate::as_datetime(as.numeric(target_datetime)),
+             value = as.double(value), expected = as.double(expected),
+             class = prevcarga_error_lookup(id)$class, id = id, detail = as.character(detail),
+             stringsAsFactors = FALSE)
+}
+
+.prevcarga_coh_empty <- function(tz = "UTC") {
+  out <- .prevcarga_coh_finding("x", "x", id = "coherence.sin_sum")[0L, , drop = FALSE]
+  out$target_datetime <- lubridate::with_tz(out$target_datetime, tz)
+  rownames(out) <- NULL
+  out
+}
+
+## Tudo derivado do objeto recebido de prevcarga_topology(): subsistemas na ordem declarada, folhas por subsistema,
+## nos de perda (FORA do set emitivel, ADR-0015), declared/emitible, parent_of e a faixa de k-hat efetiva.
+.prevcarga_coh_nodes <- function(topo) {
+  subs <- as.character(topo$order)
+  leaves_of <- lapply(stats::setNames(subs, subs), function(s) as.character(topo$subsystems[[s]]$areas))
+  loss <- unname(vapply(subs, function(s) as.character(topo$subsystems[[s]]$loss), ""))
+  leaves <- unlist(leaves_of, use.names = FALSE)
+  parent_of <- c(stats::setNames(rep(.prevcarga_coh_sin, length(subs)), subs),
+                 stats::setNames(rep(subs, lengths(leaves_of)), leaves))
+  list(sin = .prevcarga_coh_sin, subsystems = subs, leaves_of = leaves_of, leaves = leaves, loss = loss,
+       declared = c(.prevcarga_coh_sin, subs, leaves, loss), emitible = c(.prevcarga_coh_sin, subs, leaves),
+       parent_of = parent_of,
+       khat_range = lapply(stats::setNames(subs, subs), function(s) as.numeric(topo$subsystems[[s]]$khat_range)))
+}
+
+.prevcarga_coh_bind <- function(parts, tz) {
+  parts <- Filter(Negate(is.null), parts)
+  if (!length(parts)) return(.prevcarga_coh_empty(tz))
+  out <- do.call(rbind, parts)
+  out$target_datetime <- lubridate::with_tz(out$target_datetime, tz)
+  rownames(out) <- NULL
+  out
+}
+
+## (e) Sentinela de alinhamento: grade de target_datetime de um filho deslocada em relacao a do pai (cada lado tem
+## instantes que o outro nao tem; ausencia pura NAO e deslocamento). Subsistemas contra o SIN primeiro; folhas
+## contra um subsistema ja reprovado nao repetem o finding. Devolve list(findings, origins) das origens quebradas.
+.prevcarga_coh_alignment <- function(long, nodes) {
+  out <- list(); broken <- character()
+  for (o in sort(unique(long$forecast_origin), method = "radix")) {
+    lo <- long[long$forecast_origin == o, , drop = FALSE]
+    g <- split(as.numeric(lo$target_datetime), lo$area)
+    shifted <- function(child) {
+      par <- nodes$parent_of[[child]]
+      if (is.null(g[[child]]) || is.null(g[[par]])) return(FALSE)
+      length(setdiff(g[[child]], g[[par]])) > 0L && length(setdiff(g[[par]], g[[child]])) > 0L
+    }
+    flagged <- character()
+    for (child in c(nodes$subsystems, nodes$leaves)) {
+      par <- nodes$parent_of[[child]]
+      if (par %in% flagged || !shifted(child)) next
+      flagged <- c(flagged, child)
+      d <- sort(c(setdiff(g[[child]], g[[par]]), setdiff(g[[par]], g[[child]])))[[1L]]
+      out[[length(out) + 1L]] <- .prevcarga_coh_finding("alignment", child, o, NA, id = "coherence.alignment",
+        detail = sprintf("grade de %s difere da de %s; 1o instante divergente %s", child, par,
+                         format(lubridate::as_datetime(d), "%Y-%m-%d %H:%M:%S", tz = "UTC")))
+    }
+    if (length(flagged)) broken <- c(broken, o)
+  }
+  list(findings = out, origins = broken)
+}
+
+## (d) Area do LONG fora da topologia: uma linha por area, nao por instante.
+.prevcarga_coh_topology <- function(long, nodes) {
+  unk <- sort(setdiff(unique(long$area), nodes$declared), method = "radix")
+  lapply(unk, function(a) .prevcarga_coh_finding("topology", a, id = "topology.area_unknown",
+                                                 detail = sprintf("%d linhas", sum(long$area == a))))
+}
+
+## (c) Nos exigidos e ausentes no instante (cobertura-comum, ADR-0015): SIN => todos os subsistemas; todos os
+## subsistemas => SIN; subsistema => todas as suas folhas; todas as folhas => o subsistema. Cobertura parcial
+## legitima (folha faltando com subsistema e SIN ausentes) nao dispara regra.
+.prevcarga_coh_missing_at <- function(pres, nodes) {
+  subs <- nodes$subsystems
+  need <- character()
+  if (nodes$sin %in% pres) need <- c(need, subs)
+  if (all(subs %in% pres)) need <- c(need, nodes$sin)
+  for (s in subs) {
+    lv <- nodes$leaves_of[[s]]
+    if (s %in% pres) need <- c(need, lv)
+    if (all(lv %in% pres)) need <- c(need, s)
+  }
+  setdiff(unique(need), pres)
+}
+
+## (a)/(b) por instante, com os nos presentes. v = y_pred nomeado por area.
+.prevcarga_coh_identities_at <- function(v, nodes, tol) {
+  f <- list()
+  subs <- nodes$subsystems
+  if (all(c(nodes$sin, subs) %in% names(v))) {
+    d <- v[[nodes$sin]] - sum(v[subs])
+    if (!is.finite(d) || abs(d) > tol)
+      f[[length(f) + 1L]] <- list(check = "sin_sum", area = nodes$sin, id = "coherence.sin_sum",
+        value = v[[nodes$sin]], expected = sum(v[subs]),
+        detail = if (is.finite(d)) sprintf("|d| = %s > %s", format(abs(d), digits = 7), format(tol)) else "nao finito")
+  }
+  for (s in intersect(subs, names(v))) {
+    lv <- nodes$leaves_of[[s]]
+    if (!all(lv %in% names(v))) next
+    den <- sum(v[lv]); r <- nodes$khat_range[[s]]
+    if (!is.finite(den) || den <= 0 || !is.finite(v[[s]])) {
+      f[[length(f) + 1L]] <- list(check = "khat", area = s, id = "coherence.khat", value = NA_real_,
+                                  expected = NA_real_, detail = "indefinido")
+      next
+    }
+    k <- v[[s]] / den
+    if (k < r[[1L]] - 1e-12 || k > r[[2L]] + 1e-12)
+      f[[length(f) + 1L]] <- list(check = "khat", area = s, id = "coherence.khat", value = k,
+        expected = if (k < r[[1L]]) r[[1L]] else r[[2L]],
+        detail = sprintf("k fora da faixa [%s, %s]", format(r[[1L]]), format(r[[2L]])))
+  }
+  f
+}
+
+## Orquestrador puro. `ctx` so fornece o fuso a conferir (default: o do proprio LONG). Devolve
+## list(ok, class, id, findings); `class` = classe-dona pela precedencia unica do M1.4b ("ok" sem findings).
+prevcarga_check_coherence <- function(long, topology, tol = 1e-5, ctx = NULL) {
+  if (is.data.frame(long) && inherits(long$target_datetime, "POSIXct") && is.null(ctx))
+    ctx <- list(tz = lubridate::tz(long$target_datetime))
+  long <- prevcarga_assert_long(long, ctx)
+  tz <- ctx$tz
+  nodes <- .prevcarga_coh_nodes(topology)
+  tnum <- as.numeric(long$target_datetime)
+  ikey <- paste(long$forecast_origin, tnum, sep = "|")
+  if (anyDuplicated(paste(ikey, long$area, sep = "|")))
+    prevcarga_abort("contract.long_schema", where = "area,forecast_origin,target_datetime",
+                    details = list(reason = "linha duplicada por (instante, area)"))
+  al <- .prevcarga_coh_alignment(long, nodes)
+  parts <- c(al$findings, .prevcarga_coh_topology(long, nodes))
+  keep <- !(long$forecast_origin %in% al$origins) & long$area %in% nodes$emitible
+  for (i in split(which(keep), ikey[keep])) {
+    o <- long$forecast_origin[[i[[1L]]]]; t <- long$target_datetime[[i[[1L]]]]
+    pres <- long$area[i]
+    for (a in .prevcarga_coh_missing_at(pres, nodes))
+      parts[[length(parts) + 1L]] <- .prevcarga_coh_finding("completude", a, o, t, id = "completude.node_missing",
+                                                           detail = "no exigido pela cobertura comum ausente")
+    for (x in .prevcarga_coh_identities_at(stats::setNames(long$y_pred[i], pres), nodes, tol))
+      parts[[length(parts) + 1L]] <- .prevcarga_coh_finding(x$check, x$area, o, t, x$value, x$expected, x$id, x$detail)
+  }
+  f <- .prevcarga_coh_bind(parts, tz)
+  if (nrow(f)) {
+    f <- f[order(f$check, f$forecast_origin, f$target_datetime, f$area, method = "radix"), , drop = FALSE]
+    rownames(f) <- NULL
+  }
+  if (!nrow(f)) return(list(ok = TRUE, class = "ok", id = NA_character_, findings = f))
+  owner <- prevcarga_exit_precedence(f$class)
+  list(ok = FALSE, class = owner, id = f$id[f$class == owner][[1L]], findings = f)
+}
