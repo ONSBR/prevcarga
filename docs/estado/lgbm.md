@@ -53,5 +53,6 @@ Escopo do LGBM.1: contrato (`run.yaml` + `register.R`) e ingestao. FE, treino e 
 - `set.seed(spec$seed)` na entrada, dentro de `prevcarga_preserve_rng`. gate02: lag com max <= 1 => `lgbm.double_norm` (contract). `min_max_BLF` inclui o alvo `CargaGlobal`.
 - Freeze: `booster_txt = save_model_to_string(num_iteration = NULL)` (ASCII, LF), `booster_sha256` (digest sha256 do texto), tabelas como `data.frame`, cortes ISO, `engine_version$lightgbm`; sem `lgb.Booster`, caminho ou relogio.
   Thaw: versao do lightgbm (`lgbm.engine_version`, contract) -> sha256 -> `lgb.load(model_str)` -> arvores == `best_iter` (`lgbm.integrity`, exit 9). Cross-OS do booster: `[DEFERRED M8]`.
+- Racional do holdout pinado (aprovado): o default de producao do oraculo e CV (TRAIN_CV_DEFAULT TRUE, ja pinado); o holdout e so o kill-switch, entao o pin nao toca o caminho de paridade. Principio 2 exige determinismo.
 - Erros novos em `scripts/lib/errors/lgbm.tsv`: `lgbm.double_norm`, `lgbm.engine_version`, `lgbm.integrity`.
 - Testes: `models/lgbm/tests/testthat/` (`helper-lgbm-train.R`, `test-training.R`, `test-portability.R`).
