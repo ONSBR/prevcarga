@@ -1,0 +1,5 @@
+id	class	message	hint
+contract.infer_spec_divergent	contract	spec passado a inferencia diverge do spec efetivo congelado no artefato	a inferencia usa sempre artifact$spec_efetivo; nao passe spec/flags de param, retreine para mudar params
+contract.variant_mismatch	contract	a variante do artefato carregado diverge da variante do membro	confira --variant e a celula <modelo>/<variante>/<area> do registry; retreine ou sincronize o artefato certo
+io.out_unwritable	bundle	nao foi possivel gravar as previsoes em --out (diretorio ausente, sem permissao ou dentro do registry)	aponte --out para um arquivo em diretorio existente e gravavel, fora de <state_dir>/artifacts
+contract.artifact_spec_missing	contract	artefato sem spec_efetivo ou fit (artefato malformado; SHA256SUMS ja conferiu)	regere a versao com o treino da celula ou sincronize o artefato oficial
