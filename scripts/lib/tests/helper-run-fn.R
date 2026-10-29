@@ -78,3 +78,51 @@ pc_rf_mutating <- function(cut) {
     r
   }
 }
+
+## --- Canal de clima (M3.5) ---------------------------------------------------------------------------
+## Emissoes do dia O em UTC (00Z/06Z/18Z), convertidas ao fuso da carga; valid_time O..O+9 horario.
+pc_hg_weather <- function(origin, tz = "Etc/GMT+3", issues_utc = c(0L, 6L, 18L), areas = "A1") {
+  o <- lubridate::force_tz(lubridate::as_datetime(lubridate::ymd(origin)), "UTC")
+  vt <- lubridate::force_tz(lubridate::as_datetime(lubridate::ymd(origin)), tz) + lubridate::hours(0:(9 * 24))
+  out <- list()
+  for (a in areas) for (h in issues_utc) {
+    it <- lubridate::with_tz(o + lubridate::hours(h), tz)
+    out[[length(out) + 1L]] <- data.frame(
+      area_code = a, issue_time = rep(it, length(vt)), valid_time = vt,
+      temp_c = 20 + h / 3 + 5 * sin(2 * pi * seq_along(vt) / 24), rh_pct = 60 - h / 2,
+      stringsAsFactors = FALSE)
+  }
+  do.call(rbind, out)
+}
+
+.pc_wf_pred <- function(panel, w, w_used) {
+  y <- mean(utils::tail(panel$y_true, 48L))
+  temp <- if (is.null(w_used)) 0 else mean(w_used$temp_c) + 0.1 * mean(w_used$rh_pct)
+  .pc_rf_out("2026-10-01", as.POSIXct(0, tz = "UTC") + 1:48, y + temp + 0.01 * (1:48))
+}
+## Honesto: emissao mais fresca com issue_time <= limit (por area; media entre areas).
+pc_wf_honest <- function(limit) {
+  force(limit)
+  function(panel, weather) {
+    ok <- weather[weather$issue_time <= limit, , drop = FALSE]
+    fr <- stats::ave(as.numeric(ok$issue_time), ok$area_code, FUN = max)
+    .pc_wf_pred(panel, weather, ok[as.numeric(ok$issue_time) == fr, , drop = FALSE])
+  }
+}
+## Usa uma emissao fixa (hora UTC 6 ou 18), independente do limite.
+pc_wf_issue <- function(hour_utc) {
+  force(hour_utc)
+  function(panel, weather) {
+    h <- as.integer(format(lubridate::with_tz(weather$issue_time, "UTC"), "%H"))
+    .pc_wf_pred(panel, weather, weather[h == hour_utc, , drop = FALSE])
+  }
+}
+pc_wf_blind <- function() function(panel, weather) .pc_wf_pred(panel, weather, NULL)
+pc_wf_spy <- function(limit, env) {
+  inner <- pc_wf_honest(limit); env$calls <- list()
+  function(panel, weather) {
+    env$calls[[length(env$calls) + 1L]] <- list(panel = data.table::copy(data.table::as.data.table(panel)),
+                                                weather = data.table::copy(data.table::as.data.table(weather)))
+    inner(panel, weather)
+  }
+}

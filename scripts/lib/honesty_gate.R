@@ -115,3 +115,64 @@ prevcarga_honesty_gate <- function(run_fn, panel, cut, horizon, tol = 1e-5,
       control   = list(n_perturbed = as.integer(arm_c$n_perturbed), region = "(cut - 1d, cut]"),
       channel = "y_true", tol = tol, horizon = horizon))
 }
+
+## --- Canal de clima previsto (M3.5, ADR-0024) -----------------------------------------------------------
+## prevcarga_honesty_gate_weather(run_fn, panel, weather, weather_issue_limit, tol, perturb, cols)
+##   - run_fn(panel, weather); weather = emissoes do leitor unico (issue_time/valid_time ja no fuso da
+##     carga). weather_issue_limit chega PRONTO de prevcarga_resolve_cuts()/prevcarga_weather_issue_limit()
+##     (M2): o gate nunca o recalcula. Vale para as duas regras de weather_issue_cutoff.
+##   - FORBIDDEN perturba so as emissoes com issue_time > limite; CONTROL, a emissao mais fresca com
+##     issue_time <= limite por area_code. O panel (y_true e membros) vai sempre intocado.
+##   - Mesmo motor, mesma ordem de vereditos e limiar do canal y_true (.prevcarga_hg_arm/delta/verdict).
+
+.prevcarga_hgw_check <- function(run_fn, panel, weather, weather_issue_limit, cols, tol = 1e-5) {
+  bad <- function(where) prevcarga_abort("contract.honesty_gate_args", where = where)
+  if (!is.function(run_fn)) bad("run_fn")
+  if (!is.data.frame(panel)) bad("panel")
+  if (!is.data.frame(weather) || !all(c("area_code", "issue_time", "valid_time") %in% names(weather)))
+    bad("weather")
+  if (!lubridate::is.POSIXct(weather$issue_time) || !lubridate::is.POSIXct(weather$valid_time)) bad("weather")
+  if (!lubridate::is.POSIXct(weather_issue_limit) || length(weather_issue_limit) != 1L ||
+      is.na(weather_issue_limit)) bad("weather_issue_limit")
+  if (!is.numeric(tol) || length(tol) != 1L || is.na(tol) || tol <= 0) bad("tol")
+  keys <- c("area_code", "issue_time", "valid_time")
+  if (is.null(cols)) {
+    cols <- names(weather)[vapply(weather, is.numeric, logical(1))]
+    cols <- setdiff(cols, keys)
+  }
+  if (!is.character(cols) || !length(cols) || !all(cols %in% names(weather)) ||
+      any(cols %in% keys) || !all(vapply(weather[cols], is.numeric, logical(1)))) bad("weather (cols)")
+  cols
+}
+
+.prevcarga_hgw_regions <- function(weather, limit) {
+  allowed <- weather$issue_time <= limit
+  fresh <- rep(-Inf, nrow(weather))
+  if (any(allowed)) {
+    t <- ifelse(allowed, as.numeric(weather$issue_time), -Inf)
+    fresh <- stats::ave(t, weather$area_code, FUN = max)
+  }
+  list(forbidden = weather$issue_time > limit,
+       control   = allowed & as.numeric(weather$issue_time) == fresh)
+}
+
+prevcarga_honesty_gate_weather <- function(run_fn, panel, weather, weather_issue_limit,
+                                           tol = 1e-5, perturb = function(y) y * 1.30 + 1,
+                                           cols = NULL) {
+  cols <- .prevcarga_hgw_check(run_fn, panel, weather, weather_issue_limit, cols, tol)
+  rg <- .prevcarga_hgw_regions(weather, weather_issue_limit)
+  run <- function(w) run_fn(.prevcarga_hg_copy(panel), w)
+  B  <- run(.prevcarga_hg_copy(weather)); C2 <- run(.prevcarga_hg_copy(weather))
+  fz <- .prevcarga_hg_arm(weather, rg$forbidden, perturb, cols)
+  ct <- .prevcarga_hg_arm(weather, rg$control, perturb, cols)
+  d  <- c(clean2 = .prevcarga_hg_delta(B, C2), forbidden = .prevcarga_hg_delta(B, run(fz$panel)),
+          control = .prevcarga_hg_delta(B, run(ct$panel)))
+  list(verdict = .prevcarga_hg_verdict(d[["clean2"]], d[["forbidden"]], d[["control"]], fz$changed, tol),
+       clean2_delta = d[["clean2"]], forbidden_delta = d[["forbidden"]],
+       control_delta = d[["control"]], reach_ok = fz$changed,
+       arms = list(forbidden = list(n_perturbed = as.integer(fz$n_perturbed)),
+                   control = list(n_perturbed = as.integer(ct$n_perturbed)),
+                   channel = "weather", tol = tol,
+                   weather_issue_limit = format(lubridate::with_tz(weather_issue_limit, "UTC"),
+                                                "%Y-%m-%dT%H:%M:%SZ")))
+}
