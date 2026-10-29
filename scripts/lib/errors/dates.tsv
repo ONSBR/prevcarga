@@ -1,0 +1,6 @@
+id	class	message	hint
+contract.data_lag_invalid	contract	data_lag_days do descriptor nao e um inteiro unico e valido	declare data_lag_days como inteiro nao negativo no descriptor do plugin
+contract.split_unknown	contract	classe de split desconhecida no run.yaml	use split origin_agnostic ou origin_scoped no run.yaml do modelo
+contract.granularity_invalid	contract	granularidade fora de 30 ou 60 minutos	corrija granularity_min no run.yaml do modelo
+contract.schema_missing	contract	coluna obrigatoria ausente na carga do leitor	a carga precisa de area_code, interval_start e load_mwh; leia pelo leitor unico
+honesty.data_lag_negative	honesty	data_lag_days negativo ultrapassaria O-1 e vazaria o dia da origem no treino	declare data_lag_days >= 0 no descriptor do plugin

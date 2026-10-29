@@ -21,3 +21,23 @@
 prevcarga_validate_deck <- function(data_dir, as_of, scope = NULL, format = "text") {
   stop("validation.R: prevcarga_validate_deck() não implementado — TODO M2")
 }
+
+## --- Predicado unico de completude do dia (M2.3; o M2.4 estende este arquivo) --------------------------
+## O store e flat-48: um dia tem 48 intervalos de 30 min, sem excecao de DST (dia de 46 e buraco).
+prevcarga_slots_per_day <- 48L
+
+## `load`: carga do leitor (area_code, interval_start, load_mwh; attr "tz"). Devolve (area_code, date, n_slots,
+## complete). Intervalo valido = inicio em :00/:30 com load_mwh nao NA; duplicata conta 1; data pelo
+## interval_start no fuso da carga (nunca por interval_end).
+prevcarga_day_complete <- function(load) {
+  if (!all(c("area_code", "interval_start", "load_mwh") %in% names(load)))
+    prevcarga_abort("contract.schema_missing", where = "validation.R")
+  tz <- attr(load, "tz")
+  if (is.null(tz)) tz <- lubridate::tz(load$interval_start)
+  v <- load[lubridate::minute(interval_start) %in% c(0L, 30L) & lubridate::second(interval_start) == 0 &
+              !is.na(load_mwh)]
+  out <- v[, list(n_slots = data.table::uniqueN(interval_start)),
+           by = list(area_code, date = lubridate::as_date(interval_start, tz = tz))]
+  out[, complete := n_slots == prevcarga_slots_per_day]
+  out[]
+}
