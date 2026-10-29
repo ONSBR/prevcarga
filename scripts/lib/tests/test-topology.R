@@ -106,7 +106,10 @@ test_that("os 5 run.yaml entregues tem os valores do contrato", {
     expect_false(any(grepl("cut_invariant|resources|r_deps|entrypoint|train_args",
                            readLines(file.path(pc_root(), "models", m, "run.yaml")))))
   }
-  expect_identical(S$lgbm$params, list(disable_loess = TRUE, calendar_yearend = TRUE, train_cv = TRUE))
+  ## LGBM.1: os 7 params que substituem as env flags LGBM_* do oraculo
+  expect_identical(S$lgbm$params, list(disable_loess = TRUE, calendar_yearend = TRUE, train_cv = TRUE,
+                                       tipodia_legacy = FALSE, cutoff_scheme = "v2_old",
+                                       sazonalidade_scope = "train", prevespera_1230 = FALSE))
   expect_true(S[["dessem-regdin"]]$constraints$infer_history_equals_train)
 })
 

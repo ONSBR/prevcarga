@@ -1,0 +1,6 @@
+id	class	message	hint
+lgbm.params	contract	params do plugin lgbm fora do schema	Corrija o bloco params do models/lgbm/run.yaml (7 chaves, sem default no codigo)
+lgbm.contract	contract	painel ou cuts fora do contrato do plugin lgbm	Confira o painel do leitor e os cuts de dates.R; o plugin so confere, nunca corta
+lgbm.completude	completude	dia do historico do plugin lgbm sem os 48 intervalos de 30 min	Reponha os intervalos faltantes no deck; o plugin nunca preenche
+lgbm.window	window	historico insuficiente para o plugin lgbm	Amplie a janela do deck ou reduza history_days no run.yaml
+lgbm.stage_missing	contract	estagio do plugin lgbm ainda nao implementado	O estagio e definido por um ticket posterior do epico Plugin LGBM
