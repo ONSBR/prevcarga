@@ -60,11 +60,15 @@ test_that("ac-11/12 processaModelosDMPerfil e desagregaModeloSH == oraculo (<= 1
               envir = eng)
   alt <- fmm("M", data.table::copy(mine$horaria)[, Modelo := "M"])
   expect_gt(maxdiff(alt, ref$semi), 1e-5)
-  ## CONTROL (AC2 DL.3): motor alimentado sem o to_model_frame do despachante (offset 0) desloca o DataHora 1 h
-  off <- suppressWarnings(try(run_clean("42", deck, eng, offset_min = 0L), silent = TRUE))
-  shifted <- inherits(off, "try-error") || !identical(off$horaria$DataHora, ref$horaria$DataHora) ||
-    maxdiff(off$horaria, ref$horaria) > 1e-5
-  expect_true(shifted)
+  ## CONTROL (AC2 DL.3): motor alimentado sem o to_model_frame do despachante (offset 0) completa a montagem da
+  ## serie, mas a carga fica 1 h deslocada em relacao ao oraculo (series diferem muito alem de 1e-5)
+  dk0 <- suppressMessages(eng$TransformaDeck(eng_model_deck(deck, 0L), ORIGIN, "10DIAS", tz = "Etc/GMT+3"))
+  expect_s3_class(dk0$SERIECOMP, "data.table")
+  a <- dk0$SERIECOMP[Prev == FALSE][order(DataHora)]
+  b <- ref$seriecomp[Prev == FALSE][order(DataHora)]
+  expect_false(identical(a$DataHora, b$DataHora) && isTRUE(all.equal(a$Carga, b$Carga, tolerance = 0)))
+  m <- merge(a[, .(DataHora, Carga)], b[, .(DataHora, Carga)], by = "DataHora")
+  expect_gt(max(abs(m$Carga.x - m$Carga.y), na.rm = TRUE), 1e-5)
 })
 
 test_that("ac-11 CONTROL: outra semente no clean-room afasta a saida do oraculo (> 1e-5 MW)", {
