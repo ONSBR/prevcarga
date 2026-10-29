@@ -1,5 +1,5 @@
 id	class	message	hint
-window.history_short	window	historico de carga menor que history_days.train antes de last_data_day	reduza history_days.train no run.yaml do membro ou complete o historico do deck (details: dias disponiveis, exigidos, membro)
+window.history_short	window	historico de carga menor que a janela de treino ate last_data_day (history_days.train; origin_agnostic desde train_origin - history_days.train)	reduza history_days.train no run.yaml do membro ou complete o historico do deck (details: dias disponiveis, exigidos, membro)
 config.override_unknown	config	override de spec para chave nao declarada no run.yaml do modelo	use so chaves declaradas no run.yaml do membro (horizon_days, params.<chave>); veja models/<modelo>/run.yaml
 config.override_bad_value	config	override de spec com tipo ou valor invalido para a chave declarada	use o mesmo tipo do run.yaml do membro (horizon_days inteiro >= 1); veja models/<modelo>/run.yaml
 contract.cut_mismatch	contract	data_lag_days da linha de corte do dates.R diverge do descriptor do membro	o dates.R deve receber o data_lag_days do descriptor do plugin (descriptor$data_lag_days) do mesmo membro

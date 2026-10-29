@@ -50,25 +50,29 @@ prevcarga_train_inputs <- function(member, area, origin, ctx) {
                split = spec$split, train_origin = tc$train_origin, last_data_day = tc$last_data_day,
                data_lag_days = as.integer(row$data_lag_days))
 
+  ## Janela de treino = a que o plugin confere: origin_agnostic [train_origin - history_days.train, last_data_day]
+  ## (history_days.train + H + 1 - data_lag_days dias); origin_scoped history_days.train dias ate last_data_day.
   hist <- spec$history_days$train
-  span <- hist + as.integer(origin - cuts$last_data_day)
+  first_day <- if (identical(spec$split, "origin_agnostic")) cuts$train_origin - hist else
+    cuts$last_data_day - hist + 1L
+  need <- as.integer(cuts$last_data_day - first_day) + 1L
+  span <- as.integer(origin - first_day) + 1L
   p <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
   if (isTRUE(d$weather_forecast_in_train)) {
     fc <- prevcarga_read_weather(ctx, "forecast", area, origin - span, origin + spec$horizon_days)
     p$weather_forecast <- fc[issue_time <= cuts$weather_issue_limit]
   }
   day_of <- function(x) lubridate::as_date(x, tz = cuts$tz)
-  first_day <- cuts$last_data_day - hist
-  in_window <- function(x) day_of(x) <= cuts$last_data_day & day_of(x) > first_day
+  in_window <- function(x) day_of(x) <= cuts$last_data_day & day_of(x) >= first_day
   panel <- p
   panel$load <- p$load[in_window(p$load$interval_start)]
   obs <- p$weather_observed[in_window(p$weather_observed$timestamp)]
   data.table::setnames(obs, "timestamp", "valid_time")          # adaptador: o leitor entrega `timestamp`; o despachante exige `valid_time`
   panel$weather_observed <- obs
   have <- length(unique(day_of(panel$load$interval_start)))
-  if (have < hist)
+  if (have < need)
     prevcarga_abort("window.history_short", where = member$mdir,
-      details = list(available_days = have, required_days = hist, member = member$mdir))
+      details = list(available_days = have, required_days = need, member = member$mdir))
   if (spec$granularity_min == 60L) panel <- to_hourly(panel)
   list(plugin = plugin, spec = spec, cuts = cuts, panel = panel)
 }
