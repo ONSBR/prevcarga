@@ -409,8 +409,7 @@ prevcarga_reconcile_train <- function(ctx, origin, subsystems = "all", window_da
                  n_ratio = fit$n_ratio, load_label = conv$load_label, timezone = conv$tz,
                  data_hash = prevcarga_khat_data_hash(ratio),
                  code_commit = if (is.null(ctx$root)) "unknown" else prevcarga_code_commit(ctx$root),
-                 renv_lock_hash = if (is.null(renv)) "none" else renv,
-                 trained_at = format(lubridate::now("UTC"), "%Y-%m-%dT%H:%M:%SZ"))
+                 renv_lock_hash = if (is.null(renv)) "none" else renv)
     fz <- prevcarga_khat_freeze(fit, meta, ctx)
     list(versao = fz$version, path = fz$path, khat_origin = origin, n_ratio = fit$n_ratio,
          promovido = prevcarga_khat_advance_latest(ss, fz$version, origin, ctx),
@@ -451,7 +450,7 @@ prevcarga_khat_check_policy <- function(prof, ctx, origin, pinned = FALSE) {
   latest <- prevcarga_khat_resolve(ctx, ss, NULL)
   key <- prevcarga_khat_key(ss, ctx)
   ko <- function(v) tryCatch(lubridate::ymd(prevcarga_read_run_manifest(file.path(key, v))$khat_origin),
-                             error = function(e) as.Date(NA))
+                             error = function(e) lubridate::NA_Date_)
   if (identical(ko(latest), origin)) return(latest)
   vs <- sort(list.files(key, pattern = "^v_[0-9a-f]{16}$"), method = "radix")
   hit <- vs[vapply(vs, function(v) identical(ko(v), origin), NA)]
