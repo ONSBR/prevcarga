@@ -219,7 +219,7 @@ test_that("M4.2 - panel_hash estavel e sensivel ao conteudo", {
   root <- pc_cmb_root_7of8(members)
   p <- fn("prevcarga_build_panel")(fn("prevcarga_combina_discover")(root, "SECO", base_ctx), members)
   h <- fn("prevcarga_combina_panel_hash")(p)
-  expect_match(h, "^v_[0-9a-f]{16}$")
+  expect_match(h, "^[0-9a-f]{64}$")   # M4.3: sha256 pleno do canonicalizador do M1.3
   expect_identical(h, fn("prevcarga_combina_panel_hash")(data.table::copy(p)))
   q <- data.table::copy(p); q$f_RF[1] <- q$f_RF[1] + 1
   expect_false(identical(h, fn("prevcarga_combina_panel_hash")(with_attrs(q, p))))

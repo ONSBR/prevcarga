@@ -71,3 +71,27 @@
   Dependencia nova de carga: `combination.R` precisa de `features.R` so nesta funcao.
 - `prevcarga_combina_full`/`_apply` (M4.3) ainda nao existem: os testes compoem fit + produce + trim, o mesmo caminho.
 - Testes: `test-combination-lead.R` + `helper-combination-lead.R` (8 membros, curto ate O+1; FORBIDDEN cauda mascarada, CONTROL dd=9).
+
+## M4.3 -- freeze/apply content-addressed + saida LONG
+- `prevcarga_combina_full(panel, ctx, t_cut, ..., detail)`: fit + produce num passo, so do corte selecionado (celulas de cortes sao
+  independentes => mesmos pesos do train de todos os cortes: base do split-parity). Consome `panel$y_true` como recebido (nao junta verdade, nao le disco).
+- `prevcarga_combina_train(area, panel, artifact_dir, root, members, ..., trained_at)`: layout `<artifact_dir>/<area>/v_<16hex>/{weights.rds,
+  weights.rds.manifest.json}` + `<area>/latest.txt` (1 linha, tmp `.tmp-*` + `file.rename`, sem symlink; escrito POR ULTIMO). Staging unico `.tmp-*`
+  irmao do destino + `file.rename` (ADR-0030); orfaos sao do `registry gc` (M5). Re-treino identico = `reused = TRUE`, sem reescrever o `weights.rds` (so reaponta o latest).
+  Mesmo layout do prefixo `artifacts/combina/` do bucket (ADR-0039); so arquivos locais (bucket nao usado aqui). `root` e argumento (code_commit, renv.lock, topologia): sem env.
+- `version_hash` = `prevcarga_version_hash` do M1.3 (8 chaves): `model_id = "combination"`, `data_fingerprint` = `prevcarga_combina_panel_hash` (agora sha256 de 64 hex,
+  linhas ordenadas `(area, cut, lead, forecast_origin)`, `f_*` all-NA entram como null), `cutoff` = 1o dia do ultimo mes fitado, `feature_config` (area, n_min, iters,
+  grad_tol, cuts, `member_set_hash`, `delivery_days` por `membro@corte`, `members_by_lead`), `code_commit`, `renv_lock_hash`, `load_label`/`load_tz` efetivos da proveniencia.
+  `trained_at` fica fora do hash; `code_commit` com `-dirty` muda o hash (comportamento do M1.3).
+- Congela `list(meta, weights)` com `prevcarga_freeze` (M1.3); antes, `prevcarga_plugin_scan_pure` (P.0d) varre meta (sem a lateral `trained_at`, que o scan trata como relogio) e
+  weights. `weights`/`members_by_lead` vao como data.frame plano (a varredura recusa o ponteiro `.internal.selfref` do data.table). `meta` = `prevcarga_run_manifest` do M1.3
+  (`split = origin_scoped`, `seeds = list(combination = 0L)` sem RNG) + `area`, `version_hash`, `members_by_lead`; `model_versions` = lista nomeada vazia
+  (provisorio): o validador do run-manifest recusa lista vazia, entao entra um placeholder valido e o campo e trocado pela lista vazia logo apos. Nunca `cutoff` no manifest.
+- `prevcarga_combina_apply(area, artifact_dir, panel, ctx, t_cut, members)`: sem `latest.txt` => `state.combina_not_trained` (13); `prevcarga_thaw` confere o sha256 antes do
+  readRDS (versao ausente/byte alterado => integrity 9); outro `member_set_hash`/`load_label`/`load_tz` => `contract.combina_artifact_mismatch` (2). Nunca re-fita.
+- Selecao de corte `.prevcarga_cmb_select_cut`: '0900' e 'c0900' equivalem; NULL com >1 corte => `contract.combina_input` "corte ambiguo"; inexistente lista os disponiveis.
+- LONG: `.prevcarga_cmb_to_long` aplica `trim_output` (M4.2c) e escreve `target_datetime` por `prevcarga_long_target_datetime` (schema_long.R; a coluna `interval_start` NAO sai); nenhuma
+  aritmetica de hora na combina. `forecast_origin` character ISO, `lead/d_plus/granularity_min` integer. Validado por `prevcarga_schema_long_check` e `prevcarga_assert_long`.
+  Nota de acoplamento: M6.1 (`build_long_output.R`, em outro branch) deve reaproveitar o mesmo par de bordas; este writer fica local em `combination.R`.
+- `prevcarga_assert_long` (M3.1) coage `lead` double inteiro-valido; o CONTROL do teste checa a classe, e o de fuso (UTC) falha a asserção.
+- Testes: `test-combination-freeze.R` + `helper-combination-freeze.R` (AC 13-16 do epico; CONTROLs de split-parity, hash, bucket e `.tmp-*` orfao).
