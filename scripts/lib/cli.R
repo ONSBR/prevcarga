@@ -277,7 +277,8 @@ prevcarga_main <- function(argv, verbs = prevcarga_verbs_discover(), root, runti
     withCallingHandlers(
       .prevcarga_run_verb(hit, row, args, root, runtime, handlers, st),
       prevcarga_warning = function(w) {
-        warns[[length(warns) + 1L]] <<- list(id = w$id, message = prevcarga_error_lookup(w$id)$message)
+        warns[[length(warns) + 1L]] <<- c(list(id = w$id, message = prevcarga_error_lookup(w$id)$message),
+                                             if (!is.null(w$details$type)) list(type = w$details$type))
         invokeRestart("muffleWarning")
       })
   }
