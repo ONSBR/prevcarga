@@ -824,7 +824,7 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
 
 ## --- apply: aplica os pesos congelados, nunca re-fita --------------------------------------------------------
 prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL,
-                                    members = prevcarga_members(root = ctx$root)) {
+                                    members = prevcarga_members(root = ctx$root), detail = FALSE) {
   lp <- file.path(artifact_dir, area, "latest.txt")
   if (!file.exists(lp))
     prevcarga_abort("state.combina_not_trained", where = sprintf("%s em %s", area, artifact_dir))
@@ -839,5 +839,95 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
       !identical(obj$meta$load_tz, .prevcarga_cmb_prov1(panel, "load_tz", "apply")))
     prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))
   rows <- .prevcarga_cmb_select_cut(panel, t_cut)
-  .prevcarga_cmb_to_long(rows, prevcarga_produce_combined(rows, obj$weights), ctx)
+  long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_combined(rows, obj$weights), ctx)
+  if (!detail) return(long)
+  list(long = long, weights = obj$weights, members_by_lead = prevcarga_combina_members_by_lead(obj$weights),
+       version_hash = vh, path = file.path(artifact_dir, area, vh, "weights.rds"))
+}
+
+## =================================================================================================
+## M4.4 -- prevcarga_combina_gate: PROPRIEDADE (unico veredito) + QUALIDADE (so reportada)
+## =================================================================================================
+## Sem parametro de folga (ADR-0025). A dominancia da combina sobre EQW/melhor membro so e ASSERTADA nos fixtures
+## desenhados (testthat); no holdout real (estagio D do A/B, M8; backtest, M7) a tabela `quality` e so reportada.
+## Metrica so por prevcarga_scorecard (evaluation.R, M3.1): nenhuma conta de WMAPE aqui.
+
+## simplex em toda celula fitada; norma do gradiente projetado BRUTO nas fitadas-e-convergidas (treino reconstruido)
+.prevcarga_cmb_property <- function(rows, weights) {
+  .prevcarga_cmb_need(weights, c("lead", "cut", "ym", "a", "w", "fallback", "nonstationary"), "combina_gate")
+  fitted <- is.na(weights$fallback)
+  conv <- fitted & !(weights$nonstationary %in% TRUE)
+  simplex_ok <- all(vapply(weights$w[fitted], function(w) all(w >= -1e-9) && abs(sum(w) - 1) < 1e-9, NA))
+  dt <- data.table::as.data.table(rows)
+  norms <- numeric()
+  for (i in which(conv)) {
+    w   <- weights$w[[i]]
+    grp <- dt[dt$lead == weights$lead[i] & as.character(dt$cut) == weights$cut[i]]
+    X   <- as.matrix(as.data.frame(grp)[, names(w), drop = FALSE])
+    ok  <- prevcarga_combina_train_mask(grp, weights$ym[i]) & stats::complete.cases(X)
+    if (!any(ok)) next
+    norms <- c(norms, prevcarga_proj_grad_norm(X[ok, , drop = FALSE], grp$y_true[ok], w, weights$a[i]))
+  }
+  list(simplex_ok = simplex_ok, n_fitted = as.integer(length(which(fitted))),
+       n_fitted_converged = as.integer(length(which(conv))),
+       n_nonstationary = as.integer(length(which(weights$nonstationary %in% TRUE))),
+       max_grad_norm = max(c(0, norms)))
+}
+
+.prevcarga_cmb_quality_empty <- function() {
+  data.table::data.table(area = character(), d_plus = integer(), n = integer(), wmape_combina = numeric(),
+                         wmape_eqw = numeric(), wmape_best = numeric(), best_member = character(),
+                         le_best = logical(), le_eqw = logical())
+}
+
+## WMAPE por (area, d_plus) so no holdout fitado; combina, EQW e cada membro avaliados SO por prevcarga_scorecard,
+## nas MESMAS linhas; um membro concorre a melhor membro apenas onde e finito em todas as linhas do grupo.
+.prevcarga_cmb_quality_report <- function(rows, weights) {
+  dt <- data.table::as.data.table(rows)
+  .prevcarga_cmb_need(dt, c("area", "d_plus", "interval_start", "lead", "cut", "ym", "y_true"), "combina_gate:quality")
+  fcols <- .prevcarga_cmb_fcols(dt, "combina_gate:quality")
+  fk   <- paste(weights$lead, weights$cut, weights$ym, sep = "\r")[is.na(weights$fallback)]
+  hold <- paste(dt$lead, dt$cut, dt$ym, sep = "\r") %in% fk & is.finite(dt$y_true)
+  dt <- dt[hold]
+  if (!nrow(dt)) return(.prevcarga_cmb_quality_empty())
+  yc  <- prevcarga_produce_combined(dt, weights)
+  eqw <- prevcarga_produce_eqw(dt)
+  common <- is.finite(yc) & is.finite(eqw)
+  base <- data.frame(area = as.character(dt$area), d_plus = as.integer(dt$d_plus),
+                     interval_start = dt$interval_start, y_true = dt$y_true, stringsAsFactors = FALSE)
+  by <- c("area", "d_plus")
+  score <- function(pred, keep) {
+    sc <- prevcarga_scorecard(cbind(base[keep, , drop = FALSE], y_pred = pred[keep]), by = by)
+    sc$key <- paste(sc$area, sc$d_plus, sep = "\r")
+    sc
+  }
+  sc_c <- score(yc, common)
+  if (!nrow(sc_c)) return(.prevcarga_cmb_quality_empty())
+  sc_e <- score(eqw, common)
+  best <- rep(NA_real_, nrow(sc_c))
+  who  <- rep(NA_character_, nrow(sc_c))
+  for (f in fcols) {
+    sc_m <- score(dt[[f]], common & is.finite(dt[[f]]))
+    i <- match(sc_c$key, sc_m$key)
+    ok <- !is.na(i) & sc_m$n[i] == sc_c$n
+    cand <- ifelse(ok, sc_m$wmape[i], NA_real_)
+    better <- !is.na(cand) & (is.na(best) | cand < best)
+    best[better] <- cand[better]
+    who[better]  <- sub("^f_", "", f)
+  }
+  out <- data.table::data.table(
+    area = sc_c$area, d_plus = as.integer(sc_c$d_plus), n = as.integer(sc_c$n), wmape_combina = sc_c$wmape,
+    wmape_eqw = sc_e$wmape[match(sc_c$key, sc_e$key)], wmape_best = best, best_member = who)
+  out[, le_best := wmape_combina <= wmape_best]
+  out[, le_eqw := wmape_combina <= wmape_eqw]
+  data.table::setorderv(out, c("area", "d_plus"))
+  out[]
+}
+
+prevcarga_combina_gate <- function(panel, ctx = NULL, t_cut = NULL, n_min = 24L, weights = NULL) {
+  rows <- .prevcarga_cmb_select_cut(panel, t_cut)
+  if (is.null(weights)) weights <- suppressWarnings(prevcarga_combina_fit(rows, n_min = n_min))
+  prop <- .prevcarga_cmb_property(rows, weights)
+  qual <- .prevcarga_cmb_quality_report(rows, weights)
+  list(property = prop, quality = qual, pass = prop$simplex_ok && prop$max_grad_norm < 1e-6)
 }

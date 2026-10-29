@@ -96,3 +96,21 @@
 - `prevcarga_assert_long` (M3.1) coage `lead` double inteiro-valido; o CONTROL do teste checa a classe, e o de fuso (UTC) falha a asserção.
 - Testes: `test-combination-freeze.R` + `helper-combination-freeze.R` (AC 13-16 do epico; CONTROLs de split-parity, hash, bucket e `.tmp-*` orfao).
 - Follow-ups abertos (decisao do Gabriel; M4.3 fecha com o contorno atual): (1) relax-manifest (M1.3): `prevcarga_run_manifest` deve aceitar `model_versions` como lista nomeada vazia; ao chegar, remover o placeholder `v_0000000000000000` + sobrescrita em `prevcarga_combina_train`; (2) strict-long (M3.1): `prevcarga_assert_long` deve rejeitar `lead/d_plus/granularity_min` nao-integer em vez de coagir; ao chegar, o CONTROL de `lead` double do teste ac-4 passa a ser `expect_error(prevcarga_assert_long(...))`.
+
+## M4.4 -- verbo `combine` + `prevcarga_combina_gate`
+- `scripts/lib/cli/combine.R` (auto-descoberto por `cli.R`; `scripts/prevcarga`, `cli.R` e `test-facade.R` intocados): `prevcarga_verb_combine`
+  (owner M4, nao isento do runtime-first) + `cmd_combine(ctx, args)` fino. A fachada atual embrulha o envelope (`prevcarga_emit`): o handler devolve o `result`
+  (JSON) ou as linhas ASCII de `.render_combine_text` (text). `prevcarga_build_combine` valida na ordem: `--mode` (`config.bad_mode`, antes de IO) -> area
+  (`topology.area_undeclared`, exit 4, so topologia) -> `--out` em apply/full e `dirname(--out)` (`config.usage`) -> `--data` (`config.data_dir_missing`).
+  `artifact_dir` default `<state_dir>/artifacts/combina`; LONG gravado por `.prevcarga_write_parquet_atomic` (tmp irmao + `file.rename`).
+- `--origin` (unico flag de data) restringe so a SAIDA do apply/full (o fit do full usa o painel inteiro => full == train+apply); origem sem linha = `config.usage`.
+  `--cut` seleciona o corte (em train recorta o painel). `--area` ja e declarada em `validate-deck` no bloco Options; o verbo nao a repete (duplicata deixa o docopt ambiguo).
+- Avisos de celula nao-estacionaria (`warning()` do `prevcarga_fit_convex`) sao capturados e emitidos UMA vez como `warning.combina_nonstationary`
+  (`scripts/lib/errors/combine.tsv`; stderr em text, campo `warnings` em json).
+- `prevcarga_combina_apply(..., detail = TRUE)` devolve `list(long, weights, members_by_lead, version_hash, path)` (default inalterado).
+- `prevcarga_combina_gate(panel, ctx = NULL, t_cut, n_min, weights)` (sem `eps`, ADR-0025): `pass` = simplex em toda celula fitada E `max_grad_norm < 1e-6`
+  (`prevcarga_proj_grad_norm` bruto, so fitadas-e-convergidas, treino reconstruido por `train_mask`). `quality` por `(area, d_plus)` so REPORTADA, via
+  `prevcarga_scorecard` (combina, EQW, cada membro `f_<s>` so onde finito em todo o grupo); `le_best`/`le_eqw` informativos, sem folga e sem gate de
+  dominancia (so assertada nos fixtures desenhados; M8 estagio D / M7 so reportam).
+- Testes: `test-combine.R` + `helper-combination-cli.R` (fixture de 8 membros alinhados x 3 meses, `prevcarga_main` in-process com runtime real; espiao de
+  `prevcarga_combina_load` por env intermediario). Os modulos do verbo sao carregados no globalenv pelo helper, como o dispatch faz.
