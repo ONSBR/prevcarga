@@ -1,5 +1,5 @@
 name: lgbm
-split: origin_agnostic
+split: origin_agnostic            # ADR-0023: train_origin = O-1-H
 granularity_min: 30
 horizon_days: 1
 history_days: {train: 730, infer: 45}
@@ -7,4 +7,11 @@ seed: 123
 modes: [train, infer]
 backtest: {protocol_default: daily}
 constraints: {}
-params: {disable_loess: true, calendar_yearend: true, train_cv: true}
+params:
+  disable_loess: true             # ex-LGBM_DISABLE_LOESS do oraculo (job.json)
+  calendar_yearend: true          # ex-LGBM_CALENDAR_YEAREND do oraculo (job.json)
+  train_cv: true                  # ex-LGBM_TRAIN_CV do oraculo (job.json)
+  tipodia_legacy: false           # ex-LGBM_TIPODIA_LEGACY do oraculo (nao definido)
+  cutoff_scheme: v2_old           # ex-LGBM_CUTOFF_SCHEME do oraculo; {v2_old, legacy_month, rolling}
+  sazonalidade_scope: train       # ex-LGBM_SAZONALIDADE_SCOPE do oraculo; full_window vaza, nao portado
+  prevespera_1230: false          # ex-LGBM_1230_PREVESPERA do oraculo (nao definido)
