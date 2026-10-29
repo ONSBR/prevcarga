@@ -159,3 +159,107 @@ test_that("[CONTROL] minutes30 casa as formas de +-30 min e poupa passo de grade
 test_that("[CONTROL] a lista de chaves proibidas do loader nao e vazia e inclui cut_invariant", {
   expect_true("cut_invariant" %in% run_forbidden)
 })
+
+## ==== GREP_GATES_M3 (M3.V): fonte unica de metrica, honesty-gate e evaluation.R sem relogio/env/alias ======================
+## Modos: zero (nenhum casamento), exactly1 (exatamente 1 ocorrencia no conjunto), atleast1. Contagem em ocorrencias
+## por linha sem comentario. Cada gate tem isca CONTROL em tempfile() que casa o padrao pelo MESMO predicado.
+pc_count <- function(pattern, files, fixed = FALSE, base = root, strip = TRUE) {
+  sum(vapply(files, function(f) {
+    p <- if (isAbsolutePath(f)) f else file.path(base, f)
+    ln <- readLines(p, warn = FALSE, encoding = "UTF-8")
+    if (strip) ln <- pc_strip_comment(ln)
+    m <- gregexpr(pattern, ln, fixed = fixed, perl = !fixed)
+    sum(vapply(m, function(x) sum(x > 0L), 0L))
+  }, 0L))
+}
+pc_gate_ok <- function(mode, n) switch(mode, zero = n == 0L, exactly1 = n == 1L, atleast1 = n >= 1L, stop("modo"))
+
+eval_r <- "scripts/lib/evaluation.R"; hg_r <- "scripts/lib/honesty_gate.R"
+grep_gates_m3 <- list(
+  list(id = "m3_single_wmape", pattern = "prevcarga_wmape <- function", fixed = TRUE,
+       files = pc_code_files("r_code"), mode = "exactly1", bait = "prevcarga_wmape <- function(a, b) 0"),
+  list(id = "m3_sum_abs_only_eval", pattern = "sum(abs(", fixed = TRUE,
+       files = setdiff(pc_code_files("r_code"), eval_r), mode = "zero", bait = "x <- sum(abs(1))"),
+  ## fix/topology-ids-hour (d8086da): o rotulo de hora e convertido 1x na entrada e 1x na saida, nas bordas
+  ## (deck_reader.R / schema_long.R / features.R); evaluation.R e honesty_gate.R nao fazem aritmetica de 30 min.
+  ## (o plano do M3.V previa exactly1 em evaluation.R; a regra vigente e ZERO fora das bordas.)
+  list(id = "m3_no_minutes30", pattern = "minutes\\(\\s*30L?\\s*\\)|[-+]\\s*1800(?![0-9])", fixed = FALSE,
+       files = c(eval_r, hg_r), mode = "zero", bait = "a <- s + lubridate::minutes(30)"),
+  list(id = "m3_no_clock_env",
+       pattern = "Sys\\.(getenv|time|Date)|as\\.POSIXct|strptime|as\\.Date\\(|system2|callr|processx|read_yaml",
+       files = c(eval_r, hg_r), mode = "zero", bait = "t <- Sys.time()"),
+  list(id = "m3_no_alias_cols", pattern = "carga_mwmed|val_cargacons|ts_r30",
+       files = c(eval_r, hg_r), mode = "zero", bait = "x$ts_r30"),
+  list(id = "m3_no_khat_range_literal", pattern = "(?<![0-9.])1\\.15(?![0-9])",
+       files = Sys.glob(file.path(root, "scripts", "lib", "*.R")), mode = "zero", bait = "k <- c(1.00, 1.15)"))
+
+for (g in grep_gates_m3) local({
+  g <- g
+  files <- if (all(isAbsolutePath(g$files))) sub(paste0("^", root, "/"), "", g$files) else g$files
+  test_that(paste("[FORBIDDEN]", g$id), {
+    expect_gt(length(files), 0L)
+    expect_true(all(file.exists(file.path(root, files))))
+    n <- pc_count(g$pattern, files, fixed = isTRUE(g$fixed))
+    expect_true(pc_gate_ok(g$mode, n), info = sprintf("%s: %d ocorrencia(s) em %s", g$id, n, paste(files, collapse = ",")))
+  })
+  test_that(paste("[CONTROL]", g$id), {
+    b <- write_bait(g$bait)
+    n <- pc_count(g$pattern, b, fixed = isTRUE(g$fixed))
+    expect_gte(n, 1L)                                                  # a isca casa o padrao
+    if (g$mode == "zero") expect_false(pc_gate_ok(g$mode, n))            # e reprova o gate de contagem zero
+    if (g$mode == "exactly1" && g$id == "m3_single_wmape")               # 2a definicao: a contagem vira 2 e reprova
+      expect_false(pc_gate_ok("exactly1", pc_count(g$pattern, c(files, b), fixed = TRUE)))
+    if (g$id == "m3_no_minutes30") {                                     # a isca casa as formas de +-30 min
+      for (code in c("e <- s + minutes(30L)", "s <- e - 1800")) expect_gte(pc_count(g$pattern, write_bait(code)), 1L)
+    }
+  })
+})
+
+## ---- prova de consumo por AST: a metrica e o corte so existem em um lugar ------------------------------------------
+test_that("consumo por AST: score -> scorecard -> wmape; skill/peak -> wmape; baseline -> read_actual; verbos -> modulos", {
+  e <- pc_source_lib(c("errors", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
+                       "evaluation"))
+  for (v in c("score", "check-coherence")) sys.source(file.path(root, "scripts", "lib", "cli", paste0(v, ".R")), envir = e)
+  calls <- function(f, what) what %in% all.names(body(f))
+  reaches <- function(f, what, seen = character()) {                    # fecho transitivo por funcoes do ambiente
+    nm <- all.names(body(f))
+    if (what %in% nm) return(TRUE)
+    for (n in setdiff(unique(nm), seen)) {
+      g <- get0(n, envir = e, mode = "function", inherits = FALSE)
+      if (!is.null(g) && reaches(g, what, c(seen, n))) return(TRUE)
+    }
+    FALSE
+  }
+  expect_true(calls(e$prevcarga_score, "prevcarga_scorecard"))
+  for (f in c("prevcarga_scorecard", "prevcarga_skill_score", "prevcarga_peak_wmape"))
+    expect_true(calls(e[[f]], "prevcarga_wmape"), info = f)
+  expect_true(calls(e$prevcarga_baseline, "prevcarga_read_actual"))
+  expect_true(calls(e$cmd_score, "prevcarga_score"))
+  expect_true(calls(e$cmd_check_coherence, "prevcarga_check_coherence"))
+  expect_true(reaches(e$cmd_check_coherence, "prevcarga_topology"))     # via .prevcarga_score_topo (topologia como dado)
+  ## CONTROL: uma funcao-isca com WMAPE inline nao chama prevcarga_wmape e e reprovada pelo mesmo predicado
+  iscas <- function(y, p) mean(abs(y - p)) / mean(abs(y))
+  expect_false(calls(iscas, "prevcarga_wmape"))
+  expect_false(reaches(iscas, "prevcarga_wmape"))
+})
+
+## ---- gate de docs m3_docs_live (modo atleast1): o fechamento do M3 declara evaluation.R e honesty_gate.R VIVOS -------
+m3_doc <- "docs/estado/m3-avaliacao.md"
+m3_docs_live <- list(list(id = "m3_docs_live_evaluation", pattern = "evaluation\\.R"),
+                     list(id = "m3_docs_live_honesty_gate", pattern = "honesty_gate\\.R"))
+live_ok <- function(pattern, file) pc_gate_ok("atleast1", pc_count(pattern, file, strip = FALSE)) &&
+  any(grepl(paste0("(?i)", pattern, "[^\\n]*VIVO|VIVO[^\\n]*", pattern), readLines(
+    if (isAbsolutePath(file)) file else file.path(root, file), warn = FALSE), perl = TRUE))
+for (g in m3_docs_live) local({
+  g <- g
+  test_that(paste("[FORBIDDEN]", g$id), {
+    expect_true(file.exists(file.path(root, m3_doc)))
+    expect_true(live_ok(g$pattern, m3_doc))
+  })
+  test_that(paste("[CONTROL]", g$id), {                                # copia sem a citacao reprova
+    src <- readLines(file.path(root, m3_doc), warn = FALSE)
+    cp <- tempfile("m3doc-", fileext = ".md")
+    writeLines(src[!grepl(g$pattern, src, perl = TRUE)], cp)
+    expect_false(live_ok(g$pattern, cp))
+  })
+})
