@@ -164,7 +164,10 @@ lgbm_build_features <- function(frame, spec, cuts, consts = plugin_constants()) 
   if (is.null(keep_rng)) lgbm_abort("lgbm.contract", "prevcarga_preserve_rng indisponivel (fundacao)")
   keep_rng({
     if (!is.null(spec$seed)) set.seed(spec$seed)
-    .lgbm_build_features(frame, params, cuts, consts)
+    res <- .lgbm_build_features(frame, params, cuts, consts)
+    ## INTERIM (F1 adiado, decisao do Gabriel): o treino recebe (features, params, seed); os cortes seguem em attr
+    attr(res, "cuts") <- cuts[c("last_data_day", "train_origin")]
+    res
   })
 }
 
