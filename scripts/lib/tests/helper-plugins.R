@@ -298,3 +298,50 @@ pc_panel_with <- function(panel, what = c("day_O", "end_0930", "late_issue", "no
     timestamp = { ld[, timestamp := interval_end]; out$load <- ld })
   out
 }
+
+## --- Oraculo-brinquedo do gerador de golden (P.0f) -------------------------------------------------------------------
+## Repo git em tempdir com 1 commit (user.* local ao repo); devolve o caminho.
+pc_fake_oracle <- function() {
+  d <- tempfile("fake-oracle-"); dir.create(d)
+  git <- function(...) system2("git", c("-C", shQuote(d), ...), stdout = FALSE, stderr = FALSE)
+  git("init", "-q")
+  git("config", "user.email", "t@example.org"); git("config", "user.name", "t")
+  writeLines("toy oracle", file.path(d, "README.txt"))
+  git("add", "README.txt"); git("commit", "-q", "-m", "init")
+  normalizePath(d, winslash = "/")
+}
+
+## Escreve `<root>/<model>/tests/parity/oracle_driver.R` (contrato --oracle --unit --out [--available-until]).
+## ok: ecoa os argumentos (sem --out/--unit) e as variaveis de ambiente do filho num native.rds deterministico;
+## nondet: o valor depende de Sys.time(); writes_oracle: escreve um arquivo dentro do oraculo; fails: sai com status 1.
+pc_toy_driver <- function(root, model, kind = c("ok", "nondet", "writes_oracle", "fails")) {
+  kind <- match.arg(kind)
+  d <- file.path(root, model, "tests", "parity"); dir.create(d, recursive = TRUE, showWarnings = FALSE)
+  writeLines(c(
+    "a <- commandArgs(trailingOnly = TRUE)",
+    "k <- a[seq(1L, length(a), by = 2L)]; v <- a[seq(2L, length(a), by = 2L)]",
+    "args <- as.list(stats::setNames(v, k)); out <- args[['--out']]",
+    "args <- args[setdiff(names(args), c('--out', '--unit'))]",
+    "nm <- c('TZ', 'LC_ALL', 'OMP_NUM_THREADS', 'LGBM_TRAIN_CV', 'EXOGENA')",
+    "env <- as.list(Sys.getenv(nm, unset = NA))",
+    switch(kind,
+      ok = NULL,
+      nondet = "args$stamp <- as.numeric(Sys.time())",
+      writes_oracle = "writeLines('x', file.path(args[['--oracle']], 'touched.txt'))",
+      fails = c("message('boom-tail-marker'); quit(status = 1L)")),
+    "saveRDS(list(args = args, env = env), file.path(out, 'native.rds'))",
+    "arrow::write_parquet(data.frame(a = 1:3, y = c(0.5, 1, 1.5)), file.path(out, 'long.parquet'))"),
+    file.path(d, "oracle_driver.R"))
+  d
+}
+
+## units.yaml de 2 unidades: a 2a com oracle_env e oracle_cut start_label (available_until 09:00).
+pc_units_two <- function(root, model = "toy-30", extra = NULL) {
+  f <- file.path(root, model, "tests", "parity", "units.yaml"); dir.create(dirname(f), recursive = TRUE, showWarnings = FALSE)
+  writeLines(c("units:",
+    "  - {id: u1, area: SE, origin: 2026-10-01, available_until: 2026-10-01T09:00, weather_issue_cutoff: available_until, day0_source: native}",
+    "  - id: u2", "    area: SECO", "    origin: 2026-10-01", "    available_until: 2026-10-01T09:00",
+    "    weather_issue_cutoff: origin_midnight_utc", "    day0_source: oracle_origin_minus_1",
+    "    oracle_env: {LGBM_TRAIN_CV: \"0\"}", "    oracle_cut: start_label", extra), f)
+  f
+}
