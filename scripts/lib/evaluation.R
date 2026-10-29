@@ -228,3 +228,73 @@ prevcarga_scorecard <- function(long, by = c("d_plus", "area"), baseline_long = 
   })
   do.call(rbind, c(unname(rows), list(make.row.names = FALSE)))
 }
+
+## --- Score (review D+1; M3.3) --------------------------------------------------------------------------
+## Orquestra o verbo `score`: escopo de areas (topologia), re-join UNIFORME da verdade fresca por igualdade
+## exata target_datetime == interval_end, fan-out do baseline e scorecard pelo motor unico. Nenhuma
+## formatacao aqui (render e do verbo). Requer topology.R, deck_reader.R, provenance.R carregados.
+.prevcarga_score_topo <- function(ctx) {
+  if (!is.null(ctx$topology_path)) prevcarga_topology(path = ctx$topology_path, root = ctx$root)
+  else prevcarga_topology(root = ctx$root)
+}
+
+## Areas pontuaveis = folhas + subsistemas (sem nos de perda). NULL/"SIN" = todas as presentes no LONG, na
+## ordem da topologia; fora da topologia => topology.area_unknown (antes de qualquer leitura do deck).
+.prevcarga_score_areas <- function(long, area, topo) {
+  scorable <- unique(c(topo$order, topo$leaves))
+  if (is.null(area) || identical(area, "SIN")) return(scorable[scorable %in% long$area])
+  if (!(is.character(area) && length(area) == 1L && area %in% scorable))
+    prevcarga_abort("topology.area_unknown", where = "--area")
+  area
+}
+
+## y_true embutido nunca sobrevive: NA e re-junto por igualdade exata com interval_end (mesmo tzone).
+.prevcarga_rejoin_fresh <- function(long, ctx, areas) {
+  long <- long[long$area %in% areas, , drop = FALSE]
+  long$y_true <- rep(NA_real_, nrow(long))
+  for (a in unique(long$area)) {
+    i <- which(long$area == a)
+    act <- prevcarga_read_actual(ctx, a, from = min(long$target_datetime[i]) - lubridate::days(1),
+                                 to = max(long$target_datetime[i]))
+    long$y_true[i] <- act$y_true[match(long$target_datetime[i], act$interval_end)]
+  }
+  rownames(long) <- NULL
+  long
+}
+
+prevcarga_score <- function(long, ctx, area = NULL, baseline_kind = NULL, origin = NULL) {
+  if (!is.null(baseline_kind) && !(is.character(baseline_kind) && length(baseline_kind) == 1L &&
+                                   baseline_kind %in% c("persistence", "seasonal_naive")))
+    prevcarga_abort("contract.baseline_kind", where = "--baseline", details = list(kind = baseline_kind))
+  areas <- .prevcarga_score_areas(long, area, .prevcarga_score_topo(ctx))
+  if (!is.null(origin)) long <- long[long$forecast_origin == as.character(origin), , drop = FALSE]
+  fresh <- .prevcarga_rejoin_fresh(long, ctx, areas)
+  base <- NULL
+  if (!is.null(baseline_kind) && nrow(fresh)) {
+    parts <- list()
+    for (a in unique(fresh$area)) for (o in unique(fresh$forecast_origin[fresh$area == a]))
+      parts[[length(parts) + 1L]] <- prevcarga_baseline(ctx, a, o, baseline_kind, fresh)
+    base <- do.call(rbind, parts)
+  }
+  sc <- prevcarga_scorecard(fresh, by = c("area", "d_plus"), baseline_long = base)
+  origins <- sort(unique(fresh$forecast_origin))
+  tz <- .prevcarga_eval_tz(ctx)
+  au <- if (length(origins)) {
+    o <- lubridate::ymd(origins[[length(origins)]])
+    ## sem nada a pontuar, deck sem carga na origem nao e erro: o aviso nothing_to_score ja diz o que houve
+    tryCatch(attr(prevcarga_read_load(ctx, origin = o, from = o, to = o), "available_until"),
+             prevcarga_error = function(e) {
+               if (!nrow(sc) && identical(e$id, "completude.no_load")) lubridate::ymd_hms(character(), tz = tz) else stop(e)
+             })
+  } else lubridate::ymd_hms(character(), tz = tz)
+  man <- prevcarga_deck_manifest(ctx$data_dir)
+  list(scorecard = sc,
+       headline = list(d_plus = 1L, rows = sc[sc$d_plus == 1L, , drop = FALSE]),
+       origins = lubridate::ymd(origins),
+       available_until = au,
+       data_hash = prevcarga_data_hash(ctx$data_dir, man, prevcarga_resolve_load_label(ctx, man)$value),
+       baseline = if (is.null(baseline_kind)) NULL else list(kind = baseline_kind),
+       long = fresh, baseline_long = base,
+       warnings = if (nrow(sc)) list() else
+         list(list(type = "nothing_to_score", message = "nenhum intervalo com previsao e carga realizada")))
+}

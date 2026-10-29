@@ -1,0 +1,2 @@
+id	class	message	hint
+warning.nothing_to_score	completude	nenhum intervalo do LONG tem carga realizada no deck (aviso)	confira se as origens e os d_plus do LONG ja tem carga realizada no deck; nada foi pontuado
