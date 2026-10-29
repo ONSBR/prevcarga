@@ -121,8 +121,32 @@ Mudancas deliberadas em relacao ao vendor (so estas): `getConfig`/`getConfigMode
 que o loader grava) em vez de `system.file`; `getConfigModel` aborta com `engine.dessem_unknown_model_key`
 (catalogo `scripts/lib/errors/dessem_engine.tsv`, via `engine_abort`) para chave inexistente em vez de devolver NULL;
 `fromJSON` qualificado como `jsonlite::fromJSON`; as mensagens de progresso de `exec_modelos.R` perdem o carimbo
-`Sys.time()` (so log). As datas ainda usam a forma do oraculo (`%m+% hours()`, `%m-% minutes(30)`): a reescrita
-e o DL.3. `obterEntradaFormulaDM` e a versao ORIGINAL do vendor (sem o termo `mm`).
+`Sys.time()` (so log). As datas foram reescritas no DL.3 (secao abaixo). `obterEntradaFormulaDM` e a versao ORIGINAL do vendor (sem o termo `mm`).
+
+## Datas (DL.3): construcao do oraculo -> forma lubridate / removido
+
+O motor nao faz aritmetica de hora (ADR-0012/0019): o despachante da fundacao aplica `to_model_frame` na carga
+na entrada e `to_display_frame` na saida pelo `model_time_offset_min` do descriptor (DESSEM 60); o carimbo de
+30 min do `interval_end` e do `to_semihourly`. O motor nao chama `to_model_frame`/`to_display_frame`. Datas so
+por lubridate com tz explicito; `TransformaDeck(..., tz)` aborta `engine.dessem_tz_mismatch` se o `tzone` de
+`DataHora` de CARGAHIST/EXOGENAHIST/EXOGENAPREV diferir de `tz` (`cuts$tz`).
+
+| oraculo (arquivo:linha) | forma no motor |
+|---|---|
+| pkgfun_dadosEntrada.R:14 `as.Date(dataInicioPrev)` | `.as_day(dataInicioPrev)` (`ymd` / `as_date`) |
+| pkgfun_dadosEntrada.R:25, 46, 64, 74 `as.Date(format(DataHora,'%F'))` | `as_date(DataHora)` (usa o `tzone` da carga) |
+| pkgfun_dadosEntrada.R:45 `DataHora %m-% hours(1)` | REMOVIDO: deslocamento no despachante via `model_time_offset_min` |
+| pkgfun_dadosEntrada.R:87 `as.POSIXct(format(Data,'%F 12:00:00'),'America/Sao_Paulo')` | `.hvz_flag(Data)` = `make_datetime(..., 12L, tz = .engine_hv_tz())` |
+| pkgfun_funcoesApoio.R:55 `as.Date(format(DataHora %m-% hours(lagh),'%F'))` | `as_date(DataHora %m-% hours(lagh))` (lag de feature) |
+| pkgfun_funcoesApoio.R:256, 269, 287, 311 `as.Date(dataPrev)` | `.as_day(dataPrev)` |
+| pkgfun_funcoesApoio.R:391 `DataHora %m+% hours()` | REMOVIDO: `to_display_frame` do despachante |
+| pkgfun_funcoesApoio.R:405 `DataHora %m-% minutes(30)` | REMOVIDO: carimbo de meia hora no `to_semihourly` |
+| pkgfun_execModelos.R mensagens com `Sys.time()` | `message(paste(nomModelo, "- etapa", dataPrev))`, ASCII, sem relogio |
+
+Excecao versionada: o lag de feature (`hours(lagh)` em `obtemLagHora`; `minutes(lagsh * 30)` em
+`obtemLagSemiHora`) e periodo variavel vindo do config, nao deslocamento de frame.
+`desagregaModeloSH` devolve 2 linhas por ancora horaria na ordem de `Passo` (impar = meia hora anterior a
+ancora, par = a ancora), ambas com o `DataHora` da ancora no frame de modelagem.
 
 ## Fato verificado: vendor linear == vendor regdin
 

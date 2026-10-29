@@ -37,15 +37,14 @@ dt_panel <- function(...) {
   pan
 }
 
-## perturbacao em O-2: enquanto o DL.3 nao remove o `%m-% hours(1)` do motor, o dia O-1 (23 horas uteis) ainda nao entra
-## na serie diaria; com o DL.3 trocar por O-1 (o CONTROL do ticket).
+## perturbacao em O-1 (CONTROL do ticket): sem o `-1h` do motor (DL.3) o dia O-1 inteiro entra na serie diaria.
 dt_train <- function(p, au_hour = 9L, perturb_prev = FALSE, exogena = "MED", panel = NULL) {
   O <- lubridate::ymd("2024-12-23")
   au <- lubridate::force_tz(lubridate::as_datetime(O), DL_TZ) + lubridate::hours(au_hour)
   cuts <- dl_cuts(available_until = au)
   pan <- if (is.null(panel)) dt_panel() else panel
   if (perturb_prev) {
-    k <- which(lubridate::as_date(pan$load$interval_start) == O - 2L & lubridate::hour(pan$load$interval_start) == 15L)
+    k <- which(lubridate::as_date(pan$load$interval_start) == O - 1L & lubridate::hour(pan$load$interval_start) == 15L)
     pan$load[k, load_mwh := load_mwh + 400]
   }
   dl_with_cli(suppressMessages(dl_lib$prevcarga_plugin_train(p, dl_lib$to_hourly(pan), cuts, dl_spec(exogena, DT_DAYS),
@@ -101,7 +100,7 @@ test_that("ac-3 ordem do oraculo: 9 x (1 DM + 24 perfis) = 225 ajustes; DM(O) co
   expect_false(identical(spy$log$seed0[[1L]], lg$seed0[[2L]]))
 })
 
-test_that("ac-2 sha256 invariante ao corte (09:00 x 12:00); FORBIDDEN dia O; CONTROL perturbar O-2 (O-1 apos o DL.3) muda", {
+test_that("ac-2 sha256 invariante ao corte (09:00 x 12:00); FORBIDDEN dia O; CONTROL perturbar O-1 muda", {
   st <- dt_state(); p <- st$p
   a12 <- dt_train(p, 12L)
   expect_identical(dt_sha(a12), dt_sha(st$a09))
