@@ -435,6 +435,33 @@ prevcarga_plugin_load <- function(model, root) {
   p
 }
 
+## --- Verificacao wire-time da assinatura canonica (M5.1) ----------------------------------------------
+## Reconfere, sobre o plugin que o loader registrou, a existencia e os formals de cada etapa, de freeze e de thaw
+## contra `prevcarga_plugin_signatures` (fonte unica da forma canonica). Acumula TODAS as lacunas e aborta uma vez
+## com `contract.plugin_signature` nomeando plugin e etapa(s); e a 1a acao de train-models/infer-model, antes de
+## qualquer treino. Sem memoizacao: a conferencia e barata e uma copia adulterada do plugin nunca herda um aceite.
+prevcarga_plugin_check_signature <- function(plugin) {
+  d <- plugin$descriptor
+  fns <- c(lapply(d$stages, function(s) s$fn), d[c("freeze", "thaw")])
+  etapas <- unique(c(prevcarga_plugin_stages, names(d$stages), "freeze", "thaw"))
+  gaps <- character()
+  for (etapa in etapas) {
+    fn <- fns[[etapa]]
+    if (!is.function(fn)) { gaps <- c(gaps, sprintf("%s: ausente", etapa)); next }
+    got <- names(formals(fn))
+    if (is.null(got)) got <- character()
+    if (etapa %in% c("inference_features", "inference", "forecast") && "params" %in% got)
+      gaps <- c(gaps, sprintf("%s: formal params proibido (tudo vem do artefato)", etapa))
+    else if (!identical(got, prevcarga_plugin_signatures[[etapa]]))
+      gaps <- c(gaps, sprintf("%s: formals (%s)", etapa, paste(got, collapse = ", ")))
+  }
+  if (length(gaps)) {
+    prevcarga_abort("contract.plugin_signature", where = paste(sub(":.*$", "", gaps), collapse = ","),
+                    details = list(plugin = d$model_id, gaps = gaps))
+  }
+  invisible(TRUE)
+}
+
 prevcarga_plugin_env <- function(model, root) prevcarga_plugin_load(model, root)$env
 prevcarga_plugin_descriptor <- function(model, root) prevcarga_plugin_load(model, root)$descriptor
 prevcarga_plugin_unload_all <- function() {

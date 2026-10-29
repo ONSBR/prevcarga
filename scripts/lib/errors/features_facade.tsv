@@ -1,0 +1,4 @@
+id	class	message	hint
+contract.plugin_signature	contract	plugin fora da assinatura canonica de etapa	corrija em details$gaps as etapas listadas (formals do blueprint de plugin); nenhum treino foi iniciado
+contract.column_missing	contract	coluna exigida pela etapa ausente do frame	confira em details$missing as colunas que o requires do descriptor declara e o frame real nao tem
+contract.artifact_required	contract	etapa de inferencia chamada sem artefato	passe o artefato treinado (artifact) ao stage infer

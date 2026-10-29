@@ -151,3 +151,39 @@ prevcarga_delivery_grid <- function(cuts, delivery_days) {
   end <- lubridate::force_tz(lubridate::as_datetime(origin + delivery_days), cuts$tz)
   seq(au, end, by = "30 min")[-1L]
 }
+
+## --- Fachada de feature engineering (M5.1) --------------------------------------------------------------
+## Despacho puro: a etapa vem do `stage` (tabela fixa) e o `requires` do descriptor; zero calculo de feature,
+## zero decisao por nome de modelo (ADR-0001/ADR-0009). O frame chega como o despachante o entrega ao plugin.
+prevcarga_fe_stage <- c(train = "feature_engineering", infer = "inference_features")
+
+## Segunda camada do ADR-0010 (a 1a e o registro wire-time): tokens SEM prefixo qualificado (`data.*`, `frame.*`,
+## `artifact.*`, ...) de `requires` sao colunas do frame e devem existir nele; lista TODAS as faltantes.
+prevcarga_assert_stage_requires <- function(plugin, etapa, frame) {
+  req <- plugin$descriptor$stages[[etapa]]$requires
+  cols <- req[!grepl("^[a-z_]+[.]", req)]
+  faltam <- setdiff(cols, names(frame))
+  if (length(faltam) > 0L) {
+    prevcarga_abort("contract.column_missing", where = etapa,
+                    details = list(plugin = plugin$descriptor$model_id, missing = sort(faltam)))
+  }
+  invisible(TRUE)
+}
+
+## `artifact` e o que a etapa de inferencia recebe (o payload do artefato); um artefato carimbado e desembrulhado.
+prevcarga_build_features <- function(plugin, frame, cuts, spec, ctx,
+                                     stage = c("train", "infer"), artifact = NULL) {
+  stage <- match.arg(stage)
+  etapa <- prevcarga_fe_stage[[stage]]
+  prevcarga_assert_stage_requires(plugin, etapa, frame)
+  fn <- plugin$descriptor$stages[[etapa]]$fn
+  if (stage == "train") {
+    return(fn(frame, spec$params))
+  }
+  if (is.null(artifact)) {
+    prevcarga_abort("contract.artifact_required", where = etapa,
+                    details = list(plugin = plugin$descriptor$model_id))
+  }
+  if (inherits(artifact, "prevcarga_plugin_artifact")) artifact <- artifact$payload
+  fn(frame, artifact)
+}
