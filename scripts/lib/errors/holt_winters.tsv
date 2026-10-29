@@ -7,3 +7,5 @@ hw.artifact_origin	contract	Artefato do plugin holt-winters treinado para outra 
 hw.last_day_incomplete	completude	Dia O-1 do plugin holt-winters sem os 48 intervalos de 30 min	Complete o deck no dia O-1; o plugin nunca preenche com 0
 hw.history_short	window	Historico insuficiente para o plugin holt-winters	Amplie a janela do deck ou ajuste history_days no run.yaml
 hw.weather_absent	completude	Sem clima previsto valido para o horizonte do plugin holt-winters; temperaturas NA e FER do calendario (aviso)	Nenhuma acao: o SemiFer e o efeito de temperatura ficam neutros neste horizonte
+hw.bad_param	contract	Parametro do run.yaml do plugin holt-winters ausente ou invalido	Veja details$param; declare o valor no run.yaml (nao ha default no plugin) conforme o params_schema do descriptor
+hw.fe_flag	contract	Passo do feature engineering do plugin holt-winters devolveu flag de erro	Veja details$step; confira a tabela de entrada do passo
