@@ -9,3 +9,6 @@ hw.history_short	window	Historico insuficiente para o plugin holt-winters	Amplie
 hw.weather_absent	completude	Sem clima previsto valido para o horizonte do plugin holt-winters; temperaturas NA e FER do calendario (aviso)	Nenhuma acao: o SemiFer e o efeito de temperatura ficam neutros neste horizonte
 hw.bad_param	contract	Parametro do run.yaml do plugin holt-winters ausente ou invalido	Veja details$param; declare o valor no run.yaml (nao ha default no plugin) conforme o params_schema do descriptor
 hw.fe_flag	contract	Passo do feature engineering do plugin holt-winters devolveu flag de erro	Veja details$step; confira a tabela de entrada do passo
+hw.bad_cut	contract	Corte de treino do plugin holt-winters incoerente com a classe origin_scoped	No treino origin_scoped train_origin = O (sem shift por horizonte); veja details$field
+hw.non_finite	contract	Ajuste do plugin holt-winters devolveu previsao nao finita	Confira a serie de treino (H01..H48/CargaMedia); o plugin nao preenche nem corta
+hw.bad_artifact	contract	Artefato do plugin holt-winters com forma ou tipo fora do contrato	Veja details$field; re-treine para a origem O
