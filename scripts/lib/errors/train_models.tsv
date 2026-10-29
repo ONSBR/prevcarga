@@ -1,0 +1,3 @@
+id	class	message	hint
+contract.area_selector_conflict	contract	mais de um seletor de area (--area, --subsistema, --areas) no mesmo comando	use apenas um seletor de area; where lista os flags em conflito
+runtime.worker_unfixable	runtime	o runtime (TZ/locale/BLAS) nao pode ser fixado dentro de um worker PSOCK	confira o R do worker e rode prevcarga doctor; use --jobs 1 enquanto isso
