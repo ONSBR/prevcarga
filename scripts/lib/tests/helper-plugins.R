@@ -113,7 +113,7 @@ pc_toy_cuts <- function(origin, available_until = NULL, split = c("origin_agnost
   O <- lubridate::as_date(origin)
   au <- if (is.null(available_until)) lubridate::force_tz(lubridate::as_datetime(O), tz) else available_until
   list(forecast_origin = O, origin_day = O, split = split, tz = tz, load_label = "end",
-       weather_issue_cutoff = "available_until", available_until = au,
+       weather_issue_cutoff = "available_until", available_until = au, weather_issue_limit = au,
        train_origin = if (split == "origin_scoped") O else O - 1L - as.integer(horizon_days),
        last_data_day = O - 1L)
 }
@@ -146,4 +146,155 @@ pc_inject <- function(artifact, path, value) {
     x
   }
   set(artifact, keys)
+}
+
+## --- Variantes e espioes do despachante (P.0c) ---------------------------------------------------------------------
+## Os brinquedos originais devolvem o payload em `inference`; o despachante exige a saida (area, values, delivery).
+## Cada variante acrescenta R/zz_dispatch.R ao brinquedo (so definicoes), redefinindo os estagios; o resto do plugin
+## (descriptor, run.yaml, motor) e o original. `native_min` e a convencao do PROPRIO brinquedo sobre o quadro de
+## modelagem (a grade que ele devolve ja esta no quadro de modelagem); o despachante e quem desloca.
+
+.pc_toy_dispatch_lines <- function(base, native_min = 0L, self_shift = 0L, train_extra = character(), kind = "ok") {
+  days <- if (base == "toy-60") 9L else 2L
+  head <- c(
+    sprintf("toy_native_min <- function() %dL", as.integer(native_min)),
+    sprintf("toy_self_shift <- function() %dL", as.integer(self_shift)),
+    "toy_grid_end <- function(cuts, days) lubridate::force_tz(lubridate::as_datetime(cuts$origin_day + days), cuts$tz) - lubridate::minutes(toy_native_min())",
+    "toy_slots <- function(ie) { s <- (lubridate::hour(ie) * 60L + lubridate::minute(ie)) %/% 30L; s[s == 0L] <- 48L; s }")
+  stages <- if (base == "toy-30") c(
+    "toy_training <- function(features, params, seed) {",
+    paste0("  ", train_extra),
+    "  m <- features$m",
+    "  k <- min(params$k, nrow(m))",
+    "  b <- colMeans(m[seq(nrow(m) - k + 1L, nrow(m)), , drop = FALSE])",
+    "  set.seed(seed)",
+    "  list(k = k, level = b + stats::rnorm(length(b)))",
+    "}",
+    "toy_inference_features <- function(frame, payload) list(area = frame$load$area_code[1L])",
+    "toy_inference_core <- function(payload, inf_features, cuts) {",
+    sprintf("  ie <- seq(cuts$available_until + lubridate::minutes(30L), toy_grid_end(cuts, %dL), by = \"30 min\")", days),
+    "  list(area = inf_features$area, values = payload$model$level,",
+    "       delivery = data.table::data.table(interval_end = ie, y_pred = payload$model$level[toy_slots(ie)]))",
+    "}") else c(
+    "toy_ingestion <- function(panel, cuts) list(load = panel$load, area = panel$load$area_code[1L])",
+    "toy_feature_engineering <- function(frame, params) list(x = frame$load$load_mwh[lubridate::hour(frame$load$interval_start) < 12L])",
+    "toy_training <- function(features, params, seed) {",
+    paste0("  ", train_extra),
+    "  engine_fit(features$x)",
+    "}",
+    "toy_inference_features <- function(frame, payload) list(area = frame$area)",
+    "toy_inference_core <- function(payload, inf_features, cuts) {",
+    sprintf("  ie <- seq(cuts$available_until + lubridate::minutes(30L), toy_grid_end(cuts, %dL), by = \"30 min\")", days),
+    "  list(area = inf_features$area, values = payload$model$level,",
+    "       delivery = data.table::data.table(interval_end = ie, y_pred = rep(payload$model$level, length(ie))))",
+    "}",
+    "toy_forecast <- function(payload, inf_features, cuts) toy_inference_core(payload, inf_features, cuts)")
+  tail <- c(
+    "toy_inference <- function(payload, inf_features, cuts) {",
+    "  out <- toy_inference_core(payload, inf_features, cuts)",
+    "  out$delivery$interval_end <- out$delivery$interval_end + lubridate::minutes(toy_self_shift())",
+    switch(kind,
+      ok = NULL,
+      from_0900 = "  out$delivery$interval_end <- out$delivery$interval_end - lubridate::minutes(30L)",
+      short_day = "  out$delivery <- out$delivery[-seq(nrow(out$delivery) - 47L, nrow(out$delivery))]",
+      na = "  out$delivery$y_pred[5L] <- NA_real_",
+      dup = "  out$delivery <- out$delivery[c(1L, seq_len(nrow(out$delivery)))]",
+      lead_field = "  out$lead <- 1L"),
+    "  out",
+    "}")
+  c(head, stages, tail)
+}
+
+## Acha a funcao da lib na pilha de chamadas (o env do teste onde pc_source_lib carregou o registry.R).
+.pc_find_lib <- function(name) {
+  for (f in rev(sys.frames())) if (exists(name, envir = f, inherits = TRUE)) return(get(name, envir = f, inherits = TRUE))
+  stop(".pc_find_lib: ", name, " nao encontrado")
+}
+
+## Carrega o brinquedo como plugin do despachante. `descriptor`/`run_yaml`: como em pc_toy_variant.
+pc_toy_disp <- function(base = c("toy-30", "toy-60"), descriptor = list(), run_yaml = list(), native_min = 0L,
+                        self_shift = 0L, train_extra = character(), kind = "ok") {
+  base <- match.arg(base)
+  root <- pc_toy_variant(base, run_yaml = run_yaml, descriptor = descriptor,
+    files = list("R/zz_dispatch.R" = .pc_toy_dispatch_lines(base, native_min, self_shift, train_extra, kind)))
+  .pc_find_lib("prevcarga_plugin_load")(base, root)
+}
+
+## toy-30 com o atraso de dados declarado (teto de treino O - 1 - data_lag_days).
+pc_toy_lag <- function(data_lag_days)
+  pc_toy_disp("toy-30", descriptor = list(uses_rng = TRUE, data_lag_days = as.integer(data_lag_days)))
+
+## toy-60 sensivel a hora do dia (treina so as horas < 12 do quadro de modelagem), com model_time_offset_min = o.
+pc_toy_offset <- function(o, self_shift = 0L)
+  pc_toy_disp("toy-60", descriptor = list(model_time_offset_min = as.integer(o)), native_min = o, self_shift = self_shift)
+
+## toy-30 cujo treino planta um simbolo no globalenv.
+pc_toy_leaky <- function()
+  pc_toy_disp("toy-30", descriptor = list(uses_rng = TRUE), train_extra = "assign('x', 1, envir = globalenv())")
+
+pc_toy_misaligned <- function(kind = c("from_0900", "short_day", "na", "dup", "lead_field")) {
+  kind <- match.arg(kind)
+  pc_toy_disp("toy-30", descriptor = list(uses_rng = TRUE), kind = kind)
+}
+
+## Espiao: troca a `fn` do estagio por um wrapper que conta chamadas e guarda os argumentos recebidos.
+pc_spy <- function(plugin, stage) {
+  spy <- new.env()
+  spy$calls <- 0L
+  spy$args <- list()
+  orig <- plugin$descriptor$stages[[stage]]$fn
+  plugin$descriptor$stages[[stage]]$fn <- function(...) {
+    spy$calls <- spy$calls + 1L
+    spy$args[[length(spy$args) + 1L]] <- list(...)
+    orig(...)
+  }
+  plugin$spy <- spy
+  plugin
+}
+
+## Fatias do painel sentinela: treino (ate last_data_day) e infer (carga ate available_until).
+pc_train_slice <- function(panel, cuts) {
+  keep <- function(dt, col) dt[lubridate::as_date(dt[[col]]) <= cuts$last_data_day]
+  out <- panel
+  out$load <- keep(panel$load, "interval_start")
+  out$weather_observed <- keep(panel$weather_observed, "valid_time")
+  out$weather_forecast <- keep(panel$weather_forecast, "valid_time")
+  out$attrs$available_until <- max(out$load$interval_end)
+  out
+}
+
+pc_infer_slice <- function(panel, cuts) {
+  out <- panel
+  out$load <- panel$load[interval_end <= cuts$available_until]
+  out$weather_observed <- panel$weather_observed[valid_time <= cuts$available_until]
+  out$weather_forecast <- panel$weather_forecast[issue_time <= cuts$weather_issue_limit]
+  out$attrs$available_until <- cuts$available_until
+  out$attrs$weather_issue_limit <- cuts$weather_issue_limit
+  out
+}
+
+## Planta no painel uma violacao: day_O (intervalo do dia O), end_0930 (interval_end = available_until + 30 min),
+## late_issue (emissao depois do limite), no_load_mwh (remove a coluna) ou timestamp (coluna crua na carga).
+pc_panel_with <- function(panel, what = c("day_O", "end_0930", "late_issue", "no_load_mwh", "timestamp")) {
+  what <- match.arg(what)
+  out <- panel
+  ld <- data.table::copy(panel$load)
+  tz <- panel$attrs$tz
+  add_load <- function(start) {
+    row <- ld[1L]
+    row[, `:=`(interval_start = start, interval_end = start + lubridate::minutes(30L))]
+    data.table::rbindlist(list(ld, row))
+  }
+  switch(what,
+    day_O = out$load <- add_load(lubridate::force_tz(lubridate::as_datetime(panel$attrs$origin), tz)),
+    end_0930 = out$load <- add_load(panel$attrs$available_until),
+    late_issue = {
+      wf <- data.table::copy(panel$weather_forecast)
+      row <- wf[1L]
+      row[, issue_time := panel$attrs$weather_issue_limit + lubridate::hours(1L)]
+      out$weather_forecast <- data.table::rbindlist(list(wf, row))
+    },
+    no_load_mwh = { ld[, load_mwh := NULL]; out$load <- ld },
+    timestamp = { ld[, timestamp := interval_end]; out$load <- ld })
+  out
 }

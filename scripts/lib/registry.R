@@ -545,3 +545,326 @@ prevcarga_plugin_thaw <- function(path, plugin = NULL) {
   if (!inherits(a, "prevcarga_plugin_artifact")) corrupt("classe diferente de prevcarga_plugin_artifact")
   a
 }
+
+## =====================================================================================================
+## Despachantes dos plugins (P.0c; ADR-0012/0019/0023, principio 7). prevcarga_plugin_train/_infer/_forecast
+## compoem os estagios na ordem do blueprint, sem switch por nome de modelo. Conferem os insumos ANTES (nunca
+## cortam nem preenchem: abortam [prevcarga/contract] nomeando intervalo/emissao/coluna), aplicam o deslocamento
+## de modelagem do descriptor (to_model_frame/to_display_frame de features.R; unico ponto do repo), isolam RNG e
+## globalenv e conferem o envelope DEPOIS contra prevcarga_delivery_grid. O plugin recebe o frame ja deslocado.
+## `cuts` = lista no frame de EXIBICAO com origin_day (ou forecast_origin), train_origin, last_data_day (Date),
+## tz, available_until (POSIXct), weather_issue_cutoff e weather_issue_limit (POSIXct). Requer features.R.
+## =====================================================================================================
+
+## Campos do envelope (constante em minusculas: o grep do M1 reserva o prefixo maiusculo para variaveis de ambiente).
+prevcarga_envelope_fields <- c("model_id", "variant", "area", "origin_day", "available_until",
+  "weather_issue_cutoff", "layout", "granularity_min", "values", "delivery", "meta")
+.prevcarga_plugin_out_fields <- c("area", "values", "delivery", "meta")
+.prevcarga_plugin_forbidden_fields <- c("forecast_origin", "lead", "d_plus", "y_true", "target_datetime")
+.prevcarga_plugin_raw_cols <- c("timestamp", "load_label")
+
+.prevcarga_plg_origin <- function(cuts) if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
+
+.prevcarga_plg_fmt <- function(x) if (!length(x)) "NA" else paste(format(x), collapse = ",")
+
+## tz da coluna de tempo precisa ser o de cuts (todas as datas sao comparadas no fuso de cuts).
+.prevcarga_plg_check_tz <- function(x, col, cuts) {
+  v <- x[[col]]
+  if (!inherits(v, "POSIXct") || !identical(lubridate::tz(v), cuts$tz))
+    .prevcarga_plugin_abort("plugin.raw_timestamp", where = col,
+      reason = sprintf("%s fora do fuso de cuts (%s)", col, cuts$tz), details = list(column = col, tz = cuts$tz))
+  invisible(TRUE)
+}
+
+## --- Conferencia do painel de treino -----------------------------------------------------------------
+.prevcarga_plugin_check_train_panel <- function(panel, cuts, d) {
+  origin <- .prevcarga_plg_origin(cuts)
+  expect_last <- origin - 1L - d$data_lag_days
+  got <- cuts$last_data_day
+  if (!inherits(got, "Date") || length(got) != 1L || is.na(got) || as.numeric(got) != as.numeric(expect_last))
+    .prevcarga_plugin_abort("plugin.cuts_mismatch", where = d$model_id,
+      reason = sprintf("last_data_day=%s esperado=%s (origem %s, data_lag_days %d)", .prevcarga_plg_fmt(got),
+                       format(expect_last), format(origin), d$data_lag_days),
+      details = list(last_data_day = got, expected = expect_last))
+  over <- function(x, col, dataset) {
+    if (!NROW(x)) return(invisible(TRUE))
+    .prevcarga_plg_check_tz(x, col, cuts)
+    day <- lubridate::as_date(x[[col]])
+    bad <- which(day > got)
+    if (length(bad))
+      .prevcarga_plugin_abort("plugin.train_beyond_cut", where = dataset,
+        reason = sprintf("%s.%s=%s depois de last_data_day=%s", dataset, col, format(min(x[[col]][bad])), format(got)),
+        details = list(dataset = dataset, interval_start = format(min(x[[col]][bad])), last_data_day = got))
+    invisible(TRUE)
+  }
+  over(panel$load, "interval_start", "load")
+  over(panel$weather_observed, "valid_time", "weather_observed")
+  invisible(TRUE)
+}
+
+## Colunas `data.<dataset>.<coluna>` dos `requires` dos estagios dados.
+.prevcarga_plugin_require_data_cols <- function(panel, d, stages) {
+  toks <- unique(unlist(lapply(intersect(stages, names(d$stages)), function(s) d$stages[[s]]$requires)))
+  toks <- toks[grepl("^data\\.[^.]+\\..+$", toks)]
+  for (tk in toks) {
+    ds <- sub("^data\\.([^.]+)\\..+$", "\\1", tk)
+    col <- sub("^data\\.[^.]+\\.(.+)$", "\\1", tk)
+    x <- panel[[ds]]
+    if (!is.data.frame(x) || !(col %in% names(x)))
+      .prevcarga_plugin_abort("plugin.missing_column", where = ds,
+        reason = sprintf("coluna %s ausente em %s (requires %s)", col, ds, tk),
+        details = list(column = col, dataset = ds, token = tk))
+  }
+  invisible(TRUE)
+}
+
+.prevcarga_plugin_check_raw_cols <- function(panel) {
+  for (ds in names(panel)) {
+    x <- panel[[ds]]
+    if (!is.data.frame(x)) next
+    raw <- intersect(.prevcarga_plugin_raw_cols, names(x))
+    if (length(raw))
+      .prevcarga_plugin_abort("plugin.raw_timestamp", where = ds,
+        reason = sprintf("coluna %s em %s: so o leitor converte rotulo de tempo", raw[[1L]], ds),
+        details = list(column = raw[[1L]], dataset = ds))
+  }
+  invisible(TRUE)
+}
+
+## --- Conferencia do painel de infer -------------------------------------------------------------------
+.prevcarga_plugin_check_infer_panel <- function(panel, cuts, d) {
+  .prevcarga_plugin_check_raw_cols(panel)
+  .prevcarga_plugin_require_data_cols(panel, d, c("ingestion", "inference_features", "inference"))
+  au <- cuts$available_until
+  ld <- panel$load
+  if (NROW(ld)) {
+    .prevcarga_plg_check_tz(ld, "interval_end", cuts)
+    bad <- which(ld$interval_end > au)
+    if (length(bad))
+      .prevcarga_plugin_abort("plugin.infer_beyond_cut", where = "load",
+        reason = sprintf("interval_end=%s depois de available_until=%s", format(min(ld$interval_end[bad])), format(au)),
+        details = list(interval_end = format(min(ld$interval_end[bad])), available_until = format(au)))
+  }
+  wf <- panel$weather_forecast
+  if (NROW(wf)) {
+    lim <- if (!is.null(cuts$weather_issue_limit)) cuts$weather_issue_limit else panel$attrs$weather_issue_limit
+    if (!inherits(lim, "POSIXct") || length(lim) != 1L || is.na(lim))
+      .prevcarga_plugin_abort("plugin.cuts_mismatch", where = "weather_forecast",
+        reason = "weather_issue_limit ausente em cuts", details = list(field = "weather_issue_limit"))
+    bad <- which(wf$issue_time > lim)
+    if (length(bad))
+      .prevcarga_plugin_abort("plugin.weather_beyond_limit", where = "weather_forecast",
+        reason = sprintf("issue_time=%s depois de weather_issue_limit=%s", format(max(wf$issue_time[bad])), format(lim)),
+        details = list(issue_time = format(max(wf$issue_time[bad])), weather_issue_limit = format(lim)))
+  }
+  wo <- panel$weather_observed
+  if (NROW(wo)) {
+    .prevcarga_plg_check_tz(wo, "valid_time", cuts)
+    bad <- which(wo$valid_time > au)
+    if (length(bad))
+      .prevcarga_plugin_abort("plugin.weather_beyond_limit", where = "weather_observed",
+        reason = sprintf("valid_time=%s depois de available_until=%s", format(max(wo$valid_time[bad])), format(au)),
+        details = list(valid_time = format(max(wo$valid_time[bad])), available_until = format(au)))
+  }
+  invisible(TRUE)
+}
+
+## --- Conferencia do envelope --------------------------------------------------------------------------
+## Primeiro caminho (campo$campo) com nome proibido, em qualquer nivel (listas e colunas de data.frame).
+.prevcarga_plugin_find_forbidden <- function(x, path = "envelope") {
+  nm <- names(x)
+  hit <- which(nm %in% .prevcarga_plugin_forbidden_fields)
+  if (length(hit)) return(paste0(path, "$", nm[[hit[[1L]]]]))
+  if (is.list(x) && !is.data.frame(x)) {
+    for (i in seq_along(x)) {
+      r <- .prevcarga_plugin_find_forbidden(x[[i]], paste0(path, "$", if (!is.null(nm) && nzchar(nm[[i]])) nm[[i]] else i))
+      if (!is.null(r)) return(r)
+    }
+  }
+  NULL
+}
+
+.prevcarga_plugin_misaligned <- function(model, why, details = NULL)
+  .prevcarga_plugin_abort("plugin.output_misaligned", where = model, reason = why, details = details)
+
+.prevcarga_plugin_check_delivery <- function(delivery, grid, model) {
+  bad <- function(why, ...) .prevcarga_plugin_misaligned(model, why, details = list(...))
+  if (!is.data.frame(delivery) || !identical(names(delivery), c("interval_end", "y_pred")))
+    bad("delivery deve ser data.table(interval_end, y_pred)", field = "delivery")
+  ie <- delivery$interval_end
+  if (!inherits(ie, "POSIXct")) bad("delivery$interval_end nao e POSIXct", field = "delivery$interval_end")
+  if (!is.numeric(delivery$y_pred)) bad("delivery$y_pred nao e numerico", field = "delivery$y_pred")
+  if (!identical(ie, grid)) {
+    n <- min(length(ie), length(grid))
+    diff <- if (n) which(is.na(ie[seq_len(n)]) | ie[seq_len(n)] != grid[seq_len(n)]) else integer()
+    i <- if (length(diff)) diff[[1L]] else n + 1L
+    got <- if (i <= length(ie)) format(ie[[i]]) else "ausente"
+    want <- if (i <= length(grid)) format(grid[[i]]) else "alem da grade"
+    if (!length(diff) && length(ie) == length(grid)) {
+      got <- paste0("tzone ", lubridate::tz(ie)); want <- paste0("tzone ", lubridate::tz(grid))
+    }
+    bad(sprintf("interval_end divergente na posicao %d: entregue=%s esperado=%s (n=%d, grade=%d)", i, got, want,
+                length(ie), length(grid)), field = "delivery$interval_end", position = i, got = got, expected = want)
+  }
+  fin <- is.finite(delivery$y_pred)
+  if (!all(fin)) {
+    i <- which(!fin)[[1L]]
+    bad(sprintf("y_pred nao finito em interval_end=%s", format(ie[[i]])), field = "delivery$y_pred",
+        interval_end = format(ie[[i]]))
+  }
+  invisible(TRUE)
+}
+
+.prevcarga_plugin_check_envelope <- function(env, plugin, spec, cuts) {
+  d <- plugin$descriptor
+  m <- d$model_id
+  bad <- function(why, ...) .prevcarga_plugin_misaligned(m, why, details = list(...))
+  if (!is.list(env)) bad("envelope nao e lista", field = "envelope")
+  fb <- .prevcarga_plugin_find_forbidden(env)
+  if (!is.null(fb)) bad(sprintf("campo proibido %s", fb), field = fb)
+  extra <- setdiff(names(env), prevcarga_envelope_fields)
+  miss <- setdiff(prevcarga_envelope_fields, names(env))
+  if (length(extra) || length(miss) || anyDuplicated(names(env)))
+    bad(sprintf("campos do envelope: extra=[%s] ausentes=[%s]", paste(extra, collapse = ","), paste(miss, collapse = ",")),
+        extra = extra, missing = miss)
+  if (!identical(env$layout, d$native_layout)) bad("layout diferente de descriptor$native_layout", field = "layout")
+  if (!identical(env$granularity_min, as.integer(spec$granularity_min))) bad("granularity_min diferente de spec", field = "granularity_min")
+  if (!identical(env$available_until, cuts$available_until)) bad("available_until diferente de cuts", field = "available_until")
+  if (!is.null(cuts$weather_issue_cutoff) && !identical(env$weather_issue_cutoff, cuts$weather_issue_cutoff))
+    bad("weather_issue_cutoff diferente de cuts", field = "weather_issue_cutoff")
+  if (!.prevcarga_plg_chr1(env$area)) bad("area deve ser chr escalar", field = "area")
+  if (is.null(env$values)) bad("values ausente", field = "values")
+  if (!is.list(env$meta)) bad("meta deve ser lista", field = "meta")
+  .prevcarga_plugin_check_delivery(env$delivery, prevcarga_delivery_grid(cuts, d$delivery_days), m)
+  invisible(TRUE)
+}
+
+## --- Guarda de efeitos: RNG isolado + snapshot de globalenv()/search() -----------------------------------
+prevcarga_preserve_rng <- function(expr) {
+  g <- globalenv()
+  had <- exists(".Random.seed", envir = g, inherits = FALSE)
+  old <- if (had) get(".Random.seed", envir = g, inherits = FALSE) else NULL
+  on.exit({
+    if (had) assign(".Random.seed", old, envir = g)
+    else if (exists(".Random.seed", envir = g, inherits = FALSE)) rm(".Random.seed", envir = g)
+  }, add = TRUE)
+  force(expr)
+}
+
+.prevcarga_plg_rng_state <- function() {
+  g <- globalenv()
+  if (exists(".Random.seed", envir = g, inherits = FALSE)) get(".Random.seed", envir = g, inherits = FALSE) else NULL
+}
+
+## Unico ponto do repo onde a fundacao toca globalenv(). Simbolo novo ou pacote anexado e removido e acusado.
+.prevcarga_plugin_guarded <- function(plugin, expr) {
+  g <- globalenv()
+  before <- c(ls(g, all.names = TRUE), search())
+  state0 <- .prevcarga_plg_rng_state()
+  rng_moved <- FALSE
+  failed <- TRUE
+  on.exit({
+    now <- ls(g, all.names = TRUE)
+    planted <- setdiff(now, c(before, ".Random.seed"))
+    if (length(planted)) rm(list = planted, envir = g)
+    for (p in setdiff(search(), before)) try(detach(p, character.only = TRUE), silent = TRUE)
+  }, add = TRUE)
+  out <- prevcarga_preserve_rng({
+    r <- force(expr)
+    rng_moved <- !identical(.prevcarga_plg_rng_state(), state0)
+    r
+  })
+  new <- setdiff(c(ls(g, all.names = TRUE), search()), c(before, ".Random.seed"))
+  if (length(new))
+    .prevcarga_plugin_abort("plugin.global_side_effect", where = plugin$descriptor$model_id,
+      reason = sprintf("simbolo ou pacote novo no ambiente global: %s", new[[1L]]), details = list(symbol = new[[1L]]))
+  if (rng_moved && !isTRUE(plugin$descriptor$uses_rng))
+    .prevcarga_plugin_abort("plugin.rng", where = plugin$descriptor$model_id,
+      reason = "o plugin consumiu o gerador sem declarar uses_rng", details = list(model = plugin$descriptor$model_id))
+  out
+}
+
+## --- Deslocamento de modelagem centralizado (ADR-0012/0019) --------------------------------------------
+## So a carga (interval_start/interval_end) e o available_until de cuts; clima, dias e holidays intocados.
+.prevcarga_plugin_to_model <- function(panel, cuts, o) {
+  if (identical(as.integer(o), 0L)) return(list(panel = panel, cuts = cuts))
+  pm <- panel
+  for (col in c("interval_start", "interval_end")) pm$load <- to_model_frame(pm$load, o, col)
+  cm <- cuts
+  cm$available_until <- to_model_frame(data.table::data.table(available_until = cuts$available_until), o,
+                                       "available_until")$available_until
+  list(panel = pm, cuts = cm)
+}
+
+.prevcarga_plugin_check_mode <- function(plugin, spec, mode) {
+  if (!(mode %in% spec$modes) || !(mode %in% plugin$descriptor$modes_implemented) ||
+      (identical(mode, "forecast") && !identical(spec$split, "origin_scoped")))
+    .prevcarga_plugin_abort("plugin.mode_unavailable", where = plugin$descriptor$model_id,
+      reason = sprintf("modo %s indisponivel", mode), details = list(mode = mode))
+  invisible(TRUE)
+}
+
+## --- Despachantes --------------------------------------------------------------------------------------
+prevcarga_plugin_train <- function(plugin, panel, cuts, spec, ctx = list()) {
+  d <- plugin$descriptor
+  .prevcarga_plugin_check_mode(plugin, spec, "train")
+  .prevcarga_plugin_check_train_panel(panel, cuts, d)
+  .prevcarga_plugin_check_raw_cols(panel)
+  .prevcarga_plugin_require_data_cols(panel, d, c("ingestion", "feature_engineering", "training"))
+  m <- .prevcarga_plugin_to_model(panel, cuts, d$model_time_offset_min)
+  st <- d$stages
+  payload <- .prevcarga_plugin_guarded(plugin, {
+    frame <- st$ingestion$fn(m$panel, m$cuts)
+    feats <- st$feature_engineering$fn(frame, spec$params)
+    fit <- st$training$fn(feats, spec$params, spec$seed)
+    d$freeze(fit)
+  })
+  art <- prevcarga_plugin_stamp(payload, plugin, spec, cuts, ctx)
+  prevcarga_plugin_scan_pure(art)
+  art
+}
+
+.prevcarga_plugin_infer_impl <- function(plugin, artifact, panel, cuts, spec) {
+  d <- plugin$descriptor
+  prevcarga_plugin_check_artifact(artifact, plugin, spec, cuts)
+  .prevcarga_plugin_check_infer_panel(panel, cuts, d)
+  m <- .prevcarga_plugin_to_model(panel, cuts, d$model_time_offset_min)
+  st <- d$stages
+  payload <- artifact$payload
+  raw <- .prevcarga_plugin_guarded(plugin, {
+    frame <- st$ingestion$fn(m$panel, m$cuts)
+    inf <- st$inference_features$fn(frame, payload)
+    st$inference$fn(payload, inf, m$cuts)
+  })
+  mid <- d$model_id
+  if (!is.list(raw)) .prevcarga_plugin_misaligned(mid, "saida de inference nao e lista", list(field = "envelope"))
+  fb <- .prevcarga_plugin_find_forbidden(raw)
+  if (!is.null(fb)) .prevcarga_plugin_misaligned(mid, sprintf("campo proibido %s", fb), list(field = fb))
+  extra <- setdiff(names(raw), .prevcarga_plugin_out_fields)
+  if (length(extra))
+    .prevcarga_plugin_misaligned(mid, sprintf("campo inesperado %s na saida de inference", extra[[1L]]),
+                                 list(field = extra[[1L]]))
+  dl <- raw$delivery
+  if (!is.data.frame(dl) || !("interval_end" %in% names(dl)) || !inherits(dl$interval_end, "POSIXct"))
+    .prevcarga_plugin_misaligned(mid, "delivery sem interval_end POSIXct", list(field = "delivery"))
+  dl <- to_display_frame(data.table::as.data.table(dl), d$model_time_offset_min, "interval_end")
+  meta <- if (is.list(raw$meta)) raw$meta else list()
+  meta$rng_deviation <- d$rng_deviation
+  env <- list(model_id = d$model_id, variant = artifact$stamp$variant, area = raw$area,
+    origin_day = .prevcarga_plg_origin(cuts), available_until = cuts$available_until,
+    weather_issue_cutoff = artifact$stamp$weather_issue_cutoff, layout = d$native_layout,
+    granularity_min = as.integer(spec$granularity_min), values = raw$values, delivery = dl, meta = meta)
+  .prevcarga_plugin_check_envelope(env, plugin, spec, cuts)
+  env
+}
+
+prevcarga_plugin_infer <- function(plugin, artifact, panel, cuts, ctx = list()) {
+  .prevcarga_plugin_check_mode(plugin, plugin$spec, "infer")
+  .prevcarga_plugin_infer_impl(plugin, artifact, panel, cuts, plugin$spec)
+}
+
+prevcarga_plugin_forecast <- function(plugin, panel, cuts, spec, ctx = list()) {
+  .prevcarga_plugin_check_mode(plugin, spec, "forecast")
+  art <- prevcarga_plugin_train(plugin, panel, cuts, spec, ctx)
+  .prevcarga_plugin_infer_impl(plugin, art, panel, cuts, spec)
+}
