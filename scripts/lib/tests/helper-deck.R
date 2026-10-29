@@ -243,3 +243,99 @@ pc_ctx_panel <- function(dir, ...) {
   c0$topology_path <- file.path(dir, "topology.yaml")
   c0
 }
+
+## --- Mutadores do validate-deck (M2.4): UMA alteracao isolada cada, so sob o `dir` recebido (tempdir) -------------
+## `fn(dt)` recebe a tabela crua do dataset (digitos ingenuos do store, `area_code` da particao) e devolve a tabela alterada.
+## Colunas int64 do store voltam a int64 na regravacao (o arrow as entrega como integer).
+.pc_mut_int64 <- function(dt) {
+  for (n in intersect(c("holiday_type_id", "prevcarga_code", "simplified_code"), names(dt)))
+    data.table::set(dt, j = n, value = bit64::as.integer64(dt[[n]]))
+  dt
+}
+
+pc_mut_dataset <- function(dir, dataset, fn) {
+  dt <- .pc_mut_int64(.pc_deck_read(dir, dataset))
+  .pc_deck_rewrite(fn(dt), dir, dataset)
+}
+
+pc_mut_load <- function(dir, fn) pc_mut_dataset(dir, "load", fn)
+pc_mut_weather <- function(dir, dataset, fn) pc_mut_dataset(dir, dataset, fn)
+pc_mut_holiday <- function(dir, col, value, row = 1L) {
+  pc_mut_dataset(dir, "holidays", function(dt) { data.table::set(dt, i = row, j = col, value = bit64::as.integer64(value)); dt })
+}
+
+## Reescreve cada parquet do dataset (opcionalmente so de uma `area`) trocando as colunas via `fn(lista_de_colunas)`.
+.pc_mut_files <- function(dir, dataset, fn, area = NULL) {
+  fs <- list.files(file.path(dir, .pc_deck_dsets[[dataset]]), pattern = "\\.parquet$", recursive = TRUE, full.names = TRUE)
+  if (!is.null(area)) fs <- fs[grepl(paste0("area_code=", area, "/"), fs, fixed = TRUE)]
+  for (f in fs) {
+    tb <- arrow::read_parquet(f, as_data_frame = FALSE)
+    cols <- stats::setNames(lapply(tb$schema$names, function(n) tb$GetColumnByName(n)), tb$schema$names)
+    arrow::write_parquet(do.call(arrow::arrow_table, fn(cols)), f)
+  }
+  invisible(length(fs))
+}
+
+pc_mut_drop_col <- function(dir, dataset, col, area = NULL) {
+  .pc_mut_files(dir, dataset, function(cols) cols[setdiff(names(cols), col)], area)
+}
+
+## type: "string" | "timestamp_tz" (timestamp[ns] com fuso UTC no parquet)
+pc_mut_retype <- function(dir, dataset, col, type = c("string", "timestamp_tz")) {
+  type <- match.arg(type)
+  to <- if (type == "string") arrow::utf8() else arrow::timestamp("ns", timezone = "UTC")
+  .pc_mut_files(dir, dataset, function(cols) { cols[[col]] <- cols[[col]]$cast(to); cols })
+}
+
+## Parquet sem Hive: todos os arquivos do dataset vao para a raiz do dataset.
+pc_mut_flatten <- function(dir, dataset) {
+  root <- file.path(dir, .pc_deck_dsets[[dataset]])
+  fs <- list.files(root, pattern = "\\.parquet$", recursive = TRUE, full.names = TRUE)
+  file.rename(fs, file.path(root, sprintf("flat-%03d.parquet", seq_along(fs))))
+  unlink(list.dirs(root, recursive = FALSE), recursive = TRUE)
+  invisible(length(fs))
+}
+
+## Trunca os bytes do arquivo `rel` (relativo a dir): o arrow nao consegue abri-lo.
+pc_mut_corrupt <- function(dir, rel) {
+  f <- file.path(dir, rel)
+  n <- file.size(f)
+  writeBin(readBin(f, "raw", n)[seq_len(n %/% 3L)], f)
+  invisible(f)
+}
+
+## Copia as particoes de uma area existente para uma area nova `code` em todos os datasets do deck.
+pc_mut_add_area <- function(dir, code, from = NULL) {
+  for (rel in .pc_deck_dsets) {
+    ps <- list.dirs(file.path(dir, rel), recursive = FALSE)
+    ps <- ps[grepl("area_code=", basename(ps))]
+    if (!length(ps)) next
+    src <- if (is.null(from)) ps[[1L]] else file.path(dir, rel, paste0("area_code=", from))
+    dst <- file.path(dir, rel, paste0("area_code=", code)); dir.create(dst)
+    file.copy(list.files(src, full.names = TRUE), dst, recursive = TRUE)
+  }
+  invisible(code)
+}
+
+pc_mut_issue <- function(dir, hours_utc) pc_deck_issues(dir, hours_utc)
+
+## Historico de `n` dias de carga e clima observado terminando no ultimo dia de carga do deck (mesma formula do
+## sentinela: carga = slot + 1000 * indice da area; clima por hora). Mantem emissoes e feriados.
+pc_deck_days <- function(dir, n) {
+  dt <- .pc_deck_read(dir, "load"); v <- .pc_deck_view(dt, "load", dir)
+  m <- .pc_deck_manifest_read(dir); tz <- m$timezone$load
+  areas <- unique(dt$area_code)
+  last <- lubridate::as_date(max(v$interval_start), tz = tz)
+  days <- seq(last - n + 1L, last, by = "day")
+  shift <- if (identical(m$load_label, "start")) 0L else 30L
+  g <- data.table::CJ(area_code = areas, day = days, slot = 1:48, sorted = FALSE)
+  g[, timestamp := lubridate::force_tz(lubridate::as_datetime(day), "UTC") + lubridate::minutes(30L * (slot - 1L) + shift)]
+  g[, load_mwh := as.double(slot + 1000L * match(area_code, areas))]
+  .pc_deck_rewrite(g[, .(area_code, timestamp, load_mwh)], dir, "load")
+  o <- data.table::CJ(area_code = areas, day = days, h = 0:23, sorted = FALSE)
+  o[, timestamp := lubridate::force_tz(lubridate::as_datetime(day), "UTC") + lubridate::hours(h)]
+  o[, temperature := 15 + match(area_code, areas) + h / 100]
+  o[, heat_index := temperature + 1]
+  .pc_deck_rewrite(o[, .(area_code, timestamp, temperature, heat_index)], dir, "weather_observed")
+  invisible(dir)
+}

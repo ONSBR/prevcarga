@@ -350,6 +350,18 @@ prevcarga_read_holidays <- function(ctx, areas, from, to) {
   h[]
 }
 
+## Codigos de feriado crus de todas as particoes (validate-deck, M2.4). A data civil nao tem fuso: nao exige
+## manifest nem origem; nao filtra nem corrige codigos. Leitura somente do dataset `auxiliary/holidays`.
+prevcarga_read_holiday_codes <- function(ctx, areas = NULL) {
+  prevcarga_require_data_dir(ctx)
+  ds <- .prevcarga_open(ctx$data_dir, .PREVCARGA_DECK_DATASETS[["holidays"]], "holidays")
+  h <- .prevcarga_scan(ds, c("area_code", "date", "holiday_type_id", "prevcarga_code", "simplified_code"),
+                       NULL, NULL, areas)
+  data.table::set(h, j = "date", value = lubridate::as_date(h$date))
+  data.table::setorderv(h, c("area_code", "date"))
+  h[]
+}
+
 ## --- Painel do leitor (M2.7) ---------------------------------------------------------------------------------
 ## Agrega os atributos dos leitores sem recalcular; aborta se divergirem em tz ou available_until.
 .PREVCARGA_PANEL_LOAD_ATTRS <- c("available_until", "available_until_by_area", "load_label", "load_label_source", "tz")

@@ -1,0 +1,16 @@
+id	class	message	hint
+contract.hive_layout	contract	dataset fora do layout Hive area_code=/year=	regrave o dataset indicado em where como <dataset>/area_code=<A>/year=<AAAA>/<arquivo>.parquet
+contract.type_mismatch	contract	tipo arrow da coluna diverge do contrato canonico do deck	converta a coluna indicada em where para o tipo de docs/reference/DECK-CANONICO.md e regrave o parquet
+contract.parquet_unreadable	contract	arquivo parquet que o arrow nao consegue abrir	regrave ou restaure o arquivo indicado em where (relativo ao data_dir)
+contract.grid_off	contract	intervalo de carga fora da grade de 30 min (minuto diferente de 00/30 ou segundo diferente de 0)	corrija o timestamp indicado: a grade do deck e semi-horaria
+contract.duplicate_interval	contract	mais de uma linha para o mesmo (area_code, interval_start) na carga	remova as duplicatas; o deck precisa de uma linha por area e intervalo
+contract.load_nonpositive	contract	carga menor ou igual a zero no historico (a referencia nao preenche com zero)	corrija ou remova os intervalos indicados; zero nao e carga valida
+contract.temperature_out_of_range	contract	temperatura fora da faixa fisica de -10 a 50 graus C	confira a unidade e o ingest da coluna temperature indicada em dataset
+contract.code_negative	contract	codigo de feriado negativo (prevcarga_code, holiday_type_id ou simplified_code)	corrija o codigo no dataset auxiliary/holidays; zero e valido, negativo nao
+completude.day_incomplete	completude	dia do historico relevante sem os 48 intervalos de 30 min	reponha os intervalos faltantes do dia indicado em detail (dia: n/48); a referencia nao preenche buraco
+topology.scope_undeclared	topology	area ou modelo do escopo fora da topologia	use uma area de config/topology.yaml ou um modelo listado em members; where e o item
+window.window_train_deficit	window	historico de treino menor que history_days.train do modelo	complete o deck com mais dias de carga ate o last_data_day do modelo ou reduza history_days.train no run.yaml
+window.window_infer_deficit	window	historico de inferencia menor que history_days.infer do modelo	complete o deck com mais dias de carga ate O-1 ou reduza history_days.infer no run.yaml
+warning.outlier	contract	intervalo de carga fora de 1.5 IQR e com |z| acima de 3 (aviso)	confira o intervalo indicado em where; nao reprova o deck
+warning.flatline	contract	carga identica por 6 ou mais intervalos seguidos (aviso)	confira se a serie congelou na origem; nao reprova o deck
+warning.climate_after_cut	contract	deck tem emissao de clima do dia da origem apos o limite de emissao (aviso)	o leitor ja exclui a emissao; confira a regra weather_issue_cutoff
