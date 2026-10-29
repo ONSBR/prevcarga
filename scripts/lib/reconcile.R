@@ -344,3 +344,184 @@ prevcarga_khat_thaw <- function(ctx, ss, versao) {
   .prevcarga_khat_check(art)
   art
 }
+
+## =====================================================================================================
+## R.3 -- orquestracao train/apply (compoe o nucleo R.1 e o perfil-artefato R.2). Nada e gravado em --out aqui;
+## o verbo (R.5) grava. O leitor so e chamado em train (verdade ate O-1) e em apply com eval = TRUE.
+## Requer tambem dates.R e topology.R carregados (prevcarga_resolve_cuts, prevcarga_topology).
+## =====================================================================================================
+.prevcarga_reconcile_topo <- function(ctx) .prevcarga_score_topo(ctx)
+
+.prevcarga_reconcile_origin_date <- function(origin) {
+  o <- lubridate::as_date(origin)
+  if (length(o) != 1L || is.na(o)) prevcarga_abort("contract.reconcile_input", where = "origin")
+  o
+}
+
+## "all" ou NULL = todos os subsistemas da topologia; nomes fora dela => contract.reconcile_input
+.prevcarga_reconcile_subsystems <- function(subsystems, topo) {
+  if (is.null(subsystems) || identical(subsystems, "all")) return(topo$order)
+  if (!is.character(subsystems) || !length(subsystems) || anyNA(subsystems))
+    prevcarga_abort("contract.reconcile_input", where = "subsystems")
+  bad <- setdiff(subsystems, topo$order)
+  if (length(bad)) prevcarga_abort("contract.reconcile_input", where = bad[[1L]])
+  topo$order[topo$order %in% subsystems]
+}
+
+## Convencao efetiva da carga: rotulo (ctx$load_label ou o resolvido do deck) e fuso (ctx$tz)
+.prevcarga_reconcile_convention <- function(ctx) {
+  ll <- ctx$load_label
+  tz <- ctx$tz
+  if (is.null(ll) || is.null(tz)) {
+    d <- .prevcarga_deck_ctx(ctx)
+    if (is.null(ll)) ll <- d$label$value
+    if (is.null(tz)) tz <- d$tz
+  }
+  list(load_label = ll, tz = tz)
+}
+
+.prevcarga_khat_summary <- function(profile, khat_range) {
+  k <- profile$k
+  list(min = min(k), max = max(k), fora_faixa = as.integer(sum(k < khat_range[[1L]] | k > khat_range[[2L]])))
+}
+
+## --- train: ajusta, congela e promove o perfil de cada subsistema (khat_origin = O) -----------------------------
+## Verdade SO pelo leitor unico (prevcarga_read_load), janela [O-W, O-1] inclusiva; o corte vem de dates.R.
+prevcarga_reconcile_train <- function(ctx, origin, subsystems = "all", window_days = prevcarga_khat_window_days) {
+  origin <- .prevcarga_reconcile_origin_date(origin)
+  topo <- .prevcarga_reconcile_topo(ctx)
+  sss <- .prevcarga_reconcile_subsystems(subsystems, topo)
+  cuts <- prevcarga_resolve_cuts(ctx, origin)
+  last_day <- unique(cuts$cuts$last_data_day)
+  if (length(last_day) != 1L) prevcarga_abort("contract.reconcile_input", where = "last_data_day")
+  from <- origin - as.integer(window_days)
+  out <- lapply(sss, function(ss) {
+    areas <- topo$subsystems[[ss]]$areas
+    truth <- prevcarga_read_load(ctx, areas = c(areas, ss), from = from, to = last_day)
+    ratio <- prevcarga_khat_ratio(truth, ss, topo)
+    fit <- prevcarga_khat_fit(ratio, origin, window_days)
+    conv <- list(load_label = attr(truth, "load_label"), tz = attr(truth, "tz"))
+    if (is.null(conv$load_label) || is.null(conv$tz)) conv <- .prevcarga_reconcile_convention(ctx)
+    renv <- if (is.null(ctx$root)) NULL else prevcarga_renv_lock_hash(ctx$root)
+    meta <- list(ss = ss, khat_origin = origin, window_days = fit$window_days, window_from = fit$window_from,
+                 window_to = fit$window_to, profile_keys = prevcarga_khat_keys,
+                 week_start = prevcarga_khat_week_start, areas = areas, loss = topo$subsystems[[ss]]$loss,
+                 n_ratio = fit$n_ratio, load_label = conv$load_label, timezone = conv$tz,
+                 data_hash = prevcarga_khat_data_hash(ratio),
+                 code_commit = if (is.null(ctx$root)) "unknown" else prevcarga_code_commit(ctx$root),
+                 renv_lock_hash = if (is.null(renv)) "none" else renv,
+                 trained_at = format(lubridate::now("UTC"), "%Y-%m-%dT%H:%M:%SZ"))
+    fz <- prevcarga_khat_freeze(fit, meta, ctx)
+    list(versao = fz$version, path = fz$path, khat_origin = origin, n_ratio = fit$n_ratio,
+         promovido = prevcarga_khat_advance_latest(ss, fz$version, origin, ctx),
+         k_hat_resumo = .prevcarga_khat_summary(fit$profile, topo$subsystems[[ss]]$khat_range))
+  })
+  stats::setNames(out, sss)
+}
+
+## --- Politica de uso do perfil (unico lugar): perfil de uma origem vale para O >= khat_origin --------------
+## [TBD: ADR-0015 emenda]. Devolve khat_age_days (inteiro).
+prevcarga_khat_check_policy <- function(prof, ctx, origin) {
+  m <- prof$meta
+  conv <- .prevcarga_reconcile_convention(ctx)
+  if (!identical(m$load_label, conv$load_label))
+    prevcarga_abort("contract.khat_convention", where = "load_label",
+                    details = list(perfil = m$load_label, ctx = conv$load_label))
+  if (!identical(m$timezone, conv$tz))
+    prevcarga_abort("contract.khat_convention", where = "timezone",
+                    details = list(perfil = m$timezone, ctx = conv$tz))
+  origin <- .prevcarga_reconcile_origin_date(origin)
+  ko <- lubridate::as_date(m$khat_origin)
+  if (ko > origin)
+    prevcarga_abort("honesty.khat_after_origin",
+                    details = list(khat_origin = format(ko), origem = format(origin)))
+  as.integer(origin - ko)
+}
+
+## verdade por area pelo leitor unico (um read_actual por area: a saida nao traz a coluna da area)
+.prevcarga_reconcile_truth <- function(ctx, area, from, to) {
+  tr <- prevcarga_read_actual(ctx, area, from = from, to = to)
+  stats::setNames(tr$y_true, as.numeric(tr$interval_end))
+}
+
+## --- apply: Bottom-Up x k-hat por subsistema (+ SIN) --------------------------------------------------------
+prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat_version = NULL, eval = FALSE) {
+  topo <- .prevcarga_reconcile_topo(ctx)
+  sss <- .prevcarga_reconcile_subsystems(subsystems, topo)
+  parts <- if (is.data.frame(long_leaves)) list(long_leaves) else long_leaves
+  if (!is.list(parts) || !length(parts)) prevcarga_abort("contract.reconcile_input", where = "long_leaves")
+  checked <- lapply(parts, function(p) .prevcarga_reconcile_dt(prevcarga_assert_long(p, ctx)))
+  all_leaves <- data.table::rbindlist(checked, use.names = TRUE)
+  origins <- unique(all_leaves$forecast_origin)
+  if (length(origins) != 1L) prevcarga_abort("contract.reconcile_input", where = "forecast_origin")
+  origin <- lubridate::ymd(origins, tz = ctx$tz)
+  origin <- lubridate::as_date(origin)
+
+  plan <- prevcarga_reconcile_plan(unique(all_leaves$area), topo)
+  open <- setdiff(sss, plan$closed)
+  if (length(open)) {
+    absent <- unlist(lapply(open, function(ss) setdiff(topo$subsystems[[ss]]$areas, all_leaves$area)))
+    prevcarga_abort("completude.leaf_missing", where = paste(absent, collapse = ","))
+  }
+
+  warns <- list()
+  long <- list(); khat <- list(); cob <- list(); wm <- list(); dets <- list()
+  withCallingHandlers({
+    for (ss in sss) {
+      areas <- topo$subsystems[[ss]]$areas
+      bu <- prevcarga_reconcile_bottomup(all_leaves, ss, topo, ctx)
+      ver <- prevcarga_khat_resolve(ctx, ss, khat_version)
+      prof <- prevcarga_khat_thaw(ctx, ss, ver)
+      age <- prevcarga_khat_check_policy(prof, ctx, origin)
+      ap <- prevcarga_khat_apply(bu, list(profile = prof$profile, glob = prof$glob), ctx)
+      m <- prof$meta
+      khat[[ss]] <- list(versao = ver, khat_origin = lubridate::as_date(m$khat_origin), khat_age_days = age,
+                         window_from = m$window_from, window_to = m$window_to, n_ratio = m$n_ratio,
+                         n_fallback = as.integer(attr(ap, "n_fallback")))
+      dr <- attr(bu, "dropped")
+      cob[[ss]] <- if (nrow(dr)) stats::setNames(as.list(as.integer(dr$n)), paste0("d_plus_", dr$d_plus)) else list()
+      dets[[ss]] <- ap
+      long[[ss]] <- prevcarga_reconcile_long(ap, ss, ctx)
+    }
+  }, warning = function(w) {
+    warns[[length(warns) + 1L]] <<- list(id = if (inherits(w, "prevcarga_warning")) w$id else NA_character_,
+                                         message = conditionMessage(w))
+  })
+
+  if (isTRUE(eval)) {
+    for (ss in sss) {
+      ap <- dets[[ss]]
+      areas <- topo$subsystems[[ss]]$areas
+      lo <- min(ap$target_datetime) - lubridate::days(1L)
+      hi <- max(ap$target_datetime)
+      key <- as.character(as.numeric(ap$target_datetime))
+      ss_true <- unname(.prevcarga_reconcile_truth(ctx, ss, lo, hi)[key])
+      leaf_true <- lapply(areas, function(a) unname(.prevcarga_reconcile_truth(ctx, a, lo, hi)[key]))
+      bu_true <- Reduce(`+`, leaf_true)
+      l_true <- ss_true - bu_true
+      ok <- is.finite(ss_true) & is.finite(bu_true)
+      wm[[ss]] <- list(bottomup = prevcarga_wmape(ss_true[ok], ap$BU_pred[ok]),
+                       reconciliado = prevcarga_wmape(ss_true[ok], ap$y_pred[ok]),
+                       teto = prevcarga_wmape(ss_true[ok], ap$BU_pred[ok] + l_true[ok]))
+      ap$y_true <- ss_true
+      long[[ss]] <- prevcarga_reconcile_long(ap, ss, ctx)
+    }
+  }
+
+  sin <- NULL
+  if (setequal(sss, topo$order)) {
+    ls <- prevcarga_reconcile_sin(long, topo)
+    if (isTRUE(eval)) {
+      yt <- Reduce(`+`, lapply(sss, function(ss) dets[[ss]]$y_true[match(ls$target_datetime, dets[[ss]]$target_datetime)]))
+      ls$y_true <- yt
+    }
+    sin <- prevcarga_reconcile_long(ls, "SIN", ctx)
+  }
+  scorecard <- NULL
+  if (isTRUE(eval)) {
+    allv <- data.table::rbindlist(c(unname(long), if (!is.null(sin)) list(sin)), use.names = TRUE)
+    scorecard <- prevcarga_scorecard(prevcarga_assert_long(allv, ctx), by = "area")
+  }
+  list(long = c(long, list(SIN = sin)), khat = khat, cobertura_descartada = cob,
+       wmape = if (isTRUE(eval)) wm else NULL, scorecard = scorecard, warnings = warns)
+}

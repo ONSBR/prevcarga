@@ -39,3 +39,23 @@ Desvios do plano original, por unify: (1) nao existe `prevcarga_khat_promote` (g
 `prevcarga_khat_advance_latest` + core); (2) assinaturas recebem `ctx` em vez de `root`; (3) adulteracao no thaw sai
 `integrity.artifact_hash` (exit 9, SHA256SUMS do core) e nao `integrity.freeze_sha_mismatch`; (4) manifest e
 `run_manifest.json` (nome do core), com `arquivos[{path:'artifact.rds', sha256}]`. Consumidores (R.3, CLI) chamam esta API.
+
+## R.3 -- orquestracao train/apply (`reconcile.R`, secao final)
+- `prevcarga_reconcile_train(ctx, origin, subsystems = "all", window_days)`: `last_data_day` de `prevcarga_resolve_cuts(ctx, O)` (dates.R,
+  sem conta de corte local); verdade SO por `prevcarga_read_load(ctx, areas = c(folhas, ss), from = O-W, to = O-1)`; ratio -> fit ->
+  meta (convencao `load_label`/`tz` vem dos atributos do leitor) -> `prevcarga_khat_freeze` -> `prevcarga_khat_advance_latest` (unify R.2;
+  nao existe `prevcarga_khat_promote`). Devolve por ss `{versao, path, khat_origin, n_ratio, promovido, k_hat_resumo{min,max,fora_faixa}}`;
+  `fora_faixa` conta celulas do perfil fora de `khat_range` (so informa, nunca clampa).
+- `prevcarga_khat_check_policy(prof, ctx, origin)`: unico lugar da politica "perfil de uma origem vale para O >= khat_origin"
+  (`contract.khat_convention` com `where` = `load_label`|`timezone`; `honesty.khat_after_origin`); devolve `khat_age_days`.
+  Convencao efetiva = `ctx$load_label`/`ctx$tz`, ou o manifest do deck quando ausentes.
+- `prevcarga_reconcile_apply(long_leaves, ctx, subsystems = "all", khat_version = NULL, eval = FALSE)`: valida a entrada (`assert_long`;
+  uma unica `forecast_origin`), recusa subsistema pedido que nao fecha (`completude.leaf_missing`, `where` = folhas ausentes; nada devolvido),
+  resolve+thaw+politica+khat_apply por ss, SIN so quando todos os subsistemas da topologia foram pedidos. Nada grava em disco.
+  Retorno `{long{ss..., SIN|NULL}, khat, cobertura_descartada, wmape|NULL, scorecard|NULL, warnings}`.
+- `need_truth = eval`: sem `eval` nenhum leitor e chamado e `y_true` e NA. Com `eval`, `prevcarga_read_actual` por area (a saida nao traz a
+  coluna da area), casado por `target_datetime == interval_end`; `wmape{bottomup, reconciliado, teto}` por `prevcarga_wmape`
+  (`teto` = BU_pred + (SS_true - BU_true)); `y_true` do SIN = soma dos `y_true` dos subsistemas; `y_pred` independe da verdade.
+- Candidato a A/B Delta != 0 (so o Gabriel aceita, via `tests/ab/ab_excecoes.yaml`): o oraculo reajusta o k-hat por origem; reusar o
+  perfil `latest` (idade > 0 dias) diverge dele. Nao aceito.
+- Testes: `test-reconcile-apply.R` (leitor espionado; FORBIDDEN/CONTROL).
