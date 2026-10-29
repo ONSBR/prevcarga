@@ -434,3 +434,85 @@ pc_toy_envelope_from <- function(g, cuts = NULL, delivery_days = g$n_days, delta
        weather_issue_cutoff = "available_until", layout = g$layout, granularity_min = 30L, values = v,
        delivery = data.table::data.table(interval_end = grid, y_pred = y), meta = list())
 }
+
+## --- P.0h: brinquedos do runner de gates (plugin_gates.R) -------------------------------------------------------
+## Escreve <root>/<name>/tests/{run_all_gates.R, testthat/test-*.R}. `tests` escolhe os gates: ok = contrato + corte
+## [PLUGINS] verdes e schema_long [DEFERRED M6]; parity = paridade [PLUGINS] (tier parity, sem golden => FAIL);
+## fail = determinismo [PLUGINS] forcado a falhar (CONTROL); unowned = teste sem rotulo de dono (CONTROL).
+## O runner tem 3 linhas e chama so prevcarga_gates_run (nunca e editado para incluir packs).
+pc_toy_gates_model <- function(root, name, tests = c("ok", "fail", "unowned", "parity"), gates_dir = NULL) {
+  tests <- match.arg(tests, c("ok", "fail", "unowned", "parity"), several.ok = TRUE)
+  tdir <- file.path(root, name, "tests", "testthat")
+  dir.create(tdir, recursive = TRUE, showWarnings = FALSE)
+  T <- function(file, ...) writeLines(c(...), file.path(tdir, file))
+  gates <- list(gate = character(), owner = character(), tier = character())
+  add <- function(g, o, t) gates <<- list(gate = c(gates$gate, g), owner = c(gates$owner, o), tier = c(gates$tier, t))
+  if ("ok" %in% tests) {
+    T("test-ok.R",
+      'test_that("[PLUGINS] contrato: o runtime foi fixado antes dos testes", {',
+      '  expect_identical(Sys.getenv("TZ"), "UTC")',
+      '  expect_identical(Sys.timezone(), "UTC")',
+      '})',
+      'test_that("[PLUGINS] corte: sem dado alem do corte", { expect_true(TRUE) })',
+      'test_that("[DEFERRED M6] schema_long: saida LONG", { pc_gate_deferred("M6", "LONG nasce no M6") })')
+    add("contrato", "PLUGINS", "fast"); add("corte", "PLUGINS", "fast"); add("schema_long", "DEFERRED M6", "fast")
+  }
+  if ("parity" %in% tests) {
+    T("test-parity.R",
+      'test_that("[PLUGINS] paridade: golden do oraculo presente", {',
+      '  pc_gate_tier("parity")',
+      sprintf('  pc_gate_require_golden("%s", "u1")', name),
+      '})')
+    add("paridade", "PLUGINS", "parity")
+  }
+  if ("fail" %in% tests) {
+    T("test-fail.R", 'test_that("[PLUGINS] determinismo: duas rodadas iguais", { expect_true(FALSE) })')
+    add("determinismo", "PLUGINS", "fast")
+  }
+  if ("unowned" %in% tests) T("test-unowned.R", 'test_that("teste sem rotulo de dono", { expect_true(TRUE) })')
+  gt <- sprintf("gate_table <- data.frame(gate = %s, owner = %s, tier = %s, stringsAsFactors = FALSE)",
+                .pc_dput(gates$gate), .pc_dput(gates$owner), .pc_dput(gates$tier))
+  call <- sprintf("prevcarga_gates_run(gate_table, tier = \"fast\", model = \"%s\"%s)", name,
+                  if (is.null(gates_dir)) "" else sprintf(", gates_dir = \"%s\"", gates_dir))
+  writeLines(c(sprintf("source(\"%s\")", file.path(pc_root(), "scripts", "tools", "plugin_gates.R")), gt, call),
+             file.path(root, name, "tests", "run_all_gates.R"))
+  invisible(file.path(root, name, "tests", "run_all_gates.R"))
+}
+
+## Packs de fixture em `dir`. specs: lista nomeada (nome do arquivo sem .R) de listas de linhas
+## list(gate, applies_to, pass, owner = "PLUGINS", tier_min = "fast"); spec NULL => arquivo SEM a funcao do pack.
+pc_toy_gate_packs <- function(dir, specs) {
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  for (nm in names(specs)) {
+    rows <- specs[[nm]]
+    f <- file.path(dir, paste0(nm, ".R"))
+    if (is.null(rows)) { writeLines("pc_sem_funcao <- 1", f); next }
+    g <- vapply(rows, `[[`, "", "gate")
+    ap <- vapply(rows, function(r) paste(deparse(as.character(r$applies_to)), collapse = ""), "")
+    ow <- vapply(rows, function(r) if (is.null(r$owner)) "PLUGINS" else r$owner, "")
+    tm <- vapply(rows, function(r) if (is.null(r$tier_min)) "fast" else r$tier_min, "")
+    ts <- vapply(rows, function(r) if (isTRUE(r$pass)) "function() invisible(TRUE)" else
+                   "function() stop(\"falha de fixture\")", "")
+    writeLines(c(
+      sprintf("prevcarga_gate_pack_%s <- function(model, ctx, tier) {", nm),
+      sprintf("  d <- data.frame(gate = %s, owner = %s, tier_min = %s, stringsAsFactors = FALSE)", .pc_dput(g), .pc_dput(ow), .pc_dput(tm)),
+      sprintf("  d$applies_to <- list(%s)", paste(ap, collapse = ", ")),
+      sprintf("  d$test <- list(%s)", paste(ts, collapse = ", ")),
+      "  d", "}"), f)
+  }
+  invisible(dir)
+}
+
+## Topologia-fixture (config/topology.yaml + models/<m>/run.yaml) em <base>; devolve o diretorio de modelos.
+pc_toy_gates_topology <- function(base, models = c("toy-30", "toy-60", "toy-none")) {
+  dir.create(file.path(base, "config"), recursive = TRUE, showWarnings = FALSE)
+  writeLines(c("schema_version: 1", "khat_range: [1.00, 1.15]", "subsystems:", "  S: {areas: [RS], loss: PES}",
+               "order: [S]", "members:",
+               sprintf("  - {sigla: M%d, mdir: %s, exogena: null}", seq_along(models), models)),
+             file.path(base, "config", "topology.yaml"))
+  for (m in models) {
+    dir.create(file.path(base, "models", m), recursive = TRUE, showWarnings = FALSE)
+    writeLines("split: origin_agnostic", file.path(base, "models", m, "run.yaml"))
+  }
+  file.path(base, "models")
+}
