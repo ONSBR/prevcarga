@@ -48,3 +48,21 @@
 - `tzone` fora do fuso da carga: o leitor unico (`read_long`) ja recusa com `contract.long_tz` no discover; a recusa da
   combina cobre LONG montado em memoria. Teste exercita os dois.
 - Testes: `test-combination-align.R` + `helper-combination-align.R` (8 membros alinhados, 10 mutacoes, CONTROL do sentinela).
+
+## M4.2c -- combinacao por lead (delivery_days)
+- Regra do ADR-0032 c em `combination.R`: cada membro cobre `target_datetime <= ymd(O) + days(delivery_days)`; a faixa vem so do
+  `delivery_days` do run-manifest (proveniencia), nunca do nome do modelo; nenhuma sigla nem literal de faixa no modulo (grep no teste).
+- `prevcarga_member_coverage(provenance, panel)`: tabela longa `(member, forecast_origin, cut, lead)` com `covered` e `last_lead`
+  por `(member, cut)`. `delivery_days` NA ou com 2 valores no mesmo `(member, cut)` = `contract.member_misaligned` (campo `delivery_days`).
+- `prevcarga_build_panel` grava `NA_real_` em `f_<sigla>` fora da faixa (ausente, nunca 0) e anexa o atributo `coverage`
+  (member, cut, delivery_days, last_lead); `join_fresh_truth` o preserva. Sem coluna `delivery_days` na proveniencia nao ha mascara.
+  Pelo caminho normal o M4.2b ja recusa a cauda; a mascara defende chamadas diretas.
+- Fit/produce nao mudaram: o X da celula `(lead, cut, ym)` ja usa so colunas `f_*` nao-NA (k variavel, simplex nos presentes,
+  EQW `1/k_presentes`, warm-start so com o mesmo conjunto); o produce usa so `names(w)`.
+- `prevcarga_combina_members_by_lead(weights)`: 1 linha por `(cut, lead)` com siglas presentes (uniao dos meses) e `n_members`;
+  lead sem membro e omitido. Consumido pelo freeze (M4.3) e pelo JSON `members_by_lead` (M4.4).
+- `.prevcarga_cmb_trim_output(panel, y_pred)`: descarta linhas sem membro cobrindo, aborta `contract.combina_input` com y_pred NA na
+  faixa e confere por `(origem, corte)` que os alvos == `prevcarga_delivery_grid` (P.0a, features.R) ate a MAIOR `delivery_days` do corte.
+  Dependencia nova de carga: `combination.R` precisa de `features.R` so nesta funcao.
+- `prevcarga_combina_full`/`_apply` (M4.3) ainda nao existem: os testes compoem fit + produce + trim, o mesmo caminho.
+- Testes: `test-combination-lead.R` + `helper-combination-lead.R` (8 membros, curto ate O+1; FORBIDDEN cauda mascarada, CONTROL dd=9).

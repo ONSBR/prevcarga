@@ -4,7 +4,7 @@
 ## Pipeline da combina: discover -> assert_members_aligned -> build_panel -> join_fresh_truth ->
 ## fit por (lead, cut, ym) -> produce. Cobre fit/produce (M4.1) e a camada de IO (M4.2: discover,
 ## build_panel, join_fresh_truth, combina_load, panel_hash) e o alinhamento (M4.2b: assert_members_aligned).
-## Requer (alem de errors.R): topology.R, provenance.R, schema_long.R, deck_reader.R, evaluation.R.
+## Requer (alem de errors.R): topology.R, provenance.R, schema_long.R, deck_reader.R, evaluation.R; features.R (so para a faixa de saida do M4.2c).
 ##
 ## Leak-fix: o treino de peso de um mes-de-ORIGEM m so usa alvos ja conhecidos em inicio(m); o filtro e
 ## UMA funcao (prevcarga_combina_train_mask) e o eixo de agrupamento continua sendo o mes-de-ORIGEM.
@@ -358,6 +358,37 @@ prevcarga_combina_discover <- function(root, area, ctx, members = prevcarga_memb
   out
 }
 
+## --- cobertura por lead (M4.2c, ADR-0032 c) ------------------------------------------------------------
+## Cada membro entrega de available_until + 30 ate O + delivery_days (00:00); a faixa vem SO do
+## `delivery_days` do run-manifest (proveniencia M4.2), nunca do nome do modelo. Devolve 1 linha por
+## (member, forecast_origin, cut, lead) com `covered` e `last_lead` (ultimo lead coberto por (member, cut)).
+prevcarga_member_coverage <- function(provenance, panel) {
+  .prevcarga_cmb_need(provenance, c("member", "cut", "delivery_days"), "member_coverage")
+  .prevcarga_cmb_need(panel, c("forecast_origin", "cut", "lead", "target_datetime"), "member_coverage")
+  dd <- unique(data.table::as.data.table(provenance)[, c("member", "cut", "delivery_days"), with = FALSE])
+  if (anyNA(dd$delivery_days)) {
+    r <- dd[is.na(dd$delivery_days)][1L]
+    .prevcarga_cmb_misaligned(r$member, "delivery_days", "inteiro do run-manifest", "NA")
+  }
+  bad <- dd[, list(N = .N), by = c("member", "cut")][N > 1L]
+  if (nrow(bad))
+    prevcarga_abort("contract.member_misaligned",
+      where = sprintf("%s:delivery_days inconsistente no corte %s", bad$member[1L], bad$cut[1L]))
+  tz <- attr(panel$target_datetime, "tzone")
+  if (is.null(tz) || !nzchar(tz[1L]))
+    prevcarga_abort("contract.combina_input", where = "member_coverage:target_datetime sem tzone")
+  key <- unique(data.table::as.data.table(panel)[, c("forecast_origin", "cut", "lead", "target_datetime"),
+                                                 with = FALSE])
+  cov <- merge(key, dd, by = "cut", allow.cartesian = TRUE)
+  cov[, covered := target_datetime <=
+        lubridate::ymd(forecast_origin, tz = tz[1L]) + lubridate::days(delivery_days)]
+  cov[, last_lead := if (any(covered)) max(lead[covered]) else NA_integer_, by = c("member", "cut")]
+  data.table::setcolorder(cov, c("forecast_origin", "cut", "lead", "target_datetime", "member",
+                                 "delivery_days", "covered", "last_lead"))
+  data.table::setorderv(cov, c("member", "cut", "forecast_origin", "lead"))
+  cov[]
+}
+
 ## --- painel por corte --------------------------------------------------------------------------------
 prevcarga_build_panel <- function(long, members = NULL) {
   .prevcarga_cmb_need(long, c("member", "run_id", "area", "forecast_origin", "target_datetime", "lead",
@@ -404,6 +435,19 @@ prevcarga_build_panel <- function(long, members = NULL) {
   data.table::setcolorder(panel, c("area", "forecast_origin", "target_datetime", "lead", "d_plus",
                                    "granularity_min", "cut", "ym", "y_true", paste0("f_", members$sigla)))
   data.table::setorderv(panel, c("area", "cut", "lead", "forecast_origin"))
+  if ("delivery_days" %in% names(prov)) {   # mascara de faixa: fora de delivery_days = AUSENTE (NA), nunca 0
+    cov <- prevcarga_member_coverage(prov, panel)
+    for (s in unique(as.character(cov$member))) {
+      col <- paste0("f_", s)
+      off <- cov[cov$member == s & !cov$covered, c("forecast_origin", "cut", "lead"), with = FALSE]
+      if (nrow(off) && col %in% names(panel)) {
+        idx <- panel[off, on = c("forecast_origin", "cut", "lead"), which = TRUE, nomatch = NULL]
+        data.table::set(panel, i = idx, j = col, value = NA_real_)
+      }
+    }
+    data.table::setattr(panel, "coverage",
+                        unique(cov[, c("member", "cut", "delivery_days", "last_lead"), with = FALSE]))
+  }
   data.table::setattr(panel, "members_declared", decl)
   data.table::setattr(panel, "members_present", pres)
   data.table::setattr(panel, "provenance", prov)
@@ -413,7 +457,7 @@ prevcarga_build_panel <- function(long, members = NULL) {
 ## --- verdade fresca por interval_end ------------------------------------------------------------------
 prevcarga_join_fresh_truth <- function(panel, ctx, area) {
   .prevcarga_cmb_need(panel, c("target_datetime"), "join_fresh_truth")
-  at <- attributes(panel)[c("members_declared", "members_present", "provenance")]
+  at <- attributes(panel)[c("members_declared", "members_present", "provenance", "coverage")]
   panel <- data.table::copy(panel)
   panel[, y_true := NA_real_]
   if (nrow(panel)) {
@@ -551,4 +595,61 @@ prevcarga_combina_panel_hash <- function(panel) {
     feature_config = list(columns = cols),
     code_commit = "none", renv_lock_hash = "none",
     load_label = one("load_label"), load_tz = one("load_tz")))
+}
+
+## =================================================================================================
+## M4.2c -- combinacao por lead: so membros que cobrem o lead entram no fit e no produce
+## =================================================================================================
+## O fit (prevcarga_combina_fit) ja monta o X de cada celula (lead, cut, ym) so com as colunas f_* nao-NA
+## (k variavel por lead, simplex sobre os presentes, fallback EQW 1/k_presentes) e o produce usa so names(w);
+## a mascara de faixa do build_panel garante que o membro fora da faixa e AUSENTE, nunca zero.
+
+## conjunto de siglas presentes por (lead, cut), uniao sobre os meses; consumido pelo freeze (M4.3) e pelo JSON (M4.4)
+prevcarga_combina_members_by_lead <- function(weights) {
+  if (!is.data.frame(weights) || !all(c("lead", "cut", "w") %in% names(weights)))
+    prevcarga_abort("contract.combina_input", where = "members_by_lead:weights")
+  weights <- data.table::as.data.table(weights)
+  out <- weights[, list(members = list(sort(unique(sub("^f_", "", unlist(lapply(w, names)))),
+                                            method = "radix"))), by = c("lead", "cut")]
+  out[, n_members := lengths(members)]
+  out <- out[n_members > 0L]                      # lead sem membro cobrindo nao e entregue
+  data.table::setorderv(out, c("cut", "lead"))
+  out[]
+}
+
+## Faixa de saida: de available_until + 30 ate o fim da MAIOR faixa delivery_days presente no corte. Remove as
+## linhas sem nenhum membro cobrindo o lead; aborta se sobrar y_pred NA dentro da faixa ou se a grade de alvos
+## da origem divergir da grade de entrega (prevcarga_delivery_grid, features.R; buraco nunca preenchido).
+.prevcarga_cmb_trim_output <- function(panel, y_pred) {
+  .prevcarga_cmb_need(panel, c("forecast_origin", "cut", "lead", "target_datetime"), "trim_output")
+  fcols <- .prevcarga_cmb_fcols(panel, "trim_output")
+  cov <- attr(panel, "coverage")
+  if (is.null(cov) || !all(c("member", "cut", "delivery_days") %in% names(cov)))
+    prevcarga_abort("contract.combina_input", where = "trim_output:coverage")
+  if (!is.numeric(y_pred) || length(y_pred) != nrow(panel))
+    prevcarga_abort("contract.combina_input", where = "trim_output:y_pred")
+  dt <- data.table::copy(data.table::as.data.table(panel))
+  dt[, y_pred := y_pred]
+  any_member <- rowSums(!is.na(as.matrix(as.data.frame(panel)[, fcols, drop = FALSE]))) > 0L
+  out <- dt[any_member]
+  if (anyNA(out$y_pred))
+    prevcarga_abort("contract.combina_input",
+      where = sprintf("trim_output:y_pred NA em lead=%s cut=%s", out$lead[is.na(out$y_pred)][1L],
+                      out$cut[is.na(out$y_pred)][1L]))
+  tz <- attr(panel$target_datetime, "tzone")[1L]
+  cov <- data.table::as.data.table(cov)
+  for (ct in unique(out$cut)) {
+    maxdd <- max(cov$delivery_days[cov$cut == ct])
+    hh <- if (nzchar(ct)) as.integer(substr(ct, 1L, 2L)) else 0L
+    mm <- if (nzchar(ct)) as.integer(substr(ct, 3L, 4L)) else 0L
+    for (o in sort(unique(out$forecast_origin[out$cut == ct]), method = "radix")) {
+      au_o <- lubridate::ymd(o, tz = tz) + lubridate::hours(hh) + lubridate::minutes(mm)
+      grid <- prevcarga_delivery_grid(list(available_until = au_o, tz = tz, origin_day = lubridate::ymd(o)), maxdd)
+      got <- out$target_datetime[out$cut == ct & out$forecast_origin == o]
+      if (!identical(as.numeric(sort(unique(got))), as.numeric(grid)))
+        prevcarga_abort("contract.combina_input",
+          where = sprintf("trim_output:faixa de saida diverge da grade de entrega (origem %s, corte %s)", o, ct))
+    }
+  }
+  out[]
 }
