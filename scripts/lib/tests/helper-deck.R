@@ -6,7 +6,7 @@
 ## modo `start`: o inicio. O mesmo deck nos dois modos tem interval_start/interval_end identicos apos a leitura.
 ## Clima: observado horario e previsto com uma emissao por hora UTC em `issues` por dia; digitos de
 ## issue_time em UTC, digitos de valid_time/timestamp no fuso da carga.
-## Estende no M2.7: clima por area e feriados (auxiliary/holidays).
+## M2.7: pc_deck_panel (duas areas, clima proprio por area, feriados por area, topologia-fixture).
 
 .pc_deck_tz <- "Etc/GMT+3"
 
@@ -16,8 +16,8 @@
 }
 
 ## Grava particoes Hive area_code=/year= a mao (arrow::write_dataset exige dplyr, que o deck nao usa).
-.pc_deck_write <- function(dt, dir, rel, ts_cols) {
-  yr <- as.integer(lubridate::year(dt[[ts_cols[[1L]]]]))
+.pc_deck_write <- function(dt, dir, rel, ts_cols, year_col = ts_cols[[1L]]) {
+  yr <- as.integer(lubridate::year(dt[[year_col]]))
   grp <- paste(dt$area_code, yr, sep = "\r")
   for (g in unique(grp)) {
     sub <- dt[grp == g]
@@ -124,9 +124,10 @@ pc_ctx_deck <- function(data_dir, load_label = NULL, source = "default") {
 
 ## --- Mutadores de corte (M2.2): reescrevem o deck em disco; digitos ingenuos como no sentinela --------------
 .pc_deck_dsets <- c(load = "load", weather_observed = file.path("weather", "observed"),
-                    weather_forecast = file.path("weather", "forecast"))
+                    weather_forecast = file.path("weather", "forecast"),
+                    holidays = file.path("auxiliary", "holidays"))
 .pc_deck_ts_cols <- list(load = "timestamp", weather_observed = "timestamp",
-                         weather_forecast = c("valid_time", "issue_time"))
+                         weather_forecast = c("valid_time", "issue_time"), holidays = character())
 
 ## Le todas as particoes do dataset: colunas de tempo viram POSIXct UTC com os digitos do store.
 .pc_deck_read <- function(dir, dataset) {
@@ -148,7 +149,7 @@ pc_ctx_deck <- function(data_dir, load_label = NULL, source = "default") {
   if (nrow(dt)) {
     ts <- .pc_deck_ts_cols[[dataset]]
     data.table::setcolorder(dt, c("area_code", setdiff(names(dt), "area_code")))
-    .pc_deck_write(dt, dir, rel, intersect(ts, names(dt)))
+    .pc_deck_write(dt, dir, rel, intersect(ts, names(dt)), if (dataset == "holidays") "date" else ts[[1L]])
   }
   invisible(dir)
 }
@@ -164,6 +165,8 @@ pc_ctx_deck <- function(data_dir, load_label = NULL, source = "default") {
     st <- fix(v$timestamp, tz)
     v[, interval_start := if (identical(m$load_label, "start")) st else st - lubridate::minutes(30L)]
     v[, interval_end := interval_start + lubridate::minutes(30L)]
+  } else if (dataset == "holidays") {
+    NULL
   } else if (dataset == "weather_observed") {
     v[, timestamp := fix(timestamp, m$timezone$weather_observed)]
   } else {
@@ -190,7 +193,7 @@ pc_deck_drop <- function(dir, area, interval_start) {
 pc_deck_perturb <- function(dir, dataset, rows, env = parent.frame()) {
   dt <- .pc_deck_read(dir, dataset); v <- .pc_deck_view(dt, dataset, dir)
   idx <- which(eval(rows, v, env))
-  col <- if (dataset == "load") "load_mwh" else "temperature"
+  col <- switch(dataset, load = "load_mwh", holidays = "prevcarga_code", "temperature")
   data.table::set(dt, i = idx, j = col, value = dt[[col]][idx] + 1)
   .pc_deck_rewrite(dt, dir, dataset)
   invisible(length(idx))
@@ -203,4 +206,40 @@ pc_deck_issues <- function(dir, hours_utc) {
   new <- .pc_deck_forecast(days, sort(unique(fc$area_code), method = "radix"), hours_utc,
                            m$timezone$load, m$timezone$weather_forecast$issue_time)
   .pc_deck_rewrite(new, dir, "weather_forecast")
+}
+
+## --- Painel (M2.7) ------------------------------------------------------------------------------------------------
+## Feriados padrao (O = 2026-10-01) por area, com os tres codigos int64: O-10 (A com simplified_code = -1), O+3, O+9, O+12.
+pc_deck_holidays_default <- function(areas = c("A", "B"), origin = lubridate::ymd("2026-10-01")) {
+  off <- c(-10L, 3L, 9L, 12L)
+  h <- data.table::CJ(area_code = areas, k = seq_along(off), sorted = FALSE)
+  h[, date := origin + off[k]]
+  h[, `:=`(holiday_type_id = bit64::as.integer64(1L + k), prevcarga_code = bit64::as.integer64(10L * match(area_code, areas) + k),
+           simplified_code = bit64::as.integer64(k))]
+  h[area_code == areas[[1L]] & k == 1L, simplified_code := bit64::as.integer64(-1L)]
+  h[, .(area_code, date, holiday_type_id, prevcarga_code, simplified_code)]
+}
+
+## Topologia-fixture so com as areas dadas (mesmo schema do config/topology.yaml).
+pc_deck_topology <- function(path, areas) {
+  writeLines(c("schema_version: 1", "khat_range: [1.00, 1.15]", "subsystems:",
+               sprintf("  X: {areas: [%s], loss: PX}", paste(areas, collapse = ", ")),
+               "order: [X]", "members: []"), path)
+  invisible(path)
+}
+
+## Deck sentinela + feriados por area + topologia-fixture em <dir>/topology.yaml. Clima e carga ja tem serie propria por area.
+pc_deck_panel <- function(areas = c("A", "B"), days = pc_deck_default_days(), until = NULL, holidays = NULL,
+                          dir = withr::local_tempdir(.local_envir = parent.frame()), ...) {
+  pc_deck_sentinel("end", days = days, areas = areas, until = until, dir = dir, ...)
+  if (is.null(holidays)) holidays <- pc_deck_holidays_default(areas)
+  .pc_deck_write(data.table::copy(holidays), dir, file.path("auxiliary", "holidays"), character(), "date")
+  pc_deck_topology(file.path(dir, "topology.yaml"), areas)
+  dir
+}
+
+pc_ctx_panel <- function(dir, ...) {
+  c0 <- pc_ctx_deck(dir, ...)
+  c0$topology_path <- file.path(dir, "topology.yaml")
+  c0
 }
