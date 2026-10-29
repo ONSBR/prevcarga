@@ -28,12 +28,11 @@ HW_AREA <- "ZZ1"
 HW_FILES <- c("register.R", "ingestion.R", "feature_engineering.R", "helpers_aux.R", "training.R", "freeze.R",
               "inference_features.R", "inference.R")
 
-## Plugin: pelo loader do P.0b quando os 8 arquivos de R/ existem; antes disso, sys.source dos presentes num env cujo
-## pai e a fundacao (hw_abort acha prevcarga_condition), para HW.1..HW.3 testarem em fatia. Nunca o global.
+## Plugin: os 8 arquivos de R/ por sys.source num env cujo pai e a fundacao (hw_abort/.hw_foundation acham
+## prevcarga_condition e prevcarga_plugin_scan_pure, que na CLI vivem no global). O loader do P.0b (env sob baseenv) so e
+## exercitado em test-register.R. Nunca o global.
 hw_env <- function(root = hw_root()) {
   rdir <- file.path(root, "models", "holt-winters", "R")
-  if (all(file.exists(file.path(rdir, HW_FILES))))
-    return(hw_lib$prevcarga_plugin_load("holt-winters", file.path(root, "models"))$env)
   env <- new.env(parent = hw_lib)
   for (f in intersect(HW_FILES, list.files(rdir))) sys.source(file.path(rdir, f), envir = env, keep.source = FALSE,
                                                               toplevel.env = env)

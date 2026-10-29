@@ -12,3 +12,4 @@ hw.fe_flag	contract	Passo do feature engineering do plugin holt-winters devolveu
 hw.bad_cut	contract	Corte de treino do plugin holt-winters incoerente com a classe origin_scoped	No treino origin_scoped train_origin = O (sem shift por horizonte); veja details$field
 hw.non_finite	contract	Ajuste do plugin holt-winters devolveu previsao nao finita	Confira a serie de treino (H01..H48/CargaMedia); o plugin nao preenche nem corta
 hw.bad_artifact	contract	Artefato do plugin holt-winters com forma ou tipo fora do contrato	Veja details$field; re-treine para a origem O
+hw.semifer_failed	completude	SemiFer do plugin holt-winters falhou num dia do horizonte; a linha fica com o passo cru (aviso)	Veja details$day; confira feriados e historico (CargaTempVerFer) do tipo de feriado
