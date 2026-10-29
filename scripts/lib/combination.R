@@ -2,8 +2,9 @@
 ##
 ## Responsabilidade: modulo numerico in-process (base + data.table + lubridate, sem dependencia nova).
 ## Pipeline da combina: discover -> assert_members_aligned -> build_panel -> join_fresh_truth ->
-## fit por (lead, cut, ym) -> produce. Este arquivo cobre so o fit e o produce; os demais passos
-## vivem nos tickets seguintes do M4.
+## fit por (lead, cut, ym) -> produce. Cobre fit/produce (M4.1) e a camada de IO (M4.2: discover,
+## build_panel, join_fresh_truth, combina_load, panel_hash); o alinhamento e do M4.2b.
+## Requer (alem de errors.R): topology.R, provenance.R, schema_long.R, deck_reader.R, evaluation.R.
 ##
 ## Leak-fix: o treino de peso de um mes-de-ORIGEM m so usa alvos ja conhecidos em inicio(m); o filtro e
 ## UMA funcao (prevcarga_combina_train_mask) e o eixo de agrupamento continua sendo o mes-de-ORIGEM.
@@ -167,7 +168,7 @@ prevcarga_combina_fit <- function(panel, n_min = 24L, iters = 500L, grad_tol = 1
     l  <- keys$lead[gi]
     ct <- keys$cut[gi]
     grp <- dt[dt$lead == l & dt$cut == ct]
-    months <- sort(unique(grp$ym), method = "radix")
+    months <- sort(unique(grp$ym))
     Fm <- as.matrix(grp[, fcols, with = FALSE])
     w_prev <- NULL
     for (m in months) {
@@ -246,4 +247,211 @@ prevcarga_produce_eqw <- function(panel) {
   r <- rowMeans(as.matrix(as.data.frame(panel)[, fcols, drop = FALSE]), na.rm = TRUE)
   r[is.nan(r)] <- NA_real_
   r
+}
+
+## =================================================================================================
+## M4.2 -- IO, descoberta de membros, painel por corte e join fresco por interval_end
+## =================================================================================================
+
+## --- localizador de run por identidade (mdir, EXOGENA) + _cHHMM opcional --------------------------
+## Layout PROVISORIO <root>/<mdir>/<area>/<from>_<to>_<run_mode>[_<EXO>][_cHHMM]/{long.parquet, run_manifest.json}
+## [TBD: ADR novo de layout de run, M6]. Nunca le `split`/`protocol` do run.yaml.
+prevcarga_combina_run_modes <- c("infer", "fixed", "daily", "retrain_harness")
+
+.prevcarga_cmb_run_regex <- function(exogena) {
+  exo <- if (is.na(exogena)) "" else paste0("_", exogena)
+  sprintf("_(%s)%s(_c[0-9]{4})?$", paste(prevcarga_combina_run_modes, collapse = "|"), exo)
+}
+
+.prevcarga_cmb_empty_runs <- function()
+  data.table::data.table(run_id = character(), run_mode = character(), cut_suffix = character(),
+                         path = character())
+
+.prevcarga_cmb_member_runs <- function(root, area, mdir, exogena) {
+  base <- file.path(root, mdir, area)
+  if (!dir.exists(base)) return(.prevcarga_cmb_empty_runs())
+  ids <- sort(basename(list.dirs(base, recursive = FALSE)))
+  rx <- .prevcarga_cmb_run_regex(exogena)
+  ids <- ids[grepl(rx, ids)]
+  if (!length(ids)) return(.prevcarga_cmb_empty_runs())
+  paths <- file.path(base, ids)
+  miss <- !file.exists(file.path(paths, "long.parquet"))
+  if (any(miss))
+    prevcarga_abort("contract.combina_input",
+                    where = sprintf("discover:long.parquet ausente em %s", paths[miss][[1L]]))
+  data.table::data.table(run_id = ids, run_mode = sub(paste0(".*", rx), "\\1", ids),
+                         cut_suffix = sub(paste0(".*", rx), "\\2", ids), path = paths)
+}
+
+## --- proveniencia por run (run-manifest M1.3 ao lado do LONG) --------------------------------------
+## Arquivo/campo ausente vira NA (quem recusa e o alinhamento M4.2b). available_until e gravado em UTC
+## ISO-8601 pelo M1.3; ymd_hms(tz = load_tz) o devolve no fuso da carga do proprio manifest (HHMM do corte).
+.prevcarga_cmb_read_provenance <- function(run_path, member, run_id, run_mode, cut_suffix) {
+  mf <- file.path(run_path, "run_manifest.json")
+  m <- if (file.exists(mf)) jsonlite::read_json(mf, simplifyVector = TRUE) else list()
+  chr <- function(k) {
+    v <- m[[k]]
+    if (is.character(v) && length(v) == 1L && !is.na(v)) v else NA_character_
+  }
+  load_tz <- chr("load_tz")
+  au_raw <- m[["available_until"]]
+  au <- as.POSIXct(NA)
+  cut <- NA_character_
+  if (file.exists(mf) && "available_until" %in% names(m) && is.null(au_raw)) {
+    cut <- ""                                    # available_until nulo = corte unico
+  } else if (is.character(au_raw) && length(au_raw) == 1L && !is.na(au_raw) && !is.na(load_tz) &&
+             load_tz %in% OlsonNames()) {
+    au <- suppressMessages(lubridate::ymd_hms(au_raw, tz = load_tz, quiet = TRUE))   # "Z" -> fuso da carga
+    if (!is.na(au)) cut <- sprintf("%02d%02d", lubridate::hour(au), lubridate::minute(au))
+  }
+  dd <- m[["delivery_days"]]
+  dd <- if (is.numeric(dd) && length(dd) == 1L && is.finite(dd)) as.integer(dd) else NA_integer_
+  data.table::data.table(member = member, run_id = run_id, run_mode = run_mode, cut_suffix = cut_suffix,
+                         origin = chr("origin"), available_until = au, cut = cut,
+                         load_label = chr("load_label"), load_tz = load_tz,
+                         weather_issue_cutoff = chr("weather_issue_cutoff"), delivery_days = dd)
+}
+
+## --- descoberta -------------------------------------------------------------------------------------
+prevcarga_combina_discover <- function(root, area, ctx, members = prevcarga_members(root = ctx$root)) {
+  topo <- prevcarga_topology(root = ctx$root)
+  if (!is.character(area) || length(area) != 1L || is.na(area) || !area %in% c(topo$leaves, topo$order))
+    prevcarga_abort("topology.area_undeclared", where = as.character(area)[1L])
+  if (!is.character(root) || length(root) != 1L || is.na(root) || !dir.exists(root))
+    prevcarga_abort("contract.combina_input",
+                    where = sprintf("discover:root inexistente %s", as.character(root)[1L]))
+  if (is.null(ctx$tz)) ctx$tz <- .prevcarga_eval_tz(ctx)
+  parts <- list(); prov <- list(); present <- character()
+  for (i in seq_len(nrow(members))) {
+    sg <- members$sigla[[i]]
+    runs <- .prevcarga_cmb_member_runs(root, area, members$mdir[[i]], members$exogena[[i]])
+    if (!nrow(runs)) next
+    modes <- sort(unique(runs$run_mode))
+    if (length(modes) > 1L)
+      prevcarga_abort("contract.combina_run_mode_dup",
+                      where = sprintf("%s: %s/%s EXOGENA=%s {%s}", sg, members$mdir[[i]], area,
+                                      if (is.na(members$exogena[[i]])) "-" else members$exogena[[i]],
+                                      paste(modes, collapse = ",")))
+    for (j in seq_len(nrow(runs))) {
+      lp <- file.path(runs$path[[j]], "long.parquet")
+      d <- tryCatch(prevcarga_read_long(lp, ctx), prevcarga_error = function(e)   # mesmo id/classe, com o run
+        prevcarga_abort(e$id, where = sprintf("%s [%s]", lp, paste(e$where, collapse = ",")),
+                        details = e$details))
+      if (!all(d$area == area))
+        prevcarga_abort("contract.combina_input",
+                        where = sprintf("discover:area divergente em %s", runs$path[[j]]))
+      d <- data.table::as.data.table(d)
+      d[, `:=`(member = sg, run_id = runs$run_id[[j]])]
+      parts[[length(parts) + 1L]] <- d
+      prov[[length(prov) + 1L]] <- .prevcarga_cmb_read_provenance(
+        runs$path[[j]], sg, runs$run_id[[j]], runs$run_mode[[j]], runs$cut_suffix[[j]])
+    }
+    present <- c(present, sg)
+  }
+  if (!length(parts))
+    prevcarga_abort("contract.combina_input",
+                    where = sprintf("discover:nenhum membro com run em %s/*/%s", root, area))
+  out <- data.table::rbindlist(parts)
+  data.table::setattr(out, "members_declared", members$sigla)
+  data.table::setattr(out, "members_present", present)
+  data.table::setattr(out, "provenance", data.table::rbindlist(prov))
+  out
+}
+
+## --- painel por corte --------------------------------------------------------------------------------
+prevcarga_build_panel <- function(long, members = NULL) {
+  .prevcarga_cmb_need(long, c("member", "run_id", "area", "forecast_origin", "target_datetime", "lead",
+                              "y_pred", "d_plus", "granularity_min"), "build_panel")
+  prov <- attr(long, "provenance")
+  if (is.null(prov) || !all(c("member", "run_id", "cut") %in% names(prov)))
+    prevcarga_abort("contract.combina_input", where = "build_panel:provenance")
+  decl <- attr(long, "members_declared")
+  pres <- attr(long, "members_present")
+  if (is.null(members)) {            # so a sigla ordena as colunas; a ordem vem da topologia via discover
+    if (is.null(decl)) prevcarga_abort("contract.combina_input", where = "build_panel:members")
+    members <- data.frame(sigla = decl, stringsAsFactors = FALSE)
+  }
+  long <- data.table::as.data.table(long)
+  long <- merge(long, data.table::as.data.table(prov)[, c("member", "run_id", "cut"), with = FALSE],
+                by = c("member", "run_id"), sort = FALSE)
+  if (anyNA(long$cut))
+    prevcarga_abort("contract.combina_input",
+                    where = sprintf("build_panel:corte ausente na proveniencia de %s", long$member[[1L]]))
+  key <- c("member", "area", "forecast_origin", "lead", "cut")
+  if (anyDuplicated(long, by = key)) {
+    r <- long[duplicated(long, by = key)][1L]
+    prevcarga_abort("contract.combina_input",
+                    where = sprintf("build_panel:linha duplicada de membro %s em (%s, %s, %s)",
+                                    r$member, r$forecast_origin, r$lead, r$cut))
+  }
+  kk <- c("area", "forecast_origin", "lead", "cut")
+  tgt <- unique(long[, c(kk, "target_datetime", "d_plus", "granularity_min"), with = FALSE])
+  if (anyDuplicated(tgt, by = kk)) {
+    r <- tgt[duplicated(tgt, by = kk)][1L]
+    prevcarga_abort("contract.combina_input",
+                    where = sprintf("build_panel:target_datetime divergente entre membros em (%s, %s, %s)",
+                                    r$forecast_origin, r$lead, r$cut))
+  }
+  long[, member := factor(member, levels = members$sigla)]
+  if (anyNA(long$member))
+    prevcarga_abort("contract.combina_input", where = "build_panel:membro fora do conjunto declarado")
+  wide <- data.table::dcast(long, area + forecast_origin + lead + cut ~ member, value.var = "y_pred",
+                            fill = NA_real_, drop = c(TRUE, FALSE))
+  data.table::setnames(wide, members$sigla, paste0("f_", members$sigla))
+  panel <- merge(tgt, wide, by = kk, sort = FALSE)
+  panel[, ym := substr(forecast_origin, 1L, 7L)]       # mes-de-ORIGEM
+  panel[, y_true := NA_real_]                           # o y_true do LONG do membro e descartado
+  data.table::setcolorder(panel, c("area", "forecast_origin", "target_datetime", "lead", "d_plus",
+                                   "granularity_min", "cut", "ym", "y_true", paste0("f_", members$sigla)))
+  data.table::setorderv(panel, c("area", "cut", "lead", "forecast_origin"))
+  data.table::setattr(panel, "members_declared", decl)
+  data.table::setattr(panel, "members_present", pres)
+  data.table::setattr(panel, "provenance", prov)
+  panel
+}
+
+## --- verdade fresca por interval_end ------------------------------------------------------------------
+prevcarga_join_fresh_truth <- function(panel, ctx, area) {
+  .prevcarga_cmb_need(panel, c("target_datetime"), "join_fresh_truth")
+  at <- attributes(panel)[c("members_declared", "members_present", "provenance")]
+  panel <- data.table::copy(panel)
+  panel[, y_true := NA_real_]
+  if (nrow(panel)) {
+    ## read_actual e (from, to]: from recua 1 s para incluir o 1o alvo (sem aritmetica de hora de intervalo)
+    act <- prevcarga_read_actual(ctx, area, from = min(panel$target_datetime) - lubridate::seconds(1),
+                                 to = max(panel$target_datetime))
+    idx <- match(as.numeric(panel$target_datetime), as.numeric(act$interval_end))   # exato, sem round
+    panel[, y_true := act$y_true[idx]]
+  }
+  for (n in names(at)) if (!is.null(at[[n]])) data.table::setattr(panel, n, at[[n]])
+  panel[]
+}
+
+## unico pipeline de montagem (M4.4); o M4.2b insere o alinhamento entre discover e build_panel
+prevcarga_combina_load <- function(root, area, ctx, members = prevcarga_members(root = ctx$root)) {
+  long <- prevcarga_combina_discover(root, area, ctx, members)
+  panel <- prevcarga_build_panel(long, members)
+  prevcarga_join_fresh_truth(panel, ctx, area)
+}
+
+## hash do painel pelo hash do M1.3 (version_hash exige as 8 chaves; o conteudo vai em data_fingerprint)
+prevcarga_combina_panel_hash <- function(panel) {
+  .prevcarga_cmb_need(panel, c("area", "forecast_origin", "target_datetime", "lead", "d_plus",
+                               "granularity_min", "cut", "ym", "y_true"), "panel_hash")
+  fcols <- .prevcarga_cmb_fcols(panel, "panel_hash")
+  cols <- c("area", "forecast_origin", "target_datetime", "lead", "d_plus", "granularity_min", "cut",
+            "ym", fcols, "y_true")
+  body <- lapply(stats::setNames(cols, cols), function(k) panel[[k]])
+  prov <- attr(panel, "provenance")
+  one <- function(k) {
+    v <- if (is.null(prov) || !k %in% names(prov)) character() else sort(unique(stats::na.omit(prov[[k]])))
+    if (length(v)) paste(v, collapse = "+") else "unknown"
+  }
+  prevcarga_version_hash(list(
+    model_id = "combina_panel",
+    data_fingerprint = .prevcarga_sha256(.prevcarga_canon_json(body)),
+    cutoff = "none",
+    feature_config = list(columns = cols),
+    code_commit = "none", renv_lock_hash = "none",
+    load_label = one("load_label"), load_tz = one("load_tz")))
 }
