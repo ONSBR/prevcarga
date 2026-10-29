@@ -1,0 +1,2 @@
+id	class	message	hint
+contract.manifest_exists_different	contract	manifest.json existente difere do template do store	confira ou remova o manifest.json antigo do alvo antes de regravar

@@ -47,3 +47,8 @@
 - O limite inferior do filtro de particao `year` passou de `year(from)-1` para `year(from - 1 dia)` (nenhum ano fora da janela e coletado; o recorte fino segue em memoria).
 - Catalogo: `scripts/lib/errors/panel.tsv`. Testes: `test-read-panel.R`; helper ganhou `pc_deck_panel`, `pc_ctx_panel`, `pc_deck_topology`, `pc_deck_holidays_default`
   e `pc_deck_perturb` cobre `holidays` (+1 em `prevcarga_code`).
+
+## manifest.json do store atual (M2.6)
+- Template versionado `config/deck-manifest.store.json` (schema v1, `load_label: start`, `Etc/GMT+3`; `issue_time` `UTC`; sem `corte`). Valores a confirmar pelo Gabriel antes do merge.
+- `scripts/tools/write_store_manifest.R --target <copia>` (dev, fora do pacote) grava o template numa copia/overlay do store: valida pelo leitor, identico => no-op, diferente => `contract.manifest_exists_different` (exit 2; catalogo em `scripts/lib/errors/store_manifest.tsv`). O produto nunca escreve no `data_dir`. Nada foi gravado no store real (`data/`).
+- Smoke `validate-deck` pendente (depende do verbo M2.5, nao integrado): rodar sobre a copia e registrar no PR.

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "load_label": "start",
+  "timezone": {
+    "load": "Etc/GMT+3",
+    "weather_observed": "Etc/GMT+3",
+    "weather_forecast": { "valid_time": "Etc/GMT+3", "issue_time": "UTC" },
+    "holidays": "Etc/GMT+3"
+  }
+}
