@@ -125,7 +125,10 @@ test_that("AC1: o registro do verbo e a tabela prevcarga_verbs; usage/options se
   expect_true(any(grepl("--variant", txt)) && any(grepl("--artifact-version", txt)) && any(grepl("--pin", txt)))
   help <- cli$prevcarga_usage(verbs)
   expect_true(grepl("infer-model", help, fixed = TRUE))
-  expect_false(grepl("--horizon|--exogena", help))
+  ## so as linhas do proprio infer-model: train-models (M5.4) declara --horizon/--exogena legitimamente
+  im_lines <- grep("infer-model", strsplit(help, "\n", fixed = TRUE)[[1L]], value = TRUE, fixed = TRUE)
+  expect_true(length(im_lines) > 0L)
+  expect_false(any(grepl("--horizon|--exogena", im_lines)))
 })
 
 root_cli <- pc_install_copy()
