@@ -10,7 +10,7 @@ Cada módulo é uma **função R importável** (`source()`), não um script vest
 | `topology.R` | **M1** | fonte única: carrega+valida `config/topology.yaml` (subsistemas/áreas/perdas + 8 membros); horizonte/janela lê `models/<m>/run.yaml` (ADR-0021) |
 | `provenance.R` | **M1** | version content-addressed + run-manifest + freeze `saveRDS` (contrato) |
 | `dates.R` | **M2** | 3 cortes a partir de `--as-of` (origin; treino `origem−1−horizonte` por modelo; intradiário do dado) |
-| `validation.R` | **M2** | formato + completude (DST-aware) + sanidade física + clima honesto + janela mínima |
+| `validation.R` | **M2** | formato + completude flat-48 + sanidade física + clima honesto + janela mínima |
 | `evaluation.R` | **M3 ✅ VERIFY-READY** | fonte única de WMAPE(abs)/MAPE(exclui-0)/MAE/RMSE/BIAS/**peak-fixo-18-22h** + skill-score vs baseline por-slot (persistência O−1 / sazonal O−7); `read_actual` canônico `load_mwh`. ramp/timing/peak-regime → M4 |
 | `honesty_gate.R` | **M3 ✅ VERIFY-READY** | gate falsificável in-process (FORBIDDEN/CONTROL/CLEAN2, limiar **`|Δ|≤1e-5`** não Δ=0; perturba só `y_true`) reusável por módulo; braço **MORNING** (só dessem, nowcast) → **M5**; reach-control generalizado p/ módulos-sem-`y_true` → **M6** (com `reconcile`) |
 | `combination.R` | **M4 ✅ VERIFY-READY** | ensemble convexo R-base (Duchi/FISTA/produce_combined/eqw), **leak corrigido em voo** (corte por data-alvo `target<início(m)` por mês-de-origem, não `ym<m`); IO/painel/descoberta **run-mode-agnóstica** do manifesto; freeze `saveRDS` content-addressed; gates G2/otimalidade/qualidade. Contrato congelado em `M4-COMBINA.md` (stub `CRIAR` até o `implement`) |
