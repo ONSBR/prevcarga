@@ -4,7 +4,8 @@
 ## Pipeline da combina: discover -> assert_members_aligned -> build_panel -> join_fresh_truth ->
 ## fit por (lead, cut, ym) -> produce. Cobre fit/produce (M4.1) e a camada de IO (M4.2: discover,
 ## build_panel, join_fresh_truth, combina_load, panel_hash) e o alinhamento (M4.2b: assert_members_aligned).
-## Requer (alem de errors.R): topology.R, provenance.R, schema_long.R, deck_reader.R, evaluation.R; features.R (so para a faixa de saida do M4.2c).
+## Requer (alem de errors.R): topology.R, provenance.R, schema_long.R, deck_reader.R, evaluation.R; features.R (so para a faixa de saida do M4.2c);
+## registry.R (so prevcarga_plugin_scan_pure, na varredura de pureza do freeze do M4.3).
 ##
 ## Leak-fix: o treino de peso de um mes-de-ORIGEM m so usa alvos ja conhecidos em inicio(m); o filtro e
 ## UMA funcao (prevcarga_combina_train_mask) e o eixo de agrupamento continua sendo o mes-de-ORIGEM.
@@ -581,26 +582,24 @@ prevcarga_combina_load <- function(root, area, ctx, members = prevcarga_members(
   prevcarga_join_fresh_truth(panel, ctx, area)
 }
 
-## hash do painel pelo hash do M1.3 (version_hash exige as 8 chaves; o conteudo vai em data_fingerprint)
+## sha256 (64 hex) do conteudo do painel pelo canonicalizador do M1.3 (sem digest/toJSON proprio). Linhas em ordem
+## canonica (area, cut, lead, forecast_origin); `f_*` all-NA entram como null (o hash enxerga a presenca de membro).
 prevcarga_combina_panel_hash <- function(panel) {
   .prevcarga_cmb_need(panel, c("area", "forecast_origin", "target_datetime", "lead", "d_plus",
                                "granularity_min", "cut", "ym", "y_true"), "panel_hash")
   fcols <- .prevcarga_cmb_fcols(panel, "panel_hash")
   cols <- c("area", "forecast_origin", "target_datetime", "lead", "d_plus", "granularity_min", "cut",
             "ym", fcols, "y_true")
-  body <- lapply(stats::setNames(cols, cols), function(k) panel[[k]])
+  ord <- order(panel$area, panel$cut, panel$lead, panel$forecast_origin, method = "radix")
+  body <- lapply(stats::setNames(cols, cols), function(k) panel[[k]][ord])
   prov <- attr(panel, "provenance")
   one <- function(k) {
     v <- if (is.null(prov) || !k %in% names(prov)) character() else sort(unique(stats::na.omit(prov[[k]])))
     if (length(v)) paste(v, collapse = "+") else "unknown"
   }
-  prevcarga_version_hash(list(
-    model_id = "combina_panel",
-    data_fingerprint = .prevcarga_sha256(.prevcarga_canon_json(body)),
-    cutoff = "none",
-    feature_config = list(columns = cols),
-    code_commit = "none", renv_lock_hash = "none",
-    load_label = one("load_label"), load_tz = one("load_tz")))
+  .prevcarga_sha256(.prevcarga_canon_json(list(
+    model_id = "combina_panel", columns = cols, body = body,
+    load_label = one("load_label"), load_tz = one("load_tz"))))
 }
 
 ## =================================================================================================
@@ -658,4 +657,187 @@ prevcarga_combina_members_by_lead <- function(weights) {
     }
   }
   out[]
+}
+
+## =================================================================================================
+## M4.3 -- fit -> freeze -> apply content-addressed + saida LONG
+## =================================================================================================
+## Layout (ADR-0030/0039): <artifact_dir>/<area>/v_<16hex>/{weights.rds, weights.rds.manifest.json} + <area>/latest.txt
+## (1 linha, sem symlink). Reusa o contrato do M1.3 (prevcarga_version_hash/run_manifest/freeze/thaw) e a varredura de
+## pureza do registry (P.0d); nenhum 2o mecanismo. Staging unico `.tmp-*` irmao do destino + file.rename; orfaos
+## `.tmp-*` sao do `registry gc` (M5). A saida LONG passa pela borda de escrita de schema_long.R (sem aritmetica de hora aqui).
+
+## --- selecao de corte -----------------------------------------------------------------------------------
+.prevcarga_cmb_select_cut <- function(panel, t_cut = NULL) {
+  .prevcarga_cmb_need(panel, c("cut"), "select_cut")
+  cuts <- sort(unique(as.character(panel$cut)), method = "radix")
+  if (is.null(t_cut)) {
+    if (length(cuts) != 1L)
+      prevcarga_abort("contract.combina_input",
+                      where = sprintf("corte ambiguo (%s): passe t_cut/--cut", paste(cuts, collapse = ", ")))
+    ct <- cuts
+  } else {
+    if (!is.character(t_cut) || length(t_cut) != 1L || is.na(t_cut))
+      prevcarga_abort("contract.combina_input", where = "select_cut:t_cut")
+    ct <- sub("^c", "", t_cut)
+    if (!ct %in% cuts)
+      prevcarga_abort("contract.combina_input",
+                      where = sprintf("corte %s inexistente; disponiveis: %s", t_cut, paste(cuts, collapse = ", ")))
+  }
+  keep <- as.character(panel$cut) == ct
+  at <- attributes(panel)[c("members_declared", "members_present", "provenance", "coverage")]
+  rows <- data.table::as.data.table(panel)[keep]
+  for (n in names(at)) if (!is.null(at[[n]])) data.table::setattr(rows, n, at[[n]])
+  rows
+}
+
+## --- LONG 8 col (ADR-0002): so linhas cobertas; target_datetime pela borda de escrita de schema_long.R ----------
+.prevcarga_cmb_to_long <- function(rows, y_pred, ctx) {
+  .prevcarga_cmb_need(rows, c("area", "forecast_origin", "interval_start", "lead", "d_plus", "granularity_min",
+                              "y_true"), "to_long")
+  tz <- if (!is.null(ctx$tz)) ctx$tz else attr(rows$interval_start, "tzone")[1L]
+  kept <- .prevcarga_cmb_trim_output(rows, y_pred)
+  out <- data.table::data.table(
+    area = as.character(kept$area),
+    forecast_origin = as.character(kept$forecast_origin),
+    target_datetime = prevcarga_long_target_datetime(kept$interval_start, kept$granularity_min, tz),
+    lead = as.integer(kept$lead),
+    y_pred = as.numeric(kept$y_pred),
+    y_true = as.numeric(kept$y_true),
+    d_plus = as.integer(kept$d_plus),
+    granularity_min = as.integer(kept$granularity_min))
+  prevcarga_schema_long_check(out)
+  prevcarga_assert_long(out, list(tz = tz))
+  out <- out[order(out$forecast_origin, out$lead, method = "radix")]
+  data.table::setattr(out, "sorted", NULL)
+  out[]
+}
+
+## --- full: fit + produce num passo, sem artefato ------------------------------------------------------------
+## Consome `panel$y_true` como recebido (nao junta verdade fresca, nao le disco): o honesty-gate perturba y_true.
+prevcarga_combina_full <- function(panel, ctx, t_cut = NULL, n_min = 24L, iters = 500L, grad_tol = 1e-6,
+                                   detail = FALSE) {
+  rows    <- .prevcarga_cmb_select_cut(panel, t_cut)
+  weights <- prevcarga_combina_fit(rows, n_min = n_min, iters = iters, grad_tol = grad_tol)
+  y       <- prevcarga_produce_combined(rows, weights)
+  long    <- .prevcarga_cmb_to_long(rows, y, ctx)
+  if (!detail) return(long)
+  list(long = long, weights = weights, members_by_lead = prevcarga_combina_members_by_lead(weights))
+}
+
+## --- identidade do artefato -----------------------------------------------------------------------------------
+.prevcarga_cmb_prov1 <- function(panel, key, fn) {
+  prov <- attr(panel, "provenance")
+  v <- if (is.null(prov) || !key %in% names(prov)) character() else unique(prov[[key]])
+  if (length(v) != 1L || is.na(v) || !nzchar(v))
+    prevcarga_abort("contract.combina_input", where = sprintf("%s:provenance$%s", fn, key))
+  as.character(v)
+}
+
+.prevcarga_cmb_plain_table <- function(x) {
+  x <- as.data.frame(data.table::copy(data.table::as.data.table(x)))
+  attr(x, ".internal.selfref") <- NULL
+  x
+}
+
+.prevcarga_cmb_fingerprint <- function(area, panel, weights, cfg, members, root) {
+  prov   <- attr(panel, "provenance")
+  fitted <- weights$ym[is.na(weights$fallback)]
+  tz     <- attr(panel$target_datetime, "tzone")[1L]
+  last_m <- if (length(fitted)) max(fitted) else min(weights$ym)
+  prevcarga_combina_month_start(last_m, tz)                      # valida ym/tz; o corte ISO e o 1o dia do mes
+  dd <- unique(data.table::as.data.table(prov)[, c("member", "cut", "delivery_days"), with = FALSE])
+  dd <- dd[order(dd$member, dd$cut, method = "radix")]
+  mbl <- prevcarga_combina_members_by_lead(weights)
+  list(
+    model_id         = "combination",
+    data_fingerprint = prevcarga_combina_panel_hash(panel),
+    cutoff           = paste0(last_m, "-01"),
+    feature_config   = list(area = area, n_min = cfg$n_min, iters = cfg$iters, grad_tol = cfg$grad_tol,
+                            cuts = sort(unique(as.character(panel$cut)), method = "radix"),
+                            member_set_hash = prevcarga_member_set_hash(members),
+                            delivery_days = as.list(stats::setNames(as.integer(dd$delivery_days),
+                                                                    paste0(dd$member, "@", dd$cut))),
+                            members_by_lead = lapply(stats::setNames(names(mbl), names(mbl)),
+                                                     function(k) mbl[[k]])),
+    code_commit      = prevcarga_code_commit(root),
+    renv_lock_hash   = prevcarga_renv_lock_hash(root),
+    load_label       = .prevcarga_cmb_prov1(panel, "load_label", "fingerprint"),
+    load_tz          = .prevcarga_cmb_prov1(panel, "load_tz", "fingerprint"))
+}
+
+## latest.txt: 1 linha, tmp `.tmp-*` no mesmo diretorio + file.rename (sem symlink)
+.prevcarga_cmb_write_latest <- function(area_dir, vh) {
+  tmp <- tempfile(".tmp-", tmpdir = area_dir)
+  on.exit(unlink(tmp), add = TRUE)
+  writeLines(vh, tmp)
+  if (!file.rename(tmp, file.path(area_dir, "latest.txt")))
+    prevcarga_abort("contract.combina_input", where = paste0("rename ", file.path(area_dir, "latest.txt")))
+  invisible(file.path(area_dir, "latest.txt"))
+}
+
+## --- train: fit de todos os cortes e leads + freeze content-addressed -------------------------------------------
+prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = prevcarga_members(root = root),
+                                    n_min = 24L, iters = 500L, grad_tol = 1e-6, trained_at = NULL) {
+  if (!is.character(area) || length(area) != 1L || is.na(area) || !nzchar(area))
+    prevcarga_abort("contract.combina_input", where = "train:area")
+  if (!is.character(artifact_dir) || length(artifact_dir) != 1L || is.na(artifact_dir) || !nzchar(artifact_dir))
+    prevcarga_abort("contract.combina_input", where = "train:artifact_dir")
+  .prevcarga_cmb_need(panel, c("area", "forecast_origin", "cut"), "train")
+  weights <- prevcarga_combina_fit(panel, n_min = n_min, iters = iters, grad_tol = grad_tol)
+  cfg <- list(n_min = as.integer(n_min), iters = as.integer(iters), grad_tol = grad_tol)
+  vh  <- prevcarga_version_hash(.prevcarga_cmb_fingerprint(area, panel, weights, cfg, members, root))
+  area_dir <- file.path(artifact_dir, area)
+  final <- file.path(area_dir, vh)
+  if (dir.exists(final)) {                         # versao imutavel: nao reescreve; so reaponta o latest
+    .prevcarga_cmb_write_latest(area_dir, vh)
+    return(list(version_hash = vh, path = final, reused = TRUE, cells = weights))
+  }
+  prov <- attr(panel, "provenance")
+  dd <- unique(data.table::as.data.table(prov)[, c("member", "delivery_days"), with = FALSE])
+  dd <- dd[, list(d = max(delivery_days)), by = "member"]
+  mbl <- prevcarga_combina_members_by_lead(weights)
+  meta <- prevcarga_run_manifest(
+    data_hash = prevcarga_combina_panel_hash(panel), origin = lubridate::ymd(max(panel$forecast_origin)),
+    load_label = .prevcarga_cmb_prov1(panel, "load_label", "train"),
+    load_tz = .prevcarga_cmb_prov1(panel, "load_tz", "train"),
+    weather_issue_cutoff = .prevcarga_cmb_prov1(panel, "weather_issue_cutoff", "train"),
+    split = "origin_scoped", delivery_days = as.list(stats::setNames(as.integer(dd$d), dd$member)),
+    model_versions = list(combination = "v_0000000000000000"),   # placeholder so para passar a validacao do M1.3
+    seeds = list(combination = 0L), root = root, trained_at = trained_at, members = members,
+    area = area, version_hash = vh, members_by_lead = .prevcarga_cmb_plain_table(mbl))
+  meta$model_versions <- structure(list(), names = character())    # provisorio (decisao do Gabriel): lista nomeada vazia
+  obj <- list(meta = meta, weights = .prevcarga_cmb_plain_table(weights))
+  pure <- list(meta = meta[setdiff(names(meta), "trained_at")], weights = obj$weights)
+  prevcarga_plugin_scan_pure(pure)                                 # pureza (P.0d); trained_at e lateral declarada
+  dir.create(area_dir, recursive = TRUE, showWarnings = FALSE)
+  stg <- tempfile(".tmp-", tmpdir = area_dir)                      # staging unico do registry, irmao do destino
+  dir.create(stg)
+  prevcarga_freeze(obj, file.path(stg, "weights.rds"))
+  if (!file.rename(stg, final)) {
+    unlink(stg, recursive = TRUE)
+    prevcarga_abort("contract.combina_input", where = paste0("rename ", stg))
+  }
+  .prevcarga_cmb_write_latest(area_dir, vh)                        # POR ULTIMO
+  list(version_hash = vh, path = final, reused = FALSE, cells = weights)
+}
+
+## --- apply: aplica os pesos congelados, nunca re-fita --------------------------------------------------------
+prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL,
+                                    members = prevcarga_members(root = ctx$root)) {
+  lp <- file.path(artifact_dir, area, "latest.txt")
+  if (!file.exists(lp))
+    prevcarga_abort("state.combina_not_trained", where = sprintf("%s em %s", area, artifact_dir))
+  vh <- readLines(lp, n = 1L, warn = FALSE)
+  if (!length(vh) || !grepl("^v_[0-9a-f]{16}$", vh))
+    prevcarga_abort("contract.combina_input", where = paste0("latest.txt invalido: ", lp))
+  obj <- prevcarga_thaw(file.path(artifact_dir, area, vh, "weights.rds"))      # integrity (9) antes do readRDS
+  if (!is.list(obj) || !all(c("meta", "weights") %in% names(obj)))
+    prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))
+  if (!identical(obj$meta$member_set_hash, prevcarga_member_set_hash(members)) ||
+      !identical(obj$meta$load_label, .prevcarga_cmb_prov1(panel, "load_label", "apply")) ||
+      !identical(obj$meta$load_tz, .prevcarga_cmb_prov1(panel, "load_tz", "apply")))
+    prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))
+  rows <- .prevcarga_cmb_select_cut(panel, t_cut)
+  .prevcarga_cmb_to_long(rows, prevcarga_produce_combined(rows, obj$weights), ctx)
 }
