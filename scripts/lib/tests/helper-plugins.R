@@ -536,15 +536,19 @@ pc_grep_code <- function(paths, patterns, allow = list()) {
   res[]
 }
 
+## `global` (library/source) vale so para os modulos de scripts/lib (AC1 "nos modulos"); as ferramentas dev de
+## scripts/tools carregam a lib por source() por desenho (escopo, nao allow-list): ver pc_foundation_forbidden_tools.
 ## Padroes proibidos no codigo da fundacao (ADR-0012/0019/0035, CLAUDE.md principios 2 e 7).
 pc_foundation_forbidden <- list(
   env      = "Sys[.](getenv|setenv)",   clock = "Sys[.](time|Date)[(]",
-  base_dt  = "as[.]POSIXct|strptime|difftime|as[.]Date[(]", setwd = "setwd[(]",
+  base_dt  = "as[.]POSIXct|strptime|as[.]Date[(]", difftime = "difftime", setwd = "setwd[(]",
   superass = "<<-",                       system = "(^|[^2a-z_])system[(]",
   fork     = "mclapply|parallel::mc",     global = "(^|[^.])library[(]|(^|[^.])source[(]",
   byname   = "switch[(]model|grepl[(]\"dessem|%in% c[(]\"lgbm",
   upper    = "PREVCARGA_[A-Z_]+"
 )
+
+pc_foundation_forbidden_tools <- pc_foundation_forbidden[setdiff(names(pc_foundation_forbidden), "global")]
 
 ## Bytes > 127 dentro de literais de mensagem (prevcarga_abort/message/cat/stop/warning).
 pc_bytes_over_127 <- function(paths) {

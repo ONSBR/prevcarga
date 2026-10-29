@@ -42,15 +42,17 @@ pc_golden_units <- function(path, tz = "Etc/GMT+3") {
   pk <- if (is.null(doc$packages)) character() else unlist(doc$packages)
   if (!is.character(pk) || anyNA(pk) || any(!grepl("^[A-Za-z][A-Za-z0-9.]*$", pk)))
     prevcarga_abort("tools.bad_units", where = path, details = list(field = "packages", why = "lista de nomes de pacote"))
-  ids <- character()
+  all_ids <- vapply(seq_along(doc$units), function(i) {
+    u <- doc$units[[i]]
+    if (is.list(u) && .pc_golden_scalar_chr(u$id)) u$id else paste0("#", i)
+  }, character(1L))
   units <- lapply(seq_along(doc$units), function(i) {
     u <- doc$units[[i]]
     id <- if (is.list(u) && .pc_golden_scalar_chr(u$id)) u$id else paste0("#", i)
     if (!is.list(u) || is.null(names(u))) .pc_golden_bad_units(id, "id", "a unidade deve ser um mapa")
     if (!.pc_golden_scalar_chr(u$id) || !grepl("^[A-Za-z0-9][A-Za-z0-9._-]*$", u$id))
       .pc_golden_bad_units(id, "id", "id obrigatorio (letras, digitos, . _ -)")
-    if (id %in% ids) .pc_golden_bad_units(id, "id", "id duplicado")
-    ids <<- c(ids, id)
+    if (id %in% all_ids[seq_len(i - 1L)]) .pc_golden_bad_units(id, "id", "id duplicado")
     unk <- setdiff(names(u), .PC_GOLDEN_ALLOWED)
     if (length(unk)) .pc_golden_bad_units(id, unk[[1L]], "campo desconhecido")
     for (f in c("area", "origin", "available_until", "weather_issue_cutoff", "day0_source"))
@@ -140,9 +142,8 @@ pc_golden_oracle_touched <- function(pre) {
     writeLines(jsonlite::toJSON(.pc_golden_unit_json(unit, tz, args$data), auto_unbox = TRUE, null = "null", pretty = TRUE), ujson)
   cargs <- c("--vanilla", shQuote(paths$driver), "--oracle", shQuote(paths$oracle), "--unit", shQuote(ujson),
              "--out", shQuote(run), "--available-until", .pc_golden_cut_arg(unit))
-  old <- setwd(file.path(paths$scratch, unit$id))
-  on.exit(setwd(old), add = TRUE)
-  rc <- suppressWarnings(system2(args$rscript, cargs, env = .pc_golden_child_env(unit), stdout = log, stderr = log))
+  rc <- withr::with_dir(file.path(paths$scratch, unit$id),
+    suppressWarnings(system2(args$rscript, cargs, env = .pc_golden_child_env(unit), stdout = log, stderr = log)))
   tail <- if (file.exists(log)) utils::tail(readLines(log, warn = FALSE), 20L) else character()
   miss <- setdiff(c("native.rds", "long.parquet"), list.files(run))
   if (!identical(as.integer(rc), 0L) || length(miss))

@@ -67,4 +67,11 @@ arquivos `docs/estado/plugin_dispatch.md`, `plugin_tools_*.md` e `features_facad
 ## Pendencias conhecidas (nao tratadas aqui; aguardam decisao)
 - F1: workarounds de plugin (`cuts$spec`, `attr(frame, "cuts")`, `plugin$spec`, placeholder MED); F4: adaptador `timestamp -> valid_time` (P.0i/P.0g/leitor).
 - Listas centrais de layout: `prevcarga_native_layouts` (`registry.R`) e `prevcarga_parity_layouts` (`plugin_parity.R`); classe de aviso `ok` rejeitada por `errors.R`.
-- Higiene P.0j: hits reais em `scripts/tools/*` e testes lendo `models/` real foram registrados como discoveries do ticket P.0j (ver SpecForge).
+- Higiene P.0j (corrigida no proprio ticket, direcao do team-lead sobre a discovery 01M64E36N66SP746XG73M6AB85):
+  - Escopo: `source()`/`library()` proibidos so em `scripts/lib` (AC1, "nos modulos"); as ferramentas dev de `scripts/tools` carregam a lib por `source()` por desenho
+    (`pc_foundation_forbidden_tools` = tabela sem `global`; escopo, nao allow-list).
+  - `plugin_golden.R`: `setwd` -> `withr::with_dir`; `<<-` -> ids pre-computados; `fixture_store.R`: `lubridate::as_date(character())`.
+  - PENDENTE: `plugin_parity.R` usa `difftime()` (linhas 106 e 157). O RF.4 edita o arquivo; o fix e do P.0g pos-RF.4. A assercao existe em
+    `test-plugin-hygiene.R` ("PENDENTE", `skip` com motivo) e liga quando o fix entrar; o resto dos padroes ja e varrido em `plugin_parity.R`.
+  - Testes: `withr::local_seed` em `test-features.R` e `test-plugin-dispatch.R` (`.Random.seed` restaurado); `test-plugin-tools-fixture.R` gera `run.yaml` sinteticos em tempdir;
+    `test-plugin-tools-gates.R` varre so os runners de tempdir; `test-features-facade.R` nao carrega plugins reais (`real_plugins()` vazio; cobertura dos membros e do M5).
