@@ -79,7 +79,7 @@ pc_grep_gates <- data.frame(
     "(?<![0-9.])1\\.15(?![0-9])|(?<![0-9.])1\\.00(?![0-9])",
     "\"dessem-(linear|regdin)\"",
     paste0("^\\s*(", paste(run_forbidden, collapse = "|"), ")\\s*:"),
-    "promote|rollback|(?<![A-Za-z0-9_])gc(?![A-Za-z0-9_])",
+    "(?<![A-Za-z0-9_])(?<!prevcarga_registry_)(promote|rollback)|(?<![A-Za-z0-9_])gc(?![A-Za-z0-9_])|prevcarga_registry_[A-Za-z0-9_]*\\s*(<-|=)\\s*function",
     "[\\x80-\\xFF]",
     "(?<![A-Za-z0-9_.])d?(minutes|seconds)\\(\\s*(c\\([^)]*)?-?\\s*(30|1800)(?![0-9])|[-+]\\s*1800(?![0-9])",
     "(?<![A-Za-z0-9_])prevcarga_long_attach_interval_start(?![A-Za-z0-9_])"),
@@ -88,8 +88,7 @@ pc_grep_gates <- data.frame(
     character(),                      # divida do combination.R quitada em M4.2b (lubridate::as_datetime): zero hits
     "scripts/lib/config.R",           # lateral run_id (unico relogio permitido)
     character(), character(), character(), "config/topology.yaml", character(), character(),
-    c("scripts/lib/registry.R",       # registry_lifecycle: ciclo de vida (promote/rollback/gc) so no registry.R (M5.2); resto do codigo R proibido
-      "scripts/lib/training.R"),      # M5.3: a fachada so CHAMA prevcarga_registry_promote_latest (nao o reimplementa)
+    "scripts/lib/registry.R",         # registry_lifecycle: ciclo de vida (promote/rollback/gc) so no registry.R (M5.2); resto do codigo R proibido
     character(),
     ## minutes30: o rotulo de hora da carga e operado 1x na entrada e 1x na saida (ESTADO-ATUAL, ADR-0035)
     c("scripts/lib/deck_reader.R",    # borda do deck: rotulo end -> interval_start/interval_end e passo do available_until
@@ -145,6 +144,16 @@ for (i in seq_len(nrow(pc_grep_gates))) local({
 test_that("[CONTROL] o corte de comentario nao esconde codigo nem inventa match", {
   expect_identical(pc_strip_comment(c("x <- 1  # Sys.time()", "# so comentario", "s <- 'a # b'; Sys.time()")),
                    c("x <- 1  ", "", "s <- 'a # b'; Sys.time()"))
+})
+
+test_that("[CONTROL] registry_lifecycle casa definicao de ciclo de vida e poupa chamada da API do registry", {
+  pat <- pc_grep_gates$pattern[pc_grep_gates$gate == "registry_lifecycle"]
+  hit <- function(code) length(pc_grep(pat, write_bait(code))) == 1L
+  for (code in c("promote <- function() 1", "promote(x)", ".promote_latest <- function(x) x", "rollback(v)", "gc()",
+                 "prevcarga_registry_promote_latest <- function(x) 1"))
+    expect_true(hit(code), info = code)
+  for (code in c("prevcarga_registry_promote_latest(x)", "prevcarga_registry_rollback(area, v)", "prevcarga_registry_gc(dir)"))
+    expect_false(hit(code), info = code)
 })
 
 test_that("[CONTROL] minutes30 casa as formas de +-30 min e poupa passo de grade e minutos variaveis", {

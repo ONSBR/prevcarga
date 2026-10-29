@@ -11,8 +11,8 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
   `prevcarga_train_cut(spec EFETIVO, ...)` (o `resolve_cuts` le o run.yaml sem overrides; so o `train_origin` com H efetivo vem do `prevcarga_train_cut`). Linha de corte com
   `data_lag_days` != descriptor => `contract.cut_mismatch` (exit 2). O M5 nao soma/subtrai dias de corte (teste varre o corpo de `training.R`).
 - Painel: `prevcarga_read_panel` com janela `history_days.train + (O - last_data_day)`; carga e clima observado cortados em `last_data_day` e limitados a
-  `history_days.train` dias; `weather_observed$timestamp` renomeado para `valid_time` (adaptador do defeito de integracao do P.0i: o leitor entrega `timestamp`, o
-  despachante e `to_hourly` exigem `valid_time`); plugin com `weather_forecast_in_train` recebe todas as emissoes `<= weather_issue_limit` (nao so a mais fresca).
+  `history_days.train` dias; `weather_observed$timestamp` renomeado para `valid_time` (INTERINO ate o follow-up do deck_reader; adaptador do defeito de integracao do P.0i: o leitor entrega `timestamp`, o
+  despachante e `to_hourly` exigem `valid_time`); plugin com `weather_forecast_in_train` recebe todas as emissoes `<= weather_issue_limit` (nao so a mais fresca) (INTERINO, pendente da decisao do Gabriel sobre emissoes historicas do painel).
   Dias distintos de carga < `history_days.train` => `window.history_short` (exit 5; `details`: `available_days`, `required_days`, `member`), antes de qualquer escrita.
   Granularidade 60 => `to_hourly`. O mapeamento area -> serie de clima (ex.: LGBM SECO -> SP) e do plugin: o painel traz o clima da propria area.
 - Identidade: `prevcarga_train_fingerprint` preenche as 8 chaves do contrato de `provenance.R`: `model_id` = `member$mdir`; `data_fingerprint` = sha256 do CONTEUDO do painel ja
@@ -25,5 +25,5 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
 - `prevcarga_train(member, area, origin, ctx, force)`: `v_<hash>` existente e `!force` => `status = "reused"` (plugin nao chamado, pasta intocada); senao
   `prevcarga_plugin_train` -> `prevcarga_registry_publish` -> `prevcarga_registry_promote_latest` (M5.2). Devolve 1 linha
   `(model, variant, area, split, train_origin, last_data_day, version, status, path)`.
-- Gate `registry_lifecycle` (`test-static-greps.R`): `training.R` foi acrescentado ao allow-list porque so CHAMA `prevcarga_registry_promote_latest` (nao reimplementa o ciclo de vida).
+- Gate `registry_lifecycle` (`test-static-greps.R`): allow-list segue so `registry.R`; o padrao foi refinado para casar DEFINICAO/uso nu de promote/rollback/gc (e `prevcarga_registry_* <- function`) e poupar CHAMADAS da API (`prevcarga_registry_promote_latest(...)`), com CONTROLs. `training.R` so chama o registry.
 - Pendencia F1 (despachante): os estagios continuam com formals fixos; esta fachada NAO escolheu canal para repassar spec/cortes aos estagios (params e seed ja chegam por `spec$params`/`spec$seed`).
