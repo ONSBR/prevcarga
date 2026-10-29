@@ -289,6 +289,23 @@ test_that("AC5: spec passado diferente do efetivo do artefato => contract.infer_
   expect_pc(env$prevcarga_infer(plugin, art, panel, a[[4L]], list(), spec = bad), "contract.infer_spec_divergent", 2L)
 })
 
+test_that("artefato sem spec_efetivo ou fit => contract.artifact_spec_missing (exit 2), nao integrity; completo passa (CONTROL)", {
+  s <- im_setup("toy-30")
+  im_train(s)
+  sp <- im_spy("prevcarga_plugin_infer")
+  im_infer(s)
+  a <- sp$args[[1L]]
+  plugin <- env$prevcarga_plugin_load("toy-30", file.path(s$root, "models"))
+  key <- env$prevcarga_registry_key(s$mem, "A", s$ctx)
+  art <- env$prevcarga_load_artifact(key, env$prevcarga_resolve_version(key, "latest"))
+  a1 <- art; a1$spec_efetivo <- NULL
+  cond <- expect_pc(env$prevcarga_infer(plugin, a1, a[[3L]], a[[4L]], list()), "contract.artifact_spec_missing", 2L)
+  expect_identical(cond$details$missing, "spec_efetivo")
+  a2 <- art; a2$fit <- NULL
+  expect_pc(env$prevcarga_infer(plugin, a2, a[[3L]], a[[4L]], list()), "contract.artifact_spec_missing", 2L)
+  expect_s3_class(env$prevcarga_infer(plugin, art, a[[3L]], a[[4L]], list()), "data.table")
+})
+
 ## =====================================================================================================
 ## AC6 -- integridade
 ## =====================================================================================================
@@ -427,7 +444,7 @@ test_that("errors/inference.tsv carrega pelo loader sem id duplicado; contract.v
   cat <- env$prevcarga_errors_load()
   expect_false(anyDuplicated(cat$id) > 0L)
   tsv <- utils::read.delim(file.path(pc_root(), "scripts", "lib", "errors", "inference.tsv"), colClasses = "character")
-  expect_setequal(tsv$id, c("contract.infer_spec_divergent", "contract.variant_mismatch", "io.out_unwritable"))
+  expect_setequal(tsv$id, c("contract.infer_spec_divergent", "contract.variant_mismatch", "contract.artifact_spec_missing", "io.out_unwritable"))
   expect_false("contract.variant_required" %in% tsv$id)
   expect_identical(env$prevcarga_error_lookup("contract.infer_spec_divergent")$class, "contract")
   expect_identical(env$prevcarga_exit_codes[[env$prevcarga_error_lookup("io.out_unwritable")$class]], 6L)

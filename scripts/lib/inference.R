@@ -68,11 +68,12 @@ prevcarga_infer_resolve <- function(member, area, ctx, variant = NULL, version =
 prevcarga_infer <- function(plugin, artifact, panel, cuts, ctx = list(), spec = NULL) {
   frozen <- artifact$spec_efetivo
   if (is.null(frozen) || is.null(artifact$fit))
-    prevcarga_abort("integrity.artifact_hash", where = "artifact", details = list(reason = "artefato sem spec_efetivo/fit"))
+    prevcarga_abort("contract.artifact_spec_missing", where = plugin$descriptor$model_id,
+                    details = list(missing = c(if (is.null(frozen)) "spec_efetivo", if (is.null(artifact$fit)) "fit")))
   if (!is.null(spec) && !identical(spec, frozen))
     prevcarga_abort("contract.infer_spec_divergent", where = plugin$descriptor$model_id,
                     details = list(model = plugin$descriptor$model_id))
-  plugin$spec <- frozen
+  plugin$spec <- frozen          # INTERINO (F1): o despachante de infer nao recebe `spec`; ver docs/estado/inference.md
   tz <- cuts$tz
   since <- .prevcarga_inf_origin(cuts) - as.integer(frozen$history_days$infer)
   day_of <- function(x) lubridate::as_date(x, tz = tz)

@@ -24,9 +24,10 @@ so o RF tem inferencia entre os modelos reais). Espelha a fachada de treino (`do
   split, train_origin, last_data_day, predictions[target_datetime, y_pred])`. `--out` grava parquet de 7 colunas
   (model, variant, area, origin, available_until, target_datetime, y_pred) atomicamente, recusando diretorio ausente e caminhos
   dentro de `<state_dir>/artifacts` (`io.out_unwritable`, classe bundle = exit 6). O LONG de 8 colunas e do M6.
-- Erros novos em `errors/inference.tsv`: `contract.infer_spec_divergent`, `contract.variant_mismatch`, `io.out_unwritable`.
-- INTERINO: (a) `prevcarga_plugin_infer(plugin, artifact, panel, cuts, ctx)` nao recebe `spec` (usa `plugin$spec`); a fachada
-  substitui `plugin$spec` pelo spec do artefato antes da chamada (pendencia F1 do despachante: canal de spec/cortes); (b)
+- Erros novos em `errors/inference.tsv`: `contract.infer_spec_divergent`, `contract.variant_mismatch`, `contract.artifact_spec_missing`, `io.out_unwritable`.
+- Artefato sem `spec_efetivo`/`fit` (malformado, apos SHA256SUMS ok) => `contract.artifact_spec_missing` (exit 2), nao integrity.
+- INTERINO (decisao do Gabriel, 2026-10-29; F1 fica para depois da implementacao): (a) `prevcarga_plugin_infer(plugin, artifact, panel, cuts, ctx)` nao recebe `spec` (usa `plugin$spec`); a fachada
+  substitui `plugin$spec` (INTERINO, removivel em 1 linha quando o despachante ganhar `spec`) pelo spec do artefato antes da chamada (pendencia F1 do despachante: canal de spec/cortes); (b)
   `weather_observed$timestamp` -> `valid_time` renomeado na celula (mesmo adaptador do treino); (c) o handler segue a convencao
   real da fachada `handler(ctx, args)`; `--area` e `--out` ja constam no bloco Options de validate-deck/combine (duplicata torna o
   docopt ambiguo), o Usage os exige.
