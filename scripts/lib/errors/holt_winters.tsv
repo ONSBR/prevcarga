@@ -1,0 +1,9 @@
+id	class	message	hint
+hw.raw_timestamp	contract	Carga do plugin holt-winters com coluna timestamp crua	Use o painel do leitor unico (interval_start/interval_end); so o leitor converte o rotulo de tempo
+hw.input_column	contract	Coluna ausente ou fora do fuso no painel do plugin holt-winters	Veja details$columns; confira load_mwh, interval_start, interval_end e o fuso de cuts$tz
+hw.train_day_o	contract	Painel do plugin holt-winters traz carga do dia O fora do corte permitido	No treino a serie vai ate O-1; no infer so ate available_until; o plugin nao corta
+hw.weather_beyond_cut	contract	Clima previsto com issue_time apos weather_issue_limit no plugin holt-winters	Confira a regra weather_issue_cutoff do leitor; o plugin so confere, nunca escolhe a regra
+hw.artifact_origin	contract	Artefato do plugin holt-winters treinado para outra origem	Re-treine para a origem O (split origin_scoped: 1 treino por origem)
+hw.last_day_incomplete	completude	Dia O-1 do plugin holt-winters sem os 48 intervalos de 30 min	Complete o deck no dia O-1; o plugin nunca preenche com 0
+hw.history_short	window	Historico insuficiente para o plugin holt-winters	Amplie a janela do deck ou ajuste history_days no run.yaml
+hw.weather_absent	completude	Sem clima previsto valido para o horizonte do plugin holt-winters; temperaturas NA e FER do calendario (aviso)	Nenhuma acao: o SemiFer e o efeito de temperatura ficam neutros neste horizonte
