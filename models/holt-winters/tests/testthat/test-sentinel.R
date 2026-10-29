@@ -25,6 +25,7 @@ hw_fx_variant_group_by_end <- function(load, cuts) {
 test_that("[PLUGINS] sentinela: H01 = 00:00-00:30 por interval_start e delivery por interval_end no fuso da carga; CONTROL por interval_end reprova", {
   env <- hv_env()
   ## available_until minimo = 00:30 (o leitor exige o 1o intervalo do dia O; com 00:00 o recorte nao tem carga: completude.no_load)
+  ## INTERINO: volta para 00:00 quando o FIX 5 (fix/foundation) fechar a lacuna do corte da manha
   st <- hw_fx_store(sentinel = TRUE, load_until = hv_au("00:30")); cuts <- hv_cuts(st)
   expect_identical(cuts$available_until, hv_au("00:30"))
   panel <- hv_panel(st, cuts, "train")
