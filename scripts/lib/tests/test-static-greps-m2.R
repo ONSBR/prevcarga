@@ -78,9 +78,9 @@ GREP_GATES_M2 <- list(
   ## grade flat-48 por interval_start: nenhum rotulo de dia de 24 slots nem DST-aware
   list(id = "m2_no_dst_slots", pat = "DST-aware|24 slots", except = character(), bait = "x <- 'DST-aware: 24 slots'"),
   ## chave `corte` do manifest (legada): nem como chave de lista nem como literal
-  ## excecao: a FLAG `--corte=<c>` do plan/backtest (M7.1, declaracao docopt), nao a chave `corte` do manifest
-  list(id = "m2_no_corte_key", pat = "[$]corte(?![A-Za-z0-9_])|[\"']corte[\"']|(?<![A-Za-z0-9_.])corte\\s*=(?!=)",
-       except = c("scripts/lib/cli/backtest.R", "scripts/lib/cli/plan.R"), bait = "m <- list(corte = 'x')")
+  ## o `-` no lookbehind deixa passar a FLAG `--corte=<c>` (M7.1); a chave `corte = ` do manifest segue proibida
+  list(id = "m2_no_corte_key", pat = "[$]corte(?![A-Za-z0-9_])|[\"']corte[\"']|(?<![A-Za-z0-9_.-])corte\\s*=(?!=)",
+       except = character(), bait = "m <- list(corte = 'x')")
 )
 
 for (g in GREP_GATES_M2) local({
@@ -178,4 +178,10 @@ test_that("docs/estado/m2-leitor.md existe e os modulos do M2 nao carregam resto
               "available_until", "train_origin", "data_lag_days", "validate-deck", "data_hash", "deck_reader.tsv",
               "deck_cut.tsv", "dates.tsv", "validation.tsv", "store_manifest.tsv"))
     expect_true(grepl(k, txt, fixed = TRUE), info = k)
+})
+
+test_that("[CONTROL] m2_no_corte_key: a flag --corte=<c> nao casa; list(corte = 'x') casa", {
+  g <- Filter(function(x) identical(x$id, "m2_no_corte_key"), GREP_GATES_M2)[[1L]]
+  expect_false(grepl(g$pat, "\"--corte=<c>   Cortes\"", perl = TRUE))
+  expect_true(grepl(g$pat, "m <- list(corte = 'x')", perl = TRUE))
 })
