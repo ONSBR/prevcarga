@@ -159,7 +159,7 @@
 .hw_meta <- function(panel, cuts, origin) {
   area <- unique(as.character(panel$load$area_code))
   list(area = if (length(area) == 1L) area else NA_character_, origin_day = origin,
-       last_data_day = cuts$last_data_day, tz = cuts$tz,
+       last_data_day = cuts$last_data_day, train_origin = lubridate::as_date(cuts$train_origin), tz = cuts$tz,
        weather_issue_cutoff = if (is.null(cuts$weather_issue_cutoff)) NA_character_ else cuts$weather_issue_cutoff)
 }
 

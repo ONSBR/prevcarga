@@ -89,7 +89,8 @@ test_that("[PLUGINS] catalogo_hw: os 10 ids hw.* declarados, ASCII, classe esper
   want <- c(hw.raw_timestamp = "contract", hw.input_column = "contract", hw.train_day_o = "contract",
             hw.weather_beyond_cut = "contract", hw.artifact_origin = "contract",
             hw.last_day_incomplete = "completude", hw.history_short = "window", hw.weather_absent = "completude",
-            hw.bad_param = "contract", hw.fe_flag = "contract")
+            hw.bad_param = "contract", hw.fe_flag = "contract", hw.bad_cut = "contract",
+            hw.non_finite = "contract", hw.bad_artifact = "contract")
   expect_true(all(names(want) %in% cat$id))
   got <- cat[match(names(want), cat$id), ]
   expect_identical(got$class, unname(want))
