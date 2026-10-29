@@ -44,3 +44,5 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
 - INTERINO / lacuna conhecida (nao decidida aqui): o RF real (RF.1) nao treina via `prevcarga_train`: (1) o estagio de ingestao le `cuts$spec`/`cuts$phase`, que o despachante nao repassa (F1);
   (2) a janela de carga do facade e `history_days.train` dias terminando em `last_data_day`, mas o RF exige `[train_origin - history_days.train, last_data_day]` (history_days + H dias). Os testes
   usam o plugin-brinquedo `toy-rng` (toy-30 origin_agnostic que consome o RNG com o seed do spec).
+- ABERTO (decidido no M5.4, follow-up contra o M5.3): a correcao da janela de carga do facade (history_days.train + H, origin_agnostic; ajustar window.history_short) e a prova
+  ponta a ponta com o random-forest REAL via `train-models` continuam em aberto; as provas dos ACs 1/4/5 usam o plugin-brinquedo `toy-rng` (interino aceito). O canal cuts$spec/phase segue sob a F1 escalada.
