@@ -207,3 +207,28 @@ prevcarga_thaw <- function(path) {
                     details = list(manifest = want, file = got))
   readRDS(path)
 }
+
+## --- Identidade do deck: data_hash (M2.5; model-agnostico; receita = default de trabalho, ADR pendente) ------------
+## sha256 de linhas `<caminho Hive RELATIVO ao data_dir>\t<sha256 do arquivo>` de todos os parquet (carga, clima,
+## feriados), reordenadas por radix (independe de locale e da ordem de listagem), mais `load_label\t<efetivo>` e
+## `timezone.<chave>\t<IANA>` do manifest. Sem `--model`: o hash nao depende de modelo. `files` e a alavanca de
+## teste (qualquer ordem); NULL enumera os datasets canonicos. Sem parquet => contract.dataset_missing.
+.prevcarga_sha256_file <- function(path) digest::digest(file = path, algo = "sha256")
+
+.prevcarga_hash_datasets <- c("load", "weather/observed", "weather/forecast", "auxiliary/holidays")
+
+prevcarga_data_hash <- function(data_dir, manifest, load_label, files = NULL) {
+  if (is.null(files)) {
+    files <- unlist(lapply(.prevcarga_hash_datasets, function(d) {
+      rel <- list.files(file.path(data_dir, d), pattern = "[.]parquet$", recursive = TRUE)
+      if (length(rel)) paste(d, rel, sep = "/") else character()
+    }))
+  }
+  if (!length(files)) prevcarga_abort("contract.dataset_missing", where = "load")
+  files <- sort(unique(files), method = "radix")
+  sha <- vapply(file.path(data_dir, files), .prevcarga_sha256_file, character(1), USE.NAMES = FALSE)
+  tz <- unlist(manifest$timezone)
+  tz_lines <- if (length(tz)) paste0("timezone.", names(tz), "\t", tz)[order(names(tz), method = "radix")] else character()
+  body <- c(paste0(files, "\t", sha), paste0("load_label\t", load_label), tz_lines)
+  .prevcarga_sha256(paste0(body, "\n", collapse = ""))
+}

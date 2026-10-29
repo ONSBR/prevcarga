@@ -6,7 +6,7 @@ withr::local_options(prevcarga.lib = lib_dir)
 
 new_env <- function()
   pc_source_lib(c("errors", "runtime", "config", "banner", "cli", "topology", "provenance", "deck_reader",
-                  "introspect"))
+                  "dates", "introspect"))
 noop <- function() invisible(NULL)
 verbs5 <- c("doctor", "status", "models", "areas", "describe")
 
@@ -199,20 +199,23 @@ test_that("areas: ordem, perda e khat_range da topologia; override de S na copia
   expect_true(any(grepl("S  perda=PES  khat_range=0.98-1.20", E$prevcarga_render_areas(a2), fixed = TRUE)))
 })
 
-test_that("describe: cortes declarados como derivados, so a origem e data; --model filtra; desconhecido = exit 8 (ac-12)", {
+test_that("describe: corte de treino por membro derivado em dates.R, so a origem e data de entrada; --model filtra; desconhecido = exit 8 (ac-12)", {
   E <- new_env()
   ctx <- mk_ctx(E, args = list(`--origin` = "2024-06-01"))
   d <- E$prevcarga_build_describe(ctx)
   txt <- E$prevcarga_render_describe(d)
-  expect_true("corte de treino: derivado no M2" %in% txt)
-  expect_true("available_until: derivado do dado no M2" %in% txt)
+  ## o placeholder do M1.5 saiu; entra a assercao positiva do corte por membro (sem deck: available_until indisponivel)
+  expect_false(any(grepl("derivado no M2", txt, fixed = TRUE)))
+  expect_true("cortes por membro:" %in% txt)
+  expect_length(d$cuts$members, 5L)
+  lg <- Filter(function(r) r$model == "lgbm", d$cuts$members)[[1L]]
+  expect_identical(lg$train_origin, "2024-05-30"); expect_identical(lg$last_data_day, "2024-05-31")
+  expect_true(any(grepl("available_until: derivado do deck (via validate-deck) [indisponivel", txt, fixed = TRUE)))
   js <- as.character(jsonlite::toJSON(d, auto_unbox = TRUE, null = "null"))
   j <- jsonlite::fromJSON(js, simplifyVector = FALSE)
-  expect_null(j$cuts$train_origin); expect_null(j$cuts$last_data_day); expect_null(j$cuts$available_until)
-  expect_true(nzchar(j$cuts$note))
-  expect_true("train_origin" %in% names(j$cuts) || grepl("\"train_origin\":null", js, fixed = TRUE))
-  dates <- unique(regmatches(c(js, txt), gregexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", c(js, txt)))[[1L]])
-  expect_identical(dates, "2024-06-01")
+  expect_null(j$cuts$available_until)
+  expect_identical(length(j$cuts$members), 5L)
+  expect_identical(d$origin, "2024-06-01")
   expect_identical(d$member_set_hash, E$prevcarga_member_set_hash(E$prevcarga_members(root = pc_root())))
   l <- E$prevcarga_build_describe(mk_ctx(E), model = "lgbm")
   expect_identical(names(l$models), "lgbm")
@@ -265,7 +268,8 @@ test_that("paridade texto x JSON, ASCII e exit igual nos dois formatos (ac-14)",
   }
   expect_true(any(grepl("khat_range=1.00-1.15", ar$out, fixed = TRUE)))
   de <- run_main(E, "describe")
-  expect_true("corte de treino: derivado no M2" %in% de$out)
+  expect_false(any(grepl("derivado no M2", de$out, fixed = TRUE)))
+  expect_true(any(grepl("available_until: derivado do deck (via validate-deck)", de$out, fixed = TRUE)))
 })
 
 test_that("auto-registro: os 5 verbos descobertos, owner M1, exempt so doctor/status, sem stubs (ac-15)", {
