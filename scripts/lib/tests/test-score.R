@@ -90,7 +90,7 @@ test_that("escopo de areas: NULL == SIN, area sem particao some, area unica (ac-
   d <- tempfile("sc-deck"); ctx0 <- c(pc_ctx_deck(d), list(tz = TZ, areas = present, origin = O, root = pc_root()))
   pc_deck_sentinel("end", days = lubridate::ymd(O) + (-21:9), areas = present, dir = d)
   ctx <- ctx0; ctx$areas <- c(present, g, "SIN")
-  long <- pc_eval_long(c(present, g, "SIN"), O, ctx = ctx)
+  long <- pc_long_mem(pc_eval_long(c(present, g, "SIN"), O, ctx = ctx))   # LONG em memoria como o leitor entrega
   long$y_true <- long$y_true + 1e6
   r_null <- prevcarga_score(long, ctx0)
   r_sin <- prevcarga_score(long, ctx0, area = "SIN")
@@ -150,7 +150,7 @@ test_that("manchete d_plus = 1, data_hash, available_until e skill contra o base
   au <- prevcarga_resolve_cuts(c(ctx, list(topology_path = NULL)), lubridate::ymd(O), model = "lgbm")$available_until
   expect_identical(jb$available_until, sub("([+-][0-9]{2})([0-9]{2})$", "\\1:\\2", format(au, "%Y-%m-%dT%H:%M:%S%z", tz = TZ)))
   expect_identical(jb$baseline$kind, "persistence")
-  r <- prevcarga_score(lg[lg$area == "A1", ], ctx, area = "A1", baseline_kind = "persistence")
+  r <- prevcarga_score(pc_long_mem(lg[lg$area == "A1", ]), ctx, area = "A1", baseline_kind = "persistence")
   one <- r$long$d_plus == 1L
   sk <- prevcarga_skill_score(r$long[one, ], r$baseline_long)
   expect_equal(jb$headline$rows[[1L]]$skill, sk)
@@ -160,8 +160,10 @@ test_that("manchete d_plus = 1, data_hash, available_until e skill contra o base
 
 test_that("join por interval_end; CONTROL por interval_start reprova (ac-5)", {
   d <- sc_deck(); ctx <- sc_ctx(d, root1); lg <- sc_long(ctx, areas = c("A1", "A2"), embedded = 999)
-  r <- prevcarga_score(lg, ctx)
+  r <- prevcarga_score(pc_long_mem(lg), ctx)
   expect_true(all(r$scorecard$wmape == 0))
+  expect_identical(tryCatch(prevcarga_score(lg, ctx), prevcarga_error = function(e) e$where),
+                   "interval_start")                                           # CONTROL: sem a coluna do leitor aborta
   act <- prevcarga_read_actual(ctx, "A1")
   l1 <- lg[lg$area == "A1", ]
   y_start <- act$y_true[match(l1$target_datetime, act$interval_end - lubridate::minutes(30))]   # join errado (CONTROL)

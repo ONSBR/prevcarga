@@ -390,8 +390,8 @@ prevcarga_member_coverage <- function(provenance, panel) {
 
 ## --- painel por corte --------------------------------------------------------------------------------
 prevcarga_build_panel <- function(long, members = NULL) {
-  .prevcarga_cmb_need(long, c("member", "run_id", "area", "forecast_origin", "target_datetime", "lead",
-                              "y_pred", "d_plus", "granularity_min"), "build_panel")
+  .prevcarga_cmb_need(long, c("member", "run_id", "area", "forecast_origin", "target_datetime", "interval_start",
+                              "lead", "y_pred", "d_plus", "granularity_min"), "build_panel")
   prov <- attr(long, "provenance")
   if (is.null(prov) || !all(c("member", "run_id", "cut") %in% names(prov)))
     prevcarga_abort("contract.combina_input", where = "build_panel:provenance")
@@ -401,7 +401,7 @@ prevcarga_build_panel <- function(long, members = NULL) {
     if (is.null(decl)) prevcarga_abort("contract.combina_input", where = "build_panel:members")
     members <- data.frame(sigla = decl, stringsAsFactors = FALSE)
   }
-  long <- data.table::as.data.table(prevcarga_long_attach_interval_start(as.data.frame(long)))
+  long <- data.table::as.data.table(long)
   long <- merge(long, data.table::as.data.table(prov)[, c("member", "run_id", "cut"), with = FALSE],
                 by = c("member", "run_id"), sort = FALSE)
   if (anyNA(long$cut))
@@ -520,6 +520,7 @@ prevcarga_join_fresh_truth <- function(panel, ctx, area) {
 ## Compara o LONG pelo `interval_start` anexado no leitor: o 1o esperado e o proprio available_until.
 ## Deslocamento = faixa inteira 1 passo fora (rotulo por inicio ou dobrado), lido so pelas bordas do LONG.
 .prevcarga_cmb_check_times <- function(d, p, tz) {
+  .prevcarga_cmb_need(d, c("target_datetime", "interval_start"), "members_aligned")
   td <- d$target_datetime
   if (!identical(lubridate::tz(td), tz))
     .prevcarga_cmb_misaligned(p$member, "tzone", tz, lubridate::tz(td))

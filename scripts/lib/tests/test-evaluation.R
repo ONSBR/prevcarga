@@ -62,7 +62,7 @@ test_that("pico por interval_start: 22:30-23:00 conta, 17:30-18:00 nao; CONTROL 
     l <- pc_eval_long("A1", O, 0:1, ctx = ctx)
     hit <- format(l$target_datetime, "%H:%M") == target_hhmm
     l$y_pred[hit] <- l$y_pred[hit] + 200
-    l
+    pc_long_mem(l, ctx$tz)
   }
   a <- mk("23:00"); b <- mk("18:00")
   sa <- prevcarga_scorecard(a, by = "d_plus"); sb <- prevcarga_scorecard(b, by = "d_plus")
@@ -186,8 +186,8 @@ test_that("skill: 0, positivo, negativo; puro; baseline degenerado = NA", {
 })
 
 test_that("scorecard: by duplo/simples, area toda-NA some, skill do grupo, by invalido", {
-  l <- pc_eval_long(c("A1", "A2"), O, 0:2, bias = 10, ctx = ctx)
-  na <- pc_eval_long("A3", O, 0:2, ctx = list(tz = TZ, areas = "A3")); na$y_true <- NA_real_
+  l <- pc_long_mem(pc_eval_long(c("A1", "A2"), O, 0:2, bias = 10, ctx = ctx))
+  na <- pc_long_mem(pc_eval_long("A3", O, 0:2, ctx = list(tz = TZ, areas = "A3"))); na$y_true <- NA_real_
   all3 <- rbind(l, na)
   sc <- prevcarga_scorecard(all3, by = c("d_plus", "area"))
   expect_identical(nrow(sc), 6L)
@@ -205,6 +205,8 @@ test_that("scorecard: by duplo/simples, area toda-NA some, skill do grupo, by in
   e0 <- prevcarga_scorecard(na, by = "d_plus")
   expect_identical(nrow(e0), 0L); expect_identical(names(e0), names(s1))
   expect_pc_error(prevcarga_scorecard(l, by = "nao_existe"), "contract.long_schema")
+  raw <- pc_eval_long("A1", O, 0:1, ctx = ctx)                          # CONTROL: sem a coluna do leitor aborta
+  expect_identical(fail(prevcarga_scorecard(raw, by = "d_plus"))$where, "interval_start")
 })
 
 test_that("catalogo distribuido: ids do M3 na classe certa, ASCII, sem duplicata; CONTROL do loader", {

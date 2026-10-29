@@ -31,8 +31,9 @@
   `topology.area_undeclared`.
 - `cut` do painel = HHMM de `available_until` do run-manifest (lido por `ymd_hms(tz = load_tz)`), nunca do nome do diretorio.
 - `read_actual` e `(from, to]`: o join recua `from` em 1 s para nao perder o primeiro alvo.
-- Painel carrega `interval_start` logo apos `target_datetime`: vem do `read_long` (discover) ou, para LONG montado em memoria,
-  de `prevcarga_long_attach_interval_start` na entrada do `build_panel` (unico ponto). Nenhuma conversao -30 min na combina.
+- Painel carrega `interval_start` logo apos `target_datetime`, vindo SO do `read_long` (discover): `build_panel` e
+  `assert_members_aligned` exigem a coluna (ausente => `contract.combina_input`, `where = build_panel:interval_start` /
+  `members_aligned:interval_start`). Nenhuma conversao -30 min na combina; fixtures em memoria usam `pc_long_mem`.
 - Testes: `test-combination-io.R` + `helper-combination-io.R` (fixtures em tempdir; CONTROL io.py e de rotulo trocado).
 
 ## M4.2b -- recusa de membro desalinhado

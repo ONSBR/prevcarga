@@ -16,9 +16,9 @@ pc_cmb_lead_rows <- function(j, sigla, origins, from_lead, to_lead) {
   istart <- o0 + lubridate::minutes(30L * g$lead)
   k <- g$oi * 7 + g$lead
   y <- pc_cmb_truth(istart) + pc_cmb_lead_bias[[j]] + 0.02 * j * sin(2 * pi * k / (5 + j) + j)
-  data.frame(member = sigla, run_id = "run1", area = "SECO", forecast_origin = origins[g$oi],
+  pc_long_mem(data.frame(member = sigla, run_id = "run1", area = "SECO", forecast_origin = origins[g$oi],
              target_datetime = istart + lubridate::minutes(30), lead = as.integer(g$lead), y_pred = y,
-             d_plus = as.integer(g$lead %/% 48L), granularity_min = 30L, stringsAsFactors = FALSE)
+             d_plus = as.integer(g$lead %/% 48L), granularity_min = 30L, stringsAsFactors = FALSE))
 }
 
 ## LONG de 8 membros (corte `cut`, 1o alvo = corte + 30 min). O `short_member` declara short_days (O..O+1), os

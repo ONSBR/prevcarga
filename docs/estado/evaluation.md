@@ -6,7 +6,8 @@
 - `interval_start` vem da borda do LONG (`schema_long.R`): `prevcarga_assert_long` anexa a coluna UMA vez
   (`prevcarga_long_attach_interval_start`, `granularity_min != 30` => `contract.long_schema`, tz != `ctx$tz` =>
   `contract.long_tz`); o check de `d_plus`, os buckets hora/dia/pico e o `scorecard` leem a coluna. `evaluation.R` nao tem
-  nenhum `minutes(30)`. LONG montado em memoria sem a coluna recebe-a no `scorecard` pelo mesmo helper.
+  nenhum `minutes(30)`. `scorecard`/`prevcarga_score` EXIGEM a coluna (ausente => `contract.long_schema`,
+  `where = interval_start`); so o leitor chama o attach (gate `long_attach`). Testes montam LONG em memoria com `pc_long_mem`.
 - Borda do LONG: `prevcarga_assert_long` (nome+ordem via `prevcarga_schema_long_check`, re-emitido como
   `contract.long_schema`; tipos; tz; `d_plus` pelo dia do interval_start => `contract.long_dplus_label`) e o leitor unico
   `prevcarga_read_long(path, ctx)`; `forecast_origin` e texto `yyyy-MM-dd`, coluna Date e recusada. O frame devolvido tem 9

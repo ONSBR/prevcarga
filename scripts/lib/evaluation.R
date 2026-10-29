@@ -195,11 +195,12 @@ prevcarga_skill_score <- function(long, baseline_long) {
 }
 
 ## Motor unico de score, reconcile --eval, forecast --report e backtest; rollup por subsistema/SIN e do consumidor.
+## Exige o `interval_start` do leitor unico (nunca o deriva).
 prevcarga_scorecard <- function(long, by = c("d_plus", "area"), baseline_long = NULL) {
   miss <- setdiff(by, names(long))
   if (length(miss)) prevcarga_abort("contract.long_schema", where = paste(miss, collapse = ","))
+  if (!"interval_start" %in% names(long)) prevcarga_abort("contract.long_schema", where = "interval_start")
   long <- as.data.frame(long)
-  long <- prevcarga_long_attach_interval_start(long)
   long <- long[is.finite(long$y_true) & is.finite(long$y_pred), , drop = FALSE]
   if (!nrow(long)) {
     out <- data.frame(long[0L, by, drop = FALSE], n = integer(), wmape = double(), mape = double(),
