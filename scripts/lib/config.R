@@ -7,6 +7,9 @@
 ## --- Schema v1 do config.yaml -------------------------------------------------------------------
 .prevcarga_chr_ok <- function(v) is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
 
+## corte intradiario: so a grade de 30 min (HH:00 ou HH:30); usado por backtest.corte_default e por --corte (M7.1)
+.prevcarga_corte_re <- "^([01][0-9]|2[0-3]):(00|30)$"
+
 .prevcarga_config_schema <- list(
   schema_version = list(default = 1L, kind = "int"),
   data_dir = list(default = NULL, kind = "chr"),
@@ -20,7 +23,7 @@
                error_id = "config.bad_color"),
   format = list(default = "text", kind = "enum", allowed = c("text", "json"),
                 error_id = "config.bad_format"),
-  backtest = list(default = list(corte_default = NULL), kind = "map")
+  backtest = list(default = list(corte_default = "08:00"), kind = "map")
 )
 
 .prevcarga_config_defaults <- function() {
@@ -66,9 +69,9 @@ prevcarga_config_load <- function(path) {
       extra <- setdiff(names(v), "corte_default")
       if (length(extra)) prevcarga_abort("config.unknown_key", where = paste0(k, ".", extra[[1L]]))
       cd <- v[["corte_default"]]
-      if (!is.null(cd) && !(is.character(cd) && length(cd) == 1L && grepl("^([01][0-9]|2[0-3]):[0-5][0-9]$", cd)))
-        prevcarga_abort("config.bad_type", where = "backtest.corte_default", details = list(expected = "HH:MM"))
-      out[[k]] <- list(corte_default = cd)
+      if (!is.null(cd) && !(is.character(cd) && length(cd) == 1L && grepl(.prevcarga_corte_re, cd)))
+        prevcarga_abort("config.bad_type", where = "backtest.corte_default", details = list(expected = "HH:00 ou HH:30"))
+      out[[k]] <- list(corte_default = if (is.null(cd)) .prevcarga_config_schema$backtest$default$corte_default else cd)
     } else if (!is.null(v)) {
       .prevcarga_check_value(k, v, s)
       out[[k]] <- if (identical(s$kind, "int")) as.integer(v) else v
@@ -101,6 +104,14 @@ prevcarga_parse_origin <- function(x, verb = NULL) {
   if (anyNA(d) || (length(d) == 2L && d[1L] > d[2L]))
     prevcarga_abort("config.bad_origin", where = "--origin", details = list(got = x))
   if (length(d) == 1L) d else list(from = d[1L], to = d[2L])
+}
+
+## `--origin A..B` so vale em backtest/plan (M7.1): devolve list(from, to) de Datas; o unico flag humano de data segue
+## sendo --origin. Nos demais verbos (ou fora de A..B ISO com A <= B) => config.bad_origin (exit 8).
+prevcarga_parse_origin_range <- function(x, verb = NULL) {
+  r <- prevcarga_parse_origin(x, verb)
+  if (is.null(r)) return(NULL)
+  if (inherits(r, "Date")) list(from = r, to = r) else r
 }
 
 ## --- Montagem do ctx -------------------------------------------------------------------------------
