@@ -20,6 +20,7 @@
 
 .PC_GOLDEN_ALLOWED <- c("id", "area", "origin", "available_until", "weather_issue_cutoff", "day0_source", "variant",
                         "history_days", "oracle_env", "oracle_cut", "cuts", "params", "seed", "data_areas")
+.PC_GOLDEN_LOCK_TRIES <- 600L   # ~60 s
 .PC_GOLDEN_TOP <- c("units", "tz", "packages", "groups", "rules")
 .PC_GOLDEN_RULES <- c("train_origin_offset", "train_history_offset", "infer_history_offset", "forbid", "day0_source",
                       "full_hour", "equals", "oracle_env_empty", "data_areas_is_area")
@@ -330,7 +331,9 @@ pc_runtime_fingerprint <- function(packages, rscript, env = .PC_GOLDEN_PINS) {
 pc_golden_lock_update <- function(lock_path, model, unit_id, files, oracle_commit, data_digest, fingerprint) {
   ## exclusao mutua (geradores de grupos distintos em paralelo): mkdir e atomico
   mtx <- paste0(lock_path, ".lck")
-  for (i in seq_len(600L)) { if (dir.create(mtx, showWarnings = FALSE)) break; Sys.sleep(0.1) }
+  got <- FALSE
+  for (i in seq_len(.PC_GOLDEN_LOCK_TRIES)) { if (dir.create(mtx, showWarnings = FALSE)) { got <- TRUE; break }; Sys.sleep(0.1) }
+  if (!got) prevcarga_abort("generic.unexpected", where = paste0("golden.lock ocupado (", basename(mtx), ")"))   # nunca apaga o lock de outro escritor
   on.exit(unlink(mtx, recursive = TRUE), add = TRUE)
   lock <- if (file.exists(lock_path)) jsonlite::read_json(lock_path, simplifyVector = FALSE) else list()
   if (is.null(lock$units)) lock$units <- stats::setNames(list(), character())

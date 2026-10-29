@@ -200,3 +200,11 @@ test_that("[RF.4] --units <grupo> resolve o units.yaml do modelo; grupo desconhe
   r9 <- gen(s$root, s$oracle, s$out, units = "g9")
   expect_identical(r9$status, 2L)
 })
+
+test_that("[RF.4] golden.lock ocupado por outro escritor: aborta sem apagar o lock dele", {
+  d <- withr::local_tempdir(); lk <- file.path(d, "golden.lock"); mtx <- paste0(lk, ".lck")
+  dir.create(mtx)                                            # outro escritor segura o mutex
+  old <- env$.PC_GOLDEN_LOCK_TRIES; assign(".PC_GOLDEN_LOCK_TRIES", 3L, envir = env); on.exit(assign(".PC_GOLDEN_LOCK_TRIES", old, envir = env))
+  expect_identical(bad_id(env$pc_golden_lock_update(lk, "m", "u1", c(a = "x"), "c", list(), list())), "generic.unexpected golden.lock ocupado (golden.lock.lck)")
+  expect_true(dir.exists(mtx)); expect_false(file.exists(lk))
+})
