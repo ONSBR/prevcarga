@@ -5,3 +5,4 @@ warning.engine_empty_model_guard	contract	ajuste de SVM devolveu modelo vazio; n
 warning.engine_cross_clamped	contract	parametro cross do tune_wsvm reduzido ao numero de linhas disponiveis (aviso)	nenhuma acao: aviso informativo da robustez do motor
 engine.dessem_tz_mismatch	contract	DataHora do deck com fuso diferente do fuso da carga (cuts$tz)	entregue CARGAHIST/EXOGENAHIST/EXOGENAPREV no mesmo fuso do cuts$tz; veja details$column
 engine.dessem_bad_day	contract	valor de data de tipo nao suportado pelo motor (esperado character, Date ou POSIXct)	passe a data como 'YYYY-MM-DD', Date ou POSIXct
+engine.dessem_lag_grid_gap	contract	serie do lag de feature com slot faltante ou fora da grade regular	complete o deck (sem horas faltantes ou repetidas); veja details$row

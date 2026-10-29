@@ -1,10 +1,10 @@
 ## test-engine-dates.R -- DL.3: datas do motor em lubridate com tz explicito e sem aritmetica de hora (AC1..AC5).
 ## Ate o P.0j entregar pc_grep_code()/pc_grep_time_arith(), o grep local abaixo aplica os mesmos padroes do AC1.
 
-## Padroes proibidos no motor (codigo, sem comentarios). A unica excecao versionada e o lag de FEATURE
-## (`hours(lagh)` de obtemLagHora; `minutes(lagsh * 30)` de obtemLagSemiHora): periodo variavel vindo do config.
+## Padroes proibidos no motor (codigo, sem comentarios). Sem excecao: o lag de feature e por INDICE na grade
+## regular (obtemLagHora/obtemLagSemiHora), nunca `hours(<qualquer>)`/`minutes(<qualquer>)`.
 ENG_FORBIDDEN <- c("as\\.Date\\(", "as\\.POSIXct", "strptime", "difftime", "Sys\\.time", "Sys\\.Date", "Sys\\.getenv",
-                   "hours\\(1\\)", "hours\\(\\)", "minutes\\(30\\)", "\\b3600\\b", "\\b86400\\b",
+                   "hours\\(", "minutes\\(", "\\b3600\\b", "\\b86400\\b",
                    "to_model_frame\\(", "to_display_frame\\(")
 
 ## Devolve "arquivo:linha" de cada ocorrencia (comentarios descartados) + linhas com byte > 127.
@@ -23,16 +23,14 @@ eng_grep_time <- function(files) {
 test_that("ac-1 motor sem padroes de data/hora proibidos; CONTROL: fixture com cada padrao e acusado linha a linha", {
   files <- list.files(file.path(eng_dir(), "R"), pattern = "\\.R$", full.names = TRUE)
   expect_identical(eng_grep_time(files), character())
-  ## o lag de feature e o unico periodo que fica
-  src <- paste(readLines(file.path(eng_dir(), "R", "funcoes_apoio.R")), collapse = "\n")
-  expect_match(src, "hours(lagh)", fixed = TRUE)
   fx <- tempfile(fileext = ".R")
   writeLines(c("a <- as.Date(x)", "b <- as.POSIXct(x)", "c <- strptime(x, 'f')", "d <- difftime(a, b)", "e <- Sys.time()",
                "f <- Sys.Date()", "g <- Sys.getenv('X')", "h <- DataHora %m-% hours(1)", "i <- DataHora %m+% hours()",
                "j <- DataHora %m-% minutes(30)", "k <- x / 3600", "l <- x * 86400", "m <- to_model_frame(x, 60L)",
-               "n <- to_display_frame(x, 60L)", "o <- 'acentuação'", "p <- ok(1)"), fx, useBytes = FALSE)
+               "n <- to_display_frame(x, 60L)", "o <- 'acentuação'", "p <- ok(1)",
+               "q <- x %m-% hours(k)", "r <- x %m+% minutes(lagsh * 30)"), fx, useBytes = FALSE)
   hit <- eng_grep_time(fx)
-  expect_true(all(sprintf("%s:%d", basename(fx), 1:14) %in% hit))
+  expect_true(all(sprintf("%s:%d", basename(fx), c(1:14, 17, 18)) %in% hit))
   expect_true(any(grepl(":15(nao-ASCII)", hit, fixed = TRUE)))
   expect_false(any(grepl(":16", hit, fixed = TRUE)))
 })
@@ -89,4 +87,25 @@ test_that("ac-4 do ticket: mensagens ASCII sem carimbo de hora e saida identica 
   expect_true(all(vapply(a$msgs, function(m) all(utf8ToInt(m) <= 127L), NA)))
   expect_false(any(grepl("[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}", a$msgs)))
   expect_identical(a$msgs, b$msgs)
+})
+
+test_that("lag de feature por indice na grade regular: LAG_k = valor k linhas antes; slot faltante aborta; CONTROL sem lacuna segue", {
+  eng <- eng_env(eng_load(eng_plugin_root()))
+  assign("engine_abort", function(id, where = NULL, details = NULL) eng_lib$prevcarga_abort(id, where = where, details = details),
+         envir = eng)
+  t0 <- lubridate::force_tz(lubridate::ymd_hms("2019-01-01 00:00:00"), "Etc/GMT+3")
+  n <- 72L
+  ser <- data.table::data.table(DataHora = seq(t0, by = "hour", length.out = n), Carga = as.numeric(seq_len(n)^2))
+  ser[, `:=`(Data = lubridate::as_date(DataHora), HV = 0, DiaEspecial = 0)]
+  out <- eng$obtemLagHora(3L, data.table::copy(ser), hv = 0L)
+  expect_identical(out$LAG[[1L]], "LAG_3")
+  expect_identical(out$VALLAG, ser$Carga[match(out$DataHora, ser$DataHora) - 3L])
+  expect_identical(nrow(out), n - 4L)           # estrito: as lagh + 1 primeiras linhas saem (como o oraculo)
+  ## CONTROL: um slot removido => aborto com id novo, sem pegar vizinho
+  gap <- data.table::copy(ser)[-30L]
+  cond <- tryCatch(eng$obtemLagHora(3L, gap, hv = 0L), error = function(e) e)
+  expect_s3_class(cond, "prevcarga_error")
+  expect_identical(cond$id, "engine.dessem_lag_grid_gap")
+  expect_identical(cond$class_name, "contract")
+  expect_identical(cond$details$row, 30L)
 })

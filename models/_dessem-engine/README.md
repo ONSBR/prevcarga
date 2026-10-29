@@ -137,14 +137,16 @@ por lubridate com tz explicito; `TransformaDeck(..., tz)` aborta `engine.dessem_
 | pkgfun_dadosEntrada.R:25, 46, 64, 74 `as.Date(format(DataHora,'%F'))` | `as_date(DataHora)` (usa o `tzone` da carga) |
 | pkgfun_dadosEntrada.R:45 `DataHora %m-% hours(1)` | REMOVIDO: deslocamento no despachante via `model_time_offset_min` |
 | pkgfun_dadosEntrada.R:87 `as.POSIXct(format(Data,'%F 12:00:00'),'America/Sao_Paulo')` | `.hvz_flag(Data)` = `make_datetime(..., 12L, tz = .engine_hv_tz())` |
-| pkgfun_funcoesApoio.R:55 `as.Date(format(DataHora %m-% hours(lagh),'%F'))` | `as_date(DataHora %m-% hours(lagh))` (lag de feature) |
+| pkgfun_funcoesApoio.R:41, 51, 54 `%m+%/%m-% hours(lagh)` | lag por INDICE na grade horaria (`.IDX - lagh`); `.engine_assert_grid` |
+| pkgfun_funcoesApoio.R:242, 245 `%m-% minutes(30*lagsh)` | lag por INDICE na grade de 30 min (`.IDX - lagsh`) |
 | pkgfun_funcoesApoio.R:256, 269, 287, 311 `as.Date(dataPrev)` | `.as_day(dataPrev)` |
 | pkgfun_funcoesApoio.R:391 `DataHora %m+% hours()` | REMOVIDO: `to_display_frame` do despachante |
 | pkgfun_funcoesApoio.R:405 `DataHora %m-% minutes(30)` | REMOVIDO: carimbo de meia hora no `to_semihourly` |
 | pkgfun_execModelos.R mensagens com `Sys.time()` | `message(paste(nomModelo, "- etapa", dataPrev))`, ASCII, sem relogio |
 
-Excecao versionada: o lag de feature (`hours(lagh)` em `obtemLagHora`; `minutes(lagsh * 30)` em
-`obtemLagSemiHora`) e periodo variavel vindo do config, nao deslocamento de frame.
+Sem excecao: nenhum `hours(...)`/`minutes(...)` no motor. O lag de feature e por indice na grade regular
+(`obtemLagHora` horaria, `obtemLagSemiHora` de 30 min); serie com slot faltante aborta
+`engine.dessem_lag_grid_gap`.
 `desagregaModeloSH` devolve 2 linhas por ancora horaria na ordem de `Passo` (impar = meia hora anterior a
 ancora, par = a ancora), ambas com o `DataHora` da ancora no frame de modelagem.
 

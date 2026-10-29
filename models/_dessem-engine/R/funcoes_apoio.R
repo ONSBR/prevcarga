@@ -45,8 +45,28 @@ obtemLagsExogenas <- function(lags,exogenas,seriediaria){
    engine_abort("engine.dessem_bad_day",where = "_dessem-engine/.as_day",details = list(class = class(x)))
 }
 
+## Lag de feature por INDICE na grade regular (sem aritmetica de hora): exige a serie ordenada, sem repeticao e sem
+## slot faltante na grade `passo` ("hour" ou "30 min"); senao aborta engine.dessem_lag_grid_gap. Nunca pega vizinho.
+.engine_assert_grid <- function(seriehist,passo,where){
+   x <- seriehist$DataHora
+   n <- length(x)
+   if(n > 1L){
+      grade <- seq(x[[1L]],by = passo,length.out = n)
+      if(!identical(as.numeric(x),as.numeric(grade))){
+         ruim <- which(as.numeric(x) != as.numeric(grade))[[1L]]
+         engine_abort("engine.dessem_lag_grid_gap",where = paste0("_dessem-engine/",where),
+                      details = list(step = passo,row = ruim,found = format(x[[ruim]],"%F %T"),
+                                     expected = format(grade[[ruim]],"%F %T")))
+      }
+   }
+   invisible(TRUE)
+}
+
 obtemLagHora <- function(lagh,seriehist,dia = 1:7,hora = 0:23,diaAno = 1:366,hv = 0:1,diaEsp = F,diaEspLag = F){
-   seriehistD <- seriehist[DataHora > (min(DataHora) %m+% hours(lagh))]
+   .engine_assert_grid(seriehist,"hour","obtemLagHora")
+   # oraculo: DataHora > min(DataHora) + lagh (estrito) == linhas de indice > lagh + 1 na grade horaria
+   seriehistD <- seriehist[seq_len(nrow(seriehist)) > lagh + 1L]
+   seriehistD[,.IDX := seq_len(nrow(seriehist))[seq_len(nrow(seriehist)) > lagh + 1L]]
    seriehistD <- seriehistD[hour(DataHora) %in% hora & yday(DataHora) %in% diaAno & wday(DataHora) %in% dia & HV %in% hv]
    if(!diaEsp){
       seriehistD <- seriehistD[DiaEspecial == 0]
@@ -56,10 +76,11 @@ obtemLagHora <- function(lagh,seriehist,dia = 1:7,hora = 0:23,diaAno = 1:366,hv 
       seriehistD[,HV := NULL]
    }
    seriehistD[,LAG := paste0("LAG_",lagh)]
-   seriehistD[,VALLAG := seriehist[DataHora %in% (seriehistD$DataHora %m-% hours(lagh))]$Carga]
+   seriehistD[,VALLAG := seriehist$Carga[.IDX - lagh]]
    if(diaEspLag){
       seriefer <- unique(seriehist[,.(DatFer = Data,FERLAG = as.numeric(DiaEspecial))])
-      seriehistD[,DatFer := as_date(DataHora %m-% hours(lagh))]
+      seriehistD[,DatFer := as_date(seriehist$DataHora[.IDX - lagh])]
+      seriehistD[,.IDX := NULL]
       seriehistD <- seriehistD[seriefer, on = "DatFer",nomatch=0]
       seriehistD <- melt(seriehistD,id.vars = names(seriehistD[,-c("VALLAG","FERLAG")]),
                          measure.vars = c("VALLAG","FERLAG"),
@@ -67,6 +88,7 @@ obtemLagHora <- function(lagh,seriehist,dia = 1:7,hora = 0:23,diaAno = 1:366,hv 
       seriehistD[,LAG:=ifelse(LAG2=="VALLAG",LAG,sub('_','_FER_',LAG))]
       seriehistD[,LAG2 :=NULL]
    }
+   if(".IDX" %in% names(seriehistD)) seriehistD[,.IDX := NULL]
    return(seriehistD)
 }
 
@@ -239,7 +261,9 @@ getNormalizaExogena <- function(normConfig,serie){
 }
 
 obtemLagSemiHora <- function(lagsh,seriehist,dia = NULL,semihora = NULL,diaEsp = F){
+   .engine_assert_grid(seriehist,"30 min","obtemLagSemiHora")
    seriehistD <- seriehist[Data > (min(Data) + lagsh)]
+   seriehistD[,.IDX := which(seriehist$Data > (min(seriehist$Data) + lagsh))]
    if(!is.null(dia)){
       seriehistD <- seriehistD[wday(Data) == dia]
    }
@@ -247,10 +271,10 @@ obtemLagSemiHora <- function(lagsh,seriehist,dia = NULL,semihora = NULL,diaEsp =
       seriehistD <- seriehistD[format(DataHora,'%H:%M') %in% semihora]
    }
    seriehistD[,LAG := paste0("LAG_",lagsh)]
-   seriehistD[,VALLAG := seriehist[DataHora %in% (seriehistD$DataHora %m-% minutes(lagsh * 30))]$Carga]
+   seriehistD[,VALLAG := seriehist$Carga[.IDX - lagsh]]
    if(diaEsp){
       seriefer <- unique(seriehist[,.(Data,FERLAG = as.numeric(DiaEspecial))])
-      seriehistD[,DatFer := as_date(DataHora %m-% minutes(lagsh * 30))]
+      seriehistD[,DatFer := as_date(seriehist$DataHora[.IDX - lagsh])]
       seriehistD <- seriehistD[seriefer, on = "Data",nomatch=0]
       seriehistD <- melt(seriehistD,id.vars = c("DataHora","Data","Carga","LAG"),
                          measure.vars = c("VALLAG","FERLAG"),
