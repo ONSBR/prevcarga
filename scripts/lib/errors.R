@@ -1,6 +1,6 @@
 ## errors.R -- contrato unico de erros da CLI (ADR-0040, M1.4b)
 ##
-## Unico criador/modificador deste arquivo e o ticket M1.4b. Epicos seguintes declaram seus
+## Unico criador deste arquivo e o ticket M1.4b; extensoes aditivas: M2.5 e M3.4 (argumento opcional `result` em prevcarga_condition/prevcarga_abort, repassado ao envelope de falha). Epicos seguintes declaram seus
 ## error.id criando scripts/lib/errors/<nome>.tsv (barrel por descoberta) e apenas LEEM este arquivo.
 ## Saida de terminal/catalogo: ASCII puro, sem acento. Sem variaveis de ambiente.
 
