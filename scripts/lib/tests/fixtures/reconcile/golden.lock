@@ -1,0 +1,25 @@
+{
+  "command": "'/opt/R/4.2.3/bin/Rscript' --vanilla scripts/reconcilia_baseline.R --subsystem S --mode full --window-days 730 --eval --comb-dir <tmp>/comb --data-dir <tmp>/data/load --out-dir <tmp>/out",
+  "days": 760,
+  "files": {
+    "golden_long.parquet": {
+      "rows": 432,
+      "sha256": "c975d3b3b380f6300ae611d726c4de16f4ddd22f66260b60904757f0f3184b24"
+    },
+    "golden_profile.parquet": {
+      "rows": 192,
+      "sha256": "dfb1ca6788560cd25e947d34498f4618709f394860049132769d3eb3e7a3e2db"
+    }
+  },
+  "golden_dir": ".state/golden/reconcile",
+  "inputs": {
+    "leaves_rows": 1296,
+    "sha256": "a15de0ce8e5ddb8a6774c776d8c6f8b3b3ba020d77507f14f66000be35111994",
+    "truth_rows": 147840
+  },
+  "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141",
+  "oracle_r": "R version 4.2.3 (2023-03-15)",
+  "origin": "2026-02-20",
+  "seed": 42,
+  "window_days": 730
+}
