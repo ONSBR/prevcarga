@@ -113,7 +113,7 @@ test_that("catalogo real: ASCII, ids validos, ordem radix, sem duplicata", {
   expect_identical(prevcarga_error_catalog(refresh = TRUE), cat)
   expect_true(all(c("contract.khat_range_invalid", "contract.long_schema_constant",
                     "bundle.package_missing", "state.official_set_incomplete") %in% cat$id))
-  expect_false("partial.report_failed" %in% cat$id)
+  expect_true("partial.report_failed" %in% cat$id)
 })
 
 test_that("CONTROL: TSV acentuado reprova com contract.error_catalog_schema", {

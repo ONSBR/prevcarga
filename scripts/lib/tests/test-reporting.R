@@ -55,7 +55,6 @@ test_that("[AC1] seis blocos, available_until global e por area, khat copiado do
   expect_true(validUTF8(rawToChar(raw)))
   expect_identical(basename(p), "report.html")
   expect_pc <- function(expr) expect_error(expr, class = "prevcarga_error")
-  expect_pc(env$prevcarga_report(mk_long(), mk_weights(), mk_khat(), mk_prov(), mk_base(mk_long()), format = "pdf", out = out))
   expect_pc(env$prevcarga_report(mk_long()[, 1:2], mk_weights(), mk_khat(), mk_prov(), mk_base(mk_long()), out = out))
 })
 

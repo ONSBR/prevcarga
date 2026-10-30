@@ -305,11 +305,12 @@
     path <- prevcarga_report(long, .forecast_weights_table(lv$weights, g$cuts$available_until), .forecast_khat_rows(rec$khat), prov,
                              .forecast_baselines(rctx, long, g$origin), format = report_format, out = out)
     list(status = "ok", path = path)
-  }, prevcarga_error = function(e) list(status = "failed", path = NULL, error = e$id))
+  }, error = function(e) structure(list(status = "failed", path = NULL), cause = conditionMessage(e)))
 }
 
 ## --- API publica ----------------------------------------------------------------------------------------------
 ## `report = TRUE` liga o passo de relatorio (M6.5) depois da entrega; senao `report` = list(status = "skipped", path = NULL).
+## Falha do relatorio => `partial.report_failed` (exit 14) com o result completo (`report$status` = "failed"); a entrega fica intacta.
 ## Devolve list(result, warnings): `warnings` = avisos do catalogo (reconcile, export, gate-0) como list(id, message).
 prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsistemas", report = FALSE,
                                report_format = "html", skip_validate = FALSE, incluir_membros = FALSE) {
@@ -337,6 +338,9 @@ prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsi
   })
   for (w in rec$warnings) sink$add(w$id, w$message)
   rep <- if (isTRUE(report)) .forecast_report_step(rctx, g, plan, key, lv, rec, report_format) else list(status = "skipped", path = NULL)
-  list(result = .forecast_result(g, plan, rec, key, versao, niveis, exp, rep),
-       warnings = sink$get())
+  result <- .forecast_result(g, plan, rec, key, versao, niveis, exp, unclass(rep)[c("status", "path")])
+  ## falha do report apos a entrega (M6.10): a chave forecasts/ ja foi commitada e nao e desfeita; sobe exit 14 com o result completo
+  if (identical(rep$status, "failed"))
+    prevcarga_abort("partial.report_failed", where = "prevcarga_forecast", details = list(cause = attr(rep, "cause")), result = result)
+  list(result = result, warnings = sink$get())
 }
