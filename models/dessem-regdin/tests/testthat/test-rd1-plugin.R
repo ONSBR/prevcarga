@@ -5,7 +5,7 @@
 rd_oracle_fit <- "/opt/ons-source/prevcargadessem3/models/dessem-regdin/R/training/dessem_regdin_fit.R"
 
 ## ---- AC1: contrato e registro Tier A ------------------------------------------------------------------------------
-test_that("[RD.1] carrega Tier A com o descriptor do contrato, motor distinto do dessem-linear e sem simbolo no globalenv", {
+test_that("[PLUGINS] descritor: carrega Tier A com o descriptor do contrato, motor distinto do dessem-linear e sem simbolo no globalenv", {
   before <- ls(globalenv(), all.names = TRUE)
   lin <- rd_load("dessem-linear")
   rd <- rd_lib$prevcarga_plugin_load("dessem-regdin", rd_models())
@@ -26,7 +26,7 @@ test_that("[RD.1] carrega Tier A com o descriptor do contrato, motor distinto do
   expect_setequal(setdiff(ls(globalenv(), all.names = TRUE), ".Random.seed"), setdiff(before, ".Random.seed"))
 })
 
-test_that("[RD.1] CONTROL: descriptor sem o estagio inference aborta contract nomeando o estagio", {
+test_that("[PLUGINS] descritor: CONTROL descriptor sem o estagio inference aborta contract nomeando o estagio", {
   root <- rd_fixture_root()
   f <- file.path(root, "dessem-regdin", "R", "register.R")
   txt <- readLines(f)
@@ -41,7 +41,7 @@ test_that("[RD.1] CONTROL: descriptor sem o estagio inference aborta contract no
 })
 
 ## ---- AC2: run.yaml invalido aborta no loader (nada de estagio roda) ---------------------------------------------------
-test_that("[RD.1] run.yaml de fixture invalido aborta contract nomeando o campo; MED e MAX carregam", {
+test_that("[PLUGINS] descritor: run.yaml de fixture invalido aborta contract nomeando o campo; MED e MAX carregam", {
   cases <- list(
     list(sub = function(x) sub("infer: 1825", "infer: 45", x), id = "plugin.history_window", field = "history_days.infer"),
     list(sub = function(x) sub("granularity_min: 60", "granularity_min: 30", x), id = "plugin.bad_run_yaml", field = "granularity_min"),
@@ -68,14 +68,14 @@ test_that("[RD.1] run.yaml de fixture invalido aborta contract nomeando o campo;
   expect_rd_error(p$env$.rd_variant_key(list()), "plugin.regdin_bad_exogena", "ausente")
 })
 
-test_that("[RD.1] plugin_required_functions existem todas no env do motor do regdin", {
+test_that("[PLUGINS] descritor: plugin_required_functions existem todas no env do motor do regdin", {
   p <- rd_load()
   miss <- setdiff(p$env$plugin_required_functions(), ls(parent.env(p$env), all.names = TRUE))
   expect_identical(miss, character())
 })
 
 ## ---- AC3: ingestao e feriados ---------------------------------------------------------------------------------------
-test_that("[RD.1] plugin_ingest monta o deck; feriado flag-12 vira Tipo 1 e simplified_code 0 vira Tipo 0 antes do motor", {
+test_that("[PLUGINS] ingestao: plugin_ingest monta o deck; feriado flag-12 vira Tipo 1 e simplified_code 0 vira Tipo 0 antes do motor", {
   p <- rd_load()
   cu <- rd_cuts(); m <- rd_model_panel(rd_panel(), cu)
   deck <- rd_with_cli(p$env$plugin_ingest(m$panel, m$cuts, rd_spec()))
@@ -86,8 +86,8 @@ test_that("[RD.1] plugin_ingest monta o deck; feriado flag-12 vira Tipo 1 e simp
   expect_identical(fer[Data == lubridate::ymd("2024-12-18")]$Tipo, 0L)
   expect_identical(deck$dataPrev, cu$origin_day)
   f <- rd_with_cli(p$env$plugin_build_features(deck, rd_spec()))
-  expect_length(f$dias, 9L)
-  expect_identical(f$dias, format(cu$origin_day + 0:8))
+  expect_length(f$dias, 10L)                      # o motor roda horizon_days + 1 dias (O..O+9), como o oraculo (RD.6)
+  expect_identical(f$dias, format(cu$origin_day + 0:9))
   expect_identical(unname(f$day_types[["2024-12-24"]]), 1L)
   ## CONTROL: sem o pre-mapeamento o normalizador do motor leva o flag-12 a 0 (o dia deixa de ser especial)
   raw <- data.table::data.table(Data = lubridate::ymd("2024-12-24"), Tipo = 12L)
@@ -97,7 +97,7 @@ test_that("[RD.1] plugin_ingest monta o deck; feriado flag-12 vira Tipo 1 e simp
 })
 
 ## ---- AC4: conferencia do painel (confere, nunca corta) -------------------------------------------------------------
-test_that("[RD.1] painel invalido aborta com a classe certa; painel valido passa sem aviso", {
+test_that("[PLUGINS] ingestao: painel invalido aborta com a classe certa; painel valido passa sem aviso", {
   p <- rd_load()
   ingest <- function(pn, cu, spec = rd_spec()) {
     m <- rd_model_panel(pn, cu)
@@ -128,7 +128,7 @@ test_that("[RD.1] painel invalido aborta com a classe certa; painel valido passa
   expect_no_warning(ingest(rd_panel(), rd_cuts()))
 })
 
-test_that("[RD.1] ids plugin.regdin_* constam em errors/dessem_regdin.tsv e carregam pelo loader do catalogo", {
+test_that("[PLUGINS] descritor: ids plugin.regdin_* constam em errors/dessem_regdin.tsv e carregam pelo loader do catalogo", {
   f <- file.path(rd_root(), "scripts", "lib", "errors", "dessem_regdin.tsv")
   tsv <- utils::read.delim(f, sep = "\t", colClasses = "character", quote = "", comment.char = "")
   expect_setequal(c("plugin.regdin_train_panel_has_origin", "plugin.regdin_history_short", "plugin.regdin_window_mismatch",
@@ -144,7 +144,7 @@ test_that("[RD.1] ids plugin.regdin_* constam em errors/dessem_regdin.tsv e carr
 })
 
 ## ---- AC5: helpers de serie identicos aos do oraculo ------------------------------------------------------------------
-test_that("[RD.1] .rd_build_series/.rd_day_types/.rd_enforce_real_history identicos aos do oraculo; CONTROL de chave", {
+test_that("[PLUGINS] ingestao: .rd_build_series/.rd_day_types/.rd_enforce_real_history identicos aos do oraculo; CONTROL de chave", {
   skip_if_not(file.exists(rd_oracle_fit), "oraculo ausente")
   p <- rd_load()
   cu <- rd_cuts(); m <- rd_model_panel(rd_panel(), cu)
@@ -175,7 +175,7 @@ test_that("[RD.1] .rd_build_series/.rd_day_types/.rd_enforce_real_history identi
 })
 
 ## ---- AC6: rotulos de hora iguais aos do oraculo, sem aritmetica de hora no plugin --------------------------------------
-test_that("[RD.1] CARGAHIST/EXOGENAHIST/EXOGENAPREV iguais ao adapter do oraculo no periodo comum (sentinela)", {
+test_that("[PLUGINS] ingestao: CARGAHIST/EXOGENAHIST/EXOGENAPREV iguais ao adapter do oraculo no periodo comum (sentinela)", {
   p <- rd_load()
   pn <- rd_panel(); cu <- rd_cuts()
   ## sentinela: cada intervalo codifica o proprio interval_start (segundos desde a epoca / 1800)
@@ -209,23 +209,23 @@ test_that("[RD.1] CARGAHIST/EXOGENAHIST/EXOGENAPREV iguais ao adapter do oraculo
 })
 
 ## ---- AC7: cauda curta de exogena -------------------------------------------------------------------------------------
-test_that("[RD.1] cauda curta de ate 2 dias e completada pela persistencia do motor; lacuna maior aborta", {
+test_that("[PLUGINS] ingestao: cauda curta de ate 2 dias e completada pela persistencia do motor; lacuna maior aborta", {
   p <- rd_load()
   O <- lubridate::ymd("2024-12-23")
   run <- function(short) {
     cu <- rd_cuts(); m <- rd_model_panel(rd_panel(fc_short = short), cu)
     rd_with_cli(p$env$plugin_ingest(m$panel, m$cuts, rd_spec()))
   }
-  d2 <- suppressMessages(run(7:8))
+  d2 <- suppressMessages(run(8:9))
   dd <- lubridate::as_date(d2$EXOGENAPREV$DataHora)
-  expect_setequal(unique(dd), O + 0:8)
+  expect_setequal(unique(dd), O + 0:9)
   expect_false(anyNA(d2$EXOGENAPREV$Exo_Temperatura))
   expect_true(all(table(dd) == 24L))
-  cond <- expect_rd_error(suppressMessages(run(4:8)), "plugin.regdin_panel_contract", "2024-12-27")
+  cond <- expect_rd_error(suppressMessages(run(5:9)), "plugin.regdin_panel_contract", "2024-12-28")
   expect_identical(cond$exit_code, 2L)
   ## CONTROL: cobertura completa => persistencia e no-op (a saida e o proprio painel horario)
   cu <- rd_cuts(); m <- rd_model_panel(rd_panel(), cu)
-  out <- p$env$.rd_exo(m$panel$weather_forecast, "prev", m$cuts, 9L, "SE")
+  out <- p$env$.rd_exo(m$panel$weather_forecast, "prev", m$cuts, 10L, "SE")
   wf <- data.table::as.data.table(m$panel$weather_forecast)
   data.table::setorder(wf, valid_time, -issue_time); wf <- wf[, .SD[1L], by = valid_time]
   ref <- data.table::data.table(DataHora = wf$valid_time, Exo_Temperatura = wf$temperature)[order(DataHora)]
@@ -233,7 +233,7 @@ test_that("[RD.1] cauda curta de ate 2 dias e completada pela persistencia do mo
 })
 
 ## ---- higiene do codigo do plugin -------------------------------------------------------------------------------------
-test_that("[RD.1] grep: zero hits dos padroes proibidos em models/dessem-regdin/R (divida de globalenv() pinada)", {
+test_that("[PLUGINS] grep: RD.1 zero hits dos padroes proibidos em models/dessem-regdin/R (divida de globalenv() pinada)", {
   rdir <- file.path(rd_models(), "dessem-regdin", "R")
   files <- list.files(rdir, pattern = "[.]R$", full.names = TRUE)
   pats <- c(as_date = "(?<![A-Za-z0-9_.])as\\.Date\\(", as_posixct = "as\\.POSIXct|as\\.POSIXlt", strptime = "strptime",

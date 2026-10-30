@@ -1,7 +1,7 @@
 ## test-rd3-infer.R -- RD.3: infer do dessem-regdin (guarda de janela, refit do ARIMA com fingerprint, cabeca mm apos
 ## set.seed, forecast acoplado). Loader real, motor real, painel sintetico, despachante real da fundacao.
 
-test_that("[RD.3] estagios reais registrados e artefato carrega a semente (nada de stub)", {
+test_that("[PLUGINS] inferencia: estagios reais registrados e artefato carrega a semente (nada de stub)", {
   st <- rd3_state(); p <- st$p; d <- p$descriptor
   expect_identical(d$stages$inference$fn, p$env$rd_inference)
   expect_identical(d$stages$inference_features$fn, p$env$rd_inference_features)
@@ -12,7 +12,7 @@ test_that("[RD.3] estagios reais registrados e artefato carrega a semente (nada 
   expect_identical(st$med$payload$day_types[[format(RD2_O + 2L)]], 3L)
 })
 
-test_that("[RD.3] AC1: guarda de janela, FORBIDDEN/CONTROL e infer == forecast acoplado no dia D", {
+test_that("[PLUGINS] inferencia: AC1: guarda de janela, FORBIDDEN/CONTROL e infer == forecast acoplado no dia D", {
   st <- rd3_state(); p <- st$p; au <- rd3_au(9L)
   e <- rd3_infer(p, st$med, au)
   expect_identical(dim(e$values), c(9L, 48L)); expect_false(anyNA(e$values))
@@ -40,7 +40,7 @@ test_that("[RD.3] AC1: guarda de janela, FORBIDDEN/CONTROL e infer == forecast a
   expect_identical(nrow(e$delivery), nrow(f$delivery))
 })
 
-test_that("[RD.3] AC2: arima_fingerprint divergente aborta nomeando o campo/coeficiente; CONTROL original infere", {
+test_that("[PLUGINS] inferencia: AC2: arima_fingerprint divergente aborta nomeando o campo/coeficiente; CONTROL original infere", {
   st <- rd3_state(); p <- st$p; au <- rd3_au(9L)
   ok <- rd3_infer(p, st$med, au)
   expect_true(is.list(ok))
@@ -58,7 +58,7 @@ test_that("[RD.3] AC2: arima_fingerprint divergente aborta nomeando o campo/coef
   expect_identical(cond3$id, "plugin.regdin_arima_drift"); expect_identical(cond3$details$field, "dm_digest")
 })
 
-test_that("[RD.3] AC3: cabeca so com mm (00:00 nao aciona), set.seed antes, FORBIDDEN/CONTROL de perturbacao, RNG do chamador", {
+test_that("[PLUGINS] inferencia: AC3: cabeca so com mm (00:00 nao aciona), set.seed antes, FORBIDDEN/CONTROL de perturbacao, RNG do chamador", {
   st <- rd3_state(); p <- st$p
   spy <- rd2_spy(st$eng); on.exit(spy$restore(), add = TRUE)
   run <- function(au, ...) { spy$log$n <- 0L; spy$log$state <- list(); e <- rd3_infer(p, st$med, au, ...); list(e = e, n = spy$log$n, st = spy$log$state) }
@@ -88,7 +88,7 @@ test_that("[RD.3] AC3: cabeca so com mm (00:00 nao aciona), set.seed antes, FORB
   expect_gt(max(abs(r09$e$delivery$y_pred[o1] - pc$delivery$y_pred[o1])), 1e-3)
 })
 
-test_that("[RD.3] AC4: 09:00 x 09:30 identicos nos comuns; grade de entrega, matriz 9 x 48, RGD_MAX tambem", {
+test_that("[PLUGINS] inferencia: AC4: 09:00 x 09:30 identicos nos comuns; grade de entrega, matriz 9 x 48, RGD_MAX tambem", {
   st <- rd3_state(); p <- st$p
   for (v in c("med", "max")) {
     a <- rd3_infer(p, st[[v]], rd3_au(9L)); b <- rd3_infer(p, st[[v]], rd3_au(9L, 30L))
@@ -108,7 +108,7 @@ test_that("[RD.3] AC4: 09:00 x 09:30 identicos nos comuns; grade de entrega, mat
   }
 })
 
-test_that("[RD.3] AC5: dia especial recomputado, artefato alheio aborta, infer == forecast (MED 12:00 e MAX 09:00), CONTROL sem cabeca", {
+test_that("[PLUGINS] inferencia: AC5: dia especial recomputado, artefato alheio aborta, infer == forecast (MED 12:00 e MAX 09:00), CONTROL sem cabeca", {
   st <- rd3_state(); p <- st$p
   ## MED, corte 12:00: infer do artefato (treinado com corte 09:00) == forecast acoplado
   a12 <- rd3_infer(p, st$med, rd3_au(12L)); f12 <- rd3_forecast(p, rd3_au(12L))
@@ -136,7 +136,7 @@ test_that("[RD.3] AC5: dia especial recomputado, artefato alheio aborta, infer =
   expect_gt(rd3_ypos(c12, f12), 1e-5)
 })
 
-test_that("[RD.3] AC6: nenhuma leitura de ENV; variante so do artefato", {
+test_that("[PLUGINS] inferencia: AC6: nenhuma leitura de ENV; variante so do artefato", {
   st <- rd3_state(); p <- st$p
   clean <- rd3_infer(p, st$med, rd3_au(9L))
   old <- Sys.getenv("EXOGENA", unset = NA)
@@ -153,7 +153,7 @@ test_that("[RD.3] AC6: nenhuma leitura de ENV; variante so do artefato", {
   expect_false(any(grepl("Sys\\.getenv|Sys\\.setenv", sub("#.*$", "", src))))
 })
 
-test_that("[RD.3] meta$warnings recebe as guardas do motor emitidas na cabeca mm e no perfil (sem o gap DL8-GAP-1)", {
+test_that("[PLUGINS] inferencia: meta$warnings recebe as guardas do motor emitidas na cabeca mm e no perfil (sem o gap DL8-GAP-1)", {
   st <- rd3_state(); p <- st$p; env <- p$env
   hit <- rd2_with_plugin_fn("rd_dm_nowcast", function(real) function(...) {
     message(st$eng$dessem_engine_guard("warning.engine_cross_clamped", from = 1L, to = 2L, n_eff = 3L)); real(...)

@@ -2,7 +2,7 @@
 ## wrapper do oraculo (_load_engine.R:300-370, so leitura, em env separado). Loader real, motor real, painel sintetico.
 
 ## ---- AC1: mm = media das horas completas <= floor_hour(available_until) --------------------------------------------------
-test_that("[RD.2] rd_morning_means: 09:00 = media das 9 horas completas; 09:30 identico; 00:00 vazio; CONTROL de perturbacao", {
+test_that("[PLUGINS] nowcast_mm: rd_morning_means: 09:00 = media das 9 horas completas; 09:30 identico; 00:00 vazio; CONTROL de perturbacao", {
   p <- rd2_plugin(); f <- p$env$rd_morning_means
   O <- RD2_O
   pan <- rd_panel(days = 10L, until = rd2_au(12L))
@@ -35,7 +35,7 @@ test_that("[RD.2] rd_morning_means: 09:00 = media das 9 horas completas; 09:30 i
 })
 
 ## ---- AC2: rd_dm_nowcast identico ao wrapper com estado do oraculo -----------------------------------------------------
-test_that("[RD.2] rd_dm_nowcast: infer e head_O identicos ao wrapper do oraculo, sem estado global; CONTROL sem mm = motor puro", {
+test_that("[PLUGINS] nowcast_mm: rd_dm_nowcast: infer e head_O identicos ao wrapper do oraculo, sem estado global; CONTROL sem mm = motor puro", {
   skip_if_not(file.exists(RD2_ORACLE_ENG), "oraculo ausente")
   p <- rd2_plugin(); eng <- parent.env(p$env); O <- RD2_O
   pan <- rd2_panel(until = rd2_au(12L))

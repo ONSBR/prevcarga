@@ -1,0 +1,170 @@
+# Unidades de paridade do plugin dessem-regdin (RD.6): clean-room x oraculo, limiar unico 1e-5 MW absoluto (ADR-0017), mesma plataforma.
+# Contrato do plugin_golden.R (P.0f) / plugin_parity.R (P.0g). Caminho de INFER do oraculo (jobs/run_job.sh:98-104,207-216, dessem-*):
+# `run_train` (ingestao com `available_until`) + `run_infer` (split-nowcast nativo: o fit usa a cabeca de nowcast com `mm` do prefixo
+# e o predict a refaz), ambos com `available_until` do oraculo e a MESMA janela (`history_days: 1825` = O - 1825 = train == infer do
+# run.yaml). `oracle_cut: start_label`: o golden passa ao oraculo `--available-until = available_until - 30 min` (O 08:30 = rotulo de
+# INICIO do ultimo slot real; o clean-room corta em O 09:00 = interval_end). So cortes em hora cheia > 00:00 (nunca 00:00).
+# Corte intradiario => o oraculo ancora em O (dataPrev = O, previsao15 10 x 48 = O..O+9; o O+9 sai como `fora_da_faixa`).
+# `day0_source: native`: o dia O da entrega e a linha 1 de native.rds. `weather_issue_cutoff: origin_midnight_utc`. A variante entra
+# por `oracle_env: {EXOGENA: <v>}` (so no filho do oraculo; o pai nunca a ve) e, no clean-room, por `params.exogena` do membro.
+# `requires_report`: o relatorio da fundacao LIN_MED x SECO do dessem-linear (DL.9) tem de existir, estar verde e com este sha256
+# (campo `sha256` do relatorio = JSON canonico do bloco `units`) ANTES de qualquer unidade RGD; senao o gerador recusa (exit 2).
+# Runtime do oraculo: R 4.5.3 (unico com fable/fabletools/feasts/tsibble instalados nesta maquina; o regdin diverge do oraculo em
+# R 4.2.3/renv.lock so por versao de pacote, ADR-0036: max_rel 1,3e-5, nao medido por este golden). Todo valor entre aspas (YAML 1.1).
+# Grupos: smoke (tier parity) = <= 3 unidades por variante em SECO; foundation (parity-full) = RGD_MED x SECO, outubro/2024 em
+# walk-forward retrain_harness (cortes 09:00 e 12:00; 2024-10-07 tem feriado em d_plus = 5); fanout = MED e MAX x SECO, S, NE, N.
+# CONTROL `exogena` MED->MAX re-roda a unidade com a variante trocada e `history_days.train` -7 re-treina com a janela menor.
+packages: [WeightSVM, e1071, data.table, lubridate, rlist, jsonlite, arrow, fable, fabletools, feasts, tsibble, urca]
+rules:
+  forbid: [cuts]
+  day0_source: [native]
+  full_hour: true
+  equals: { history_days: 1825, oracle_cut: start_label, weather_issue_cutoff: origin_midnight_utc }
+groups:
+  smoke: [rgd-med-seco-20241007-1200, rgd-med-seco-20241015-0900, rgd-max-seco-20241015-0900]
+  foundation: [rgd-med-seco-20241001-0900, rgd-med-seco-20241007-1200, rgd-med-seco-20241015-0900, rgd-med-seco-20241022-1200, rgd-med-seco-20241029-0900]
+  fanout: [rgd-med-seco-20241015-0900, rgd-max-seco-20241015-0900, rgd-med-s-20241015-0900, rgd-med-ne-20241015-0900, rgd-med-n-20241015-0900, rgd-max-s-20241015-0900, rgd-max-ne-20241015-0900, rgd-max-n-20241015-0900, rgd-max-seco-20241007-1200]
+units:
+  - id: rgd-med-seco-20241001-0900
+    variant: "MED"
+    area: "SECO"
+    origin: "2024-10-01"
+    available_until: "2024-10-01T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MED"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-med-seco-20241007-1200
+    variant: "MED"
+    area: "SECO"
+    origin: "2024-10-07"
+    available_until: "2024-10-07T12:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MED"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-med-seco-20241015-0900
+    variant: "MED"
+    area: "SECO"
+    origin: "2024-10-15"
+    available_until: "2024-10-15T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MED"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-med-seco-20241022-1200
+    variant: "MED"
+    area: "SECO"
+    origin: "2024-10-22"
+    available_until: "2024-10-22T12:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MED"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-med-seco-20241029-0900
+    variant: "MED"
+    area: "SECO"
+    origin: "2024-10-29"
+    available_until: "2024-10-29T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MED"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-max-seco-20241007-1200
+    variant: "MAX"
+    area: "SECO"
+    origin: "2024-10-07"
+    available_until: "2024-10-07T12:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MAX"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-max-seco-20241015-0900
+    variant: "MAX"
+    area: "SECO"
+    origin: "2024-10-15"
+    available_until: "2024-10-15T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MAX"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-med-s-20241015-0900
+    variant: "MED"
+    area: "S"
+    origin: "2024-10-15"
+    available_until: "2024-10-15T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MED"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-med-ne-20241015-0900
+    variant: "MED"
+    area: "NE"
+    origin: "2024-10-15"
+    available_until: "2024-10-15T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MED"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-med-n-20241015-0900
+    variant: "MED"
+    area: "N"
+    origin: "2024-10-15"
+    available_until: "2024-10-15T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MED"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-max-s-20241015-0900
+    variant: "MAX"
+    area: "S"
+    origin: "2024-10-15"
+    available_until: "2024-10-15T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MAX"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-max-ne-20241015-0900
+    variant: "MAX"
+    area: "NE"
+    origin: "2024-10-15"
+    available_until: "2024-10-15T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MAX"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+  - id: rgd-max-n-20241015-0900
+    variant: "MAX"
+    area: "N"
+    origin: "2024-10-15"
+    available_until: "2024-10-15T09:00"
+    weather_issue_cutoff: origin_midnight_utc
+    day0_source: native
+    history_days: 1825
+    oracle_cut: start_label
+    oracle_env: {EXOGENA: "MAX"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}

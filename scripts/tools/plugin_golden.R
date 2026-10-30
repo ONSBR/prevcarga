@@ -9,7 +9,10 @@
 ## Sem switch por modelo: roda `<root>/<model>/tests/parity/oracle_driver.R` (contrato `--oracle <dir> --unit <unit.json>
 ## --out <dir> --available-until <ISO>`; o driver grava `native.rds` e `long.parquet` em --out). Contrato de units.yaml:
 ##   units: [{id, area, origin, available_until, weather_issue_cutoff, day0_source, variant?, history_days?,
-##            oracle_env?, oracle_cut?, cuts?, params?, seed?, data_areas?}]  (+ opcionais de topo: tz, packages, groups, rules)
+##            oracle_env?, oracle_cut?, cuts?, params?, seed?, data_areas?, requires_report?}]  (+ opcionais de topo: tz, packages,
+##            groups, rules)
+## `requires_report` = {path, sha256}: relatorio de outra fundacao (JSON, relativo a raiz do repo) que precisa existir, estar verde
+## (`all_ok` e toda unidade `ok`) e trazer este `sha256` ANTES de a unidade invocar o oraculo; senao tools.bad_units (exit 2).
 ## `--units` e um caminho de units.yaml OU o nome de um grupo de `groups` do `<root>/<model>/tests/parity/units.yaml`.
 ## `cuts` = cortes POR FASE literais ({train: {train_origin, history_start}, infer: {history_start, available_until,
 ## weather_issue_cutoff}}); available_until e weather_issue_cutoff podem vir de `cuts.infer` (sobem para a unidade).
@@ -19,7 +22,7 @@
 ## Saida: 0 ok; 2 [contract] args/units/out/oraculo sujo ou tocado; 1 driver falhou; 12 [repro] saidas diferentes.
 
 .PC_GOLDEN_ALLOWED <- c("id", "area", "origin", "available_until", "weather_issue_cutoff", "day0_source", "variant",
-                        "history_days", "oracle_env", "oracle_cut", "cuts", "params", "seed", "data_areas")
+                        "history_days", "oracle_env", "oracle_cut", "cuts", "params", "seed", "data_areas", "requires_report")
 .PC_GOLDEN_LOCK_TRIES <- 600L   # ~60 s
 .PC_GOLDEN_TOP <- c("units", "tz", "packages", "groups", "rules")
 .PC_GOLDEN_RULES <- c("train_origin_offset", "train_history_offset", "infer_history_offset", "forbid", "day0_source",
@@ -123,6 +126,10 @@ pc_golden_units <- function(path, tz = "Etc/GMT+3") {
       if (!is.null(u$cuts$train) && is.null(u$cuts$train$train_origin))
         .pc_golden_bad_units(id, "cuts.train.train_origin", "obrigatorio (ISO AAAA-MM-DD)")
     }
+    rr <- u$requires_report
+    if (!is.null(rr) && !(is.list(rr) && setequal(names(rr), c("path", "sha256")) && .pc_golden_scalar_chr(rr$path) &&
+                          .pc_golden_scalar_chr(rr$sha256) && grepl("^[0-9a-f]{64}$", rr$sha256)))
+      .pc_golden_bad_units(id, "requires_report", "mapa {path, sha256 (64 hex)}")
     if (!is.null(u$params) && (!is.list(u$params) || is.null(names(u$params)))) .pc_golden_bad_units(id, "params", "mapa")
     if (!is.null(u$seed) && !(is.numeric(u$seed) && length(u$seed) == 1L && !is.na(u$seed) && u$seed == round(u$seed)))
       .pc_golden_bad_units(id, "seed", "inteiro")
@@ -140,7 +147,8 @@ pc_golden_units <- function(path, tz = "Etc/GMT+3") {
          day0_source = u$day0_source, variant = u$variant, history_days = u$history_days,
          oracle_env = if (length(ev)) lapply(ev, identity) else list(), oracle_cut = u$oracle_cut,
          cuts = u$cuts, params = u$params, seed = if (is.null(u$seed)) NULL else as.integer(u$seed),
-         data_areas = if (is.null(u$data_areas)) NULL else as.character(unlist(u$data_areas)))
+         data_areas = if (is.null(u$data_areas)) NULL else as.character(unlist(u$data_areas)),
+         requires_report = if (is.null(rr)) NULL else list(path = rr$path, sha256 = rr$sha256))
   })
   groups <- .pc_golden_groups(doc$groups, all_ids, path)
   if (is.list(doc$rules)) {
@@ -203,6 +211,22 @@ pc_golden_group_units <- function(spec, group) {
        history_days = unit$history_days, oracle_cut = unit$oracle_cut, oracle_env = unit$oracle_env,
        oracle_available_until = .pc_golden_cut_arg(unit), data_dir = data_dir,
        cuts = unit$cuts, params = unit$params, seed = unit$seed, data_areas = unit$data_areas)
+}
+
+## --- relatorio exigido (`requires_report`) -----------------------------------------------------------------------
+## Recusa a unidade (tools.bad_units, exit 2) antes de qualquer chamada ao oraculo: relatorio ausente, ilegivel, vermelho ou com sha256
+## diferente do declarado. O sha256 e o campo `sha256` do proprio relatorio (JSON canonico do bloco `units`).
+pc_golden_require_report <- function(unit, repo) {
+  rr <- unit$requires_report
+  if (is.null(rr)) return(invisible(TRUE))
+  bad <- function(why) .pc_golden_bad_units(unit$id, "requires_report", sprintf("%s: %s", rr$path, why))
+  f <- file.path(repo, rr$path)
+  if (!file.exists(f)) bad("relatorio ausente")
+  rp <- tryCatch(jsonlite::read_json(f, simplifyVector = FALSE), error = function(e) NULL)
+  if (is.null(rp) || !is.list(rp$units) || !length(rp$units)) bad("relatorio ilegivel ou sem unidades")
+  if (!isTRUE(rp$all_ok) || !all(vapply(rp$units, function(x) isTRUE(x$ok), NA))) bad("relatorio vermelho (ok: false)")
+  if (!identical(rp$sha256, rr$sha256)) bad("sha256 diferente do declarado")
+  invisible(TRUE)
 }
 
 ## --- preflight ---------------------------------------------------------------------------------------------------
@@ -377,6 +401,7 @@ pc_golden_main <- function(argv, repo) {
   pre <- pc_golden_preflight(args)
   spec <- pc_golden_units(ru$path)
   units <- Filter(function(u) is.null(args$variant) || identical(u$variant, args$variant), pc_golden_group_units(spec, ru$group))
+  for (u in units) pc_golden_require_report(u, repo)    # nenhuma unidade chama o oraculo sem o relatorio exigido
   scratch <- tempfile("golden-scratch-")
   dir.create(scratch)
   on.exit(unlink(scratch, recursive = TRUE), add = TRUE)

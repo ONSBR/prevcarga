@@ -164,7 +164,10 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   k <- plugin_constants()
   O <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
   last <- cuts$last_data_day
-  horizon <- if (is.null(spec)) k$horizon_days else as.integer(spec$horizon_days)
+  ## dias ENTREGUES = horizon_days (O..O+8); o motor roda horizon_days + 1 dias (O..O+9), como o oraculo com corte intradiario
+  ## (data_adapter.R: n_forecast_days = horizon + 1): o splinefun monoH.FC de desagregaModeloSH precisa do dia seguinte para as
+  ## ultimas horas do ultimo dia entregue. E contagem de dias, nao aritmetica de hora.
+  horizon <- (if (is.null(spec)) k$horizon_days else as.integer(spec$horizon_days)) + 1L
   .rd_assert_panel(panel, cuts, spec)
   area <- rd_single_area(panel)
 

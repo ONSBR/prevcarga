@@ -21,7 +21,7 @@ rd_th_store <- function(au = rd3_au(9L), perturb_day_o = FALSE, hour_o1 = NULL) 
 
 rd_th_slice <- function(pan, cuts = rd_fx_cuts()) rd_lib$.prevcarga_plugin_train_slice(pan, cuts)
 
-test_that("[PLUGINS] treino_ate_O_menos_1: o corte de treino da fundacao entrega o painel ate O-1 e nada do dia O", {
+test_that("[PLUGINS] treino_ate_o_menos_1: o corte de treino da fundacao entrega o painel ate O-1 e nada do dia O", {
   cuts <- rd_fx_cuts(); pan <- rd_th_store()
   expect_gt(sum(lubridate::as_date(pan$load$interval_start) == RD2_O), 0L)                 # o store tem carga de O
   sl <- rd_th_slice(pan, cuts)
@@ -34,7 +34,7 @@ test_that("[PLUGINS] treino_ate_O_menos_1: o corte de treino da fundacao entrega
   expect_false(identical(rd_th_slice(rd_th_store(hour_o1 = 15L), cuts)$load, sl$load))
 })
 
-test_that("[PLUGINS] treino_ate_O_menos_1: FORBIDDEN dia O perturbado => sha256 igual; CONTROL hora de O-1 => muda; 09:00 x 12:00 iguais", {
+test_that("[PLUGINS] treino_ate_o_menos_1: FORBIDDEN dia O perturbado => sha256 igual; CONTROL hora de O-1 => muda; 09:00 x 12:00 iguais", {
   st <- rd3_state(); cuts <- rd_fx_cuts(); sha0 <- rd2_sha(st$med)
   ## FORBIDDEN: o dia O inteiro (carga e clima observado) perturbado; treino real sobre o painel cortado pela fundacao
   fb <- rd_train(rd_th_slice(rd_th_store(perturb_day_o = TRUE), cuts), cuts)
@@ -56,7 +56,7 @@ test_that("[PLUGINS] treino_ate_O_menos_1: FORBIDDEN dia O perturbado => sha256 
   expect_false(identical(ctl$payload$arima_fingerprint$dm_digest, st$med$payload$arima_fingerprint$dm_digest))
 })
 
-test_that("[PLUGINS] treino_ate_O_menos_1: molde do honesty_gate (4 bracos) sobre o treino => HONESTO com FORBIDDEN e CONTROL executados", {
+test_that("[PLUGINS] treino_ate_o_menos_1: molde do honesty_gate (4 bracos) sobre o treino => HONESTO com FORBIDDEN e CONTROL executados", {
   st <- rd3_state(); au <- rd3_au(9L); cuts <- rd_fx_cuts(available_until = au)
   base_pan <- rd_th_store(au)
   d0 <- rd3_au(0L)                                                   # fim de last_data_day = O-1, recebido pronto
@@ -90,7 +90,7 @@ test_that("[PLUGINS] treino_ate_O_menos_1: molde do honesty_gate (4 bracos) sobr
   expect_identical(n_train, 1L)                                       # so o painel do CONTROL exigiu treino novo
 })
 
-test_that("[PLUGINS] treino_ate_O_menos_1: painel de treino com o dia O aborta (despachante e estagio) sem ajustar nenhum SVM", {
+test_that("[PLUGINS] treino_ate_o_menos_1: painel de treino com o dia O aborta (despachante e estagio) sem ajustar nenhum SVM", {
   st <- rd3_state(); p <- st$p; au <- rd3_au(9L)
   spy_fit <- rd_spy(".rd_fit_pass")
   ## despachante: o painel de infer (carga de O ate 09:00) no treino e recusado (confere, nunca corta)
