@@ -27,6 +27,17 @@ run_manifest.json (manifest.json como complemento) e resolve `<state_dir>/foreca
 Ids novos em `scripts/lib/errors/verificar.tsv` (`state.artifact_missing` ja existe em registry_core.tsv e e reusado para --saida/--referencia
 inexistentes).
 
+## Identidade na entrega real (fix/export-run-manifest, 2026-10-30)
+O `forecast` grava `run_manifest.json` no scratch (`.forecast_run_manifest`, contrato `prevcarga_run_manifest` do provenance.R) e o `export`
+o copia em bytes para a raiz da entrega, FORA de `arquivos[]` (a fase 1 ja exclui `manifest.json`/`run_manifest.json`; listado, um rerun com
+outro stamp lateral viraria `export.key_conflict`). Campos: `data_hash` = `prevcarga_data_hash` do deck (mesma receita do evaluation/orchestrate;
+`ctx$data_hash` sobrepoe); `bundle_id` = `prevcarga_bundle_id(root)` (runtime.R: `runtime_id` do RUNTIME.json quando instalado; na arvore de dev,
+sha256 de `<path>\t<sha256>` da selecao do `code/` do bundle, o mesmo filtro do `pc_code_tree`); `model_versions` = `<sigla>/<folha>`,
+`combina/<folha>`, `khat/<ss>` (todas `v_<16hex>`); `platform`, `tz`, `lc`, `blas_threads` do stamp; `origin`, `available_until` (UTC ISO),
+`load_tz`, `versao` (resolvem o `--oficial`). Sem relogio: deterministico entre processos (o e2e compara a arvore da entrega byte a byte).
+Teste: `scripts/lib/tests/test-forecast_verificar.R` (rodada real do M6.4 sobre o deck sintetico: x outra rodada, x si mesma e `--oficial` =>
+exit 0, delta 0; CONTROL parquet adulterado com manifest coerente => 12, cru => 9, sem run_manifest.json => 2; bundle_id segue o codigo).
+
 ## doctor (scripts/lib/runtime.R `prevcarga_platform_check`, `prevcarga_doctor_extend`; scripts/lib/cli/doctor.R)
 O handler do verbo acrescenta 7 linhas ao construtor (introspect.R nao mudou) e os campos JSON `runtime_id, version, platform, install_root,
 state_dir, artefatos[], state_bytes`. Bundle instalado = `RUNTIME.json` na raiz (`ctx$root`) ou um nivel acima (o `code/` do bundle); na
@@ -37,6 +48,5 @@ ausente => FAIL classe 13) e `artefatos.sha` (SHA256SUMS local divergente => FAI
 `state_bytes` = bytes por subarvore de `state_dir`. O exit combina as classes pela precedencia do ADR-0040.
 
 ## Pendencias
-- O `export` (M6.2) NAO grava `run_manifest.json` na entrega; sem ele o `verificar` sai com exit 2 (identidade). Fechar no forecast/export.
 - [DEFERRED M8.6] braco Windows e gate `cross_os` (artefato Linux -> Windows) rodam este verbo entre plataformas; nao executavel nesta maquina.
 - A paridade/A-B Delta=0 contra o oraculo e do M8.8.

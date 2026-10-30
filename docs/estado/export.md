@@ -11,6 +11,8 @@
     Nada a entregar => `state.nothing_to_deliver` (exit 13) antes de criar qualquer diretorio.
   - `manifest.json` (chaves em ordem fixa; `gerado_em` = `ctx$generated_at`, unico campo nao deterministico; nao hasheado nem listado),
     binario com LF, UTF-8, indent 2. khat por subsistema `{ss, versao, khat_origin}` copiado do run.json.
+  - `run_manifest.json` (identidade da rodada, escrito pelo forecast no scratch; ver `docs/estado/forecast.md`): copiado em bytes para a raiz da
+    entrega quando existe, fora de `arquivos[]` e ignorado no `.export_key_check` como o `manifest.json` (rerun = no-op). O `verificar` le dele.
   - Atomicidade: staging `.tmp-<run_id>` no mesmo volume + `file.rename`; erro remove o staging (`integrity.copy_failed`, exit 9).
 - `scripts/lib/cli/export.R`: verbo `export --scratch=<dir> [--niveis=<n>] [--incluir-membros]` (flags `scoped`). Chave PROVISORIA
   `exports/<basename(scratch)>`; a chave imutavel e o layout `forecasts/` sao do M6.7 e a gramatica final do M6.9. `gerado_em` sai do

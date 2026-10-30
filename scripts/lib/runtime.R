@@ -215,6 +215,22 @@ prevcarga_runtime_id <- function(path_runtime_json) {
   digest::digest(prevcarga_runtime_json_canonical(x), algo = "sha256", serialize = FALSE)
 }
 
+## Identidade do codigo que roda (bundle_id do run_manifest da entrega; chr 64). Bundle instalado (RUNTIME.json em `root` ou um
+## nivel acima, como no doctor) => o runtime_id. Arvore de dev (sem RUNTIME.json) => sha256 das linhas `<path>\t<sha256>` (radix)
+## da MESMA selecao do code/ do bundle (scripts/tools/bundle_manifest.R pc_code_tree: scripts, models, config, renv.lock; fora
+## scripts/tools, scripts/data-prep, tests/, *.md e models/*/models/): mesmo codigo => mesmo id, qualquer byte de codigo muda o id.
+prevcarga_bundle_id <- function(root) {
+  cand <- c(root, dirname(root))
+  broot <- cand[file.exists(file.path(cand, "RUNTIME.json"))][1L]
+  if (!is.na(broot)) return(prevcarga_runtime_id(file.path(broot, "RUNTIME.json")))
+  fs <- unlist(lapply(c("scripts", "models", "config"), function(d)
+    if (dir.exists(file.path(root, d))) file.path(d, list.files(file.path(root, d), recursive = TRUE, all.files = TRUE)) else character()))
+  fs <- c(fs, if (file.exists(file.path(root, "renv.lock"))) "renv.lock")
+  fs <- sort(fs[!grepl("^scripts/(tools|data-prep)/|(^|/)tests/|\\.md$|^models/[^/]+/models/", fs)], method = "radix")
+  sha <- vapply(file.path(root, fs), .prevcarga_runtime_file_sha, "", USE.NAMES = FALSE)
+  digest::digest(paste0(fs, "\t", sha, "\n", collapse = ""), algo = "sha256", serialize = FALSE)
+}
+
 ## Recalcula o sha256 de TODO files[] sob `root` (raiz do bundle, onde mora RUNTIME.json). Sem RUNTIME.json => ok = FALSE com
 ## divergentes = "RUNTIME.json" (arvore de dev nao e um bundle). strict = TRUE aborta com bundle.manifest_mismatch (exit 6).
 prevcarga_runtime_validate <- function(root, strict = FALSE) {

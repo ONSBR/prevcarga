@@ -5,6 +5,9 @@
 ## escrito pelo forecast; aqui sao copiados. O modulo nao le relogio: `gerado_em` vem de ctx$generated_at (a fachada le uma vez).
 ## Entrega atomica: staging `.tmp-<run_id>` no MESMO volume da chave final + file.rename; erro remove o staging.
 ## manifest.json: binario com LF final (mesmos bytes em Linux e Windows); nao entra na lista de arquivos nem em hash.
+## run_manifest.json (identidade da rodada: data_hash, bundle_id, model_versions, platform; escrito pelo forecast no scratch) e
+## copiado em bytes para a raiz da entrega quando existe; como o manifest.json, fica FORA de arquivos[] (o `verificar` exclui os dois
+## da integridade e le a identidade dele) e fora da comparacao da chave (rerun = no-op).
 ## Chave imutavel (M6.7): `prevcarga_forecast_versao` (hash dos insumos da versao), `prevcarga_export_key` (layout
 ## forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>, ASCII, sem ':', separador '/'; run_id = hash da chave, nunca PID/relogio) e
 ## `.export_key_check` (mesma chave + mesmos bytes = no-op; qualquer diferenca = integrity.export.key_conflict, nada sobrescrito).
@@ -171,9 +174,11 @@ prevcarga_export <- function(scratch, key, niveis = "subsistemas", incluir_membr
     prevcarga_abort("integrity.copy_failed", where = final, details = list(reason = "nao criou o staging"))
   on.exit(if (dir.exists(tmp)) unlink(tmp, recursive = TRUE), add = TRUE)
   for (i in seq_len(nrow(sel))) .export_copy(sel$src[[i]], file.path(tmp, sel$rel[[i]]))
+  rmf <- file.path(scratch, "run_manifest.json")
+  if (file.exists(rmf)) .export_copy(rmf, file.path(tmp, basename(rmf)))
   mname <- basename(.export_write_json(.export_manifest(run, entries, niveis, ctx), file.path(tmp, "manifest.json")))
   ## chave ja publicada: mesmos bytes = no-op (o staging sai no on.exit, a chave fica intacta); diferenca = key_conflict
-  if (identical(.export_key_check(final, entries, ignore = mname), "noop"))
+  if (identical(.export_key_check(final, entries, ignore = c(mname, basename(rmf))), "noop"))
     return(list(saida = final, arquivos = entries, ja_publicado = TRUE))
   if (!file.rename(tmp, final)) prevcarga_abort("integrity.copy_failed", where = final, details = list(reason = "rename falhou"))
   list(saida = final, arquivos = entries, ja_publicado = FALSE)
