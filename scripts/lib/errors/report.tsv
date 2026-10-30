@@ -1,0 +1,2 @@
+id	class	message	hint
+partial.report_failed	partial	entrega publicada, mas o relatorio falhou	a entrega foi publicada; rode de novo com --report para refazer o relatorio

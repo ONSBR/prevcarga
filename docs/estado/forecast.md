@@ -34,12 +34,17 @@
   `runtime_id` = R + plataforma (deterministico); `generated_at` vem do ctx (unico campo nao deterministico do manifest).
 - Avisos: `warnings` = avisos do catalogo capturados (gate-0 `warning.<what>`, `reconcile.*`, `completude.export_file_missing`) como `list(id, message)`; o verbo (M6.9) os emite.
 - Report (M6.5, `scripts/lib/reporting.R`, errors/reporting.tsv `contract.report_input`): `report = TRUE` roda `.forecast_report_step` DEPOIS do export; `result$report = {status "ok", path}` com
-  `path = <state_dir>/reports/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/report.html` (fora de `forecasts/`; a entrega e identica com e sem report; erro do report vira `status "failed"` + `error`, nunca
+  `path = <state_dir>/reports/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/report.html` (fora de `forecasts/`; a entrega e identica com e sem report; falha do report: ver M6.10 abaixo; nunca
   derruba a entrega). Primitivas reusaveis pelo M7: `prevcarga_html_escape` (escapador unico), `prevcarga_html_page`, `prevcarga_html_heatmap`, `prevcarga_svg_profile`; sem script/Plotly/fonte externa, UTF-8+LF,
   sem relogio (byte-identico para o mesmo insumo). Blocos `curva` (dia O por SIN/subsistema/folha), `available-until` (global e por area), `pesos`, `khat` (copia o result do reconcile: versao, khat_origin,
   khat_age_days), `baselines` (diferenca media do previsto vs persistencia O-1 e sazonal O-7; `prevcarga_baseline` le carga <= O 00:00 <= available_until) e `proveniencia`. Nunca le a verdade do painel nem
-  emite metrica de acerto. Pesos = media por membro dos pesos congelados do corte da rodada (a combina nao tem intercepto: 0). `format = "pdf"` -> `todo.not_implemented` ate o M6.10 (exit 14 tambem e do M6.10).
+  emite metrica de acerto. Pesos = media por membro dos pesos congelados do corte da rodada (a combina nao tem intercepto: 0). `format = "pdf"`: ver M6.10 abaixo.
   `.forecast_leaves` agora tambem devolve `weights` (tabela do apply por folha). Testes: `test-reporting.R` (blocos, CONTROL peso/available_until, FORBIDDEN y_true/carga apos o corte, escape, entrega com/sem report).
+- Report PDF e falha parcial (M6.10, ADR-0033 proposto, errors/report.tsv `partial.report_failed`): `format = "pdf"` -> `.report_pdf` sobre `grDevices::pdf` (base R, zero dependencia nova nem de sistema; A4 paisagem, Helvetica,
+  `compress = FALSE`, `useKerning = FALSE` para o texto ficar legivel nos bytes; so ASCII, o resto vira `?`), mesmos dados/linhas dos blocos HTML (`.report_available_until_lines`, `.report_khat_rows`, `.report_proveniencia_lines`,
+  `.report_pesos_rows`, `.report_baselines_rows`) em `<state_dir>/reports/<origem>/<available_until>/<versao>/report.pdf`. Parenteses no PDF saem escapados (`\\(`). Falha do report (qualquer erro) DEPOIS do commit
+  da entrega: `prevcarga_forecast` aborta `partial.report_failed` (exit 14) com `result` completo (`report = {status "failed", path NULL}`, causa em `details$cause`); `forecasts/` fica identico a uma rodada sem report.
+  Os `warnings` da rodada (gate-0/reconcile/export, `list(id, message)`) viajam no exit 14 em `result$warnings`. O PDF e byte-deterministico (`timestamp = FALSE`: sem CreationDate/ModDate). Testes: `test-report_pdf.R`.
 - Alteracoes fora do forecast.R: (a) `exports.R` `prevcarga_forecast_versao`: `sorted()` aceita lista vazia (entrega so de folhas soltas tem `khat` vazio; antes `order(NULL)` abortava);
   (b) `inference.R` `.prevcarga_inf_cuts`: `deck_areas` = areas do deck INTERSECAO folhas da topologia. Sem isso o infer de um deck que tem serie de subsistema (necessaria ao k-hat)
   abortava `topology.area_undeclared` no leitor de painel (o deck real tem SECO/S/N/NE).

@@ -132,33 +132,49 @@ prevcarga_svg_profile <- function(x = NULL, y, labels = NULL, width = 720, heigh
   if (!length(out)) "<p class=\"nota\">sem previsao para o dia da origem</p>" else paste(out, collapse = "\n")
 }
 
-.report_available_until <- function(provenance) {
+## Linhas do bloco (HTML e PDF leem as mesmas): `global` = texto do corte global; `rows` = c(area, available_until) em ordem radix.
+.report_available_until_lines <- function(provenance) {
   por <- provenance$available_until_por_area
-  glob <- sprintf("<p class=\"destaque\">available_until (global): %s</p>", prevcarga_html_escape(provenance$available_until))
-  if (!length(por)) return(paste(glob, "<p class=\"nota\">sem corte por area</p>", sep = "\n"))
   nm <- names(por)[order(names(por), method = "radix")]
-  paste(glob, .report_table(c("area", "available_until"), lapply(nm, function(a) c(a, as.character(por[[a]])))), sep = "\n")
+  list(global = sprintf("available_until (global): %s", provenance$available_until),
+       rows = lapply(nm, function(a) c(a, as.character(por[[a]]))))
+}
+
+.report_available_until <- function(provenance) {
+  ln <- .report_available_until_lines(provenance)
+  glob <- sprintf("<p class=\"destaque\">%s</p>", prevcarga_html_escape(ln$global))
+  if (!length(ln$rows)) return(paste(glob, "<p class=\"nota\">sem corte por area</p>", sep = "\n"))
+  paste(glob, .report_table(c("area", "available_until"), ln$rows), sep = "\n")
+}
+
+## Pesos em forma longa (area, coluna, v) ordenada em radix; NULL se nao ha pesos.
+.report_pesos_rows <- function(weights) {
+  w <- as.data.frame(weights)
+  if (!nrow(w)) return(NULL)
+  long <- rbind(data.frame(area = w$area, coluna = paste0(w$member, " peso"), v = w$weight),
+                data.frame(area = w$area, coluna = paste0(w$member, " intercepto"), v = w$intercept))
+  long[order(long$area, long$coluna, method = "radix"), , drop = FALSE]
 }
 
 .report_pesos <- function(weights) {
-  w <- as.data.frame(weights)
-  if (!nrow(w)) return("<p class=\"nota\">sem pesos</p>")
-  long <- rbind(data.frame(area = w$area, coluna = paste0(w$member, " peso"), v = w$weight),
-                data.frame(area = w$area, coluna = paste0(w$member, " intercepto"), v = w$intercept))
-  long <- long[order(long$area, long$coluna, method = "radix"), , drop = FALSE]
+  long <- .report_pesos_rows(weights)
+  if (is.null(long)) return("<p class=\"nota\">sem pesos</p>")
   prevcarga_html_heatmap(long, "area", "coluna", "v", "%.4f")
 }
 
 ## k-hat exatamente como veio do reconcile: cada campo e copiado como texto, sem ler perfil nem recalcular.
+.report_khat_header <- c("subsistema", "versao", "khat_origin", "khat_age_days")
+.report_khat_rows <- function(khat)
+  lapply(khat, function(k) c(k$ss, k$versao, format(k$khat_origin), as.character(k$khat_age_days)))
+
 .report_khat <- function(khat) {
   if (!length(khat)) return("<p class=\"nota\">nenhum subsistema fechado: sem k-hat</p>")
-  .report_table(c("subsistema", "versao", "khat_origin", "khat_age_days"),
-                lapply(khat, function(k) c(k$ss, k$versao, format(k$khat_origin), as.character(k$khat_age_days))))
+  .report_table(.report_khat_header, .report_khat_rows(khat))
 }
 
 ## Diferenca media do dia O do previsto contra cada baseline (ja calculado por evaluation.R sobre carga <= available_until).
 ## E descritiva (previsto - baseline), nunca contra a verdade.
-.report_baselines <- function(long, baselines) {
+.report_baselines_rows <- function(long, baselines) {
   d <- .report_day(long)
   nomes <- c(persistence_o1 = "persistencia O-1", seasonal_o7 = "sazonal O-7")
   rows <- list()
@@ -170,20 +186,27 @@ prevcarga_svg_profile <- function(x = NULL, y, labels = NULL, width = 720, heigh
     v <- if (any(ok) && mean(base[ok]) != 0) 100 * (mean(s$y_pred[ok]) - mean(base[ok])) / mean(base[ok]) else NA_real_
     rows[[length(rows) + 1L]] <- data.frame(area = a, baseline = nomes[[b]], dif = v)
   }
-  if (!length(rows)) return("<p class=\"nota\">sem baselines</p>")
-  paste(prevcarga_html_heatmap(do.call(rbind, rows), "area", "baseline", "dif", "%.2f"),
+  if (length(rows)) do.call(rbind, rows) else NULL
+}
+
+.report_baselines <- function(long, baselines) {
+  rows <- .report_baselines_rows(long, baselines)
+  if (is.null(rows)) return("<p class=\"nota\">sem baselines</p>")
+  paste(prevcarga_html_heatmap(rows, "area", "baseline", "dif", "%.2f"),
         "<p class=\"nota\">diferenca media percentual do previsto sobre o baseline, no dia da origem</p>", sep = "\n")
 }
 
-.report_proveniencia <- function(provenance) {
+.report_proveniencia_lines <- function(provenance) {
   fixed <- c("versao", "origem", "load_label", "timezone", "weather_issue_cutoff")
   skip <- c(fixed, "available_until", "available_until_por_area", "subsistemas")
   extra <- setdiff(names(provenance), skip)
   extra <- extra[order(extra, method = "radix")]
   extra <- extra[vapply(extra, function(k) is.atomic(provenance[[k]]) && length(provenance[[k]]) == 1L, NA)]
   keys <- c(fixed, extra)
-  .report_table(c("campo", "valor"), lapply(keys, function(k) c(k, paste(format(provenance[[k]]), collapse = ","))))
+  lapply(keys, function(k) c(k, paste(format(provenance[[k]]), collapse = ",")))
 }
+
+.report_proveniencia <- function(provenance) .report_table(c("campo", "valor"), .report_proveniencia_lines(provenance))
 
 ## --- API publica --------------------------------------------------------------------------------------------
 
@@ -198,8 +221,85 @@ prevcarga_svg_profile <- function(x = NULL, y, labels = NULL, width = 720, heigh
   invisible(TRUE)
 }
 
-.report_pdf <- function(long, weights, khat, provenance, baselines, out)
-  prevcarga_abort("todo.not_implemented", where = "report --format pdf (M6.10)")
+## --- PDF (M6.10, ADR-0033): grDevices::pdf da base R, sem dependencia de sistema; mesmas linhas/dados dos blocos HTML --------
+## Uma pagina (ou mais, se a tabela nao cabe) por bloco, A4 paisagem, Helvetica, sem compressao de stream (texto legivel nos
+## bytes), sem kerning (cada linha e uma unica string). So ASCII: o que nao e imprimivel vira "?".
+
+.pdf_ascii <- function(x) gsub("[^ -~]", "?", enc2utf8(as.character(x)), perl = TRUE)
+
+.pdf_lines_per_page <- 26L
+
+## Paginas de linhas de texto (mono); `title` aparece em todas as paginas do bloco.
+.pdf_page_text <- function(title, lines, mono = TRUE) {
+  lines <- .pdf_ascii(lines)
+  if (!length(lines)) lines <- "(sem dados)"
+  for (pg in split(seq_along(lines), (seq_along(lines) - 1L) %/% .pdf_lines_per_page)) {
+    graphics::plot.new()
+    graphics::title(main = .pdf_ascii(title))
+    graphics::text(0.02, seq(0.95, by = -0.035, length.out = length(pg)), lines[pg], adj = c(0, 1),
+                   family = if (mono) "mono" else "sans", cex = 0.8)
+  }
+  invisible(NULL)
+}
+
+## Tabela como texto monoespacado: colunas alinhadas a esquerda pela largura do maior valor.
+.pdf_page_table <- function(title, dt) {
+  dt <- as.data.frame(dt, stringsAsFactors = FALSE)
+  if (!nrow(dt)) return(.pdf_page_text(title, character()))
+  cells <- lapply(dt, function(col) .pdf_ascii(if (is.numeric(col)) .report_num(col, "%.4f") else format(col)))
+  hdr <- .pdf_ascii(names(dt))
+  w <- vapply(seq_along(cells), function(j) max(nchar(c(hdr[[j]], cells[[j]]))), 1L)
+  fmt <- function(v) paste(v, strrep(" ", w - nchar(v)), sep = "", collapse = "   ")
+  rows <- vapply(seq_len(nrow(dt)), function(i) fmt(vapply(cells, function(cl) cl[[i]], "")), "")
+  .pdf_page_text(title, c(fmt(hdr), rows))
+}
+
+## Curvas do dia O por nivel (SIN, subsistemas, folhas), 6 por pagina.
+.pdf_page_curva <- function(long, subsistemas = character()) {
+  d <- .report_day(long)
+  lv <- .report_level(unique(as.character(d$area)), subsistemas)
+  areas <- unlist(lv, use.names = FALSE)
+  title <- .report_titles[["curva"]]
+  if (!length(areas)) return(.pdf_page_text(title, "sem previsao para o dia da origem"))
+  op <- graphics::par(mfrow = c(2L, 3L), oma = c(0, 0, 2, 0), mar = c(4, 4, 2.5, 1))
+  on.exit(graphics::par(op), add = TRUE)
+  for (i in seq_along(areas)) {
+    s <- d[d$area == areas[[i]], , drop = FALSE]
+    graphics::plot(s$target_datetime, s$y_pred, type = "l", col = "#1f5f8b", xlab = "", ylab = "MW",
+                   main = .pdf_ascii(areas[[i]]), cex.main = 0.9)
+    if (i %% 6L == 1L) graphics::mtext(title, outer = TRUE, font = 2)
+  }
+  invisible(NULL)
+}
+
+.pdf_page_baselines <- function(long, baselines) {
+  rows <- .report_baselines_rows(long, baselines)
+  title <- .report_titles[["baselines"]]
+  if (is.null(rows)) return(.pdf_page_text(title, "sem baselines"))
+  .pdf_page_table(title, data.frame(area = rows$area, baseline = rows$baseline, dif_pct = rows$dif))
+}
+
+.report_pdf <- function(long, weights, khat, provenance, baselines, out) {
+  dir.create(out, recursive = TRUE, showWarnings = FALSE)
+  path <- file.path(out, "report.pdf")
+  ok <- FALSE
+  grDevices::pdf(path, width = 11.69, height = 8.27, family = "Helvetica", compress = FALSE, useKerning = FALSE, timestamp = FALSE,
+                 title = .pdf_ascii(paste("prevcarga forecast", provenance$origem)))
+  on.exit({ grDevices::dev.off(); if (!ok) unlink(path) }, add = TRUE)
+  tt <- .report_titles
+  .pdf_page_curva(long, as.character(provenance$subsistemas))
+  au <- .report_available_until_lines(provenance)
+  .pdf_page_text(tt[["available-until"]], c(au$global, "", vapply(au$rows, function(r) paste(r, collapse = "   "), "")))
+  pw <- .report_pesos_rows(weights)
+  .pdf_page_table(tt[["pesos"]], if (is.null(pw)) data.frame() else data.frame(area = pw$area, coluna = pw$coluna, valor = pw$v))
+  kr <- .report_khat_rows(khat)
+  .pdf_page_table(tt[["khat"]], if (length(kr)) stats::setNames(as.data.frame(do.call(rbind, kr), stringsAsFactors = FALSE),
+                                                            .report_khat_header) else data.frame())
+  .pdf_page_baselines(long, baselines)
+  .pdf_page_text(tt[["proveniencia"]], vapply(.report_proveniencia_lines(provenance), function(r) paste(r, collapse = "   "), ""))
+  ok <- TRUE
+  path
+}
 
 ## Grava `<out>/report.html` (binario UTF-8, LF) e devolve o caminho. `provenance$subsistemas` (opcional) separa os niveis.
 prevcarga_report <- function(long, weights, khat, provenance, baselines, format = c("html", "pdf"), out) {
