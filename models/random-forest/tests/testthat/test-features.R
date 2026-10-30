@@ -217,7 +217,7 @@ test_that("[PLUGINS] features_contract: .select_features_for_lead (uniao na orde
   expect_false("tmax_1" %in% p$.select_features_for_lead(1L, setdiff(fc, "tmax_1")))
 })
 
-test_that("[PLUGINS] features_contract CONTROL: validate_feature_table sem tmax_9 => [prevcarga/contract] exit 2 nomeando a coluna; nao reordena nem descarta", {
+test_that("[PLUGINS] features_contract: CONTROL validate_feature_table sem tmax_9 => [prevcarga/contract] exit 2 nomeando a coluna; nao reordena nem descarta", {
   z <- fx(); p <- z$p
   expect_identical(p$validate_feature_table(z$feats$table), invisible(z$feats$table))
   t2 <- data.table::copy(z$feats$table)[, tmax_9 := NULL]

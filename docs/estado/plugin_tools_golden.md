@@ -9,3 +9,12 @@
 - `golden.lock` (versionado, em `<root>/<model>/tests/parity/`): JSON canonico (chaves ordenadas, LF), por unidade `files` (sha256), `oracle_commit`, `data_digest` (`pc_data_digest`: so as particoes `area_code=/year=` lidas), `fingerprint`. Escrita por tmp + rename. O golden em si (`.state/`) nunca e versionado.
 - Observacao: o id `tools.oracle_touched` esta na classe `contract` (exit 2) no catalogo do P.0a; a mensagem de `tools.bad_units` ("Unidades incompativeis") nao descreve este uso (o detalhe vai em `details$why`).
 - Testes: `scripts/lib/tests/test-plugin-tools-golden.R` (processo real + oraculo-brinquedo de `helper-plugins.R`: `pc_fake_oracle`, `pc_toy_driver`, `pc_units_two`).
+
+## Extensao do RF.4 (units.yaml com grupos, cortes por fase e `rules`)
+- Campos opcionais da unidade: `cuts` ({train: {train_origin, history_start}, infer: {history_start, available_until, weather_issue_cutoff}}; `available_until` e `weather_issue_cutoff` de `cuts.infer` sobem para a unidade quando ausentes no topo), `params`, `seed`, `data_areas`. Topo: `groups` (nome -> ids existentes) e `rules`.
+- `rules` (declarativas, conferidas em TODA unidade; violacao => `tools.bad_units` exit 2 com `where = <unidade>.<campo>`): `train_origin_offset`, `train_history_offset`, `infer_history_offset` (O - data em dias), `forbid` (campos), `day0_source` (lista aceita), `full_hour`, `equals` (campo -> valor), `oracle_env_empty`, `data_areas_is_area`. Nenhum nome de modelo no gerador: a familia declara as regras no proprio units.yaml.
+- `--units` aceita o caminho de um units.yaml OU o nome de um grupo de `<root>/<model>/tests/parity/units.yaml` (`pc_golden_resolve_units`, `pc_golden_group_units`); nenhum dos dois => `tools.bad_args` em `--units`.
+- O driver pode gravar varios `long*.parquet` (RF: `long_O.parquet` e `long_Om1.parquet`); o golden e o lock cobrem `native.rds`, cada `long*.parquet` e `invocation.json`; as 2 rodadas comparam todos. `unit.json` passa tambem `cuts/params/seed/data_areas`.
+- `pc_data_digest` usa `data_areas` (default: a area) e o menor `history_start` das fases de `cuts` quando existem.
+- `golden.lock` e atualizado sob exclusao mutua (`<lock>.lck`, mkdir atomico): grupos distintos podem rodar em paralelo.
+- Oraculo sujo: o preflight exige `git status --porcelain` vazio; quando o oraculo tem arquivos nao rastreados alheios (docs/roadmap no `prevcargadessem3`), use um clone limpo do mesmo commit (`git clone --no-hardlinks`) como `--oracle`; o `oracle_commit` do lock e o mesmo.

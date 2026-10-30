@@ -140,3 +140,27 @@ test_that("pc_golden_units: oracle_cut e minutos no tz; variantes no layout", {
   expect_identical(env$.pc_golden_unit_dir("/o", "m", u), "/o/plugins/m/MAX/SE/2026-10-01")
   expect_identical(env$.pc_golden_child_env(u)[-(1:4)], character())
 })
+
+## --- RF.4: `--units <grupo>` (os testes do units.yaml real do random-forest moram em models/random-forest/tests/testthat/test-units.R)
+bad_id <- function(expr) tryCatch({ force(expr); NA_character_ }, prevcarga_error = function(e) paste(e$id, e$where))
+
+test_that("[RF.4] --units <grupo> resolve o units.yaml do modelo; grupo desconhecido => exit 2; caminho continua valendo", {
+  s <- setup(); data <- withr::local_tempdir()
+  pd <- file.path(s$root, "toy-30", "tests", "parity")
+  writeLines(c("groups:", "  g1: [u1]", readLines(units_file(U1))), file.path(pd, "units.yaml"))
+  expect_identical(env$pc_golden_resolve_units("g1", s$root, "toy-30")$group, "g1")
+  expect_identical(bad_id(env$pc_golden_resolve_units("g9", s$root, "toy-30")), "tools.bad_args --units")
+  r <- gen(s$root, s$oracle, s$out, units = "g1")
+  expect_identical(r$status, 0L)
+  expect_true(file.exists(file.path(s$out, "plugins/toy-30/_/SE/2026-10-01/native.rds")))
+  r9 <- gen(s$root, s$oracle, s$out, units = "g9")
+  expect_identical(r9$status, 2L)
+})
+
+test_that("[RF.4] golden.lock ocupado por outro escritor: aborta sem apagar o lock dele", {
+  d <- withr::local_tempdir(); lk <- file.path(d, "golden.lock"); mtx <- paste0(lk, ".lck")
+  dir.create(mtx)                                            # outro escritor segura o mutex
+  old <- env$.PC_GOLDEN_LOCK_TRIES; assign(".PC_GOLDEN_LOCK_TRIES", 3L, envir = env); on.exit(assign(".PC_GOLDEN_LOCK_TRIES", old, envir = env))
+  expect_identical(bad_id(env$pc_golden_lock_update(lk, "m", "u1", c(a = "x"), "c", list(), list())), "generic.unexpected golden.lock ocupado (golden.lock.lck)")
+  expect_true(dir.exists(mtx)); expect_false(file.exists(lk))
+})

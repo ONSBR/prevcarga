@@ -1,0 +1,1511 @@
+{
+  "model": "random-forest",
+  "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141",
+  "units": {
+    "baoe-2024-01-01": {
+      "data_digest": {
+        "aggregate": "4542a5801765c6dec2dc23c412cf3bc149c998168d8d5114914e4b516646f62d",
+        "partitions": {
+          "auxiliary/holidays/area_code=BAOE/year=2022": "adeb403b4556bda0395ba74999b9adaddb67a05c6e1955cf731f34d5c6dca23b",
+          "auxiliary/holidays/area_code=BAOE/year=2023": "d1debda0ab0ff4e94f29b8fcbac57b2d374a22b3b014c4f6936425fa6eef1762",
+          "auxiliary/holidays/area_code=BAOE/year=2024": "993faff86f1c2f63d3c90ba2b2ef5fdceff2f2267529e0895a1317f405fbbf8f",
+          "load/area_code=BAOE/year=2022": "58238bef4bdc258b00a96d06420f6415a21c77169ff77ae5aeafc053d5352f54",
+          "load/area_code=BAOE/year=2023": "ff96dcb02a86e9cd923e01cf110123884d731caf62e4bf3e13e08a663436595d",
+          "load/area_code=BAOE/year=2024": "531c930a38517db955ea8513b54c2a54da302cde0be7147314f9c39c2c4a816a",
+          "weather/forecast/area_code=BAOE/year=2022": "e2ef4d1afe0a91f953ddfaa06bedafa7030d9b4393381bf42d5b506eae0c2968",
+          "weather/forecast/area_code=BAOE/year=2023": "12dc28206be34ff9f7ee9e77a3cf71145828b408a98013b1f11af077db0699a1",
+          "weather/forecast/area_code=BAOE/year=2024": "32beaacf66873fdf783201b1cd556d91d441160d5afa2295893bf054b4cecaf2",
+          "weather/observed/area_code=BAOE/year=2022": "1dcde0faa6dffd8a0cf6f455e621d1641a733acdf173a970c985c05773631e79",
+          "weather/observed/area_code=BAOE/year=2023": "475ab70fd050005449bbd942511482030188f8d543b77f40950370386661d7f0",
+          "weather/observed/area_code=BAOE/year=2024": "1faca939e0e3fd4d27a0a5ee7536736bd321f65d4acf8baaa1d1b614ee9b4841"
+        }
+      },
+      "files": {
+        "invocation.json": "7d32be27be29677cc17ad25cba9d130d94ae1d6cf19611506d663089b7fa052e",
+        "long_O.parquet": "b9045446fe15b01e4606e4a5cbc54b787a8f43c08d36434b42ca67c9171e1f5b",
+        "long_Om1.parquet": "f73ad184dcb2504917e27e47f4966890d756feda8c705ccab643df26fd89ef24",
+        "native.rds": "9b42facaf79eec11aead0a18ea6d67c53fec8fa1e870f25ab9fe944cba9f2b71"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "baoe-2024-07-01": {
+      "data_digest": {
+        "aggregate": "974b7a66035aa18839a1142c5eb2c4745be0618ebacab52058a8967654112ce1",
+        "partitions": {
+          "auxiliary/holidays/area_code=BAOE/year=2023": "d1debda0ab0ff4e94f29b8fcbac57b2d374a22b3b014c4f6936425fa6eef1762",
+          "auxiliary/holidays/area_code=BAOE/year=2024": "993faff86f1c2f63d3c90ba2b2ef5fdceff2f2267529e0895a1317f405fbbf8f",
+          "load/area_code=BAOE/year=2023": "ff96dcb02a86e9cd923e01cf110123884d731caf62e4bf3e13e08a663436595d",
+          "load/area_code=BAOE/year=2024": "531c930a38517db955ea8513b54c2a54da302cde0be7147314f9c39c2c4a816a",
+          "weather/forecast/area_code=BAOE/year=2023": "12dc28206be34ff9f7ee9e77a3cf71145828b408a98013b1f11af077db0699a1",
+          "weather/forecast/area_code=BAOE/year=2024": "32beaacf66873fdf783201b1cd556d91d441160d5afa2295893bf054b4cecaf2",
+          "weather/observed/area_code=BAOE/year=2023": "475ab70fd050005449bbd942511482030188f8d543b77f40950370386661d7f0",
+          "weather/observed/area_code=BAOE/year=2024": "1faca939e0e3fd4d27a0a5ee7536736bd321f65d4acf8baaa1d1b614ee9b4841"
+        }
+      },
+      "files": {
+        "invocation.json": "998ebba85ffa07f06c9d8e1194a981ae90a8927a9b93e0418942478fcd37288b",
+        "long_O.parquet": "880383f118ecccbd31808a4f7f6305f85ded36e262ba48bbeb82110b2ce77c0c",
+        "long_Om1.parquet": "704208ec676fbef43eceb894b42cf4f5e0c22e60ec8d98f2670ad6789218626d",
+        "native.rds": "49dd0b20157014d474090d97a767629ef0e9ec4bb474cae7952dc711a07643b0"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "baoe-2024-10-01": {
+      "data_digest": {
+        "aggregate": "974b7a66035aa18839a1142c5eb2c4745be0618ebacab52058a8967654112ce1",
+        "partitions": {
+          "auxiliary/holidays/area_code=BAOE/year=2023": "d1debda0ab0ff4e94f29b8fcbac57b2d374a22b3b014c4f6936425fa6eef1762",
+          "auxiliary/holidays/area_code=BAOE/year=2024": "993faff86f1c2f63d3c90ba2b2ef5fdceff2f2267529e0895a1317f405fbbf8f",
+          "load/area_code=BAOE/year=2023": "ff96dcb02a86e9cd923e01cf110123884d731caf62e4bf3e13e08a663436595d",
+          "load/area_code=BAOE/year=2024": "531c930a38517db955ea8513b54c2a54da302cde0be7147314f9c39c2c4a816a",
+          "weather/forecast/area_code=BAOE/year=2023": "12dc28206be34ff9f7ee9e77a3cf71145828b408a98013b1f11af077db0699a1",
+          "weather/forecast/area_code=BAOE/year=2024": "32beaacf66873fdf783201b1cd556d91d441160d5afa2295893bf054b4cecaf2",
+          "weather/observed/area_code=BAOE/year=2023": "475ab70fd050005449bbd942511482030188f8d543b77f40950370386661d7f0",
+          "weather/observed/area_code=BAOE/year=2024": "1faca939e0e3fd4d27a0a5ee7536736bd321f65d4acf8baaa1d1b614ee9b4841"
+        }
+      },
+      "files": {
+        "invocation.json": "6a84327c2b62a03faae328653e53d1904c6ade8e4508c09f7d6ad436a7e824fa",
+        "long_O.parquet": "db9e2d9a81d1dd91e87b166088b62bc4f049ce438612e968de34d74795333ea0",
+        "long_Om1.parquet": "489291795b309c63eb2b9805f7c0ca064e5de4334664731188fd2aaa88843eb1",
+        "native.rds": "81fdad8bb0fc5c8b0ee809dabd84920497db3fc911011f30b1b953806dd0ec79"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "pa-2024-01-01": {
+      "data_digest": {
+        "aggregate": "904545d99b6e74028a4d124bc02bc0eca2291957f540aee58552affabe627c2b",
+        "partitions": {
+          "auxiliary/holidays/area_code=PA/year=2022": "f35afeaca3797695374096aa9e7d608c4d1bd454874ac3a5dd1c0c0fbd3ed212",
+          "auxiliary/holidays/area_code=PA/year=2023": "020af87c7b8c400d61a46f51cf72a3c6b34acad1d307a8f840525ae2e485c565",
+          "auxiliary/holidays/area_code=PA/year=2024": "44cab02e3d7c2bfcbbd0e15d7f6fc09636820a4250be73087cceb7926b699ae6",
+          "load/area_code=PA/year=2022": "d6022d196592615f317e1a970dd53217909636147648a66fe122afdd5b28802c",
+          "load/area_code=PA/year=2023": "d2ef8765e6bab6c9df498bb1c12ba1d38204d5899cd803ad3bcacbaf29ed41a0",
+          "load/area_code=PA/year=2024": "f78c325c93d749439465ca3c4bb0f690cbdb4bd82cc020bd9f47295da3408597",
+          "weather/forecast/area_code=PA/year=2022": "7bd0a392593008881d96a86630032ec7f8a99736ba518fff1870df580ebeeb17",
+          "weather/forecast/area_code=PA/year=2023": "bbd02f5b69fbede775099627d43bead50378214c26f422b072a81f03a6fc4019",
+          "weather/forecast/area_code=PA/year=2024": "d936da6c73b0c8567391b1d0c322aa3a1a52d043693620cfbd27bb94e7f286f7",
+          "weather/observed/area_code=PA/year=2022": "4adbefa20517faafbdc6f6c3c4fcdc05969929901c9758333495354fdc15c82e",
+          "weather/observed/area_code=PA/year=2023": "5e266916fba533c0db47273e16905d663b26ae82ee4c09a27bd795c6d5c0ae59",
+          "weather/observed/area_code=PA/year=2024": "489e0e75f063fc40601b31f4237df26f5e3f91ce59b1b2ca136a3f99c1010403"
+        }
+      },
+      "files": {
+        "invocation.json": "b6a68bd8285b427b0e8e8c8b57536dcd3137d3c33d9f8c9c7121379c8c5525b2",
+        "long_O.parquet": "f498499386e54094425eca55d0d63244e023d85f18f804672a0f655dcd07844c",
+        "long_Om1.parquet": "4225c437607f2fb8c98aae820a15e770db93060949185644e3092c4574b47ebf",
+        "native.rds": "85ba0035c2a7ecf123a828678851be4c259542f3c1ae573e75b4390a3129c369"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "pa-2024-07-01": {
+      "data_digest": {
+        "aggregate": "99acbebeea03ca7f10f01bd940f919c37c40d540a4d24b62e988a3293e43781e",
+        "partitions": {
+          "auxiliary/holidays/area_code=PA/year=2023": "020af87c7b8c400d61a46f51cf72a3c6b34acad1d307a8f840525ae2e485c565",
+          "auxiliary/holidays/area_code=PA/year=2024": "44cab02e3d7c2bfcbbd0e15d7f6fc09636820a4250be73087cceb7926b699ae6",
+          "load/area_code=PA/year=2023": "d2ef8765e6bab6c9df498bb1c12ba1d38204d5899cd803ad3bcacbaf29ed41a0",
+          "load/area_code=PA/year=2024": "f78c325c93d749439465ca3c4bb0f690cbdb4bd82cc020bd9f47295da3408597",
+          "weather/forecast/area_code=PA/year=2023": "bbd02f5b69fbede775099627d43bead50378214c26f422b072a81f03a6fc4019",
+          "weather/forecast/area_code=PA/year=2024": "d936da6c73b0c8567391b1d0c322aa3a1a52d043693620cfbd27bb94e7f286f7",
+          "weather/observed/area_code=PA/year=2023": "5e266916fba533c0db47273e16905d663b26ae82ee4c09a27bd795c6d5c0ae59",
+          "weather/observed/area_code=PA/year=2024": "489e0e75f063fc40601b31f4237df26f5e3f91ce59b1b2ca136a3f99c1010403"
+        }
+      },
+      "files": {
+        "invocation.json": "5c1abe689859dd274d4053fc2f61d3b7421c85a1173c6cf6518a89e43f630186",
+        "long_O.parquet": "27529f337f11e47901ebda869044b15a332eef5141a0492ba320e91a57d17944",
+        "long_Om1.parquet": "e3298dbcaf6ef46d44220ca90eb6847ea843656419a70038e11f4814ba7fa061",
+        "native.rds": "802783d41cc6938ad93b5661387cd70a3d34f2ca5d7f3dcc9264fbb74b954e80"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "pa-2024-10-01": {
+      "data_digest": {
+        "aggregate": "99acbebeea03ca7f10f01bd940f919c37c40d540a4d24b62e988a3293e43781e",
+        "partitions": {
+          "auxiliary/holidays/area_code=PA/year=2023": "020af87c7b8c400d61a46f51cf72a3c6b34acad1d307a8f840525ae2e485c565",
+          "auxiliary/holidays/area_code=PA/year=2024": "44cab02e3d7c2bfcbbd0e15d7f6fc09636820a4250be73087cceb7926b699ae6",
+          "load/area_code=PA/year=2023": "d2ef8765e6bab6c9df498bb1c12ba1d38204d5899cd803ad3bcacbaf29ed41a0",
+          "load/area_code=PA/year=2024": "f78c325c93d749439465ca3c4bb0f690cbdb4bd82cc020bd9f47295da3408597",
+          "weather/forecast/area_code=PA/year=2023": "bbd02f5b69fbede775099627d43bead50378214c26f422b072a81f03a6fc4019",
+          "weather/forecast/area_code=PA/year=2024": "d936da6c73b0c8567391b1d0c322aa3a1a52d043693620cfbd27bb94e7f286f7",
+          "weather/observed/area_code=PA/year=2023": "5e266916fba533c0db47273e16905d663b26ae82ee4c09a27bd795c6d5c0ae59",
+          "weather/observed/area_code=PA/year=2024": "489e0e75f063fc40601b31f4237df26f5e3f91ce59b1b2ca136a3f99c1010403"
+        }
+      },
+      "files": {
+        "invocation.json": "adfc42876843ff37e4dd8467edfedad49b133e96c1f5e405f9091cf229908ae9",
+        "long_O.parquet": "26fe6bbc0bb33afb773ce7c166294dfa9e0c4eb927d5a22f79f18d38f6624143",
+        "long_Om1.parquet": "81b1e9d46d497b3f8678ea974ab0b94ef1dd61748f54ab06f3154ab1354b9818",
+        "native.rds": "9ddf78a636710942a53b5ee5c8cbe27c5beea92fd0d669f5618709a675657f37"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "rs-2024-01-01": {
+      "data_digest": {
+        "aggregate": "8d4f02e0886cb721f27ec702a00d273064437dc847d378290c901cddd963aca6",
+        "partitions": {
+          "auxiliary/holidays/area_code=RS/year=2022": "a84986b03af50d8f05bd6f09a5c07f66171aca681442fbcd20dcf3d892ac056f",
+          "auxiliary/holidays/area_code=RS/year=2023": "303a514f3dde9b70c76e7efdb38fd51c5153e1ef977a7a52133ea2fdd2c22351",
+          "auxiliary/holidays/area_code=RS/year=2024": "506f1bb96d1e9ea4bb4616ba58d690d29dbf73feefe2e1c9183272869da997d2",
+          "load/area_code=RS/year=2022": "965728b770996d1faba57729b755b14af35954d3344c78035af5afcd1d5f91b5",
+          "load/area_code=RS/year=2023": "9544388de3806eb4a1a2be1bff6868b4915f8623b6d448c87766d1aa21bcd2b9",
+          "load/area_code=RS/year=2024": "d92f0bf43b1dc4dab417e5591cf4b316b410362f9f8de1f9474535c266584bb3",
+          "weather/forecast/area_code=RS/year=2022": "f82fc838a454ced24fd36afe9607f51a081ba4bbf39c82167404f5b1ab1e894a",
+          "weather/forecast/area_code=RS/year=2023": "7d1ba0e4aeb869cd0b783a03a50ae06ff1b27b862097cbc1289fea90f530f286",
+          "weather/forecast/area_code=RS/year=2024": "7746b14c75ce69c9283074a81524dd52054a9377923199fa84f79f3a8022702b",
+          "weather/observed/area_code=RS/year=2022": "53a6a30868043261c5f86149880cc79f5a126aa226a4dae9f65c24be56212b42",
+          "weather/observed/area_code=RS/year=2023": "aadecad180783a0ba86a3c91e4b22ff384c9de1190eeeeb0595c48d5ba675de3",
+          "weather/observed/area_code=RS/year=2024": "83c679bc03eede104c433e9460ca23b4246831b867b199e6ae06bde0d42357cd"
+        }
+      },
+      "files": {
+        "invocation.json": "445acffd03656afcbe87e0bada4da100ebf3cb6d70d5c5402fe5b6f13508394d",
+        "long_O.parquet": "814d654c3a361a2e87e40649f83aca5e4d02cc62eff6eef2a3bee7faa20bf130",
+        "long_Om1.parquet": "6ccc9a7a6b1f6dffb967c6fff08824fb658b43e4615a94f767e804f3a7352e3a",
+        "native.rds": "c65f102d65649582e3165134aae8970b7241f0311ab57024aea707c12eb3c951"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "rs-2024-07-01": {
+      "data_digest": {
+        "aggregate": "7e71d1ac8373642b6d55d2da8cf0e05ce335c2d92123ed736700dcd59418d447",
+        "partitions": {
+          "auxiliary/holidays/area_code=RS/year=2023": "303a514f3dde9b70c76e7efdb38fd51c5153e1ef977a7a52133ea2fdd2c22351",
+          "auxiliary/holidays/area_code=RS/year=2024": "506f1bb96d1e9ea4bb4616ba58d690d29dbf73feefe2e1c9183272869da997d2",
+          "load/area_code=RS/year=2023": "9544388de3806eb4a1a2be1bff6868b4915f8623b6d448c87766d1aa21bcd2b9",
+          "load/area_code=RS/year=2024": "d92f0bf43b1dc4dab417e5591cf4b316b410362f9f8de1f9474535c266584bb3",
+          "weather/forecast/area_code=RS/year=2023": "7d1ba0e4aeb869cd0b783a03a50ae06ff1b27b862097cbc1289fea90f530f286",
+          "weather/forecast/area_code=RS/year=2024": "7746b14c75ce69c9283074a81524dd52054a9377923199fa84f79f3a8022702b",
+          "weather/observed/area_code=RS/year=2023": "aadecad180783a0ba86a3c91e4b22ff384c9de1190eeeeb0595c48d5ba675de3",
+          "weather/observed/area_code=RS/year=2024": "83c679bc03eede104c433e9460ca23b4246831b867b199e6ae06bde0d42357cd"
+        }
+      },
+      "files": {
+        "invocation.json": "8d45063474f26243602aaea2bf144f4fb467817283578bdf3c0b8a4a34f24781",
+        "long_O.parquet": "4706900ddde0d7df7b4bddb852ff9e7bcdf2f0b7dd990d3d58dfaec0b2c51aa8",
+        "long_Om1.parquet": "6c158971285d0883dc5b9cd1c0abc687e546eb2c4832b2978f0b8b803da9fb8d",
+        "native.rds": "dc7a35b68d3d92bcd6474b727dca221f6f9f276a3885aae8a9c130af4e178442"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "rs-2024-10-01": {
+      "data_digest": {
+        "aggregate": "7e71d1ac8373642b6d55d2da8cf0e05ce335c2d92123ed736700dcd59418d447",
+        "partitions": {
+          "auxiliary/holidays/area_code=RS/year=2023": "303a514f3dde9b70c76e7efdb38fd51c5153e1ef977a7a52133ea2fdd2c22351",
+          "auxiliary/holidays/area_code=RS/year=2024": "506f1bb96d1e9ea4bb4616ba58d690d29dbf73feefe2e1c9183272869da997d2",
+          "load/area_code=RS/year=2023": "9544388de3806eb4a1a2be1bff6868b4915f8623b6d448c87766d1aa21bcd2b9",
+          "load/area_code=RS/year=2024": "d92f0bf43b1dc4dab417e5591cf4b316b410362f9f8de1f9474535c266584bb3",
+          "weather/forecast/area_code=RS/year=2023": "7d1ba0e4aeb869cd0b783a03a50ae06ff1b27b862097cbc1289fea90f530f286",
+          "weather/forecast/area_code=RS/year=2024": "7746b14c75ce69c9283074a81524dd52054a9377923199fa84f79f3a8022702b",
+          "weather/observed/area_code=RS/year=2023": "aadecad180783a0ba86a3c91e4b22ff384c9de1190eeeeb0595c48d5ba675de3",
+          "weather/observed/area_code=RS/year=2024": "83c679bc03eede104c433e9460ca23b4246831b867b199e6ae06bde0d42357cd"
+        }
+      },
+      "files": {
+        "invocation.json": "8c3aad0e6623132074c46e1d66cdbe30bc244f93d34d4c46a70372d0143b85ab",
+        "long_O.parquet": "a3c374dde080f3224a226de06f9b89452dcdace3c2d1ccbdf38f6c7b3b57322b",
+        "long_Om1.parquet": "8e8e8e0844f17547f7f16d9d5d7f910c614e6a769e62c0011a4d502264e67c1e",
+        "native.rds": "7f406e81802fdc86625804055cff68a6c34bd84d76961340d43f88bba62df2fa"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-01-01": {
+      "data_digest": {
+        "aggregate": "ee9aba67552e137dd0ae1ea2059b5623c2246820033970d9dc27a69ec329a43d",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "eca76b9551c2fcedba00c66830ae2a4c40b518117057689e944e8cef535804f0",
+        "long_O.parquet": "e7c0d7992512bddc5be5a08e4a221283963266a2b03ae69886ae0cbd3b36c1a1",
+        "long_Om1.parquet": "24509d4dbeaf99451efecdbab5b06dac4a084d9ba6e7894b6274508070cf6e32",
+        "native.rds": "9b82168e16059af6c6a711974880d3c8d41912349479d0322feb51573894b1a5"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-07-01": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "6c3d7bccaed4dd144fb6cb57ab078a945c6b0d9c923630a7079bfe8dbe98a651",
+        "long_O.parquet": "5a2cc945020d85a9b8aac7e842ec1c75187e3bd30e359430d60700377b40428c",
+        "long_Om1.parquet": "cab9166b0d44ad574b1e1d18896d64e0e815820c8530fde0453b099c97d0453f",
+        "native.rds": "89cff02c9be46519b800ab0f5c3702683de170747fb3b2bd5006d99c655f9aa8"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-01": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "7e7a296f19dd69af4434aeba5095804bbaae360bf1a747847ec8f5a6064de093",
+        "long_O.parquet": "1735121ecb440616352a865901f14cb1eda79c8781ef3a7a01874056dc58835d",
+        "long_Om1.parquet": "f9320737110161f828e89dc1d1b693de39adde87366ed2ce338319649910de46",
+        "native.rds": "a96163fbd7c1fad46ed82687a51ef702509dc1243d9da249f2674e7c376515f5"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-02": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "6d016a762c9b731a0c246de12d489ff4a1cc49fd30eab03f02b1a645845628c9",
+        "long_O.parquet": "04293dde751d4daa5ba4778ba541a0ba13c4d17035f7f486fb3cc39875311293",
+        "long_Om1.parquet": "b1adfc14230e1fddd56128975c0e23b37da0f0c965326bfb07ef534b6a8602f1",
+        "native.rds": "50579ff3963ad0b76f886f274b5fe2c0e12c83e91b0a2077e321cd7eebd885d3"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-03": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "41f16a93ad90bb3e6125f2e816a029002999977012918473f616db1b49629217",
+        "long_O.parquet": "03a6605bd97500b4cbead7f5b34317c9c5af32f26a3c1e0b14906ac9b9959444",
+        "long_Om1.parquet": "453117ec86927d632c40ba09ef4e58e19efce39aafc7a08848780f586a644041",
+        "native.rds": "1010385b1a1369bdfe8925e0807fd793a04b9a3763598c9885be3eea723c0bd8"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-04": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "e6023684f6cc850973993a6ef516a46b0246fbeb115aee468b294d5982d3d4c9",
+        "long_O.parquet": "3aaf462453d4e146ed24a3f5108629602865e1303c47b0d398425e2fc196d66f",
+        "long_Om1.parquet": "58b20a1d8f4b8aa7ebc689e25334ac94173cded5ecf0bbd270d8f547bf03c002",
+        "native.rds": "241e988ef34d82e0079cce30ea4e3b9cbee3a024b4f1c164d6ce1288303629eb"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-05": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "6b49501d26177189c53be58541e4dd2e2efd32973a53666497948580468c963b",
+        "long_O.parquet": "2db6be7f6eab03d3913ff2dc437611de643170f4558faae72b43b211991ec851",
+        "long_Om1.parquet": "48fdb4e4fe49766115e515d173360f470f74015b8af0669dd7e680ebe1b756a9",
+        "native.rds": "6b7a4d0bc1a620f713f633ed6ad9d1da888f2d164b00c6fc04694828a5c7b1d5"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-06": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "8c0f8c189d09c3dfea135e4a40d4d192ee498f8a3561032d922be9fa4b91cfde",
+        "long_O.parquet": "4e1fc4b47d4bc72e403e2a53917197f705ba14024150705d3d3a782af2793c30",
+        "long_Om1.parquet": "01c2510e73df34ffcc48645f588359daf15394460e7bf95a5562c423caf245d8",
+        "native.rds": "598c824b2eb7fd069f167a220177754ef582f99d29e8840a942859caf4330c75"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-07": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "30bb26a546ab0eb621f7f7411375245cce48f11fc4d1accc059e4c3d3936992d",
+        "long_O.parquet": "87d16ad039a9ce9bb99328c7d78cf8c4a1e380d6d51213e7a06f473bd20c4315",
+        "long_Om1.parquet": "59942e8a32899ace7d1173d46df8b3c0a72bec3dd1dc74e20a648051324c26fe",
+        "native.rds": "84ddbf5faaced33e6b474fc83f4038e53d1896d9a2744a2d4d633687bb42c940"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-08": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "294fef3221239fcbb89741b7cb24b877d4979fa0296c60aae5bfb34e3cab900d",
+        "long_O.parquet": "a3e076a758647524447cfa66a93a116074b8b8b773669d6a46b08c71c778a9d9",
+        "long_Om1.parquet": "bd9701de3b62b39d000825784504e4c097f731bafefb5018a512a56254d787ff",
+        "native.rds": "ec13bd153bd60ba905352634c00fdd6ecc34220492248a94ff39e9e45851f9a3"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-09": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "6b69c5e487c57cd8fb15a1c0e3f3e6a1f9afd544579c4d122565134ac7da3cc6",
+        "long_O.parquet": "60b117ed84e5d5ef5dc19129624fbab860f2b985ed30f3edc3ba941eb3521d83",
+        "long_Om1.parquet": "f1491a6ae1e3a2c0ca6e4453665360fb33263c2254ffdb37719f87b8a6380bda",
+        "native.rds": "b37fab979b2eff01d3839a0443ebb723f0b0e1ded430fd71b1a1b0c2092c11b0"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-10": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "05b8211d39735dbc7c7af02e0a62b739e1feba3886626c4043b89fe88efe0bce",
+        "long_O.parquet": "f034fdaa0ca4ebbbdc5c6a47b4de63eb47791965871a0bdcd61b92a904ebb755",
+        "long_Om1.parquet": "e11e03638a3c6c625542d74f59353efcabdae103172624038b271287f0a663da",
+        "native.rds": "54f6290d4d9e5e52b7bc6e29bee53089247cd4967a43bbc9230c7d5b0eca4f1a"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-11": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "e27d9c9d8e6e925373b8df745587f8706e293d23bff1a3269b3f263c21ddf1c4",
+        "long_O.parquet": "3acf4d88737408164565ada78b6210d0265c194e4ed1ff0f7faa3bfce8287d69",
+        "long_Om1.parquet": "448d8e34dda1843fba2dfe06c00ddfaebbb9a9b71a1246291b01530ffef8efe1",
+        "native.rds": "aac54545f501ef4fa16280a5099d60ff93b1faf33b536877afcd8722f1e7f895"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-12": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "a9431d1c8eae5bb1bb38e01f504aea3f025b9705e23678c32c3361396251723f",
+        "long_O.parquet": "1bf18b11c40e1e0e60d117958cd27d5f939dbd16d020359bf30b122d13e0b146",
+        "long_Om1.parquet": "896c87d35d56eae81907dd5c1e91a73790f007f9a2356255eaac12ee7edf7453",
+        "native.rds": "af96743f85d3f94f7caba579f0ec4c34613b5e02fc638f990c75c19e58146fe7"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-13": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "7ca9b38ac50703ac6adb5d6bf844d4e762bf8d9e1202edc4f31171b32465aa12",
+        "long_O.parquet": "8d06f2a6212f416177073459b627dbbf799e1d956d88d9bcce7e992c3e8ddb7c",
+        "long_Om1.parquet": "d2de3ed6c74771b94176f0f242698386acddcb40f9c653389621150fe2a0d61b",
+        "native.rds": "fc566b0d1f67a333ed682fefd00542d9c0153af513c5f82c194bce2515adb22e"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-14": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "0afcd2e47d98267c88c3d16501f7747bb4782729307b7ce53f3a98b6c1a4e9d3",
+        "long_O.parquet": "f314fea3c36260aecc355be21342c583c2b97c850a2e65234bfab3a2c294310d",
+        "long_Om1.parquet": "775d0dcd2d1e78d5b82c5651bdcc39a429acec53342a5aa5167161751683aaf8",
+        "native.rds": "ffd6a0db72c23e160cc1efe39a4333583f09381df8a857d04d8e4b154a218144"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-15": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "7d3489279074fc42df9e46d318c0a514d4b0cf9567041228954e45f3639ebff6",
+        "long_O.parquet": "86e503f3d678b1499999378764627227d8d96c91f6b1ef33c145f999818b6703",
+        "long_Om1.parquet": "795fbe15d3ff4542ab747fff0823ed4afbd6162eb423d5578d478df62a7c6667",
+        "native.rds": "c608fad27f14a5cac9d878ab55ab0ffbb8a2e6727a17285b3ce5c1787ba3c629"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-16": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "8596ebd46e2a2f990037a5a1aa1a58d2dbea290b1da11f7288f12ca29f4bcc22",
+        "long_O.parquet": "2d52644f8cc079712d5be9cf9a61e16184af2eee44df1b42177364a9d02fc9bf",
+        "long_Om1.parquet": "c9e91b2fd4e7b73d28f8066cdc787571da85929e1d0dd62d4d5b68fc68677ff9",
+        "native.rds": "c450eb5060a72d824bf3326d60902ef98415f53c0c9cd54b738a66f8b637fa61"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-17": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "2160b2257e5d6750c3f423f2062174cd857776aaa07f887fd55e93a7c4ccfa59",
+        "long_O.parquet": "de569e9c9fda056889ca9e56b0197b469748c0a1ff5fbcc85095f8c099bea726",
+        "long_Om1.parquet": "88b69e6a4d585839e2d6c61b4b088cc38efd772979cde4a116b3042a633b39d1",
+        "native.rds": "6d58e1635c606822d86ac30c399335ddc552f7e0f9b7fc3d3a81fa658a6a5d2d"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-18": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "811263216c8ecfc8c686f5b45a09a8357d9db2ecc618951b08e8b0fe2c09fde6",
+        "long_O.parquet": "ffbb8dc496a9e5d390a96406cbd79a27f9758794b08f9734abe6b138df52676f",
+        "long_Om1.parquet": "ff22d7dbd4aac5ca5f54cbf35547b3e1d82f58659bd67d2a530896b9bfa9c460",
+        "native.rds": "e3addec16c22b691165272e374f4149af5d5ded9c4f458047418aa0e9517acb8"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-19": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "b203fca60f4b5a6bb15e3df987f84dd4f7f3b0504a2caa9be3e704ab5f7ca192",
+        "long_O.parquet": "a170cfa12ef3225820ae47396dff4802ed8e7431fe740d7bd253007a27b290b4",
+        "long_Om1.parquet": "412144a990bfef87f46793c63242c4d09c81a3a05d91ec0bc40d7c8626403514",
+        "native.rds": "3714243f762e01a7dc89623818b6a4299b9a35a86722b0c0e0a2e2665e0b5197"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-20": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "de020733241aed4e5eaef6bee7c02bd5f6d62444a60992024fa1c16516ffbdba",
+        "long_O.parquet": "8b6ea9cdf5b826dd8f2395cabf362a0f1a620e44af42b2a5b8033b5987109031",
+        "long_Om1.parquet": "81b7ea3d6efc8d2d73534f0ff917bc955537daef2ed980ece0563915629e6007",
+        "native.rds": "6b378fc250fed45aaec910abeb1e600a8faa15983a20c7daa6a234597eb9dd59"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-21": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "67ab826cc7291bc0c5a0073c9f64a5a9c3453845a623312001d3c25e0a552515",
+        "long_O.parquet": "47dab3035842bc7cc74053413b548552a93f32625f23e3c7aeb6dce3428c8a5e",
+        "long_Om1.parquet": "77a62a91a8d79cac803eb6e2df25fd132b9e99a7a89073ebbd7ca56e2d65192e",
+        "native.rds": "ba043412807d247bd44550e1db80a7080aedea819af4845e1dc90d58aec32607"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-22": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "a6ffab65a869495ac76181ed636a351ed33de7b81406cbbe1d1f6496ab741fbb",
+        "long_O.parquet": "aac036b9bd99b79ddc1e960cb66d1ff20efa70046c76109d5a9fa38f10bb64a1",
+        "long_Om1.parquet": "f0da870288290516bc4a5076b35351bba87e533c8a1383481dd56c826bb3fb02",
+        "native.rds": "e91b470db2aefad48e15a99b4661742fc7ee372ddb08e9df67e9168112ab8165"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-23": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "8c273d7306e5b9cc1338f1ae4ca44e84b598f699a938e8eab4cde1b83da18495",
+        "long_O.parquet": "bc63862afc4ebc1dff09082b2832356ec16c33075ba5feb6d2d12bffef775185",
+        "long_Om1.parquet": "97515533a305666f3dd19caf99e46cbb61fb6e931ed4e8becb7b4e8c7b9654e6",
+        "native.rds": "7384805100fa7bba7a1c314243819dea6ca023174e761b48b2dd8377fd2035c1"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-24": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "31c6441a7ba063770cf788a7c244dd4e35d0a8359a53a316bf626e0844de1d21",
+        "long_O.parquet": "c8315c9fc2a14feafd609a9ec96198b31c742472581f05d7ca4be29c51bb0a2f",
+        "long_Om1.parquet": "fbafa72ecb3b3fe076b3141b39ce93e6d0c65761804f2b7c51485a73d27e0be7",
+        "native.rds": "e79d955394ec2631dfad245a6e02547e26452c78dee2a43f2a20dd6e88dba527"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-25": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "5ac957e4fa98718a70597eed18ed240245573b1d6ea5b1bc7263d6063634c7eb",
+        "long_O.parquet": "4b5e1dcdd0045fabdae5f7f8169231fb4f3b619aef7204c9f00127e43e5c78b2",
+        "long_Om1.parquet": "c3cb133ac3e2771ac97e0d58c25db67b901266bd2b5f85685278bb7015b98ae6",
+        "native.rds": "65baed343ad91a2ab2ba89da90f68c8a20c275b726616ecba54878f53fe3f0d0"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-26": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "6d6840e120df44cdd9a53e9f6b63caa719e60a8f8f512ec691bf9fe57c3e8087",
+        "long_O.parquet": "ad838e0a65ce86905ed325695eb2710a21bc532898b7552e72fdf3b64c50f9e0",
+        "long_Om1.parquet": "022054d53dd28b7932f6dc76117ad9e5456b6b938418bf5f12cea5759c6f8d89",
+        "native.rds": "41c92a5c08368814a972889091fb9f2502a6546b82f9618512da5136c5b1fbf3"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-27": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "a1131c94fc63e4b92f7a5e25c7758a25275f9a3b4e778ae51ab6bff257edbcde",
+        "long_O.parquet": "0bc27df8a0b4b72ab31abebc5c1a25c15bd398969ee97b3b70bca58aafa5d588",
+        "long_Om1.parquet": "5e9de1cc594c104522d0aebe6310546332fdb495509b729a8f6bc1f0696a1ba3",
+        "native.rds": "7c10647b77d018b7326f9fa2a2ca8d6be9d55b081952390a51992b7745360739"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-28": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "78c975ec1c7b630ec90dda3f33175ee663f15a23ee9e0b178da1130fb984e445",
+        "long_O.parquet": "9d79cc8903fd8df47105cda41cda630c862421121098fbb00c3c528a7b702ce8",
+        "long_Om1.parquet": "3855c6dba8d551e2d0830fa6269a40ecfbfc7375aed741d2c5f509b658702ccc",
+        "native.rds": "272215540f4ff68278ce00196aa0a1c6e22fb8dfcc3294cb612082ff30b76a60"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-29": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "ad0c503beaaa229f4ba58836471dedf8d7e15eb587f3a87520ff054b39640b65",
+        "long_O.parquet": "94408300606648dca0db6b405ad71642c2a05c7e64f97384d79e6a144330b802",
+        "long_Om1.parquet": "43582b159b674741e818858edbabf896f75d3f6a365d19cba125e6e5b074ec53",
+        "native.rds": "525a2afc6ee04294c6df6207f978491a8fdca43cef2b0e5ab52d4ce72dac1c2f"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-30": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "ea42741ee8e6500e4af9e06e851e1fdb60b24bed7188681b6b0ca1165476b79f",
+        "long_O.parquet": "194fe544ee3a117203a6de13ae43a90ab02e3786549c0a25fbd987f5227e0e04",
+        "long_Om1.parquet": "5cde20369aa291c651f75d60c28542f3b9c329781072546779217d7f45d09094",
+        "native.rds": "98fa5aaf86022df98923561f275de93016c6246a067ccbad05cd5a6fe6330f39"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "seco-2024-10-31": {
+      "data_digest": {
+        "aggregate": "7173076280344f85c27afa2f684b581f7298ce5077e17bf9085be2d615ad2a6b",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "467a21f3d59ad64af323eda7e3ee40cde63dcbcc16933a4a294d97a320517fe5",
+        "long_O.parquet": "a07c336094a7c8a99804fbddaea02d6fb852311b604c6aa3a53a6400c605f00e",
+        "long_Om1.parquet": "5ec01ce6002704356f12b1b1fcc920afe0d9edef55cd479ef18e852679d2d636",
+        "native.rds": "b1ea6e2eb61fb0e2bddb1af2a8ddf119b8261a0d77e7ff18e300bf15e9b8c354"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "sp-2024-01-01": {
+      "data_digest": {
+        "aggregate": "6ac6d1f652fa9f4abfa20193fc711c31977849e871cc32cf8db66bafc1cbccfb",
+        "partitions": {
+          "auxiliary/holidays/area_code=SP/year=2022": "f4eee56011359ebec6f6abef13c8722338fc7925a3d68b3d6159fcdd5dbce1da",
+          "auxiliary/holidays/area_code=SP/year=2023": "d95e9a86be6de7c4a1303d71b1364e447f6fad55f3174d05471a1ec04f6bf9b3",
+          "auxiliary/holidays/area_code=SP/year=2024": "d0d4cd4b8acb868a81e9b02a4263d739ca4857e36682d9f35f4b207965b051ef",
+          "load/area_code=SP/year=2022": "fa6f22456d2e15adf27dd8f152b019ba8c29aab1cb3183e7228faba72630bafd",
+          "load/area_code=SP/year=2023": "ed31a43a97d2f378e5e20e06ffca521c7b89408e48a4ba734a7b423c160def31",
+          "load/area_code=SP/year=2024": "e73a0a451623b63d277620cdda3a6696641f06bb9c343d6a66dc3e5277842f50",
+          "weather/forecast/area_code=SP/year=2022": "74c3f9b5b4bb3da97d51c0d63497bb1d35fa04a637fb97258bd7f101c66a1618",
+          "weather/forecast/area_code=SP/year=2023": "cf48f4f9e1dd9d6de81edbc08ad00b83e4fdda3205aa77150eefce85acf7b1e1",
+          "weather/forecast/area_code=SP/year=2024": "ef41afe364b4e6c6d92069576aa34cb069c2866dbd25e6a4c5c073489dba3598",
+          "weather/observed/area_code=SP/year=2022": "57b94d2b8acd19f799d791d002f94aed219e67156ef74729c27eb26ce95b4ea9",
+          "weather/observed/area_code=SP/year=2023": "fc9d849e551e510fc528c9572ec6f146bc5ff1449a7017820efcee3c9ee5f0ef",
+          "weather/observed/area_code=SP/year=2024": "fad3ea038c9e375a4d6c02769d6a49605a3f76567bb4052192ac8000b03d98ab"
+        }
+      },
+      "files": {
+        "invocation.json": "940ee1b90a0b87dc7477f608560724fa4081c74eb3ee05cdd817e02ef2813dee",
+        "long_O.parquet": "0cfeadbd4b0990686c089a3a641a1ba58655fea1c7a6e7c43df67a31c0770a6c",
+        "long_Om1.parquet": "03e3f5a6c32da32c8c3f68faeec231456efbd29fd92343f4d6ad10000cb17a58",
+        "native.rds": "70d3e4f9322e7e88ce8c053fe08ead34aec0e03f4e4032b1bf685f1f2f875a7d"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "sp-2024-07-01": {
+      "data_digest": {
+        "aggregate": "c66edefb002c40ae0d0e6175411f4dd6da78717fc8702d774e37c0465b67db64",
+        "partitions": {
+          "auxiliary/holidays/area_code=SP/year=2023": "d95e9a86be6de7c4a1303d71b1364e447f6fad55f3174d05471a1ec04f6bf9b3",
+          "auxiliary/holidays/area_code=SP/year=2024": "d0d4cd4b8acb868a81e9b02a4263d739ca4857e36682d9f35f4b207965b051ef",
+          "load/area_code=SP/year=2023": "ed31a43a97d2f378e5e20e06ffca521c7b89408e48a4ba734a7b423c160def31",
+          "load/area_code=SP/year=2024": "e73a0a451623b63d277620cdda3a6696641f06bb9c343d6a66dc3e5277842f50",
+          "weather/forecast/area_code=SP/year=2023": "cf48f4f9e1dd9d6de81edbc08ad00b83e4fdda3205aa77150eefce85acf7b1e1",
+          "weather/forecast/area_code=SP/year=2024": "ef41afe364b4e6c6d92069576aa34cb069c2866dbd25e6a4c5c073489dba3598",
+          "weather/observed/area_code=SP/year=2023": "fc9d849e551e510fc528c9572ec6f146bc5ff1449a7017820efcee3c9ee5f0ef",
+          "weather/observed/area_code=SP/year=2024": "fad3ea038c9e375a4d6c02769d6a49605a3f76567bb4052192ac8000b03d98ab"
+        }
+      },
+      "files": {
+        "invocation.json": "0955f474edad5a4e7e1cd423e6cd0288ca795cbe0c6560b810e548db95e05a94",
+        "long_O.parquet": "78f24e80f01a105e76830040367bdf55a93027c9ab5202a15710eb9e522c7af3",
+        "long_Om1.parquet": "f7c9c8a7267a48966d01ba534b481a9d7c08e12f2a4837875a8f95243f35eb42",
+        "native.rds": "941aa404215a1a1972d9e95a3f86ab4a14f2c58ccd023735d2224bc95bdc2a63"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    },
+    "sp-2024-10-01": {
+      "data_digest": {
+        "aggregate": "c66edefb002c40ae0d0e6175411f4dd6da78717fc8702d774e37c0465b67db64",
+        "partitions": {
+          "auxiliary/holidays/area_code=SP/year=2023": "d95e9a86be6de7c4a1303d71b1364e447f6fad55f3174d05471a1ec04f6bf9b3",
+          "auxiliary/holidays/area_code=SP/year=2024": "d0d4cd4b8acb868a81e9b02a4263d739ca4857e36682d9f35f4b207965b051ef",
+          "load/area_code=SP/year=2023": "ed31a43a97d2f378e5e20e06ffca521c7b89408e48a4ba734a7b423c160def31",
+          "load/area_code=SP/year=2024": "e73a0a451623b63d277620cdda3a6696641f06bb9c343d6a66dc3e5277842f50",
+          "weather/forecast/area_code=SP/year=2023": "cf48f4f9e1dd9d6de81edbc08ad00b83e4fdda3205aa77150eefce85acf7b1e1",
+          "weather/forecast/area_code=SP/year=2024": "ef41afe364b4e6c6d92069576aa34cb069c2866dbd25e6a4c5c073489dba3598",
+          "weather/observed/area_code=SP/year=2023": "fc9d849e551e510fc528c9572ec6f146bc5ff1449a7017820efcee3c9ee5f0ef",
+          "weather/observed/area_code=SP/year=2024": "fad3ea038c9e375a4d6c02769d6a49605a3f76567bb4052192ac8000b03d98ab"
+        }
+      },
+      "files": {
+        "invocation.json": "fff102e96143c6ee6519b379241d5e9613baf4ba3805474044c5e47c598ed078",
+        "long_O.parquet": "80b9e840b3803b69ecb23d7c0db648e8f10b5238ded0037b59629975b87c7a4e",
+        "long_Om1.parquet": "5929661b87ac278a613f5813e4d032213560f4c18d99565ea06c8ce8ca92e575",
+        "native.rds": "97dfad9518dd6fdbe0de5f59c23c60a626a2013d71c61295446c4c173a56e309"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "lubridate": "1.9.5",
+          "randomForest": "4.7.1.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+    }
+  }
+}
