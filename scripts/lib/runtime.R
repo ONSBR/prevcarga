@@ -206,13 +206,8 @@ prevcarga_runtime_json_canonical <- function(x, with_built_at = FALSE) {
   enc2utf8(paste0(gsub("\r\n", "\n", as.character(txt), fixed = TRUE), "\n"))
 }
 
-## sha256 (chr 64) do conteudo; symlink = sha256 do texto "symlink:<alvo>" (nao segue o link: o alvo pode ser relativo/pendente).
-.prevcarga_runtime_file_sha <- function(path) {
-  tgt <- Sys.readlink(path)
-  if (nzchar(tgt))
-    return(digest::digest(paste0("symlink:", tgt), algo = "sha256", serialize = FALSE))
-  digest::digest(file = path, algo = "sha256")
-}
+## sha256 (chr 64) do conteudo do arquivo (um link e seguido: vale o conteudo do alvo; o bundle de producao nao tem links).
+.prevcarga_runtime_file_sha <- function(path) digest::digest(file = path, algo = "sha256")
 
 prevcarga_runtime_id <- function(path_runtime_json) {
   if (!file.exists(path_runtime_json)) return(NULL)
@@ -230,7 +225,7 @@ prevcarga_runtime_validate <- function(root, strict = FALSE) {
     fl <- jsonlite::read_json(mf, simplifyVector = FALSE)$files
     for (f in fl) {
       p <- file.path(root, f$path)
-      if (!file.exists(p) && !nzchar(Sys.readlink(p))) bad <- c(bad, f$path)
+      if (!file.exists(p)) bad <- c(bad, f$path)
       else if (!identical(.prevcarga_runtime_file_sha(p), f$sha256)) bad <- c(bad, f$path)
     }
   }

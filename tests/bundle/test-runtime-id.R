@@ -88,14 +88,11 @@ test_that("[CONTROL] [BUNDLE] manifesto: 1 byte em code/ => bundle.manifest_mism
   expect_identical(e$prevcarga_runtime_validate(root)$divergentes, "RUNTIME.json")
 })
 
-test_that("[BUNDLE] runtime_id: symlink e hasheado pelo alvo textual (nao segue o link)", {
+test_that("[CONTROL] [BUNDLE] runtime_id: link pendente no stage aborta a gravacao (nunca entra no manifesto)", {
   skip_on_os("windows")
   root <- bb_stage(e)
-  file.symlink("libtoy.so.1", file.path(root, "syslib", "libtoy.so"))
-  bb_write_runtime(e, root)
-  expect_true(e$prevcarga_runtime_validate(root)$ok)
-  unlink(file.path(root, "syslib", "libtoy.so")); file.symlink("outro.so", file.path(root, "syslib", "libtoy.so"))
-  expect_identical(e$prevcarga_runtime_validate(root)$divergentes, "syslib/libtoy.so")
+  file.symlink("nao-existe.so", file.path(root, "syslib", "libpendente.so"))
+  expect_error(bb_write_runtime(e, root), "link pendente")
 })
 
 test_that("[BUNDLE] container: dois builds reais em dist/repro-1 e dist/repro-2 tem RUNTIME.json e runtime_id identicos", {

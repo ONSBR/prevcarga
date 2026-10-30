@@ -40,6 +40,8 @@ pc_runtime_json_write <- function(root, version, platform, code_commit, apt_snap
     stop(sprintf("R do build (%s) difere de R.Version do renv.lock (%s)", r_version, lock_r), call. = FALSE)
   rel <- list.files(root, recursive = TRUE, all.files = TRUE, no.. = TRUE)
   rel <- sort(setdiff(gsub("\\", "/", rel, fixed = TRUE), "RUNTIME.json"), method = "radix")
+  dang <- rel[!file.exists(file.path(root, rel))]
+  if (length(dang)) stop("link pendente ou arquivo ilegivel no stage: ", paste(dang, collapse = ", "), call. = FALSE)
   files <- lapply(rel, function(p) list(path = p, sha256 = .prevcarga_runtime_file_sha(file.path(root, p))))
   x <- list(version = version, platform = platform, r_version = r_version,
             renv_lock_hash = digest::digest(file = lock, algo = "sha256"),

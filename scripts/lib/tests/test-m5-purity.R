@@ -183,14 +183,11 @@ pc5_pkgs_used <- function(files, scope = M5_SCOPE) {
   sort(setdiff(unique(used), M5_BASE_PKGS), method = "radix")
 }
 
-## Pacotes declarados: `Packages` do renv.lock lido como JSON. Enquanto o repo nao tem renv.lock (ver docs/estado/m5-purity.md),
-## o conjunto declarado e o das bibliotecas instaladas do R que roda o teste: o CONTROL abaixo garante que o teste tem dente.
+## Pacotes declarados: `Packages` do renv.lock lido como JSON. Estrito desde o M8.1 (o repo tem renv.lock): sem lock o teste FALHA
+## (nao ha mais o conjunto das bibliotecas instaladas como substituto). O CONTROL abaixo garante que o teste tem dente.
 pc5_declared_pkgs <- function(lock = file.path(pc_root(), "renv.lock")) {
-  if (file.exists(lock)) names(jsonlite::fromJSON(lock, simplifyVector = FALSE)$Packages)
-  else {
-    message("AVISO m5-purity: renv.lock AUSENTE no repo; a checagem de dependencias NAO e estrita (usa as bibliotecas instaladas) ate o renv.lock existir")
-    rownames(utils::installed.packages())
-  }
+  if (!file.exists(lock)) stop("m5-purity: renv.lock AUSENTE (", lock, "); a checagem de dependencias do M5 e estrita", call. = FALSE)
+  names(jsonlite::fromJSON(lock, simplifyVector = FALSE)$Packages)
 }
 pc5_pkgs_missing <- function(used, declared) setdiff(used, declared)
 
@@ -208,4 +205,9 @@ test_that("[CONTROL] pacote fora do lock e acusado; renv.lock em JSON e lido pel
   writeLines('{"R": {"Version": "4.5.3"}, "Packages": {"data.table": {"Package": "data.table"}, "lubridate": {"Package": "lubridate"}}}', lock)
   expect_setequal(pc5_declared_pkgs(lock), c("data.table", "lubridate"))
   expect_identical(pc5_pkgs_missing(c("data.table", "digest"), pc5_declared_pkgs(lock)), "digest")
+})
+
+test_that("[CONTROL] lock ausente reprova (sem fallback para as bibliotecas instaladas); o lock do repo cobre os usos do M5", {
+  expect_error(pc5_declared_pkgs(file.path(tempfile("sem-lock"), "renv.lock")), "renv.lock AUSENTE")
+  expect_true(all(c("data.table", "lubridate", "jsonlite", "digest", "arrow") %in% pc5_declared_pkgs()))
 })

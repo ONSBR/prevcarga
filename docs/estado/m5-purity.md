@@ -11,8 +11,9 @@ Sub-gate `scripts/tools/gates/m5.R` (barrel por descoberta; roda `test-m5-purity
   (isenta so a linha de `trained_at`), `as.POSIXct/strptime/as.Date(`, `mclapply`, `system(`, `file.symlink`, `/tmp`, python,
   rede. Cada regra tem isca plantada em copia (tempdir) em 5 funcoes e acusada com `arquivo:linha`.
 - Isencao do `%in% c("`: a linha com `"latest.txt"` em `registry.R` (`.prevcarga_reg_walk`) checa arquivos do registry, nao nomes de modelo.
-- Pacotes usados (`::`, `requireNamespace`, `library`) devem estar no `Packages` do `renv.lock`. **O repo ainda nao tem `renv.lock`**
-  (dono: item aberto do Gabriel): ate la o conjunto declarado e o das bibliotecas instaladas, e o teste imprime `AVISO m5-purity: renv.lock AUSENTE ... NAO e estrita`. **A checagem de dependencias nao e estrita ate o renv.lock existir**; o CONTROL cobre a leitura do JSON e o pacote ausente.
+- Pacotes usados (`::`, `requireNamespace`, `library`) devem estar no `Packages` do `renv.lock`. **Estrito desde o M8.1** (o repo tem
+  `renv.lock`, R 4.5.3): sem o lock o teste e o gate `m5.R` FALHAM; nao ha mais o conjunto das bibliotecas instaladas como substituto.
+  O CONTROL cobre a leitura do JSON, o pacote fora do lock e o lock ausente.
 - `granularity_min == 60L` em `training.R:72`/`inference.R:171` e interino do despachante (branch `fix/foundation-w1-f4-lag` o remove).
 
 ## Contrato de saida (`scripts/lib/tests/test-m5-envelope.R`)

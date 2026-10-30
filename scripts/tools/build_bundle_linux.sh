@@ -79,6 +79,7 @@ inside() {
   cp -a "/opt/R/${R_VERSION}" "${ROOT}/runtime"
   RH="${ROOT}/runtime/lib/R"
   relocate_r "${RH}"
+  prune_python_artifacts "${ROOT}/runtime"
   build_syslib "${ROOT}"
   mkdir -p "${CODE}"
   "${RBIN}/Rscript" --vanilla /src/scripts/tools/bundle_manifest.R code-tree --src /src --dest "${CODE}"
@@ -95,6 +96,7 @@ inside() {
       --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
       -C /build/stage -cf - prevcarga | zstd -19 -T1 -q -f -o "${OUTF}.tar.zst"
   cp "${ROOT}/RUNTIME.json" "${OUTF}.RUNTIME.json"
+  chmod 0644 "${OUTF}.tar.zst" "${OUTF}.RUNTIME.json"
   ( cd /out && sha256sum "prevcarga-${VER}-linux-x86_64.tar.zst" > "prevcarga-${VER}-linux-x86_64.tar.zst.sha256" )
   chown -R "${HOST_UID}:${HOST_GID}" /out
   echo "runtime_id $(cat /build/runtime_id.txt)"
@@ -123,6 +125,20 @@ WRAP
   # syslib/ (irmao de runtime/) entra no caminho de bibliotecas, logo apos ${R_HOME}/lib e antes do sistema do host
   sed -i -E 's#R_LD_LIBRARY_PATH=\$\{R_HOME\}/lib:#R_LD_LIBRARY_PATH=${R_HOME}/lib:${R_HOME}/../../../syslib:#' "${rh}/etc/ldpaths"
   grep -q 'syslib' "${rh}/etc/ldpaths" || die "etc/ldpaths sem syslib"
+  # isolamento: a library do usuario (~/R/...) e a do site nunca entram no .libPaths() do bundle (atribuicao incondicional;
+  # um R_LIBS_USER/R_LIBS_SITE do shell nao vale). Sem isso o bundle misturaria pacotes do host e perderia o determinismo.
+  sed -i -E "s#^R_LIBS_USER=.*#R_LIBS_USER=#; s#^R_LIBS_SITE=.*#R_LIBS_SITE=#" "${rh}/etc/Renviron"
+  grep -q '^R_LIBS_USER=$' "${rh}/etc/Renviron" && grep -q '^R_LIBS_SITE=$' "${rh}/etc/Renviron" || die "etc/Renviron nao isolado"
+}
+
+# Python-free: pacotes R trazem artefatos que casam com o gate (headers boost/python do BH, demo .py do arrow, spec do docopt,
+# html do colorspace). Nenhum e usado em execucao; sao removidos do runtime/ e listados no log do build (mesmos padroes do gate).
+prune_python_artifacts() {
+  local root="$1"
+  find "${root}" \( -name '*.py' -o -name 'python*' -o -name '*libpython*' -o -name pyvenv.cfg -o -name uv.lock \
+       -o -name pyproject.toml \) -prune -print | sort | tee /build/pruned-python.txt | sed 's#^#[prune] #' >&2
+  find "${root}" \( -name '*.py' -o -name 'python*' -o -name '*libpython*' -o -name pyvenv.cfg -o -name uv.lock \
+       -o -name pyproject.toml \) -prune -exec rm -rf {} +
 }
 
 # syslib/: fecho ldd de R e de todo .so da library, menos a glibc core
