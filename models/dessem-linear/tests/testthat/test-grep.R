@@ -24,7 +24,7 @@ DL_GREP_PATTERNS <- c(
 ## `globalenv()` ja existe hoje em register.R (dl_abort/dl_warn) e inference.R (dl_foundation): busca interina da API da
 ## fundacao (prevcarga_condition/prevcarga_warn/to_semihourly) no global ate o loader expor a fundacao ao plugin. Divida
 ## do DL.5/DL.7, registrada como discovery do DL.8; este teste a PRENDE ao conjunto exato (qualquer uso novo reprova).
-DL_GREP_DEBT <- list(globalenv = c("inference.R:66", "register.R:23", "register.R:31"))
+DL_GREP_DEBT <- list(globalenv = c("inference.R:82", "register.R:23", "register.R:31"))
 
 dl_grep_bait <- function(pattern_name) switch(pattern_name,
   as_date = "d <- as.Date(x)", as_posixct = "t <- as.POSIXct(x)", strptime = "t <- strptime(x, '%H')",
