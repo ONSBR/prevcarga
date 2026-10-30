@@ -1,0 +1,4 @@
+id	class	message	hint
+topology.model_undeclared	topology	modelo fora dos membros da topologia	rode prevcarga models e use um mdir declarado em members da topologia
+contract.features_not_tabular	contract	a feature_table do plugin nao e tabular (data.frame ou lista de colunas de mesmo tamanho)	revise o estagio inference_features do plugin
+partial.report_failed	partial	a entrega foi publicada, mas o relatorio diagnostico falhou	a entrega esta integra; reemita o relatorio (veja error em result$report)

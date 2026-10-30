@@ -137,7 +137,8 @@ m2g_long_opts <- function(files) {
   }
   sort(unique(sub("^--", "", opts)), method = "radix")
 }
-M2G_DATE_OPT <- "(^|-)(date|dates|day|days|origin|as-of|asof|until|since|from|to|end|start|ref|reference|cutoff-date)(-|$)"
+## `--from=<scratch>` (export, M6.9) nomeia um diretorio, nao uma data: so `from-<x>` (ex.: from-date) segue proibido.
+M2G_DATE_OPT <- "(^|-)(date|dates|day|days|origin|as-of|asof|until|since|from(?=-)|to|end|start|ref|reference|cutoff-date)(-|$)"
 M2G_CLI_FILES <- c("scripts/lib/cli.R", PROD[grepl("^scripts/lib/cli/", PROD)])
 
 test_that("[FORBIDDEN] --origin e a unica opcao de data nas usages (nenhum --as-of/--date/--until/--end-date)", {
