@@ -4,8 +4,10 @@
 f <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 root <- dirname(dirname(dirname(dirname(normalizePath(f, winslash = "/")))))
 ok <- TRUE
-if (!file.exists(file.path(root, "renv.lock")))
-  writeLines("gate m5 AVISO: renv.lock AUSENTE; a checagem de dependencias do M5 NAO e estrita (usa as bibliotecas instaladas) ate o renv.lock existir")
+if (!file.exists(file.path(root, "renv.lock"))) {   # estrito desde o M8.1: sem lock o gate reprova (sem fallback nas bibliotecas instaladas)
+  writeLines("gate m5 FALHOU: renv.lock AUSENTE; a checagem de dependencias do M5 e estrita")
+  quit(status = 1L, save = "no")
+}
 for (flt in c("m5-purity", "m5-envelope")) {
   res <- as.data.frame(testthat::test_dir(file.path(root, "scripts", "lib", "tests"), filter = flt,
                                           stop_on_failure = FALSE, reporter = "summary"))

@@ -52,11 +52,17 @@ PROD <- m2g_prod_files()
 
 ## ---- tabela de gates: id, padrao, excecoes (arquivos permitidos), isca ------------------------------------------------------
 ## `except`: conjunto de arquivos de produto onde o padrao e permitido (com o porque ao lado). Ordem das chaves: ver M2.V.
+## Referencia ao manifest do DECK: o literal `manifest.json` em qualquer linha de codigo, EXCETO a linha que e demonstravelmente uma
+## ESCRITA (chamada write*/.export_write_json) sem chamada de leitura. Escrita do manifest de OUTRO dono (a entrega do export, M6.2) nao e
+## leitura do deck; a leitura continua pega mesmo na mesma linha de um write. Sem excecao por nome de arquivo.
+M2_READ_CALL <- "(?<![A-Za-z])(read|fromJSON|parse_json|scan)|\\bfile\\("
+M2_WRITE_CALL <- "(?<![A-Za-z])write|[.]export_write_json"
+M2_MANIFEST_READ <- paste0("^(?=.*(?<![A-Za-z0-9_.])manifest[.]json)(?:(?!.*(", M2_WRITE_CALL, "))|(?=.*(", M2_READ_CALL, "))).*$")
 GREP_GATES_M2 <- list(
   ## leitor unico: so o deck_reader.R abre o dataset / le o manifest.json do DECK (run_manifest.json e <p>.manifest.json sao de outro dono)
-  list(id = "m2_single_reader", pat = "open_dataset|(?<![A-Za-z0-9_.])manifest[.]json", except = "scripts/lib/deck_reader.R",
+  list(id = "m2_single_reader", pat = paste0("open_dataset|", M2_MANIFEST_READ), except = "scripts/lib/deck_reader.R",
        bait = "x <- arrow::open_dataset(p)"),
-  list(id = "m2_single_reader_manifest", pat = "(?<![A-Za-z0-9_.])manifest[.]json", except = "scripts/lib/deck_reader.R",
+  list(id = "m2_single_reader_manifest", pat = M2_MANIFEST_READ, except = "scripts/lib/deck_reader.R",
        bait = "m <- jsonlite::read_json(file.path(d, 'manifest.json'))"),
   list(id = "m2_single_reader_dataset", pat = "open_dataset", except = "scripts/lib/deck_reader.R",
        bait = "x <- arrow::open_dataset(p)"),
@@ -98,7 +104,19 @@ for (g in GREP_GATES_M2) local({
 test_that("[CONTROL] o gate do manifest e do DECK: run_manifest.json e <p>.manifest.json (outros donos) nao casam", {
   pat <- GREP_GATES_M2[[2L]]$pat
   expect_length(m2g_hits(pat, m2g_bait("f <- file.path(d, 'run_manifest.json'); g <- paste0(p, '.manifest.json')")), 0L)
-  expect_length(m2g_hits(pat, m2g_bait("f <- file.path(d, 'manifest.json')")), 1L)
+  expect_length(m2g_hits(pat, m2g_bait("f <- readLines(file.path(d, 'manifest.json'))")), 1L)
+})
+
+test_that("[CONTROL] o gate nao marca a ESCRITA do manifest da entrega; marca toda LEITURA do manifest do deck fora do leitor", {
+  pat <- GREP_GATES_M2[[2L]]$pat
+  expect_length(m2g_hits(pat, m2g_bait("write_json(obj, file.path(tmp, 'manifest.json'))")), 0L)
+  expect_length(m2g_hits(pat, m2g_bait(".export_write_json(m, file.path(tmp, \"manifest.json\"))")), 0L)
+  expect_length(m2g_hits(pat, "scripts/lib/exports.R"), 0L)
+  for (b in c("m <- jsonlite::read_json(file.path(d, 'manifest.json'))", "m <- jsonlite::fromJSON(paste0(d, '/manifest.json'))",
+              "m <- readLines(file.path(d, \"manifest.json\"))", "x <- scan(file = 'manifest.json')",
+              "con <- file(file.path(d, 'manifest.json'), 'rb')", "path <- file.path(d, 'manifest.json')",
+              "x <- write_json(read_json(file.path(d, 'manifest.json')), tf)", "m <- fromJSON(\"manifest.json\")"))
+    expect_length(m2g_hits(pat, m2g_bait(b)), 1L)
 })
 
 test_that("[CONTROL] cada excecao declarada ainda tem o padrao (nenhuma excecao morta)", {

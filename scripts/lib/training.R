@@ -58,10 +58,9 @@ prevcarga_train_inputs <- function(member, area, origin, ctx) {
   need <- as.integer(cuts$last_data_day - first_day) + 1L
   span <- as.integer(origin - first_day) + 1L
   p <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
-  if (isTRUE(d$weather_forecast_in_train)) {
-    fc <- prevcarga_read_weather(ctx, "forecast", area, origin - span, origin + spec$horizon_days)
-    p$weather_forecast <- fc[issue_time <= cuts$weather_issue_limit]
-  }
+  if (isTRUE(d$weather_forecast_in_train))
+    p$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
+                                                           cuts$weather_issue_limit)
   day_of <- function(x) lubridate::as_date(x, tz = cuts$tz)
   in_window <- function(x) day_of(x) <= cuts$last_data_day & day_of(x) >= first_day
   panel <- p

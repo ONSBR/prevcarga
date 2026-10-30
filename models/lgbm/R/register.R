@@ -110,6 +110,8 @@ plugin_descriptor <- function() list(
   variant_param = NA_character_, native_layout = "lgbm_day_48",
   semihourly_rule = NULL, delivery_days = 2L,
   data_lag_days = 2L,              # last_data_day = origem menos 1 menos 2 dias (ADR-0023; o oraculo le carga so ate train_origin-1)
+  reads_day_O = TRUE,              # BLF completa o dia O com a carga real ate available_until (oraculo data_adapter.R:540-545)
+  weather_forecast_in_train = TRUE, # treino usa a temperatura PREVISTA lead 0 (oraculo data_adapter.R:575-581)
   history_infer_equals_train = FALSE, engine = NULL,
   packages = c("lightgbm", "data.table", "lubridate", "wavelets", "zoo"),
   params_schema = lgbm_params_schema(),

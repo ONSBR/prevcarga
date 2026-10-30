@@ -276,17 +276,26 @@ prevcarga_weather_issue_limit <- function(rule, origin, available_until, tz_load
   prevcarga_abort("config.bad_weather_cutoff", where = as.character(rule))
 }
 
-## Por area, a emissao mais fresca com issue_time <= limit.
+## Por (area, valid_time), a emissao mais fresca com issue_time <= limit (como os oraculos HW, dessem-linear/regdin e
+## LGBM: "for each valid_time keep the most recent issue"). Uma emissao que comeca depois de 00:00 do dia O (06Z, 18Z)
+## nao apaga as primeiras horas do dia: elas vem da emissao anterior. Emissao > limit nunca entra.
 prevcarga_freshest_issue <- function(fc, limit) {
   ok <- fc[issue_time <= limit]
   if (!nrow(ok)) return(ok)
-  last <- ok[, .(issue_time = max(issue_time)), by = area_code]
-  ok[last, on = .(area_code, issue_time), nomatch = NULL]
+  last <- ok[, .(issue_time = max(issue_time)), by = .(area_code, valid_time)]
+  ok[last, on = .(area_code, valid_time, issue_time), nomatch = NULL]
+}
+
+## Todas as emissoes com issue_time <= limit em [from, to] (valid_time): o insumo dos plugins que montam a propria safra
+## por origem/lead (descriptor `weather_forecast_in_train`), no treino e no infer. Honestidade: nada depois do limite.
+prevcarga_read_forecast_vintages <- function(ctx, areas, from, to, limit) {
+  fc <- prevcarga_read_weather(ctx, "forecast", areas, from, to)
+  fc[issue_time <= limit]
 }
 
 ## --- Clima por area (exogenas instantaneas: nao deslocadas) --------------------------------------------
 ## Com `origin`: observado so <= available_until (derivado da carga lida pelo proprio leitor, mesmo
-## origin/truncate_at); previsto so emissoes <= weather_issue_limit, a mais fresca por area.
+## origin/truncate_at); previsto so emissoes <= weather_issue_limit, a mais fresca por (area, valid_time).
 ## O observado sai com `valid_time` (a coluna crua `timestamp` do store so existe aqui dentro).
 prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas = NULL, from = NULL,
                                    to = NULL, select = NULL, origin = NULL, truncate_at = NULL) {
@@ -324,7 +333,8 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
       extra <- list(weather_issue_cutoff = rule,
                     weather_issue_cutoff_source = if (is.null(src)) "default" else src,
                     weather_issue_limit = limit,
-                    freshest_issue_by_area = unique(dt[, .(area_code, issue_time)])[order(area_code, method = "radix")])
+                    freshest_issue_by_area = if (nrow(dt)) dt[, .(issue_time = max(issue_time)), by = area_code][
+                      order(area_code, method = "radix")] else unique(dt[, .(area_code, issue_time)]))
     }
   }
   w <- .prevcarga_window(from, to, d$tz)

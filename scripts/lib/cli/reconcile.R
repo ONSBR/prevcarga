@@ -15,7 +15,7 @@
   if (is.null(v) || !length(v) || identical(v, FALSE) || (length(v) == 1L && is.na(v))) NULL else as.character(v)[[1L]]
 }
 
-.prevcarga_rc_fmt <- function(x) if (is.null(x) || (length(x) == 1L && is.na(x))) NULL else format(x, "%Y-%m-%d")
+.prevcarga_rc_fmt <- function(x) if (is.null(x) || (length(x) == 1L && is.na(x))) NULL else as.character(lubridate::as_date(x))
 
 ## flags validadas ANTES de qualquer IO; devolve list(mode, subsystem, window_days)
 .prevcarga_rc_flags <- function(args) {
@@ -55,7 +55,7 @@
   if (is.null(from)) prevcarga_abort("config.usage", where = "--leaves-dir")
   rd <- prevcarga_reconcile_read_from(from, ctx, topo)
   origins <- unique(unlist(lapply(rd$leaves, function(l) l$forecast_origin)))
-  if (length(origins) == 1L && !is.null(ctx$origin) && !identical(origins, format(ctx$origin, "%Y-%m-%d")))
+  if (length(origins) == 1L && !is.null(ctx$origin) && !identical(origins, .prevcarga_rc_fmt(ctx$origin)))
     prevcarga_abort("contract.reconcile_input", where = "--origin",
                     details = list(reason = "--origin difere da forecast_origin do --leaves-dir"))
   pin <- .prevcarga_rc_opt(args, "--khat-version")

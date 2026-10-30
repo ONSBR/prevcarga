@@ -66,6 +66,8 @@ plugin_descriptor <- function() list(
   native_layout = "rf_wide_hourly_216", semihourly_rule = rf_semihourly_rule,
   weather_resample = "raw",                 # tmax/tmin diarios sobre as leituras de 30 min (oraculo data_adapter.R:262-275)
   delivery_days = 9L, data_lag_days = 0L,   # last_data_day = O-1 (ADR-0023)
+  reads_day_O = FALSE,                      # carga so com dia < O (oraculo data_adapter.R:80)
+  weather_forecast_in_train = TRUE,         # origens de treino usam a emissao da origem (oraculo data_adapter.R:84-85)
   uses_rng = TRUE, history_infer_equals_train = FALSE,
   packages = c("randomForest", "data.table", "lubridate"),
   freeze = rf_freeze, thaw = rf_thaw,

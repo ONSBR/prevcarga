@@ -47,7 +47,6 @@ contract.error_catalog_schema	contract	arquivo do catalogo de erros invalido	cor
 integrity.freeze_sha_mismatch	integrity	sha do freeze diverge do manifest	regenere o freeze ou restaure o artefato original
 integrity.freeze_manifest_missing	integrity	manifest do freeze ausente	restaure ou regenere o manifest do freeze
 integrity.release_forbidden_content	integrity	conteudo proibido no pacote de release	remova o conteudo proibido do release-pack
-bundle.package_missing	bundle	pacote R ausente no bundle	reinstale o bundle ou instale o pacote R indicado
 state.official_set_incomplete	state	conjunto oficial incompleto	complete o conjunto oficial antes de prosseguir
 todo.not_implemented	generic	funcionalidade ainda nao implementada	aguarde o ticket que implementa este modulo
 generic.unexpected	generic	erro inesperado	rode novamente com --debug e reporte o problema
