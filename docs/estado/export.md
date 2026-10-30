@@ -4,7 +4,8 @@
   scratch da rodada (`SIN.parquet`, `subsistemas/<ss>.parquet`, `folhas/<a>.parquet`, `membros/<m>/<a>.parquet`) para
   `file.path(ctx$state_dir, key$rel)`. Nunca recalcula k-hat, nunca reserializa parquet, nao le relogio, zero S3/HTTP, sem symlink.
   - Metadados da rodada vem do `run.json` do scratch (covered/stray/closed/sin_closed/members/khat/available_until/regra de clima/versao).
-    `linhas` vem so do footer do parquet; `sha256` e o do byte-stream da fonte (== o da copia).
+    `linhas` e `sha256` vem de `arquivos[]` do `run.json` (gravado pelo reconcile, R.5); o export recomputa o sha256 da fonte e aborta
+    `integrity.copy_failed` se divergir. Nao abre parquet (leitor unico: deck_reader.R). Arquivo ausente ou nao registrado => aviso e omitido.
   - Niveis-teto: `sin` = SIN + folhas soltas; `subsistemas` = + subsistemas; `tudo` = + folhas cobertas; membros so com `incluir_membros`.
     A folha solta (stray) e sempre entregue. Arquivo listado e ausente no scratch => aviso `completude.export_file_missing`.
     Nada a entregar => `state.nothing_to_deliver` (exit 13) antes de criar qualquer diretorio.

@@ -1,4 +1,4 @@
 id	class	message	hint
 state.nothing_to_deliver	state	nada a entregar para o nivel pedido (scratch sem os arquivos do run.json)	confira o scratch da rodada e o --niveis; folha solta e sempre entregue
 integrity.copy_failed	integrity	falha ao copiar ou publicar a entrega; nenhuma entrega parcial foi deixada	confira espaco e permissao em --state e repita o export
-completude.export_file_missing	completude	arquivo listado no run.json ausente no scratch; omitido da entrega	re-gere o scratch com reconcile --mode=apply
+completude.export_file_missing	completude	arquivo ausente no scratch ou nao registrado em arquivos[] do run.json; omitido da entrega	re-gere o scratch com reconcile --mode=apply

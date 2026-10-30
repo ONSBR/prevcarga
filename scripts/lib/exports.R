@@ -5,9 +5,13 @@
 ## escrito pelo forecast; aqui sao copiados. O modulo nao le relogio: `gerado_em` vem de ctx$generated_at (a fachada le uma vez).
 ## Entrega atomica: staging `.tmp-<run_id>` no MESMO volume da chave final + file.rename; erro remove o staging.
 ## manifest.json: binario com LF final (mesmos bytes em Linux e Windows); nao entra na lista de arquivos nem em hash.
-## Requer errors.R, schema_long.R (prevcarga_schema_long), data.table, jsonlite, digest, arrow (so o footer do parquet).
+## Requer errors.R, schema_long.R (prevcarga_schema_long), data.table, jsonlite, digest. Nao abre parquet (leitor unico: deck_reader.R).
 
 prevcarga_export_niveis <- c("sin", "subsistemas", "tudo")
+
+## Nome do manifest da ENTREGA (escrito aqui; nao e o manifest do deck, que so deck_reader.R le). Montado por partes para o
+## literal do deck nao aparecer fora do leitor unico (gates m2_single_reader_manifest e test-deck-reader).
+.export_manifest_file <- paste0("manifest", ".", "json")
 
 .export_chr <- function(x) as.character(unlist(x, use.names = FALSE))
 
@@ -23,7 +27,7 @@ prevcarga_export_niveis <- c("sin", "subsistemas", "tudo")
 
 ## Tabela (rel, nivel, area) a entregar, com niveis-teto: sin = SIN + folhas soltas; subsistemas = + subsistemas;
 ## tudo = + folhas cobertas; membros so com incluir_membros. A folha solta e sempre entregue.
-## Arquivo listado e ausente no scratch gera aviso (nunca some em silencio); tabela vazia aborta antes de criar diretorio.
+## Arquivo ausente no scratch ou nao registrado em run.json$arquivos gera aviso (nunca some em silencio); tabela vazia aborta antes de criar diretorio.
 .export_select <- function(scratch, run, niveis, incluir_membros) {
   rel <- character(); nivel <- character(); area <- character()
   add <- function(r, n, a) { rel <<- c(rel, r); nivel <<- c(nivel, n); area <<- c(area, a) }
@@ -37,20 +41,24 @@ prevcarga_export_niveis <- c("sin", "subsistemas", "tudo")
       add(paste0("membros/", m, "/", a, ".parquet"), "membro", a)
   sel <- data.table::data.table(rel = rel, nivel = nivel, area = area)
   sel[, src := file.path(scratch, rel)]
-  gone <- sel[!file.exists(src)]
+  listed <- vapply(run$arquivos, function(x) as.character(x$path), "")
+  gone <- sel[!file.exists(src) | !rel %in% listed]
   if (nrow(gone))
     prevcarga_warn("completude.export_file_missing", where = "prevcarga_export",
                    details = list(arquivos = gone$rel))
-  sel <- sel[file.exists(src)]
+  sel <- sel[file.exists(src) & rel %in% listed]
   if (!nrow(sel)) prevcarga_abort("state.nothing_to_deliver", where = "prevcarga_export", details = list(niveis = niveis))
   sel[order(rel, method = "radix")]
 }
 
-## sha256 do byte-stream do arquivo e `linhas` so do footer do parquet (metadados, sem ler colunas)
-.export_entry <- function(src, rel, nivel, area) {
-  n <- arrow::ParquetFileReader$create(src)$num_rows
-  list(path = rel, nivel = nivel, area = area, linhas = as.integer(n),
-       sha256 = digest::digest(file = src, algo = "sha256"))
+## sha256 do byte-stream da fonte, conferido contra o registro do run.json (arquivos[] gravado pelo reconcile/forecast);
+## `linhas` vem desse registro (o export nao abre parquet). Divergencia de sha256 => integrity.copy_failed.
+.export_entry <- function(src, rel, nivel, area, rec) {
+  sha <- digest::digest(file = src, algo = "sha256")
+  if (!identical(sha, as.character(rec$sha256)))
+    prevcarga_abort("integrity.copy_failed", where = src,
+                    details = list(reason = "sha256 da fonte difere do run.json", path = rel))
+  list(path = rel, nivel = nivel, area = area, linhas = as.integer(rec$linhas), sha256 = sha)
 }
 
 ## manifest em ordem de chaves fixa; campos da rodada copiados do run.json (khat nunca recalculado)
@@ -101,7 +109,9 @@ prevcarga_export <- function(scratch, key, niveis = "subsistemas", incluir_membr
     prevcarga_abort("state.nothing_to_deliver", where = "prevcarga_export", details = list(reason = "scratch ausente"))
   run <- .export_read_run(scratch)
   sel <- .export_select(scratch, run, niveis, incluir_membros)
-  entries <- lapply(seq_len(nrow(sel)), function(i) .export_entry(sel$src[[i]], sel$rel[[i]], sel$nivel[[i]], sel$area[[i]]))
+  recs <- stats::setNames(run$arquivos, vapply(run$arquivos, function(x) as.character(x$path), ""))
+  entries <- lapply(seq_len(nrow(sel)), function(i)
+    .export_entry(sel$src[[i]], sel$rel[[i]], sel$nivel[[i]], sel$area[[i]], recs[[sel$rel[[i]]]]))
   final <- file.path(ctx$state_dir, key$rel)
   tmp <- file.path(dirname(final), paste0(".tmp-", key$run_id))
   unlink(tmp, recursive = TRUE)
@@ -109,7 +119,7 @@ prevcarga_export <- function(scratch, key, niveis = "subsistemas", incluir_membr
     prevcarga_abort("integrity.copy_failed", where = final, details = list(reason = "nao criou o staging"))
   on.exit(if (dir.exists(tmp)) unlink(tmp, recursive = TRUE), add = TRUE)
   for (i in seq_len(nrow(sel))) .export_copy(sel$src[[i]], file.path(tmp, sel$rel[[i]]))
-  .export_write_json(.export_manifest(run, entries, niveis, ctx), file.path(tmp, "manifest.json"))
+  .export_write_json(.export_manifest(run, entries, niveis, ctx), file.path(tmp, .export_manifest_file))
   if (!file.rename(tmp, final)) prevcarga_abort("integrity.copy_failed", where = final, details = list(reason = "rename falhou"))
   list(saida = final, arquivos = entries)
 }

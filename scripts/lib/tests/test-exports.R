@@ -1,5 +1,5 @@
 ## test-exports.R -- exports.R (M6.2): copia de bytes, manifest, niveis-teto, atomicidade e pureza. Cada FORBIDDEN tem o seu CONTROL.
-## Tudo em tempdir; sem env vars; scratch de fixture montado aqui (parquet via arrow; run.json como o forecast escreve).
+## Tudo em tempdir; sem env vars; scratch de fixture montado aqui (parquet via arrow SO no teste; run.json com arquivos[] como o reconcile grava).
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
 ex <- pc_source_lib(c("errors", "schema_long", "exports"))
 
@@ -7,17 +7,26 @@ SS <- c("SS1", "SS2"); COVERED <- c("A1", "A2", "B1"); STRAY <- "Z9"
 write_leaf <- function(path, area, n = 5L, seed = 1L) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   arrow::write_parquet(data.frame(area = area, y_pred = seed * seq_len(n) + 0.5), path, compression = "snappy")
+  invisible(n)
+}
+## arquivos[] do run.json: {path, area, linhas, sha256} de cada parquet do scratch (como prevcarga_reconcile_write)
+register_files <- function(s, rows) {
+  lapply(names(rows), function(rel) list(path = rel, area = rows[[rel]]$area, linhas = rows[[rel]]$n,
+                                         sha256 = digest::digest(file = file.path(s, rel), algo = "sha256")))
 }
 ## scratch como o forecast deixa: run.json + SIN + subsistemas + folhas cobertas + 1 folha solta + membros
-make_scratch <- function(with_stray = TRUE, with_agg = TRUE) {
+make_scratch <- function(with_stray = TRUE, with_agg = TRUE, n_sin = 7L, unregistered = character()) {
   s <- withr::local_tempdir("pc-scratch-", .local_envir = parent.frame())
+  rows <- list()
+  put <- function(rel, area, n, seed) { write_leaf(file.path(s, rel), area, n, seed); rows[[rel]] <<- list(area = area, n = n) }
   if (with_agg) {
-    write_leaf(file.path(s, "SIN.parquet"), "SIN", 7L)
-    for (ss in SS) write_leaf(file.path(s, "subsistemas", paste0(ss, ".parquet")), ss, 6L, 2L)
+    put("SIN.parquet", "SIN", n_sin, 1L)
+    for (ss in SS) put(paste0("subsistemas/", ss, ".parquet"), ss, 6L, 2L)
   }
-  for (a in COVERED) write_leaf(file.path(s, "folhas", paste0(a, ".parquet")), a, 4L, 3L)
-  if (with_stray) write_leaf(file.path(s, "folhas", paste0(STRAY, ".parquet")), STRAY, 3L, 4L)
-  write_leaf(file.path(s, "membros", "M1", "A1.parquet"), "A1", 2L, 5L)
+  for (a in COVERED) put(paste0("folhas/", a, ".parquet"), a, 4L, 3L)
+  if (with_stray) put(paste0("folhas/", STRAY, ".parquet"), STRAY, 3L, 4L)
+  put("membros/M1/A1.parquet", "A1", 2L, 5L)
+  rows <- rows[setdiff(names(rows), unregistered)]
   run <- list(origem = "2026-01-15", available_until = "2026-01-15T09:00",
               available_until_por_area = list(A1 = "2026-01-15T09:00"), timezone = "Etc/GMT+3", load_label = "end",
               weather_issue_cutoff = "available_until",
@@ -25,7 +34,7 @@ make_scratch <- function(with_stray = TRUE, with_agg = TRUE) {
                                                   extra = "ignorado")),
               covered = as.list(COVERED), stray = if (with_stray) list(STRAY) else list(),
               closed = if (with_agg) as.list(SS) else list(), sin_closed = with_agg,
-              members = list(M1 = list("A1")), versao = "abc123", version = "0.1.0", runtime_id = "rt-1")
+              members = list(M1 = list("A1")), arquivos = register_files(s, rows), versao = "abc123", version = "0.1.0", runtime_id = "rt-1")
   writeLines(as.character(jsonlite::toJSON(run, auto_unbox = TRUE, pretty = TRUE)), file.path(s, "run.json"))
   s
 }
@@ -51,7 +60,7 @@ test_that("[FORBIDDEN] bytes entregues == bytes da fonte; reescrever muda o sha2
   arrow::write_parquet(arrow::read_parquet(src), re, compression = "zstd")
   expect_false(identical(digest::digest(file = re, algo = "sha256"), digest::digest(file = src, algo = "sha256")))
   ## CONTROL: fonte com 1 linha a mais muda sha256 e linhas
-  s2 <- make_scratch(); write_leaf(file.path(s2, "SIN.parquet"), "SIN", 8L)
+  s2 <- make_scratch(n_sin = 8L)
   r2 <- do_export(s2, state_ctx())
   e1 <- r$arquivos[[which(paths(r) == "SIN.parquet")]]; e2 <- r2$arquivos[[which(paths(r2) == "SIN.parquet")]]
   expect_identical(e1$linhas, 7L); expect_identical(e2$linhas, 8L)
@@ -111,6 +120,26 @@ test_that("nothing_to_deliver: aborta exit 13 sem criar chave nem staging", {
   expect_length(do_export(s, ctx, niveis = "tudo")$arquivos, length(COVERED))
 })
 
+test_that("[FORBIDDEN] byte adulterado no scratch aborta integrity.copy_failed; CONTROL: scratch integro entrega", {
+  s <- make_scratch(); ctx <- state_ctx()
+  p <- file.path(s, "SIN.parquet")
+  b <- readBin(p, "raw", 1e6); b[length(b) - 10L] <- as.raw(bitwXor(as.integer(b[length(b) - 10L]), 1L))
+  writeBin(b, p)
+  cond <- tryCatch(do_export(s, ctx), prevcarga_error = function(e) e)
+  expect_identical(cond$id, "integrity.copy_failed"); expect_identical(cond$class_name, "integrity")
+  expect_false(dir.exists(file.path(ctx$state_dir, "exports", "r1")))
+  expect_length(list.files(file.path(ctx$state_dir, "exports"), all.files = TRUE, no.. = TRUE), 0L)
+  expect_true(dir.exists(do_export(make_scratch(), state_ctx())$saida))
+})
+
+test_that("arquivo nao registrado em arquivos[] gera aviso e e omitido", {
+  s <- make_scratch(unregistered = "folhas/Z9.parquet")
+  w <- NULL
+  r <- withCallingHandlers(do_export(s, state_ctx()), prevcarga_warning = function(e) { w <<- e; invokeRestart("muffleWarning") })
+  expect_identical(w$id, "completude.export_file_missing")
+  expect_false("folhas/Z9.parquet" %in% paths(r))
+})
+
 test_that("arquivo listado e ausente gera aviso (nunca some em silencio)", {
   s <- make_scratch(); unlink(file.path(s, "subsistemas", "SS2.parquet"))
   w <- NULL
@@ -145,4 +174,5 @@ test_that("[FORBIDDEN] pureza do exports.R: so copia bytes; CONTROL: a isca e ac
   expect_length(grep(pat, code, perl = TRUE), 0L)
   expect_length(grep(pat, c("x <- 1", "arrow::write_parquet(d, p)", "t <- Sys.time()"), perl = TRUE), 2L)
   expect_true(all(utf8ToInt(paste(code, collapse = "")) < 128L))
+  expect_length(grep("arrow|nanoparquet|read_parquet", code), 0L)   # leitor unico: o export nao abre parquet
 })
