@@ -23,7 +23,7 @@ FER <- D(c("2024-12-25", "2025-01-01"))
 cal <- function(params) P$lgbm_add_calendar_cols(cal_dt(), FER, params)
 lab <- function(x, md) x[format(Data, "%m-%d") == md, DiaEspecialFimAno]
 
-test_that("[AC1] calendario com params do run.yaml: DiaSemanaNum sem locale, TipoDia 4 niveis, fim de ano na ordem do oraculo", {
+test_that("[PLUGINS] gate_cal: [AC1] calendario com params do run.yaml: DiaSemanaNum sem locale, TipoDia 4 niveis, fim de ano na ordem do oraculo", {
   x <- cal(PRM)
   expect_identical(x[Data == D("2024-12-15"), DiaSemanaNum], 1L)   # domingo
   expect_identical(x[Data == D("2024-12-21"), DiaSemanaNum], 2L)   # sabado
@@ -44,7 +44,7 @@ test_that("[AC1] calendario com params do run.yaml: DiaSemanaNum sem locale, Tip
   expect_identical(sum(x$PreFeriado), 2L); expect_identical(sum(x$PosFeriado), 2L)
 })
 
-test_that("[AC1] DiaSemanaNum e locale-invariante (weekdays() nao e usado) e o mapa vale em qualquer LC_TIME", {
+test_that("[PLUGINS] gate_cal: [AC1] DiaSemanaNum e locale-invariante (weekdays() nao e usado) e o mapa vale em qualquer LC_TIME", {
   expect_identical(pc_grep_code(file.path(lgbm_root(), "models", "lgbm", "R"), "weekdays\\s*\\("), character())
   old <- Sys.getlocale("LC_TIME")
   on.exit(suppressWarnings(Sys.setlocale("LC_TIME", old)), add = TRUE)
@@ -53,13 +53,13 @@ test_that("[AC1] DiaSemanaNum e locale-invariante (weekdays() nao e usado) e o m
   expect_identical(cal(PRM)$DiaSemanaNum, a)
 })
 
-test_that("[AC1] prevespera_1230: 12-30 vira PreVespera; CONTROL padrao deixa SemanaNatalAnoNovo", {
+test_that("[PLUGINS] gate_cal: [AC1] prevespera_1230: 12-30 vira PreVespera; CONTROL padrao deixa SemanaNatalAnoNovo", {
   expect_identical(lab(cal(with_p(prevespera_1230 = TRUE)), "12-30"), "PreVespera")
   expect_identical(lab(cal(with_p(prevespera_1230 = TRUE)), "12-29"), "SemanaNatalAnoNovo")
   expect_identical(lab(cal(PRM), "12-30"), "SemanaNatalAnoNovo")
 })
 
-test_that("[AC1] CONTROL calendar_yearend FALSE: sem DiaEspecialFimAno/PreFeriado/PosFeriado; rotulos de 24-31/12 mudam", {
+test_that("[PLUGINS] gate_cal: [AC1] CONTROL calendar_yearend FALSE: sem DiaEspecialFimAno/PreFeriado/PosFeriado; rotulos de 24-31/12 mudam", {
   off <- cal(with_p(calendar_yearend = FALSE))
   expect_false(any(c("DiaEspecialFimAno", "PreFeriado", "PosFeriado") %in% names(off)))
   on <- cal(PRM)
@@ -69,7 +69,7 @@ test_that("[AC1] CONTROL calendar_yearend FALSE: sem DiaEspecialFimAno/PreFeriad
   expect_length(P$lgbm_adequacao_extra_features(PRM), 8L)
 })
 
-test_that("[AC1] tipodia_legacy: 5 niveis (segunda, sexta, sabado, domingo, Dia util intermediario)", {
+test_that("[PLUGINS] gate_cal: [AC1] tipodia_legacy: 5 niveis (segunda, sexta, sabado, domingo, Dia util intermediario)", {
   x <- cal(with_p(tipodia_legacy = TRUE))
   expect_setequal(unique(x$TipoDia), c("segunda-feira", "sexta-feira", "sabado", "domingo", "Dia util intermediario"))
   expect_identical(x[Data == D("2024-12-16"), TipoDia], "segunda-feira")
@@ -89,7 +89,7 @@ feat_dt <- function(params) {
   P$lgbm_add_calendar_cols(dt, attr(frame, "feriados"), params)
   dt
 }
-test_that("[AC2] Sazonalidade: FORBIDDEN (carga > train_cutoff) identica; CONTROL (carga no train_cutoff) muda", {
+test_that("[PLUGINS] gate_saz: [AC2] Sazonalidade: FORBIDDEN (carga > train_cutoff) identica; CONTROL (carga no train_cutoff) muda", {
   tc <- cuts$last_data_day - 20L
   dt <- feat_dt(PRM)
   base <- P$lgbm_compute_sazonalidade(dt, tc, PRM)
@@ -108,7 +108,7 @@ test_that("[AC2] Sazonalidade: FORBIDDEN (carga > train_cutoff) identica; CONTRO
   expect_gt(max(abs(P$lgbm_compute_sazonalidade(cnl, tc, pl)$Sazonalidade - bl$Sazonalidade)), 1e-5)
 })
 
-test_that("[AC2] Sazonalidade nao legacy = media por (TipoDia, Hora) das linhas Data <= train_cutoff", {
+test_that("[PLUGINS] gate_saz: [AC2] Sazonalidade nao legacy = media por (TipoDia, Hora) das linhas Data <= train_cutoff", {
   tc <- cuts$last_data_day - 20L
   dt <- feat_dt(PRM)
   s <- P$lgbm_compute_sazonalidade(dt, tc, PRM)
@@ -117,7 +117,7 @@ test_that("[AC2] Sazonalidade nao legacy = media por (TipoDia, Hora) das linhas 
   expect_identical(names(s), c("TipoDia", "Hora", "Sazonalidade"))
 })
 
-test_that("[AC2] legacy: chave rica com LOESS span 0.2 grau 2 em grupos >= 8 linhas; G-NA zero NA apos o merge com fallbacks", {
+test_that("[PLUGINS] gate_saz: [AC2] legacy: chave rica com LOESS span 0.2 grau 2 em grupos >= 8 linhas; G-NA zero NA apos o merge com fallbacks", {
   pl <- with_p(tipodia_legacy = TRUE)
   dl <- feat_dt(pl)
   tc <- D("2026-08-01")      # feriados posteriores (ex.: 07/09) nao tem celula rica no treino
@@ -145,7 +145,7 @@ test_that("[AC2] legacy: chave rica com LOESS span 0.2 grau 2 em grupos >= 8 lin
 ## ---- ondaletas --------------------------------------------------------------------------------------------
 ref_wav <- function(v) { wt <- wavelets::dwt(v, filter = "haar"); c(unlist(lapply(wt@W, as.numeric)), unlist(lapply(wt@V, as.numeric))) }
 
-test_that("[AC3] lgbm_build_wavelets: janela de 32 alinhada a direita = dwt Haar direto (<= 1e-12); 31 primeiras NA", {
+test_that("[PLUGINS] gate12_ondaletas_d1: [AC3] lgbm_build_wavelets: janela de 32 alinhada a direita = dwt Haar direto (<= 1e-12); 31 primeiras NA", {
   set.seed(5)
   x <- cumsum(rnorm(500)) + 1000
   w <- P$lgbm_build_wavelets(x, 32L)
@@ -158,7 +158,7 @@ test_that("[AC3] lgbm_build_wavelets: janela de 32 alinhada a direita = dwt Haar
   expect_s3_class(fail(P$lgbm_build_wavelets(x[1:20], 32L)), "prevcarga_error")
 })
 
-test_that("[AC3] CarWav de CargaGlobal_anterior_BLF com shift de 48 h (2 dias), TempWav sem shift; 62 + 62 colunas", {
+test_that("[PLUGINS] gate12_ondaletas_d1: [AC3] CarWav de CargaGlobal_anterior_BLF com shift de 48 h (2 dias), TempWav sem shift; 62 + 62 colunas", {
   o <- build()
   ft <- o$feature_table
   expect_identical(sum(grepl("^CarWav_", names(ft))), 62L); expect_identical(sum(grepl("^TempWav_", names(ft))), 62L)
@@ -182,7 +182,7 @@ test_that("[AC3] CarWav de CargaGlobal_anterior_BLF com shift de 48 h (2 dias), 
 })
 
 ## ---- LOESS ------------------------------------------------------------------------------------------------
-test_that("[AC4] lgbm_loess_daily/lgbm_loess_smooth: identidade por disable_loess ou < 5 nao-NA; senao = loess", {
+test_that("[PLUGINS] fe_loess: [AC4] lgbm_loess_daily/lgbm_loess_smooth: identidade por disable_loess ou < 5 nao-NA; senao = loess", {
   set.seed(2)
   h <- (0:47) / 2; y <- sin(h / 3) * 100 + rnorm(48, 0, 10) + 5000
   expect_identical(P$lgbm_loess_daily(y, h, 0.3, TRUE), y)
@@ -201,7 +201,7 @@ test_that("[AC4] lgbm_loess_daily/lgbm_loess_smooth: identidade por disable_loes
   expect_true(is.na(sn[10])); expect_false(anyNA(sn[-10]))
 })
 
-test_that("[AC4] plugin: disable_loess TRUE => suavizada == crua; FALSE => difere e bate com loess por dia; <5 nao-NA fica cru", {
+test_that("[PLUGINS] fe_loess: [AC4] plugin: disable_loess TRUE => suavizada == crua; FALSE => difere e bate com loess por dia; <5 nao-NA fica cru", {
   on <- build(with_p(disable_loess = TRUE))$feature_table
   off <- build(with_p(disable_loess = FALSE))$feature_table
   expect_identical(on$CargaGlobal_suav, on$CargaGlobal); expect_identical(on$Temperatura_suav, on$Temperatura)
@@ -222,7 +222,7 @@ test_that("[AC4] plugin: disable_loess TRUE => suavizada == crua; FALSE => difer
   expect_identical(P$lgbm_loess_daily(v, (0:47) / 2, 0.3, FALSE), v)
 })
 
-test_that("[AC4] CONTROL de vazamento: o disable_loess e o de spec$params, nunca de env (LGBM_DISABLE_LOESS=0 => identico)", {
+test_that("[PLUGINS] fe_loess: [AC4] CONTROL de vazamento: o disable_loess e o de spec$params, nunca de env (LGBM_DISABLE_LOESS=0 => identico)", {
   a <- build(with_p(disable_loess = TRUE))$feature_table
   Sys.setenv(LGBM_DISABLE_LOESS = "0"); on.exit(Sys.unsetenv("LGBM_DISABLE_LOESS"), add = TRUE)
   b <- build(with_p(disable_loess = TRUE))$feature_table
@@ -241,7 +241,7 @@ orc_val <- function(o, s) if (s == "rolling") o - 1L else if (s == "legacy_month
 orc_trn <- function(v, s) if (s == "rolling") v - 28L else if (s == "legacy_month") as.Date(format(v, "%Y-%m-01")) - 1L else
   as.Date(format(lubridate::`%m-%`(v, months(1L)), "%Y-%m-01")) - 1L
 
-test_that("[AC5] lgbm_split_cutoffs: train_cv => ambos = last_data_day; 3 esquemas reproduzem o oraculo dia a dia (G-CUT)", {
+test_that("[PLUGINS] gate_cut: [AC5] lgbm_split_cutoffs: train_cv => ambos = last_data_day; 3 esquemas reproduzem o oraculo dia a dia (G-CUT)", {
   for (to in D(c("2024-10-31", "2024-03-01", "2024-07-15"))) {
     to <- lubridate::as_date(to)
     cu <- list(last_data_day = to - 1L, train_origin = to)
@@ -265,7 +265,7 @@ test_that("[AC5] lgbm_split_cutoffs: train_cv => ambos = last_data_day; 3 esquem
   }
 })
 
-test_that("[AC5] corte interno alem de last_data_day aborta contract; CONTROL last_data_day maior passa", {
+test_that("[PLUGINS] gate_cut: [AC5] corte interno alem de last_data_day aborta contract; CONTROL last_data_day maior passa", {
   cu <- list(last_data_day = D("2024-10-15"), train_origin = D("2024-10-31"))
   e <- fail(P$lgbm_split_cutoffs(cu, with_p(train_cv = FALSE, cutoff_scheme = "rolling", sazonalidade_scope = "train")))
   expect_null(e)   # rolling: val = last_data_day, nunca alem
@@ -277,7 +277,7 @@ test_that("[AC5] corte interno alem de last_data_day aborta contract; CONTROL la
 })
 
 ## ---- estagio ----------------------------------------------------------------------------------------------
-test_that("[AC5] schema: colunas_entrada_BLF na ordem do contrato, nao_normalizar = dummies + extras, sem NA", {
+test_that("[PLUGINS] fe_schema: [AC5] schema: colunas_entrada_BLF na ordem do contrato, nao_normalizar = dummies + extras, sem NA", {
   for (cfg in list(PRM, with_p(calendar_yearend = FALSE), with_p(tipodia_legacy = TRUE, disable_loess = TRUE),
                    with_p(train_cv = FALSE, cutoff_scheme = "legacy_month"))) {
     o <- build(cfg)
@@ -300,7 +300,7 @@ test_that("[AC5] schema: colunas_entrada_BLF na ordem do contrato, nao_normaliza
   }
 })
 
-test_that("[AC5] train_cv e esquemas no estagio: cortes de cuts, todos <= last_data_day; Sazonalidade so de Data <= train_cutoff", {
+test_that("[PLUGINS] fe_schema: [AC5] train_cv e esquemas no estagio: cortes de cuts, todos <= last_data_day; Sazonalidade so de Data <= train_cutoff", {
   o <- build(PRM)
   expect_identical(o$train_cutoff, cuts$last_data_day); expect_identical(o$val_cutoff, cuts$last_data_day)
   for (s in c("v2_old", "legacy_month", "rolling")) {
@@ -322,7 +322,7 @@ test_that("[AC5] train_cv e esquemas no estagio: cortes de cuts, todos <= last_d
   expect_gt(max(abs(build(p, fr2)$sazonalidade$Sazonalidade - base$sazonalidade$Sazonalidade)), 1e-5)
 })
 
-test_that("[AC5] determinismo, .Random.seed intacto, dispatch por nome e sem literal de seed", {
+test_that("[PLUGINS] fe_determinismo: [AC5] determinismo, .Random.seed intacto, dispatch por nome e sem literal de seed", {
   set.seed(99); s0 <- .Random.seed
   a <- build(); b <- build()
   expect_identical(a, b)

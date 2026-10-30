@@ -67,7 +67,8 @@ lgbm_predict_d1 <- function(booster, dt_D1, completed_D, artifact, consts = plug
 lgbm_delivery <- function(cuts, dt_D, dt_D1, completed_D, d1) {
   grid <- .lgbm_delivery_grid(cuts)
   tz <- cuts$tz
-  O2 <- lubridate::force_tz(lubridate::as_datetime(dt_D1$Data[[1L]] + 1L), tz)
+  d2 <- dt_D1$Data[[1L]] + 1L
+  O2 <- lubridate::make_datetime(lubridate::year(d2), lubridate::month(d2), lubridate::mday(d2), tz = tz)
   ends <- c(dt_D$DataHora[-1L], dt_D1$DataHora, O2)
   k <- match(grid, ends)
   if (anyNA(k) || length(ends) != 96L)

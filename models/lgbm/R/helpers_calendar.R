@@ -55,7 +55,7 @@ lgbm_add_calendar_cols <- function(dt, feriados, params) {
   dt[, DiaEspecial := FimDeSemana | Feriado]
   dt[, TipoDia := lgbm_tipodia(DiaSemanaNum, FimDeSemana, Feriado, params$tipodia_legacy)]
   if (isTRUE(params$calendar_yearend)) {
-    md <- format(dt$Data, "%m-%d")
+    md <- sprintf("%02d-%02d", lubridate::month(dt$Data), lubridate::mday(dt$Data))
     dt[, DiaEspecialFimAno := lgbm_fimano_label(md, params$prevespera_1230)]
     dt[, PreFeriado := as.integer(Data %in% (feriados - 1L))]
     dt[, PosFeriado := as.integer(Data %in% (feriados + 1L))]

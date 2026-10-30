@@ -105,3 +105,33 @@ Escopo do LGBM.1: contrato (`run.yaml` + `register.R`) e ingestao. FE, treino e 
   G-CAL (rotulos de calendario do quadro de infer, identicos) e G-SAZ (Sazonalidade, fallbacks, min_max_BLF, colunas e `best_iter` do artefato, <= 1e-9). Golden ausente, digest de dados ou fingerprint divergente => `fail()` com
   "golden ausente ou divergente: regere com scripts/tools/plugin_golden.R --model lgbm" (nunca skip). CONTROLs com dente: `train_cv: false` contra o golden de CV acusa > 1e-5; aditividade (`oracle_env LGBM_TRAIN_CV "0"` x `train_cv: false`) <= 1e-5; o pai nunca ganha `LGBM_*`.
 - Rotulos dos testes (linhas da tabela do `run_all_gates.R`, que e do LGBM.6): `units_yaml` (fast), `paridade`, `paridade_control`, `aditividade` (tier parity; foundation/fanout so em parity-full).
+
+## LGBM.6 -- verificacao de fechamento (README, run_all_gates, clima, determinismo, aditividade)
+
+Estado duravel do epico Plugin LGBM (este arquivo e o unico do epico; `docs/ESTADO-ATUAL.md` so o indexa, dono M1.V).
+
+- Membro LGBM vivo: `models/lgbm/` (`origin_agnostic`, 30 min, H = 1, `data_lag_days: 2` => `train_origin = O-2` e `last_data_day = O-3`, entrega O..O+1 em `lgbm_day_48`,
+  `delivery_days: 2`), com o `run.yaml` carregando os 7 `params` no lugar das env flags `LGBM_*`. Paridade Delta = 0 contra o oraculo (limiar 1e-5 MW) nas unidades de `tests/parity/units.yaml`
+  (grupos smoke / foundation / fanout / controls); o golden vive em `.state/golden` (gitignored, regerado so por `plugin_golden.R`) e o `golden.lock` versionado (sha256 56915e70ca9871df94ebc33d3473a2b964663112ffee5f0c28cd9438e1307703,
+  oraculo `c4af7378cc767c46f95ce0f09d961fe84fb7f141`) o ancora. Resultado do fechamento: `--tier parity-full` exit 0 (smoke + foundation + fanout + controls; `paridade`, `paridade_control` e `gate_adequacao_add` PASS, Delta <= 1e-5 MW), tambem apos a troca de `force_tz`/`with_tz` por `make_datetime`/`as_date(tz=)`.
+- Arquivos novos do fechamento: `tests/run_all_gates.R` (casca sobre `prevcarga_gates_run`; tabela PROPRIA gate do oraculo x teste x dono; tiers fast/parity/parity-full; os packs M5/M6/M7 entram por
+  descoberta sem editar o runner), `testthat/test-weather.R`, `test-determinism.R`, `test-additivity.R`, `test-deferred.R` e `models/lgbm/README.md` (mapa file:line, contrato, tabela env flag -> param,
+  cortes, gates x dono). `helper-lgbm-train.R` ganhou `lgbm_fx_chain` (cadeia train+freeze+infer, tambem em sessao limpa).
+- Rotulagem: todo teste de `testthat/` leva `[PLUGINS] <gate>:` ou `[DEFERRED Mx] <gate>:` (os testes do LGBM.1-LGBM.5 foram relabelados; o prefixo `[ACn]` segue na descricao). DEFERRED: `gate11_ytrue_real` e
+  `nowcast_dplus0_long` (M6, LONG/y_true), `fachada` (M5, verbos e recusa de artefato), `cross_os` (M8). O ex-`aditividade` do `test-parity.R` virou `gate_adequacao_add` (o nome `aditividade_epico` e do teste de git).
+- Clima nas duas regras (`test-weather.R`): canal de clima do `honesty_gate` (M3.5) sobre o deck 00Z/06Z/18Z com `available_until` O 09:00 (12:00Z). `available_until`: FORBIDDEN (issue_time > limite) <= 1e-5, CONTROL
+  na 06Z de O > 1e-5; `origin_midnight_utc`: CONTROL na 00Z de O > 1e-5, a 06Z e FORBIDDEN. Cada regra tem o seu artefato fixo (o carimbo guarda `weather_issue_cutoff`; o despachante recusa artefato de outra regra). Emissao alem do
+  limite entregue ao plugin => `[prevcarga/contract]`; CONTROL da safra: `issue_day_tz` no fuso da carga muda a temperatura de lead 0 (> 1e-5). Observado: a 00Z de O ainda muda a entrega na regra `available_until`
+  (a emissao 06Z nao cobre os valid_time anteriores a 06Z), logo nao e um FORBIDDEN dessa regra.
+- Determinismo (`test-determinism.R`, gate10): duas cadeias na mesma sessao e em duas sessoes `Rscript --vanilla` => sha256 do artefato e `delivery`/`values` identicos; globalenv, `search()` e `.Random.seed` intactos
+  (e `.Random.seed` nao nasce); CONTROL `seed: 124` muda o sha256 (a entrega pode coincidir: sem bagging a seed so entra no artefato e nos parametros do booster). `num_threads = 1` e `deterministic = TRUE` nos
+  caminhos CV e holdout (LGBM.3).
+- Aditividade (`test-additivity.R`): o repo nao tem o carimbo `.state/manifests/lgbm-start.json`; a medida e pelo git (commits `LGBM.n:` + working tree), como RF.5: nada em `models/` fora de `models/lgbm/` e nada em
+  `scripts/lib/` alem de `errors/lgbm.tsv` e dos fixtures do LGBM.1 (`tests/test-topology.R`, `tests/helper-plugins.R`); oraculo com `git status --porcelain` limitado aos 3 `docs/roadmap/*.md` e `verify-log/` ja existentes;
+  `pc_grep_code` sem `Sys.getenv/setenv/time/Date`, `saveRDS`, `lgb.save`, `as.Date(`, `as.POSIXct(`, `to_hourly`, `to_model_frame`, `to_display_frame`, `PREVCARGA_JOB`, sem `O - n` e sem bytes > 127, com CONTROL
+  plantado por padrao; `pc_grep_time_arith(allow = list())` = 0 hits.
+- Aritmetica de hora removida do plugin (sem excecao): `force_tz(as_datetime(d), tz) + hours() + minutes()` (grade de 48 slots e meia-noite de O+2 na entrega) virou `lubridate::make_datetime(ano, mes, dia, hora, min, tz)`
+  e `with_tz(issue_time, issue_day_tz)` virou `as_date(issue_time, tz = issue_day_tz)`; valores identicos, provados pela paridade e pelos testes de ingestao/entrega.
+- Decisoes taticas e desvios conscientes do oraculo (Desvios conscientes): sem auto-deteccao de corte (o plugin le `cuts`), sem fallback silencioso de feriados (`holidays` ausente aborta), sem heranca de flags por env
+  (artefato carrega os `params` do treino), rotulos de calendario na FE por mapa fixo (sem `weekdays()`/locale) e sem re-extracao de ondaletas em O+1 como o oraculo.
+- Dependencia pendente: `fix/foundation-w1-f4-lag` (FIX 6 entrega todos os feriados ao painel). Qualquer delta de janela de feriado no `parity-full` e dessa fundacao, sem excecao no `ab_excecoes.yaml`.

@@ -8,7 +8,7 @@ load_plugin <- function(models_root) {
   lgbm_lib$prevcarga_plugin_load("lgbm", models_root)
 }
 
-test_that("[AC1] run.yaml real x descriptor passam no loader e batem com o contrato do oraculo", {
+test_that("[PLUGINS] contrato: [AC1] run.yaml real x descriptor passam no loader e batem com o contrato do oraculo", {
   p <- load_plugin(root)
   d <- p$descriptor; s <- p$spec
   expect_identical(d$model_id, "lgbm")
@@ -40,7 +40,7 @@ test_that("[AC1] run.yaml real x descriptor passam no loader e batem com o contr
   expect_identical(ms$history_days$train, 730L)
 })
 
-test_that("[AC2] 6 copias mutadas abortam [prevcarga/contract] (exit 2) nomeando o campo antes de qualquer estagio", {
+test_that("[PLUGINS] contrato: [AC2] 6 copias mutadas abortam [prevcarga/contract] (exit 2) nomeando o campo antes de qualquer estagio", {
   cases <- list(
     train_cv_ausente = list(f = function(y) { y$params$train_cv <- NULL; y }, field = "params$train_cv"),
     full_window = list(f = function(y) { y$params$sazonalidade_scope <- "full_window"; y }, field = "params$sazonalidade_scope"),
@@ -66,7 +66,7 @@ test_that("[AC2] 6 copias mutadas abortam [prevcarga/contract] (exit 2) nomeando
   expect_null(fail(load_plugin(lgbm_fx_runyaml())))
 })
 
-test_that("params: lgbm_check_params nomeia a chave (ausente, tipo, fora do schema) e aceita o run.yaml real", {
+test_that("[PLUGINS] contrato: params: lgbm_check_params nomeia a chave (ausente, tipo, fora do schema) e aceita o run.yaml real", {
   p <- lgbm_source_plugin()
   real <- yaml::read_yaml(file.path(lgbm_root(), "models", "lgbm", "run.yaml"))$params
   expect_silent(p$lgbm_check_params(real))
@@ -85,7 +85,7 @@ test_that("params: lgbm_check_params nomeia a chave (ausente, tipo, fora do sche
   m <- real; m$tipodia_legacy <- NA; chk(m, "params$tipodia_legacy")
 })
 
-test_that("catalogo: ids lgbm.* existem em errors/lgbm.tsv com a classe esperada", {
+test_that("[PLUGINS] contrato: catalogo: ids lgbm.* existem em errors/lgbm.tsv com a classe esperada", {
   cat <- lgbm_lib$prevcarga_errors_load(file.path(lgbm_root(), "scripts", "lib", "errors"))
   expect_false(anyDuplicated(cat$id) > 0L)
   got <- setNames(cat$class[match(c("lgbm.params", "lgbm.contract", "lgbm.completude", "lgbm.window", "lgbm.stage_missing"), cat$id)],
@@ -93,7 +93,7 @@ test_that("catalogo: ids lgbm.* existem em errors/lgbm.tsv com a classe esperada
   expect_identical(unname(got), c("contract", "contract", "completude", "window", "contract"))
 })
 
-test_that("estagio sem definicao aborta lgbm.stage_missing (nao ha codigo silencioso); os 5 estagios e freeze/thaw existem", {
+test_that("[PLUGINS] contrato: estagio sem definicao aborta lgbm.stage_missing (nao ha codigo silencioso); os 5 estagios e freeze/thaw existem", {
   p <- lgbm_source_plugin()
   ## FE (LGBM.2), treino/freeze/thaw (LGBM.3) e inferencia (LGBM.4) ja existem
   for (f in c("plugin_build_features", "plugin_train", "lgbm_freeze", "lgbm_thaw", "plugin_inference_features", "plugin_infer"))
@@ -108,7 +108,7 @@ test_that("estagio sem definicao aborta lgbm.stage_missing (nao ha codigo silenc
   expect_identical(p$lgbm_stage_inference(NULL, NULL, NULL), "ok")
 })
 
-test_that("plugin_constants: hiperparametros, spans, heat_area e feriados fixos do oraculo", {
+test_that("[PLUGINS] contrato: plugin_constants: hiperparametros, spans, heat_area e feriados fixos do oraculo", {
   k <- lgbm_source_plugin()$plugin_constants()
   expect_identical(k$num_leaves, 16L); expect_identical(k$min_data_in_leaf, 50L)
   expect_identical(k$num_iterations, 5000L); expect_identical(k$early_stopping_rounds, 50L)

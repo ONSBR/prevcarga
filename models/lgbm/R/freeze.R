@@ -16,7 +16,7 @@ lgbm_n_trees <- function(booster_txt) sum(grepl("^Tree=[0-9]+$", strsplit(booste
   out
 }
 
-.lgbm_iso <- function(d) format(d, "%Y-%m-%d")
+.lgbm_iso <- function(d) as.character(d)
 
 ## Payload puro a partir do modelo em memoria. Assinatura canonica do despachante: (model).
 lgbm_freeze <- function(model) {
