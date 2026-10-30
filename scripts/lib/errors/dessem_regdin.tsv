@@ -7,3 +7,5 @@ plugin.regdin_history_short	window	historico do painel menor que history_days.tr
 plugin.regdin_window_mismatch	contract	janela de infer do dessem-regdin difere da janela de treino do artefato	use history_days.infer == history_days.train e o mesmo painel do treino
 plugin.regdin_arima_drift	contract	ARIMA refeito no infer diverge do ARIMA congelado no treino do dessem-regdin	confira a janela e a origem; o infer deve re-fitar sobre a mesma serie do treino
 warning.regdin_desagrega_fallback	contract	desagregaModeloSH falhou; usada a duplicacao :00/:30 do oraculo (aviso)	nenhuma acao: aviso registrado no envelope
+plugin.regdin_artifact_tampered	integrity	artefato congelado do dessem-regdin com forma incoerente (campo ausente ou SVMs fora de 24 por dia normal)	regenere o artefato com train-models; nao edite o artefato congelado
+warning.regdin_rng_deviation	repro	plano B de RNG ativo: set.seed re-fixado antes do perfil (aviso)	listado para o A/B do M8; nenhuma acao

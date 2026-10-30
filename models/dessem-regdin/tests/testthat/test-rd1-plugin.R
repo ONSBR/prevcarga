@@ -133,7 +133,8 @@ test_that("[RD.1] ids plugin.regdin_* constam em errors/dessem_regdin.tsv e carr
   tsv <- utils::read.delim(f, sep = "\t", colClasses = "character", quote = "", comment.char = "")
   expect_setequal(c("plugin.regdin_train_panel_has_origin", "plugin.regdin_history_short", "plugin.regdin_window_mismatch",
                     "plugin.regdin_arima_drift", "plugin.regdin_bad_exogena", "plugin.regdin_panel_contract",
-                    "plugin.regdin_series_gap", "warning.regdin_desagrega_fallback"), tsv$id)
+                    "plugin.regdin_series_gap", "warning.regdin_desagrega_fallback", "plugin.regdin_artifact_tampered",
+                    "warning.regdin_rng_deviation"), tsv$id)
   cat <- rd_lib$prevcarga_errors_load(file.path(rd_root(), "scripts", "lib", "errors"))
   expect_true(all(tsv$id %in% cat$id))
   expect_false(anyDuplicated(cat$id) > 0L)
