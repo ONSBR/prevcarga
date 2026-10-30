@@ -52,7 +52,7 @@
     weather_observed = data.table::data.table(area_code = character(), valid_time = ld$interval_start[0L],
                                               temperature = numeric()),
     weather_forecast = data.table::data.table(area_code = character(),
-                                              issue_time = lubridate::with_tz(ld$interval_start[0L], "UTC"),
+                                              issue_time = lubridate::as_datetime(numeric()),
                                               valid_time = ld$interval_start[0L], temperature = numeric()),
     attrs = list(tz = tz))
   h <- data.table::as.data.table(.rf_foundation("to_hourly")(stub)$load)

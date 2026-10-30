@@ -50,7 +50,8 @@ rf_semihourly_rule <- function(y_hourly) {
 .rf_blocks_to_delivery <- function(values, origins, cuts) {
   O <- .rf_origin(cuts)
   one <- function(b, last_day) {
-    t0 <- lubridate::force_tz(lubridate::as_datetime(origins[[b]] + 1L), tzone = cuts$tz)
+    t0 <- lubridate::make_datetime(lubridate::year(origins[[b]] + 1L), lubridate::month(origins[[b]] + 1L),
+                                    lubridate::day(origins[[b]] + 1L), 0L, tz = cuts$tz)
     ends <- seq(t0, by = "hour", length.out = ncol(values) + 1L)[-1L]
     x <- data.table::data.table(interval_end = ends, y = unname(values[b, ]))
     to_semihourly <- .rf_foundation("to_semihourly")
