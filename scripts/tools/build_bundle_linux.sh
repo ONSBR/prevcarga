@@ -27,9 +27,12 @@ inside() {
   umask 022
   export DEBIAN_FRONTEND=noninteractive LC_ALL=C.UTF-8 LANG=C.UTF-8 MAKEFLAGS=-j1 TZ=UTC
   rm -f /etc/apt/sources.list.d/* 2>/dev/null || true
+  # snapshot.ubuntu.com so atende por https e a imagem base nao traz certificados: ca-certificates (so confianca TLS do build,
+  # nunca entra no bundle) vem do archive padrao ANTES de trocar para o snapshot pinado
+  apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates >/dev/null
   {
     for suite in jammy jammy-updates jammy-security; do
-      echo "deb http://snapshot.ubuntu.com/ubuntu/${APT_SNAPSHOT} ${suite} main restricted universe multiverse"
+      echo "deb https://snapshot.ubuntu.com/ubuntu/${APT_SNAPSHOT} ${suite} main restricted universe multiverse"
     done
   } > /etc/apt/sources.list
   apt-get -o Acquire::Check-Valid-Until=false update -qq
