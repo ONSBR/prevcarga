@@ -248,8 +248,8 @@ prevcarga_bundle_require <- function(pkgs) {
 ## PASS/WARN/FAIL/N/A do doctor), `classes` (classe de erro por linha, NA nas que nao falham) e `campos` (JSON do doctor:
 ## runtime_id, version, platform, install_root, state_dir, artefatos[], state_bytes). So le arquivos; sem env, sem rede.
 ## Bundle instalado = RUNTIME.json em `ctx$root` ou um nivel acima (o `code/` do bundle fica sob a raiz do bundle). Na arvore de
-## dev (sem RUNTIME.json) todo item de bundle e `N/A (nao-instalado)`. `current` = arquivo-ponteiro (1 linha, a versao) ao lado
-## da raiz do bundle, sem symlink; difere da versao instalada => WARN. Classes: plataforma/R/integridade = bundle (6),
+## dev (sem RUNTIME.json) todo item de bundle e `N/A (nao-instalado)`. `current` = arquivo-ponteiro (1 linha, a versao) em <raiz>/current, com o bundle em <raiz>/versions/<v> (layout do
+## install.sh do M8.3), sem symlink; difere da versao instalada => WARN. Classes: plataforma/R/integridade = bundle (6),
 ## artefato ausente = state (13), sha divergente do SHA256SUMS = integrity (9).
 .prevcarga_pc_na <- "N/A (nao-instalado)"
 
@@ -338,7 +338,7 @@ prevcarga_platform_check <- function(ctx, host = .prevcarga_host_platform(), gli
                              if (v$ok) "ok" else paste(utils::head(v$divergentes, 3L), collapse = ","), "RUNTIME.json files[]",
                              if (v$ok) NA_character_ else "bundle")
   r_ver <- .prevcarga_pc_row("bundle.versao", "PASS", as.character(rt$version), as.character(campos$runtime_id))
-  curf <- file.path(dirname(broot), "current")
+  curf <- file.path(dirname(dirname(broot)), "current")   # layout do install.sh (M8.3): <raiz>/current + <raiz>/versions/<v>/
   r_cur <- if (!file.exists(curf) || dir.exists(curf)) .prevcarga_pc_row("bundle.current", "N/A", "ausente", "-")
            else {
              cv <- trimws(readLines(curf, n = 1L, warn = FALSE))

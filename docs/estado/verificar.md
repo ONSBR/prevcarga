@@ -32,10 +32,9 @@ O handler do verbo acrescenta 7 linhas ao construtor (introspect.R nao mudou) e 
 state_dir, artefatos[], state_bytes`. Bundle instalado = `RUNTIME.json` na raiz (`ctx$root`) ou um nivel acima (o `code/` do bundle); na
 arvore de dev as 7 linhas sao `N/A (nao-instalado)`. Linhas: `bundle.plataforma` (platform do RUNTIME.json == host; Linux exige glibc >= 2.35),
 `bundle.r_version`, `bundle.integridade` (`prevcarga_runtime_validate`) => FAIL classe 6; `bundle.versao`; `bundle.current` (arquivo-ponteiro
-`current` ao lado da raiz do bundle, sem symlink; versao diferente => WARN; ausente => N/A); `artefatos.presenca` (`latest.txt` -> `v_<hash>`
+`<raiz>/current` com o bundle em `<raiz>/versions/<v>` (layout do install.sh do M8.3), sem symlink; versao diferente => WARN; ausente => N/A); `artefatos.presenca` (`latest.txt` -> `v_<hash>`
 ausente => FAIL classe 13) e `artefatos.sha` (SHA256SUMS local divergente => FAIL classe 9) sobre `<state_dir>/artifacts/**/latest.txt`.
 `state_bytes` = bytes por subarvore de `state_dir`. O exit combina as classes pela precedencia do ADR-0040.
-Suposicao a conferir com o dono do instalador (M8.3): o layout de `current` (aqui, arquivo `current` irmao da raiz do bundle).
 
 ## Pendencias
 - O `export` (M6.2) NAO grava `run_manifest.json` na entrega; sem ele o `verificar` sai com exit 2 (identidade). Fechar no forecast/export.

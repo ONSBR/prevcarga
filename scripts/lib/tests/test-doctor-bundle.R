@@ -92,7 +92,7 @@ test_that("[FORBIDDEN] platform/r_version do RUNTIME.json divergentes e arquivo 
 })
 
 test_that("platform_check in-process: glibc < 2.35 reprova no Linux; current divergente avisa", {
-  d <- tempfile("pc-pcheck-"); b <- file.path(d, "v1"); dir.create(file.path(b, "code"), recursive = TRUE)
+  d <- tempfile("pc-pcheck-"); b <- file.path(d, "versions", "9.9.9"); dir.create(file.path(b, "code"), recursive = TRUE)
   writeLines(as.character(jsonlite::toJSON(list(version = "9.9.9", platform = "linux-x86_64", r_version = rver, files = list()),
                                            auto_unbox = TRUE)), file.path(b, "RUNTIME.json"))
   ctx <- list(root = file.path(b, "code"), state_dir = file.path(d, "state"), version = "x")
@@ -100,6 +100,9 @@ test_that("platform_check in-process: glibc < 2.35 reprova no Linux; current div
   expect_identical(bad$rows$status[bad$rows$check == "bundle.plataforma"], "FAIL")
   ok <- H$prevcarga_platform_check(ctx, host = "linux-x86_64", glibc = "2.35", r_version = rver)
   expect_identical(ok$rows$status[ok$rows$check == "bundle.plataforma"], "PASS")
+  writeLines("9.9.9", file.path(d, "current"))
+  same <- H$prevcarga_platform_check(ctx, host = "linux-x86_64", glibc = "2.39", r_version = rver)
+  expect_identical(same$rows$status[same$rows$check == "bundle.current"], "PASS")
   writeLines("1.0.0", file.path(d, "current"))
   cur <- H$prevcarga_platform_check(ctx, host = "linux-x86_64", glibc = "2.39", r_version = rver)
   expect_identical(cur$rows$status[cur$rows$check == "bundle.current"], "WARN")
