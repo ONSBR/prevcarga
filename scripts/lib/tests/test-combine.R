@@ -42,7 +42,7 @@ test_that("M4.4 - ac-0 docopt parseia combine (braco com skip)", {
   o <- E$.prevcarga_parse(c("combine", "--mode=full", "--area=SECO", "--root=r", "--data=d", "--out=o.parquet"), verbs)
   expect_true(isTRUE(o$combine))
   expect_identical(o[["--mode"]], "full")
-  o2 <- E$.prevcarga_parse(c("combine", "--mode=full", "--area=SECO", "--root=r", "--from=2024-01-01"), verbs)
+  o2 <- E$.prevcarga_parse(c("combine", "--mode=full", "--area=SECO", "--root=r", "--until=2024-01-01"), verbs)
   expect_null(o2)                                                    # CONTROL: nenhum flag de data alem de --origin
 })
 
