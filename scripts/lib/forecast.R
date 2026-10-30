@@ -341,6 +341,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsi
   result <- .forecast_result(g, plan, rec, key, versao, niveis, exp, unclass(rep)[c("status", "path")])
   ## falha do report apos a entrega (M6.10): a chave forecasts/ ja foi commitada e nao e desfeita; sobe exit 14 com o result completo
   if (identical(rep$status, "failed"))
-    prevcarga_abort("partial.report_failed", where = "prevcarga_forecast", details = list(cause = attr(rep, "cause")), result = result)
+    prevcarga_abort("partial.report_failed", where = "prevcarga_forecast", details = list(cause = attr(rep, "cause")),
+                    result = c(result, list(warnings = sink$get())))
   list(result = result, warnings = sink$get())
 }

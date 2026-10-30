@@ -283,7 +283,7 @@ prevcarga_svg_profile <- function(x = NULL, y, labels = NULL, width = 720, heigh
   dir.create(out, recursive = TRUE, showWarnings = FALSE)
   path <- file.path(out, "report.pdf")
   ok <- FALSE
-  grDevices::pdf(path, width = 11.69, height = 8.27, family = "Helvetica", compress = FALSE, useKerning = FALSE,
+  grDevices::pdf(path, width = 11.69, height = 8.27, family = "Helvetica", compress = FALSE, useKerning = FALSE, timestamp = FALSE,
                  title = .pdf_ascii(paste("prevcarga forecast", provenance$origem)))
   on.exit({ grDevices::dev.off(); if (!ok) unlink(path) }, add = TRUE)
   tt <- .report_titles

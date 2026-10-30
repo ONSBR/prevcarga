@@ -44,7 +44,7 @@
   `compress = FALSE`, `useKerning = FALSE` para o texto ficar legivel nos bytes; so ASCII, o resto vira `?`), mesmos dados/linhas dos blocos HTML (`.report_available_until_lines`, `.report_khat_rows`, `.report_proveniencia_lines`,
   `.report_pesos_rows`, `.report_baselines_rows`) em `<state_dir>/reports/<origem>/<available_until>/<versao>/report.pdf`. Parenteses no PDF saem escapados (`\\(`). Falha do report (qualquer erro) DEPOIS do commit
   da entrega: `prevcarga_forecast` aborta `partial.report_failed` (exit 14) com `result` completo (`report = {status "failed", path NULL}`, causa em `details$cause`); `forecasts/` fica identico a uma rodada sem report.
-  Os `warnings` da rodada nao viajam no exit 14 (o abort leva so o result). Testes: `test-report_pdf.R`.
+  Os `warnings` da rodada (gate-0/reconcile/export, `list(id, message)`) viajam no exit 14 em `result$warnings`. O PDF e byte-deterministico (`timestamp = FALSE`: sem CreationDate/ModDate). Testes: `test-report_pdf.R`.
 - Alteracoes fora do forecast.R: (a) `exports.R` `prevcarga_forecast_versao`: `sorted()` aceita lista vazia (entrega so de folhas soltas tem `khat` vazio; antes `order(NULL)` abortava);
   (b) `inference.R` `.prevcarga_inf_cuts`: `deck_areas` = areas do deck INTERSECAO folhas da topologia. Sem isso o infer de um deck que tem serie de subsistema (necessaria ao k-hat)
   abortava `topology.area_undeclared` no leitor de painel (o deck real tem SECO/S/N/NE).

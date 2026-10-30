@@ -149,3 +149,34 @@ test_that("catalogo: partial.report_failed declarado em errors/report.tsv, class
   row <- env$prevcarga_error_lookup("partial.report_failed")
   expect_identical(row$class, "partial")
 })
+
+test_that("[determinismo] mesmo insumo => PDF byte-identico (sem relogio); CONTROL: dado diferente muda os bytes", {
+  sha <- function(p) digest::digest(file = p, algo = "sha256")
+  a <- pdf_path(); Sys.sleep(1.1); b <- pdf_path()
+  expect_identical(sha(a), sha(b))
+  expect_false(grepl("CreationDate|ModDate", pdf_text(a)))
+  expect_false(identical(sha(a), sha(pdf_path(weights = mk_weights(0.61)))))
+  expect_false(identical(sha(a), sha(pdf_path(khat = mk_khat(versao = "v_aaaaaaaaaaaaaaaa")))))
+})
+
+test_that("[AC3] exit 14 carrega os warnings da rodada em result$warnings (list(id, message))", {
+  spied()
+  old_s <- env$.forecast_warn_sink; old <- env$.report_pdf
+  withr::defer({ assign(".forecast_warn_sink", old_s, envir = env); assign(".report_pdf", old, envir = env) })
+  assign(".forecast_warn_sink", function() {
+    s <- old_s()
+    s$add("warning.teste_injetado", "aviso injetado")
+    s
+  }, envir = env)
+  assign(".report_pdf", function(...) stop("falha injetada"), envir = env)
+  cond <- tryCatch(env$prevcarga_forecast(fx_copy(), skip_validate = TRUE, report = TRUE, report_format = "pdf"),
+                   prevcarga_error = identity)
+  expect_identical(cond$id, "partial.report_failed")
+  ids <- vapply(cond$result$warnings, function(x) x$id, "")
+  expect_true("warning.teste_injetado" %in% ids)
+  expect_true(all(vapply(cond$result$warnings, function(x) all(c("id", "message") %in% names(x)), NA)))
+  ## CONTROL: rodada sem report devolve os mesmos warnings em $warnings
+  assign(".report_pdf", old, envir = env)
+  r <- env$prevcarga_forecast(fx_copy(), skip_validate = TRUE)
+  expect_true("warning.teste_injetado" %in% vapply(r$warnings, function(x) x$id, ""))
+})
