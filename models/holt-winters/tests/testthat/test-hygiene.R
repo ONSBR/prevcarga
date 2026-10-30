@@ -45,35 +45,9 @@ HG_PLANT <- c(getenv = "Sys.getenv('A')", systime = "Sys.time()", sysdate = "Sys
               to_model_frame = "to_model_frame(x, 60L)", to_display_frame = "to_display_frame(x, 60L)",
               prevcarga_env = "PREVCARGA_DATA_DIR")
 
-## linhas [ini, fim] do corpo de `fname` (atribuicao de topo) em `file`
-hg_fn_range <- function(file, fname) {
-  ex <- parse(file, keep.source = TRUE); sr <- attr(ex, "srcref")
-  for (i in seq_along(ex)) {
-    e <- ex[[i]]
-    if (is.call(e) && as.character(e[[1L]])[1L] %in% c("<-", "=") && identical(as.character(e[[2L]]), fname))
-      return(c(sr[[i]][[1L]], sr[[i]][[3L]]))
-  }
-  c(NA_integer_, NA_integer_)
-}
-
-## Unica excecao da aritmetica de hora (declarada): o `+ hours(6)` do flag historico de horario de verao em `.hw_compute_hv`
-## (rotulo, nao deslocamento de frame). Os with_tz/force_tz de `.hw_compute_hv` (fuso de Sao Paulo as 06:00 UTC) e de `.hw_slot`
-## (leitura do slot no fuso do deck) so convertem a exibicao; nenhuma outra linha passa.
-hg_arith_residual <- function(model_dir) {
-  h <- hg_arith(model_dir, allow = list())
-  if (!nrow(h)) return(h)
-  keep <- vapply(seq_len(nrow(h)), function(i) {
-    f <- h$file[[i]]; if (basename(f) != "ingestion.R") return(TRUE)
-    rhv <- hg_fn_range(f, ".hw_compute_hv"); rsl <- hg_fn_range(f, ".hw_slot")
-    ln <- h$line[[i]]; p <- h$pattern[[i]]
-    in_hv <- !is.na(rhv[[1L]]) && ln >= rhv[[1L]] && ln <= rhv[[2L]]
-    in_sl <- !is.na(rsl[[1L]]) && ln >= rsl[[1L]] && ln <= rsl[[2L]]
-    sanctioned <- (p %in% c("period_arith", "hours_call") && in_hv && grepl("+ lubridate::hours(k$hv_shift_hours)", h$text[[i]], fixed = TRUE)) ||
-      (p == "tz_fns" && (in_hv || in_sl))
-    !sanctioned
-  }, NA)
-  h[keep]
-}
+## Aritmetica de hora: ZERO excecoes (allow vazio). O flag de horario de verao monta o instante 06:00 UTC com make_datetime e le o
+## offset com format(tz =), sem somar horas nem force_tz/with_tz.
+hg_arith_residual <- function(model_dir) hg_arith(model_dir, allow = list())
 
 test_that("[PLUGINS] higiene_grep: zero hits dos padroes proibidos e da aritmetica de hora em models/holt-winters/R; CONTROL plantado em copia", {
   rdir <- file.path(hw_root(), "models", "holt-winters", "R")
@@ -83,11 +57,6 @@ test_that("[PLUGINS] higiene_grep: zero hits dos padroes proibidos e da aritmeti
   expect_identical(nrow(h), 0L, info = fmt(h))
   r <- hg_arith_residual(file.path(hw_root(), "models", "holt-winters"))
   expect_identical(nrow(r), 0L, info = fmt(r))
-  ## a excecao e a unica: o `+ hours(6)` de .hw_compute_hv existe e e a unica linha do plugin com hours()
-  hv <- hg_arith(file.path(hw_root(), "models", "holt-winters"), allow = list())
-  expect_identical(unique(hv$pattern[hv$pattern != "tz_fns"]), "period_arith")
-  expect_identical(sum(hv$pattern == "period_arith"), 1L)
-
   ## CONTROL: cada padrao plantado numa copia e apanhado (a linha so-comentario nao conta)
   d <- withr::local_tempdir(); dir.create(file.path(d, "R"))
   f <- file.path(d, "R", "plant.R")
@@ -97,21 +66,16 @@ test_that("[PLUGINS] higiene_grep: zero hits dos padroes proibidos e da aritmeti
   expect_false((length(HG_PLANT) + 1L) %in% hp$line)
   expect_setequal(names(HG_PLANT), names(HG_FORBIDDEN))
 
-  ## CONTROL da aritmetica de hora: copia do plugin limpa => 0; `+ hours(1)` fora de .hw_compute_hv => apanhado; segunda
-  ## `+ hours(k)` DENTRO de .hw_compute_hv (nao a excecao exata) => apanhado; with_tz fora das 2 funcoes => apanhado
+  ## CONTROL da aritmetica de hora: copia do plugin limpa => 0; `+ hours(1)`, force_tz e with_tz plantados => apanhados
   cp <- file.path(withr::local_tempdir(), "holt-winters"); dir.create(cp)
   file.copy(rdir, cp, recursive = TRUE)
   expect_identical(nrow(hg_arith_residual(cp)), 0L)
   ing <- file.path(cp, "R", "ingestion.R"); txt <- readLines(ing)
-  writeLines(c(txt, ".hw_plant <- function(x) x + lubridate::hours(1)"), ing)
-  rr <- hg_arith_residual(cp)
-  expect_identical(unique(rr$line), length(txt) + 1L)
-  writeLines(txt, ing)
-  at <- grep("^\\.hw_compute_hv <- function", txt)
-  writeLines(append(txt, "  base <- base + lubridate::hours(1)", after = at + 1L), ing)
-  expect_gt(nrow(hg_arith_residual(cp)), 0L)
-  writeLines(c(txt, ".hw_plant2 <- function(x) lubridate::with_tz(x, 'UTC')"), ing)
-  expect_identical(unique(hg_arith_residual(cp)$line), length(txt) + 1L)
+  for (bad in c(".hw_plant <- function(x) x + lubridate::hours(1)", ".hw_plant <- function(x) lubridate::with_tz(x, 'UTC')",
+                ".hw_plant <- function(x) lubridate::force_tz(x, 'UTC')")) {
+    writeLines(c(txt, bad), ing)
+    expect_identical(unique(hg_arith_residual(cp)$line), length(txt) + 1L, info = bad)
+  }
   writeLines(txt, ing)
   other <- file.path(cp, "R", "training.R")
   writeLines(c(readLines(other), "z <- y - lubridate::minutes(30)"), other)

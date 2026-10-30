@@ -29,8 +29,8 @@ O estado duravel (decisoes, paridade, ids de erro) mora em `docs/estado/holt_win
 
 ## Layout nativo e hora
 
-O plugin nao faz aritmetica de hora (princ. 7). Unica excecao declarada: o `+ hours(6)` do flag historico de horario de verao em `.hw_compute_hv`
-(rotulo, nao deslocamento de frame). Datas por lubridate com tz explicito; sem variaveis de ambiente.
+O plugin nao faz aritmetica de hora (princ. 7), sem excecoes: o flag historico de horario de verao monta o instante 06:00 UTC com
+`make_datetime` e le o offset com `format(tz =)`; o slot le hora/minuto por `format(tz =)`. Datas por lubridate com tz explicito; sem variaveis de ambiente.
 
 ## Desvios conscientes do oraculo
 
