@@ -129,7 +129,7 @@ test_that("ac-3 sentinela: cada valor cai no intervalo da sua hora (interval_sta
   if (unlock) unlockBinding("desagregaModeloSH", eng)
   assign("desagregaModeloSH", function(modelo, dadosMdl) stop("forcado"), envir = eng)
   pp <- get(".dl_predict_pass", envir = p$env, inherits = FALSE)
-  assign(".dl_predict_pass", function(a, f, dm_head) {
+  assign(".dl_predict_pass", function(a, f, dm_head, ...) {
     sp <- f$seriePF[Prev == TRUE, .(DataHora)]
     sp[, Carga := as.numeric(as.integer(lubridate::as_date(DataHora) - f$cuts$origin_day)) * 100 + lubridate::hour(DataHora)]
     sp[]
@@ -224,4 +224,52 @@ test_that("ac-6 ENV ignorado, formals sem params, cauda de EXOGENAPREV curta com
     src <- sub("#.*$", "", readLines(file.path(dl_models(), "dessem-linear", "R", f), warn = FALSE))
     expect_false(any(grepl("Sys\\.(getenv|time|setenv)|[+-]\\s*3600|difftime|with_tz|as\\.POSIX|<<-|minutes\\(|hours\\(", src, perl = TRUE)))
   }
+})
+
+## Corte 00h (decisao do Gabriel): available_until = O 00:00 => nenhuma carga do dia O, como se nao houvesse informacao
+## de O. `mm` fica sem a linha de O e a DM(O) e o SVM_DemandaMedia puro do motor (sem mm), ajustado logo apos
+## set.seed(artifact$seed): o modo "paridade" do oraculo com origin_day = O-1 (dataPrev = O).
+test_that("00h: available_until O 00:00 entrega os 9 dias sem abortar, DM(O) sem mm (no_day_o); CONTROL 09:00 usa a cabeca e difere", {
+  st <- di_state(); p <- st$p; eng <- st$eng; O <- di_O()
+  spy <- di_spy(eng)
+  seen <- new.env(); seen$fml <- list()
+  spied <- get("tune_wsvm", envir = eng, inherits = FALSE)
+  unlock <- bindingIsLocked("tune_wsvm", eng); if (unlock) unlockBinding("tune_wsvm", eng)
+  assign("tune_wsvm", function(formula, ...) { seen$fml <- c(seen$fml, list(formula)); spied(formula, ...) }, envir = eng)
+  au <- di_au(0L)
+  pan00 <- di_panel(until = au)
+  pan00$weather_forecast <- pan00$weather_forecast[issue_time <= au]   # a emissao 06Z do fixture sai depois de O 00:00
+  e00 <- di_infer(p, st$art, 0L, panel = pan00)
+  assign("tune_wsvm", spied, envir = eng); if (unlock) lockBinding("tune_wsvm", eng)
+  spy$restore()
+  ## 1 ajuste so (a DM(O)), sem `mm` na formula, a partir de set.seed(seed)
+  expect_identical(spy$log$n, 1L)
+  expect_false("mm" %in% all.vars(seen$fml[[1L]]))
+  set.seed(as.integer(st$art$payload$seed)); expect_identical(spy$log$seed0, get(".Random.seed", globalenv()))
+  ## 9 dias completos: matriz 9x48 finita e entrega = grade da fundacao desde O 00:30 (432 meias horas)
+  expect_identical(dim(e00$values), c(9L, 48L)); expect_true(all(is.finite(e00$values)))
+  grid <- dl_lib$prevcarga_delivery_grid(di_cuts(available_until = au), 9L)
+  expect_identical(e00$delivery$interval_end, grid); expect_length(grid, 9L * 48L)
+  expect_true(all(is.finite(e00$delivery$y_pred)))
+  expect_identical(e00$meta$dm_o_mode, "no_day_o"); expect_false(e00$meta$dm_head_refit)
+  ## a DM(O) e exatamente o SVM_DemandaMedia do motor apos set.seed (mesmo best.model)
+  cuts <- di_cuts(available_until = au)
+  m <- dl_model_panel(pan00, cuts)
+  frame <- dl_with_cli(suppressMessages(p$descriptor$stages$ingestion$fn(m$panel, m$cuts)))
+  inf <- dl_with_cli(suppressMessages(p$descriptor$stages$inference_features$fn(frame, st$art$payload)))
+  expect_false(O %in% inf$mm$Data)
+  a <- p$env$dl_thaw(st$art$payload)
+  set.seed(as.integer(a$seed)); m_fit <- suppressMessages(p$env$dl_dm_o_fit(a, inf))
+  set.seed(as.integer(a$seed)); m_eng <- eng$SVM_DemandaMedia(format(O), inf$serieDM, inf$config_mdl)$modeloTreinado
+  expect_equal(m_fit, m_eng)                                           # objetos iguais (a formula leva env efemero)
+  for (k in c("SV", "coefs", "rho", "cost", "epsilon", "gamma")) expect_identical(m_fit[[k]], m_eng[[k]], info = k)
+  expect_false("mm" %in% attr(m_fit$terms, "term.labels"))
+  ## CONTROL: 09:00 usa a cabeca (mm[O]) e a saida de O difere da do 00h
+  e09 <- st$e09
+  expect_identical(e09$meta$dm_o_mode, "nowcast"); expect_true(e09$meta$dm_head_refit)
+  expect_gt(max(abs(e09$values[1L, ] - e00$values[1L, ])), 1e-5)
+  ## forecast acoplado no 00h: mesmo caminho (no_day_o), 9 dias, sem abortar
+  fc <- dl_with_cli(suppressMessages(suppressWarnings(p$env$plugin_forecast(m$panel, m$cuts, dl_spec("MED", 60L)))))
+  expect_identical(fc$meta$dm_o_mode, "no_day_o")
+  expect_identical(dim(fc$values), c(9L, 48L)); expect_true(all(is.finite(fc$values)))
 })
