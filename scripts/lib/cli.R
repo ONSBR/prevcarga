@@ -23,7 +23,7 @@ prevcarga_cli_dir <- function() {
 prevcarga_verbs_planned <- c(
   `validate-deck` = "M2", score = "M3", `check-coherence` = "M3", combine = "M4",
   reconcile = "epico Reconcile", `train-models` = "M5", `infer-model` = "M5", registry = "M5",
-  features = "M6", forecast = "M6", export = "M6", backtest = "M7", plan = "M7",
+  features = "M6", forecast = "M6", export = "M6",
   verificar = "M8", `release-pack` = "M8")
 
 ## --- Flags globais (bloco Options do docopt). Default e do config.R, nunca do docopt. ------------------
@@ -49,7 +49,7 @@ prevcarga_verbs_planned <- c(
   } else {
     list(verb = rec$name, owner = as.character(rec$owner), exempt = isTRUE(rec$exempt),
          modules = as.character(rec$modules), usage = rec$usage,
-         options = as.character(rec$options), handler = rec$handler)
+         options = as.character(rec$options), scoped = as.character(rec$scoped), handler = rec$handler)
   }
 }
 
@@ -63,6 +63,7 @@ prevcarga_verbs_planned <- c(
     stringsAsFactors = FALSE)
   df$modules <- lapply(rows, function(r) r$modules)
   df$options <- lapply(rows, function(r) r$options)
+  df$scoped <- lapply(rows, function(r) r$scoped)
   df$handler <- lapply(rows, function(r) r$handler)
   if (n == 0L) df <- df[0, , drop = FALSE]
   rownames(df) <- NULL
@@ -130,6 +131,21 @@ prevcarga_usage <- function(verbs) {
     for (x in m) { nm <- c(nm, sub("=.*$", "", x)); takes <- c(takes, grepl("=", x, fixed = TRUE)) }
   }
   stats::setNames(takes, nm)
+}
+
+## Flags de ESCOPO (campo `scoped` do registro do verbo, ex.: --corte/--protocol/--break-lock do backtest/plan): valem so nos
+## verbos que as declaram em `scoped`; em qualquer outro verbo => config.usage (exit 8), apesar de o bloco Options do docopt ser global.
+.prevcarga_check_scoped <- function(verb, verbs, args) {
+  for (i in seq_len(nrow(verbs))) {
+    if (identical(verbs$verb[[i]], verb)) next
+    sc <- setdiff(verbs$scoped[[i]], verbs$scoped[[which(verbs$verb == verb)]])
+    for (f in sc) {
+      v <- args[[f]]
+      if (!is.null(v) && length(v) && !identical(v, FALSE) && !all(is.na(v)))
+        prevcarga_abort("config.usage", where = f, details = list(hint = sprintf("%s so vale em %s", f, verbs$verb[[i]])))
+    }
+  }
+  invisible(NULL)
 }
 
 .prevcarga_usage_culprit <- function(argv, verbs) {
@@ -273,6 +289,7 @@ prevcarga_main <- function(argv, verbs = prevcarga_verbs_discover(), root, runti
     if (length(hit) != 1L)
       prevcarga_abort("config.usage", where = .prevcarga_usage_culprit(argv, verbs))
     st$verb <- hit
+    .prevcarga_check_scoped(hit, verbs, args)
     row <- verbs[verbs$verb == hit, , drop = FALSE]
     withCallingHandlers(
       .prevcarga_run_verb(hit, row, args, root, runtime, handlers, st),

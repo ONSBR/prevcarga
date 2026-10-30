@@ -10,4 +10,4 @@ weather_issue_cutoff: available_until   # available_until|origin_midnight_utc (A
 color: auto                             # auto|always|never; default auto
 format: text                            # text|json; default text
 backtest:
-  corte_default: null                   # HH:MM ou null (consumido pelo M7)
+  corte_default: "08:00"                # HH:00 ou HH:30 (default 08:00); corte intradiario do backtest/plan (M7.1)
