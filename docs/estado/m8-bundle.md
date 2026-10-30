@@ -66,8 +66,8 @@ catalogo, `bundle.package_missing`, tarball). Os bracos que dependem de `dist/` 
 - Os pacotes de teste do host (compilados em noble) NAO carregam contra o libstdc++ do jammy do bundle; so afeta o harness de teste.
 
 ## Pendencias
-- [DEFERRED M8.x] tiers de paridade (`--tier parity|parity-full`), A/B completo contra o oraculo e cross-OS DENTRO do bundle: nao sao deste ticket;
-  dono a atribuir pelo orquestrador (candidato: M8.12, que reusa `bundle_gates.R`; a A/B nasce no M7 e o gate `cross_os` ja esta [DEFERRED M8]).
+- [DEFERRED M8.8] tiers de paridade (`--tier parity|parity-full`) e A/B completo Delta=0 contra o oraculo DENTRO do bundle: dono M8.8 ("A/B contra prevcargadessem3").
+- [DEFERRED M8.6/M8.7] gate `cross_os` (artefato Linux -> Windows) e braco Windows.
 - [DEFERRED M8.x] braco Windows (build, `windows-x86_64`, `bundle.platform_mismatch` no doctor): dono M8.6/M8.7; nao executavel nesta maquina.
 - `prevcarga doctor` ainda nao chama `prevcarga_bundle_require`/`prevcarga_runtime_validate` (introspect.R nao e deste ticket): dono M8.7.
 - dessem-linear (max_rel 2.2e-13) segue pendente de decisao do Gabriel (m1-spike-r453.md); nao tratado aqui.
