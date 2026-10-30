@@ -33,7 +33,13 @@
   {path, area, linhas, sha256} TODO arquivo entregue (folhas, membros, subsistemas e SIN), senao o export os omitiria com `completude.export_file_missing`.
   `runtime_id` = R + plataforma (deterministico); `generated_at` vem do ctx (unico campo nao deterministico do manifest).
 - Avisos: `warnings` = avisos do catalogo capturados (gate-0 `warning.<what>`, `reconcile.*`, `completude.export_file_missing`) como `list(id, message)`; o verbo (M6.9) os emite.
-- Report: `report = list(status = "skipped", path = NULL)` ate o M6.5 liga-lo.
+- Report (M6.5, `scripts/lib/reporting.R`, errors/reporting.tsv `contract.report_input`): `report = TRUE` roda `.forecast_report_step` DEPOIS do export; `result$report = {status "ok", path}` com
+  `path = <state_dir>/reports/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/report.html` (fora de `forecasts/`; a entrega e identica com e sem report; erro do report vira `status "failed"` + `error`, nunca
+  derruba a entrega). Primitivas reusaveis pelo M7: `prevcarga_html_escape` (escapador unico), `prevcarga_html_page`, `prevcarga_html_heatmap`, `prevcarga_svg_profile`; sem script/Plotly/fonte externa, UTF-8+LF,
+  sem relogio (byte-identico para o mesmo insumo). Blocos `curva` (dia O por SIN/subsistema/folha), `available-until` (global e por area), `pesos`, `khat` (copia o result do reconcile: versao, khat_origin,
+  khat_age_days), `baselines` (diferenca media do previsto vs persistencia O-1 e sazonal O-7; `prevcarga_baseline` le carga <= O 00:00 <= available_until) e `proveniencia`. Nunca le a verdade do painel nem
+  emite metrica de acerto. Pesos = media por membro dos pesos congelados do corte da rodada (a combina nao tem intercepto: 0). `format = "pdf"` -> `todo.not_implemented` ate o M6.10 (exit 14 tambem e do M6.10).
+  `.forecast_leaves` agora tambem devolve `weights` (tabela do apply por folha). Testes: `test-reporting.R` (blocos, CONTROL peso/available_until, FORBIDDEN y_true/carga apos o corte, escape, entrega com/sem report).
 - Alteracoes fora do forecast.R: (a) `exports.R` `prevcarga_forecast_versao`: `sorted()` aceita lista vazia (entrega so de folhas soltas tem `khat` vazio; antes `order(NULL)` abortava);
   (b) `inference.R` `.prevcarga_inf_cuts`: `deck_areas` = areas do deck INTERSECAO folhas da topologia. Sem isso o infer de um deck que tem serie de subsistema (necessaria ao k-hat)
   abortava `topology.area_undeclared` no leitor de painel (o deck real tem SECO/S/N/NE).

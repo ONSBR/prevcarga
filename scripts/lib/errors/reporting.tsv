@@ -1,0 +1,2 @@
+id	class	message	hint
+contract.report_input	contract	entrada do relatorio invalida (long, weights, khat, provenance, baselines ou fmt)	confira os campos exigidos por prevcarga_report
