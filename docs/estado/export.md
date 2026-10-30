@@ -19,3 +19,17 @@
 - Nome da entrega: o manifest da entrega e `manifest.json` (fixado pelo ticket/blueprint). O guard do leitor unico (m2_single_reader*,
   test-deck-reader) mira REFERENCIAS ao manifest do DECK: o literal em linha de codigo, exceto a linha que e so ESCRITA (write*), com
   CONTROL de que a escrita do export nao casa e de que toda leitura/atribuicao do literal fora do deck_reader.R casa. Sem excecao por nome.
+
+## M6.7 -- chave imutavel da entrega
+- `exports.R`: `prevcarga_forecast_versao(parts)` (12 hex), `prevcarga_export_key(origin, available_until, versao, tz)` e `.export_key_check`.
+  Layout `forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>` (mesmo prefixo `forecasts/` do bucket, ADR-0039): ASCII, sem `:`, separador `/`; data/hora do
+  `available_until` no tz da carga (lubridate, sem relogio, sem conta de hora). `run_id` = 12 hex do sha256 da chave (nunca PID/relogio).
+- `versao`: o `prevcarga_version_hash` (provenance.R) exige EXATAMENTE 8 chaves; os insumos da entrega sao mapeados nelas (model_id = "forecast",
+  code_commit = versao do pacote, data_fingerprint = v_<hash> do k-hat por ss, feature_config = membros + pesos da combina + hash da topologia,
+  cutoff = weather_issue_cutoff, load_label, load_tz = null). Ordem de membros/subsistemas e invariante. O `v_` do hash e removido (12 hex).
+- Imutavel: o check roda no staging pronto, antes do `file.rename`. Chave ausente => publica; existente com mesmo conjunto de arquivos e sha256 =>
+  no-op (`ja_publicado = TRUE`, bytes e manifest originais preservados, staging removido); qualquer diferenca (inclusive arquivo adulterado ou
+  a mais) => `integrity` `export.key_conflict` (exit 9, `details$path` = 1o divergente em ordem radix), nada sobrescrito. O nome do manifest
+  da entrega sai do retorno da escrita (sem literal em linha de leitura), para nao enfraquecer o gate do leitor unico.
+- Catalogo: `scripts/lib/errors/export_key.tsv`. Testes: `test-exports_key.R`. O verbo `export` ainda usa a chave PROVISORIA (gramatica final: M6.9).
+- Aberto: a chave de cache do M7.2 tem 16 hex (nao 64); a `versao` aqui e 12 hex (regex aceita 12 a 64). Nao tratado neste ticket.

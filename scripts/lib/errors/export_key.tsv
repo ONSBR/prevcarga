@@ -1,0 +1,2 @@
+id	class	message	hint
+export.key_conflict	integrity	a chave de entrega ja publicada tem conteudo diferente do novo (chave imutavel); nada foi sobrescrito	a chave publicada e imutavel; gere nova versao
