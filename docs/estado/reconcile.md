@@ -39,3 +39,28 @@ Desvios do plano original, por unify: (1) nao existe `prevcarga_khat_promote` (g
 `prevcarga_khat_advance_latest` + core); (2) assinaturas recebem `ctx` em vez de `root`; (3) adulteracao no thaw sai
 `integrity.artifact_hash` (exit 9, SHA256SUMS do core) e nao `integrity.freeze_sha_mismatch`; (4) manifest e
 `run_manifest.json` (nome do core), com `arquivos[{path:'artifact.rds', sha256}]`. Consumidores (R.3, CLI) chamam esta API.
+
+## R.3 -- orquestracao train/apply (`reconcile.R`, secao final)
+- `prevcarga_reconcile_train(ctx, origin, subsystems = "all", window_days)`: `last_data_day` de `prevcarga_resolve_cuts(ctx, O)` (dates.R,
+  sem conta de corte local); verdade SO por `prevcarga_read_load(ctx, areas = c(folhas, ss), from = O-W, to = O-1)`; ratio -> fit ->
+  meta (convencao `load_label`/`tz` vem dos atributos do leitor) -> `prevcarga_khat_freeze` -> `prevcarga_khat_advance_latest` (unify R.2;
+  nao existe `prevcarga_khat_promote`). Devolve por ss `{versao, path, khat_origin, n_ratio, promovido, k_hat_resumo{min,max,fora_faixa}}`;
+  `fora_faixa` conta celulas do perfil fora de `khat_range` (so informa, nunca clampa).
+- `prevcarga_khat_check_policy(prof, ctx, origin)`: unico lugar da politica de uso do perfil. **khat_origin == O sempre, com ou sem pino
+  (Gabriel, 2026-10-29)**: o k-hat e REAJUSTADO POR ORIGEM, como o oraculo (Delta = 0); nunca ha reuso de perfil de outra origem.
+  Posterior => `honesty.khat_after_origin`; anterior => `state.khat_missing` (rode train para esta origem); convencao =>
+  `contract.khat_convention` (`where` = `load_label`|`timezone`). O pino (`khat_version`) so escolhe entre versoes ajustadas EM O.
+  `khat_age_days` e sempre 0L (mantido por contrato de saida do `result$khat`).
+  `.prevcarga_khat_resolve_for_origin` acha a versao da origem (latest se for dela; senao varre as versoes da celula, pois o backtest
+  treina para tras e o `latest.txt` so anda para frente). O registry/`latest.txt` (R.2) segue so armazenando/resolvendo o perfil de uma origem.
+  Convencao efetiva = `ctx$load_label`/`ctx$tz`, ou o manifest do deck quando ausentes.
+- `prevcarga_reconcile_apply(long_leaves, ctx, subsystems = "all", khat_version = NULL, eval = FALSE)`: valida a entrada (`assert_long`;
+  uma unica `forecast_origin`), recusa subsistema pedido que nao fecha (`completude.leaf_missing`, `where` = folhas ausentes; nada devolvido),
+  resolve+thaw+politica+khat_apply por ss, SIN so quando todos os subsistemas da topologia foram pedidos. Nada grava em disco.
+  Retorno `{long{ss..., SIN|NULL}, khat, cobertura_descartada, wmape|NULL, scorecard|NULL, warnings}`.
+- `need_truth = eval`: sem `eval` nenhum leitor e chamado e `y_true` e NA. Com `eval`, `prevcarga_read_actual` por area (a saida nao traz a
+  coluna da area), casado por `target_datetime == interval_end`; `wmape{bottomup, reconciliado, teto}` por `prevcarga_wmape`
+  (`teto` = BU_pred + (SS_true - BU_true)); `y_true` do SIN = soma dos `y_true` dos subsistemas; `y_pred` independe da verdade.
+- `apply` e single-origin (uma `forecast_origin` por chamada, senao `contract.reconcile_input`): a rodada diaria e uma origem; o backtest
+  roda muitas origens em SEQUENCIA para tras, um train+infer por origem, chamando train/apply uma vez por origem. Nada a relaxar.
+- Testes: `test-reconcile-apply.R` (leitor espionado; FORBIDDEN/CONTROL).
