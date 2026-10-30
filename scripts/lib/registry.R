@@ -1047,13 +1047,251 @@ prevcarga_registry_promote_latest <- function(key, version, ctx = NULL) {
   v <- prevcarga_resolve_version(key, "version", version, ctx = ctx)
   tmp <- tempfile(".tmp-latest-", tmpdir = key)
   .prevcarga_reg_write_bytes(tmp, paste0(v, "\n"))
-  if (!isTRUE(file.rename(tmp, file.path(key, "latest.txt")))) {
-    unlink(tmp)
+  if (!isTRUE(file.rename(tmp, file.path(key, "latest.txt"))))   # o .tmp-* pode sobrar (interrupcao): e do `registry gc`
     prevcarga_abort("state.promote_failed", where = file.path(key, "latest.txt"))
-  }
   hp <- file.path(key, ".history")
   con <- file(hp, open = "ab")
   on.exit(close(con), add = TRUE)
   writeBin(charToRaw(paste0(v, "\n")), con)
   invisible(v)
+}
+
+## =====================================================================================================
+## M5.7 -- ciclo de vida do registry (promote/rollback/pin/unpin/gc) e leitura (ls/show). Unico dono do ciclo de vida
+## (gate registry_lifecycle); o verbo `registry` (cli/registry.R) so despacha para estas funcoes. Erros novos em
+## errors/registry_lifecycle.tsv; pin_missing/promote_failed vem do registry_core.tsv. Higiene local apenas (nunca S3);
+## sem lock entre processos. Toda escrita de ponteiro/.pin = tempfile `.tmp-*` irmao + file.rename (staging unico, ADR-0030).
+## =====================================================================================================
+prevcarga_registry_subcommands <- c("ls", "show", "promote", "rollback", "pin", "unpin", "gc")
+prevcarga_registry_usage <- paste0("prevcarga registry (", paste(prevcarga_registry_subcommands, collapse = "|"),
+                                   ") [<model>] [<area>] [<version>] [--dry-run]")
+
+.prevcarga_reg_is_tmp <- function(x) grepl("^[.]tmp-", x)
+
+## link = o caminho resolvido difere do pai resolvido + nome (portavel: sem API de link; junction do Windows tambem)
+.prevcarga_reg_is_link <- function(p) vapply(p, function(x)
+  !identical(normalizePath(x, winslash = "/", mustWork = FALSE),
+             file.path(normalizePath(dirname(x), winslash = "/", mustWork = FALSE), basename(x))), NA, USE.NAMES = FALSE)
+
+## diretorio real (nao-link) -- o gc e as listagens nunca seguem links
+.prevcarga_reg_real_dir <- function(p) dir.exists(p) & !.prevcarga_reg_is_link(p)
+
+.prevcarga_reg_pins <- function(key) unique(.prevcarga_reg_read_lines(file.path(key, ".pin")))
+
+.prevcarga_reg_versions <- function(key) {
+  ents <- list.files(key, all.files = TRUE, no.. = TRUE)
+  v <- ents[grepl(.prevcarga_reg_version_rx, ents) & .prevcarga_reg_real_dir(file.path(key, ents))]
+  v[order(v, method = "radix")]
+}
+
+## latest.txt da celula, ou NA se ausente/vazio (leitura tolerante: ls/gc nao abortam por celula sem ponteiro)
+.prevcarga_reg_latest_or_na <- function(key) {
+  lp <- file.path(key, "latest.txt")
+  l <- if (file.exists(lp)) utils::head(.prevcarga_reg_read_lines(lp), 1L) else character()
+  if (length(l)) l else NA_character_
+}
+
+## .pin reescrito atomicamente (vazio => remove o arquivo)
+.prevcarga_reg_pins_write <- function(key, pins) {
+  pp <- file.path(key, ".pin")
+  if (!length(pins)) {
+    unlink(pp)
+    return(invisible(pp))
+  }
+  tmp <- tempfile(".tmp-pin-", tmpdir = key)
+  .prevcarga_reg_write_bytes(tmp, paste0(pins, "\n", collapse = ""))
+  if (!isTRUE(file.rename(tmp, pp))) prevcarga_abort("state.promote_failed", where = pp)
+  invisible(pp)
+}
+
+## khat_origin do perfil do Reconcile (NA para qualquer outro produto): o latest do k-hat so anda para frente
+.prevcarga_reg_khat_origin <- function(key, version) {
+  m <- tryCatch(prevcarga_read_run_manifest(file.path(key, version)), error = function(e) NULL)
+  if (is.null(m) || !identical(m$produto, "reconcile") || !is.character(m$khat_origin) || length(m$khat_origin) != 1L)
+    return(NA_character_)
+  m$khat_origin
+}
+
+.prevcarga_reg_check_forward <- function(key, version) {
+  to <- .prevcarga_reg_khat_origin(key, version)
+  cur <- .prevcarga_reg_latest_or_na(key)
+  if (is.na(to) || is.na(cur)) return(invisible(NULL))
+  from <- .prevcarga_reg_khat_origin(key, cur)
+  if (!is.na(from) && lubridate::ymd(to) < lubridate::ymd(from))
+    prevcarga_abort("state.registry_khat_backward", where = key, details = list(latest = cur, to = version))
+  invisible(NULL)
+}
+
+.prevcarga_reg_need_cell <- function(key) {
+  if (!dir.exists(key)) prevcarga_abort("state.cell_missing", where = key)
+  invisible(key)
+}
+
+## Promove `version` (deve existir) a latest.txt; delega a escrita atomica ao nucleo (M5.2).
+prevcarga_registry_promote <- function(key, version, ctx = NULL) {
+  if (!is.null(ctx)) key <- prevcarga_registry_contain(key, ctx)
+  .prevcarga_reg_need_cell(key)
+  v <- prevcarga_resolve_version(key, "version", version, ctx = ctx)
+  .prevcarga_reg_check_forward(key, v)
+  prevcarga_registry_promote_latest(key, v, ctx = ctx)
+  list(key = key, latest = v)
+}
+
+## Volta ao penultimo latest distinto da .history que ainda existe em disco.
+prevcarga_registry_rollback <- function(key, ctx = NULL) {
+  if (!is.null(ctx)) key <- prevcarga_registry_contain(key, ctx)
+  .prevcarga_reg_need_cell(key)
+  hist <- unique(rev(.prevcarga_reg_read_lines(file.path(key, ".history"))))
+  atual <- .prevcarga_reg_latest_or_na(key)
+  prev <- setdiff(hist, atual)
+  prev <- prev[grepl(.prevcarga_reg_version_rx, prev) & .prevcarga_reg_real_dir(file.path(key, prev))]
+  if (!length(prev)) prevcarga_abort("state.registry_no_previous", where = key)
+  prevcarga_registry_promote(key, prev[[1L]], ctx = ctx)
+}
+
+prevcarga_registry_pin <- function(key, version, ctx = NULL) {
+  if (!is.null(ctx)) key <- prevcarga_registry_contain(key, ctx)
+  .prevcarga_reg_need_cell(key)
+  if (!is.character(version) || length(version) != 1L || is.na(version) || !grepl(.prevcarga_reg_version_rx, version))
+    prevcarga_abort("contract.version_malformed", where = key, details = list(version = as.character(version)))
+  if (!.prevcarga_reg_real_dir(file.path(key, version)))
+    prevcarga_abort("state.pin_missing", where = file.path(key, version))
+  pins <- union(.prevcarga_reg_pins(key), version)
+  .prevcarga_reg_pins_write(key, pins)
+  list(key = key, pinned = pins)
+}
+
+prevcarga_registry_unpin <- function(key, version, ctx = NULL) {
+  if (!is.null(ctx)) key <- prevcarga_registry_contain(key, ctx)
+  .prevcarga_reg_need_cell(key)
+  pins <- .prevcarga_reg_pins(key)
+  if (!is.character(version) || length(version) != 1L || is.na(version) || !(version %in% pins))
+    prevcarga_abort("state.pin_missing", where = file.path(key, ".pin"))
+  pins <- setdiff(pins, version)
+  .prevcarga_reg_pins_write(key, pins)
+  list(key = key, pinned = pins)
+}
+
+## Percorre `start` sem seguir links. Devolve list(cells = data.frame(path, latest, pinned, versions), tmp = chr).
+## Celula = diretorio com latest.txt, .pin ou v_<hex>/; nunca desce em v_*/ nem em .tmp-*/. Entradas `.tmp-*` (arquivo
+## ou diretorio, qualquer nivel) sao staging de algum escritor do registry (publish/promote/pin, combina, k-hat).
+.prevcarga_reg_walk <- function(start) {
+  cells <- list()
+  tmps <- character()
+  rec <- function(d) {
+    ents <- list.files(d, all.files = TRUE, no.. = TRUE)
+    full <- file.path(d, ents)
+    link <- .prevcarga_reg_is_link(full)
+    tmps <<- c(tmps, full[.prevcarga_reg_is_tmp(ents) & !link])
+    isdir <- dir.exists(full) & !link
+    vers <- ents[grepl(.prevcarga_reg_version_rx, ents) & isdir]
+    if (length(vers) || any(ents %in% c("latest.txt", ".pin")))
+      cells[[length(cells) + 1L]] <<- list(path = d, versions = vers[order(vers, method = "radix")])
+    for (s in ents[isdir & !grepl(.prevcarga_reg_version_rx, ents) & !.prevcarga_reg_is_tmp(ents)]) rec(file.path(d, s))
+  }
+  if (.prevcarga_reg_real_dir(start)) rec(start)
+  list(cells = cells, tmp = tmps)
+}
+
+## model (sigla ou mdir de prevcarga_members, ou nome de pasta do registry como combina/reconcile) -> segmentos
+.prevcarga_reg_model_segs <- function(model, ctx) {
+  mem <- tryCatch(prevcarga_members(root = ctx$root), error = function(e) NULL)
+  if (!is.null(mem)) {
+    i <- which(mem$sigla == model)
+    if (length(i) == 1L) return(c(mem$mdir[[i]], if (!is.na(mem$exogena[[i]]) && nzchar(mem$exogena[[i]])) mem$exogena[[i]]))
+  }
+  model
+}
+
+.prevcarga_reg_rel <- function(path, root) substring(path, nchar(root) + 2L)
+
+.prevcarga_reg_scope <- function(ctx, model = NULL, area = NULL) {
+  root <- prevcarga_registry_root(ctx)
+  segs <- if (is.null(model)) character() else .prevcarga_reg_model_segs(model, ctx)
+  start <- do.call(file.path, as.list(c(root, segs)))
+  prevcarga_registry_contain(start, ctx)
+  list(root = root, start = start, area = area)
+}
+
+## Lista as celulas: list de list(key, latest, pinned, versions); `key` relativa a <state>/artifacts.
+prevcarga_registry_ls <- function(ctx, model = NULL, area = NULL) {
+  sc <- .prevcarga_reg_scope(ctx, model, area)
+  w <- .prevcarga_reg_walk(sc$start)
+  rows <- lapply(w$cells, function(cl) {
+    list(key = .prevcarga_reg_rel(cl$path, sc$root), latest = .prevcarga_reg_latest_or_na(cl$path),
+         pinned = intersect(.prevcarga_reg_pins(cl$path), cl$versions), versions = cl$versions)
+  })
+  if (!is.null(area)) rows <- Filter(function(r) identical(basename(r$key), area), rows)
+  rows[order(vapply(rows, function(r) r$key, ""), method = "radix")]
+}
+
+## Campos do run_manifest.json de uma versao (default latest); read-only.
+prevcarga_registry_show <- function(key, version = NULL, ctx = NULL) {
+  if (!is.null(ctx)) key <- prevcarga_registry_contain(key, ctx)
+  .prevcarga_reg_need_cell(key)
+  v <- if (is.null(version)) prevcarga_resolve_version(key, "latest", ctx = ctx)
+       else prevcarga_resolve_version(key, "version", version, ctx = ctx)
+  m <- prevcarga_read_run_manifest(file.path(key, v))
+  pick <- function(...) for (x in list(...)) if (!is.null(x)) return(x)
+  fp <- m$fingerprint
+  cuts <- pick(m$cuts, fp$cutoff)
+  list(key = basename(key), version = v, model_id = pick(m$model_id, fp$model_id),
+       cuts = list(train_origin = pick(cuts$train_origin, cuts$origin), last_data_day = cuts$last_data_day),
+       load_label = m$load_label, timezone = pick(m$timezone, m$load_tz),
+       weather_issue_cutoff = m$weather_issue_cutoff, code_commit = m$code_commit)
+}
+
+## Poda local: orfas v_<hex> (nem latest nem pinada) e `.tmp-*` orfaos de qualquer escritor, sob <state>/artifacts.
+## Celula sem ponteiro algum (sem latest.txt nem .pin) nao tem v_* podada (nada a preservar-por-referencia); so seus .tmp-*.
+prevcarga_registry_gc <- function(ctx, model = NULL, dry_run = FALSE) {
+  sc <- .prevcarga_reg_scope(ctx, model)
+  w <- .prevcarga_reg_walk(sc$start)
+  rm_paths <- w$tmp
+  kept <- list()
+  for (cl in w$cells) {
+    key <- .prevcarga_reg_rel(cl$path, sc$root)
+    cur <- .prevcarga_reg_latest_or_na(cl$path)
+    pins <- .prevcarga_reg_pins(cl$path)
+    keep <- c(if (!is.na(cur)) cur, pins)
+    if (!length(keep)) {
+      if (length(cl$versions)) kept[[length(kept) + 1L]] <- data.frame(key = key, version = cl$versions, reason = "no_pointer")
+      next
+    }
+    why <- ifelse(cl$versions %in% cur, "latest", ifelse(cl$versions %in% pins, "pinned", NA_character_))
+    if (any(!is.na(why)))
+      kept[[length(kept) + 1L]] <- data.frame(key = key, version = cl$versions[!is.na(why)], reason = why[!is.na(why)])
+    rm_paths <- c(rm_paths, file.path(cl$path, cl$versions[is.na(why)]))
+  }
+  rm_paths <- sort(unique(rm_paths), method = "radix")
+  contained <- vapply(rm_paths, function(p) prevcarga_registry_contain(p, ctx), "", USE.NAMES = FALSE)
+  if (!isTRUE(dry_run)) for (p in contained) unlink(p, recursive = TRUE, force = TRUE)
+  kdt <- if (length(kept)) data.table::as.data.table(do.call(rbind, kept))
+         else data.table::data.table(key = character(), version = character(), reason = character())
+  list(removed = .prevcarga_reg_rel(contained, sc$root), kept = kdt, dry_run = isTRUE(dry_run))
+}
+
+## Chave da celula a partir de <model> (sigla do membro, mdir ou pasta do registry) e <area>; celula inexistente => 13.
+prevcarga_registry_cell_key <- function(ctx, model, area) {
+  if (!is.character(model) || length(model) != 1L || !is.character(area) || length(area) != 1L)
+    prevcarga_abort("config.usage", where = "<model> <area>")
+  segs <- .prevcarga_reg_model_segs(model, ctx)
+  key <- prevcarga_registry_key(list(mdir = segs[[1L]], exogena = if (length(segs) > 1L) segs[[2L]] else NA_character_),
+                                area, ctx)
+  if (!dir.exists(key)) prevcarga_abort("state.cell_missing", where = key)
+  key
+}
+
+## Despacho unico do verbo: subcomando -> funcao do ciclo de vida/leitura (o handler da CLI nao nomeia nenhuma delas).
+prevcarga_registry_run <- function(sub, ctx, model = NULL, area = NULL, version = NULL, dry_run = FALSE) {
+  if (!(is.character(sub) && length(sub) == 1L && sub %in% prevcarga_registry_subcommands))
+    prevcarga_abort("config.usage", where = "registry")
+  cell <- function() prevcarga_registry_cell_key(ctx, model, area)
+  switch(sub,
+    ls       = prevcarga_registry_ls(ctx, model, area),
+    show     = prevcarga_registry_show(cell(), version, ctx = ctx),
+    promote  = prevcarga_registry_promote(cell(), version, ctx = ctx),
+    rollback = prevcarga_registry_rollback(cell(), ctx = ctx),
+    pin      = prevcarga_registry_pin(cell(), version, ctx = ctx),
+    unpin    = prevcarga_registry_unpin(cell(), version, ctx = ctx),
+    gc       = prevcarga_registry_gc(ctx, model = model, dry_run = dry_run))
 }

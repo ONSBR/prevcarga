@@ -1,0 +1,4 @@
+id	class	message	hint
+state.registry_no_previous	state	nao ha versao anterior no .history para voltar	promova ou treine outra versao; use `prevcarga registry ls` para ver as versoes da celula
+state.cell_missing	state	celula do registry inexistente	use `prevcarga registry ls` para listar as celulas; treine (`prevcarga train-models`) ou sincronize os oficiais
+state.registry_khat_backward	state	o latest do perfil k-hat so anda para frente (khat_origin menor recusado)	reprocesse o Reconcile na origem desejada; o latest do k-hat so avanca
