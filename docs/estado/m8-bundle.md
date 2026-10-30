@@ -54,7 +54,20 @@ pois `deck_reader.R` e `helpers_loess.R` citam `Sys.getenv` para dizer que nao o
 catalogo, `bundle.package_missing`, tarball). Os bracos que dependem de `dist/` ou de dois builds fazem `skip` com motivo (nunca verde silencioso):
 `dist/prevcarga-<v>-linux-x86_64.tar.zst` e `dist/repro-1`, `dist/repro-2` (`--out dist/repro-N`, mesmo commit).
 
+## Lock x host (R 4.5.3 da maquina de dev, onde os testes e a paridade rodaram) e validacao DENTRO do bundle
+- **Diferencas de versao lock x host: nenhuma** (75/75 pacotes iguais; conferido por programa contra o host e contra a library do bundle extraido).
+  Pacotes que importam para a paridade, todos iguais: lightgbm 4.7.0, WeightSVM 1.7-16, e1071 1.7-17, randomForest 4.7-1.2, forecast 9.0.2,
+  fable 0.5.0, fabletools 0.8.0, data.table 1.18.6.1, arrow 26.0.0. Os recomendados (MASS, Matrix, lattice, nlme...) tambem coincidem.
+  A unica diferenca e o BUILD binario: jammy (glibc 2.35, libstdc++ do jammy no `syslib/`) no bundle x noble no host.
+- **Validacao no bundle extraido** (so o R e a library do bundle, `R_HOME` limpo, `.libPaths()` = `runtime/lib/R/library`; testthat e deps
+  instalados a parte, binarios jammy, em diretorio de scratch via `R_LIBS`, fora do lock): `prevcarga doctor` 18 PASS + 1 WARN (`data_dir`
+  ausente); `scripts/lib/tests` 83 arquivos / 11035 expectativas, 0 falhas (os filhos R dos testes de plugin precisam de `R_LIBS` e `PATH`
+  do bundle); `run_all_gates.R --tier fast`: random-forest 25 PASS, holt-winters 44 PASS, lgbm 39 PASS, 0 FAIL. Delta vs host: nenhum.
+- Os pacotes de teste do host (compilados em noble) NAO carregam contra o libstdc++ do jammy do bundle; so afeta o harness de teste.
+
 ## Pendencias
+- [DEFERRED M8.x] tiers de paridade (`--tier parity|parity-full`), A/B completo contra o oraculo e cross-OS DENTRO do bundle: nao sao deste ticket;
+  dono a atribuir pelo orquestrador (candidato: M8.12, que reusa `bundle_gates.R`; a A/B nasce no M7 e o gate `cross_os` ja esta [DEFERRED M8]).
 - [DEFERRED M8.x] braco Windows (build, `windows-x86_64`, `bundle.platform_mismatch` no doctor): dono M8.6/M8.7; nao executavel nesta maquina.
 - `prevcarga doctor` ainda nao chama `prevcarga_bundle_require`/`prevcarga_runtime_validate` (introspect.R nao e deste ticket): dono M8.7.
 - dessem-linear (max_rel 2.2e-13) segue pendente de decisao do Gabriel (m1-spike-r453.md); nao tratado aqui.
