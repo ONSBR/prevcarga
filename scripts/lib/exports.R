@@ -19,7 +19,7 @@ prevcarga_export_niveis <- c("sin", "subsistemas", "tudo")
 ## feature_config = membros (por nome), pesos da combina e hash da topologia; cutoff = weather_issue_cutoff; load_label; load_tz.
 ## Ordem de membros/subsistemas nao altera o hash (named lists sao ordenadas na canonicalizacao e aqui por nome).
 prevcarga_forecast_versao <- function(parts) {
-  sorted <- function(x) as.list(x[order(names(x), method = "radix")])
+  sorted <- function(x) if (!length(x)) list() else as.list(x[order(names(x), method = "radix")])   # khat vazio: entrega so de folhas soltas
   req <- c("package", "members", "combina_weights", "khat", "topology_hash", "load_label", "weather_issue_cutoff")
   miss <- setdiff(req, names(parts))
   if (length(miss)) prevcarga_abort("contract.fingerprint_missing_key", where = miss[[1L]])

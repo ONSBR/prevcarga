@@ -1,0 +1,2 @@
+id	class	message	hint
+completude.forecast_origin_day_complete	completude	o dia da origem esta completo no deck (available_until >= O+1 00:00): nao ha corte entregavel da combina	rode com o deck vivo do dia O (ate um corte intradiario ou as 00h) ou trunque o deck em O 00:00 (truncate_at/--corte)

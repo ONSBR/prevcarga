@@ -103,7 +103,9 @@ prevcarga_infer <- function(plugin, artifact, panel, cuts, ctx = list(), spec = 
        available_until = rc$available_until, weather_issue_cutoff = rc$weather_issue_cutoff,
        weather_issue_limit = rc$weather_issue_limit, split = spec$split, train_origin = tc$train_origin,
        last_data_day = tc$last_data_day, data_lag_days = as.integer(row$data_lag_days),
-       deck_areas = as.character(rc$available_until_by_area$area_code))
+       deck_areas = intersect(as.character(rc$available_until_by_area$area_code),
+                              (if (is.null(ctx$topology_path)) prevcarga_topology(root = ctx$root)
+                               else prevcarga_topology(path = ctx$topology_path, root = ctx$root))$leaves))
 }
 
 ## O available_until e o MINIMO entre as areas do deck (M2.2): o painel e lido com todas as areas do deck para que o corte
