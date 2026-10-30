@@ -11,7 +11,7 @@
   O <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
   wx <- data.table::as.data.table(wx)
   empty <- data.table::data.table(origin = lubridate::as_date(integer()), day_of_horizon = integer(),
-    issue_time = lubridate::with_tz(lubridate::as_datetime(numeric()), "UTC"), tmax = numeric(), tmin = numeric())
+    issue_time = lubridate::as_datetime(numeric()), tmax = numeric(), tmin = numeric())
   if (!length(origins) || !nrow(wx)) return(empty)
   lim <- cuts$weather_issue_limit - lubridate::days(as.integer(O) - as.integer(origins))
   iss <- sort(unique(wx$issue_time))
@@ -29,7 +29,7 @@
   out <- v[, list(tmax = max(temperature, na.rm = TRUE), tmin = min(temperature, na.rm = TRUE)),
            by = list(origin, day_of_horizon, issue_time)]
   out[is.infinite(tmax), tmax := NA_real_][is.infinite(tmin), tmin := NA_real_]
-  out[, issue_time := lubridate::with_tz(issue_time, "UTC")]
+  out[, issue_time := lubridate::as_datetime(as.numeric(issue_time))]   # rotulo UTC do mesmo instante
   data.table::setcolorder(out, c("origin", "day_of_horizon", "issue_time", "tmax", "tmin"))
   data.table::setorder(out, origin, day_of_horizon)
   out[]
