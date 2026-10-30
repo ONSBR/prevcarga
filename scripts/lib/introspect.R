@@ -83,7 +83,9 @@ prevcarga_build_doctor <- function(ctx, check = prevcarga_runtime_apply,
                if (cfg_row$status == "FAIL") "config")
   code <- if (length(classes)) unname(prevcarga_exit_codes[[prevcarga_exit_precedence(classes)]]) else 0L
   res <- list(schema_version = 1L, checks = checks, counts = counts,
-              offenders = checks$check[checks$status == "FAIL"])
+              offenders = checks$check[checks$status == "FAIL"],
+              install_root = if (is.null(ctx$install_root)) ctx$root else ctx$install_root,
+              state_dir = ctx$state_dir)
   structure(res, exit_code = as.integer(code))
 }
 

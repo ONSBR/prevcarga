@@ -130,6 +130,14 @@ prevcarga_run_id <- function() {
   sprintf("%s-%d", format(lubridate::now(tzone = "UTC"), "%Y%m%dT%H%M%SZ"), Sys.getpid())
 }
 
+## Raiz da INSTALACAO do usuario (M8.3): o codigo instalado mora em <R>/versions/<v>/code, e o config.yaml da instalacao em
+## <R>/config.yaml. Fora desse layout (arvore de dev, copia de teste) devolve NULL.
+prevcarga_install_dir <- function(root) {
+  r <- gsub("\\", "/", root, fixed = TRUE)
+  v <- dirname(r)
+  if (identical(basename(r), "code") && identical(basename(dirname(v)), "versions")) dirname(dirname(v)) else NULL
+}
+
 prevcarga_ctx <- function(args, root, verb = NULL) {
   flag <- function(n) {
     v <- args[[n]]
@@ -139,6 +147,9 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
   if (is.null(cfg_path)) {
     cand <- file.path(root, "config.yaml")
     if (file.exists(cand)) cfg_path <- cand
+    inst <- prevcarga_install_dir(root)
+    if (is.null(cfg_path) && !is.null(inst) && file.exists(file.path(inst, "config.yaml")))
+      cfg_path <- file.path(inst, "config.yaml")
   }
   cfg <- if (is.null(cfg_path)) .prevcarga_config_defaults() else prevcarga_config_load(cfg_path)
   load_label_flag <- prevcarga_check_enum(flag("--load-label"), c("end", "start"), "config.bad_load_label")
@@ -154,6 +165,7 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
   version <- if (file.exists(vf)) trimws(readLines(vf, n = 1L, warn = FALSE)) else "unknown"
   list(
     root = root,
+    install_root = prevcarga_install_dir(root),
     config_path = if (is.null(cfg_path)) NULL else .prevcarga_norm_path(cfg_path),
     data_dir = .prevcarga_norm_path(.prevcarga_pick(flag("--data"), cfg$data_dir, NULL)),
     state_dir = .prevcarga_norm_path(.prevcarga_pick(flag("--state"), cfg$state_dir, file.path(root, ".state"))),

@@ -85,6 +85,7 @@ inside() {
   "${RBIN}/Rscript" --vanilla /src/scripts/tools/bundle_manifest.R code-tree --src /src --dest "${CODE}"
   mkdir -p "${CODE}/install"
   "${RBIN}/Rscript" --vanilla /src/scripts/tools/export_error_catalog.R --out "${CODE}/install/error-catalog.tsv"
+  cp /src/install/prevcarga "${CODE}/install/prevcarga"; chmod 0755 "${CODE}/install/prevcarga"   # lancador fino (M8.3); o install.sh o copia para <raiz>/bin
   BUILT_AT="$(date -u -d "@${SOURCE_DATE_EPOCH}" +%Y-%m-%dT%H:%M:%SZ)"
   "${RBIN}/Rscript" --vanilla /src/scripts/tools/bundle_manifest.R write --root "${ROOT}" --version "${VER}" \
     --platform linux-x86_64 --code-commit "${CODE_COMMIT}" --apt-snapshot "${APT_SNAPSHOT}" --built-at "${BUILT_AT}" \

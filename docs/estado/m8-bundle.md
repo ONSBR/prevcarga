@@ -12,7 +12,7 @@ R 4.5.3 = `.deb` do Posit (`cdn.posit.co/r/ubuntu-2204`, sha256 pinado no script
 ## Layout do tarball (`prevcarga/`)
 `runtime/` (R_HOME de /opt/R/4.5.3 com a library do renv restaurada DIRETO nela, sem `R_LIBS_*`), `syslib/` (fecho `ldd` menos glibc
 core), `code/` (`scripts/` sem `tools/`/`data-prep/`/tests/*.md, `models/` sem `models/*/models/`, `config/`, `renv.lock`,
-`install/error-catalog.tsv` GERADO por `export_error_catalog.R --out`), `RUNTIME.json`.
+`install/error-catalog.tsv` GERADO por `export_error_catalog.R --out` e `install/prevcarga` = lancador do M8.3, ver `docs/estado/install.md`), `RUNTIME.json`.
 - **Relocavel**: o `bin/R` do Posit tem R_HOME fixo; o build o reescreve para calcular o R_HOME do proprio caminho e troca
   `runtime/bin/R` e `runtime/bin/Rscript` por wrappers sh (o Rscript recebe `RHOME` para nao usar o prefixo compilado).
   Quem chama o Rscript do bundle deve limpar `R_HOME` do ambiente (senao o `bin/R` avisa `ignoring environment value of R_HOME`).
