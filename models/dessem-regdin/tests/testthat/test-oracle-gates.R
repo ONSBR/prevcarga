@@ -56,9 +56,7 @@ test_that("[PLUGINS] contract_synthetic: ramos do contrato de entrada aboram cla
   expect_identical(r[["prev_short3"]], "contract:plugin.regdin_panel_contract")
   expect_identical(r[["carga_gap"]], "completude:plugin.regdin_series_gap")
   expect_identical(r[["carga_23h"]], "completude:plugin.regdin_series_gap")         # dia com 23 horas => [prevcarga/completude]
-  ## RD6-GAP-1 (discovery): uma hora de carga com NA (o to_hourly a mantem como linha) NAO e recusada na ingestao: o oraculo a recusa
-  ## (gate07 carga_na => contract). PINADO como esta; quando o plugin passar a recusar, este pino falha de proposito e vira a classe.
-  expect_identical(r[["carga_na"]], "ok")
+  expect_identical(r[["carga_na"]], "completude:plugin.regdin_series_gap")       # hora com NA => completude (reject-na)
   expect_identical(r[["hist_exo_gap"]], "contract:plugin.regdin_panel_contract")
   expect_identical(r[["fer_col"]], "contract:plugin.regdin_panel_contract")
   ## a mensagem do dia de 23 horas nomeia o dia e a contagem; terminal so ASCII
@@ -67,6 +65,10 @@ test_that("[PLUGINS] contract_synthetic: ramos do contrato de entrada aboram cla
   expect_match(conditionMessage(e), "23/24", fixed = TRUE)
   expect_true(rd_ascii(conditionMessage(e)))
   expect_identical(e$exit_code, 3L)
+  ## a mensagem do NA nomeia o dia e a hora; CONTROL: o painel sem NA passa
+  en <- tryCatch(og_ingest(function(p) { p$load[10L, load_mwh := NA_real_]; p }), prevcarga_error = function(e) e)
+  expect_match(conditionMessage(en), "dia 20", fixed = TRUE); expect_match(conditionMessage(en), "hora", fixed = TRUE)
+  expect_identical(og_class(og_ingest()), "ok")
   ## CONTROL: o mesmo painel sem a mutacao passa (o erro vem da mutacao, nao do fixture)
   expect_identical(og_class(og_ingest(hours23(O + 30L))), "ok")                       # hora tirada fora da janela: nada muda
 })

@@ -89,6 +89,14 @@ rd_panel_contract <- function(reason, details = NULL)
                               missing_days = format(miss), history_days = spec$history_days$train))
     }
   }
+  ## hora de carga historica com NA = hora ausente (o to_hourly mantem a linha): completude nomeando dia e hora
+  if (anyNA(hist$load_mwh)) {
+    i <- which(is.na(hist$load_mwh))[[1L]]
+    rd_abort("plugin.regdin_series_gap", where = "dessem-regdin/ingest",
+             reason = sprintf("carga com NA em %d hora(s); primeira: dia %s hora %s", sum(is.na(hist$load_mwh)),
+                              format(hd[[i]]), format(hist$interval_end[[i]], "%H:%M")),
+             details = list(dia = format(hd[[i]]), n_na = sum(is.na(hist$load_mwh))))
+  }
   days <- seq(first, last, by = "day")
   got <- vapply(days, function(x) sum(hd == x), integer(1L))
   bad <- which(got != plugin_constants()$hours_per_day)
