@@ -34,3 +34,21 @@ pc_bundle_net_grep <- function(code_dir) {
   do.call(rbind, c(list(data.frame(path = character(), linha = integer(), texto = character(),
                                    stringsAsFactors = FALSE)), hits))
 }
+
+## Portabilidade Windows (M8.2): codigo de produto de `code_dir` (scripts/prevcarga, scripts/**/*.R, models/**/*.R) sem fork
+## (mclapply/mcparallel), symlink, shell Unix ou caminho Unix literal. Mesma convencao do net_grep: linha inteira de
+## comentario nao conta (prosa, ex.: training.R cita "sem fork/mclapply" e inference.R cita o caminho do oraculo).
+## Devolve data.frame(path, linha, texto); vazio = PASS. Sem rede nem shell.
+pc_bundle_portability_grep <- function(code_dir) {
+  rx <- "mclapply|mcparallel|Sys\\.symlink|file\\.symlink|system\\(\"bash|system2\\(\"bash|/bin/sh|/tmp/|/opt/"
+  fs <- list.files(code_dir, recursive = TRUE, full.names = FALSE, all.files = TRUE)
+  fs <- fs[(grepl("\\.R$", fs) & grepl("^(scripts|models)/", fs)) | fs == "scripts/prevcarga"]
+  fs <- sort(fs, method = "radix")
+  hits <- lapply(fs, function(f) {
+    l <- readLines(file.path(code_dir, f), encoding = "UTF-8", warn = FALSE)
+    i <- which(grepl(rx, l, perl = TRUE) & !grepl("^\\s*#", l, perl = TRUE))
+    if (length(i)) data.frame(path = f, linha = i, texto = l[i], stringsAsFactors = FALSE) else NULL
+  })
+  do.call(rbind, c(list(data.frame(path = character(), linha = integer(), texto = character(),
+                                   stringsAsFactors = FALSE)), hits))
+}
