@@ -1,0 +1,563 @@
+# Unidades de paridade do plugin random-forest (RF.4): clean-room x oraculo, Delta = 0 (limiar 1e-5 MW absoluto).
+# Contrato do plugin_golden.R (P.0f) / plugin_parity.R (P.0g). Cortes POR FASE literais: treino em O-10 (= O-1-H, H = 9) com
+# history_start O-375; infer em O e em O-1 com o MESMO artefato e o MESMO history_start absoluto O-45; available_until em hora
+# cheia; clima emitido a meia-noite UTC do dia da origem. Sem oracle_cut (o RF do oraculo ignora --available-until,
+# run_pipeline.R:238-241) e sem oracle_env. day0_source oracle_origin_minus_1: o dia O da entrega e o d_plus 1 de long_Om1.
+# `rules` e conferido em toda unidade por pc_golden_units (violacao => tools.bad_units, exit 2).
+packages: [randomForest, data.table, lubridate, arrow]
+rules:
+  train_origin_offset: 10
+  train_history_offset: 375
+  infer_history_offset: 45
+  forbid: [oracle_cut]
+  day0_source: [oracle_origin_minus_1]
+  full_hour: true
+  oracle_env_empty: true
+  data_areas_is_area: true
+  equals: { seed: 123, params: { ntree: 100 } }
+groups:
+  smoke: [seco-2024-10-01, rs-2024-07-01, baoe-2024-01-01]
+  foundation:
+    - seco-2024-01-01
+    - seco-2024-07-01
+    - seco-2024-10-01
+    - sp-2024-01-01
+    - sp-2024-07-01
+    - sp-2024-10-01
+    - rs-2024-01-01
+    - rs-2024-07-01
+    - rs-2024-10-01
+    - baoe-2024-01-01
+    - baoe-2024-07-01
+    - baoe-2024-10-01
+    - pa-2024-01-01
+    - pa-2024-07-01
+    - pa-2024-10-01
+  walk_forward:
+    - seco-2024-10-01
+    - seco-2024-10-02
+    - seco-2024-10-03
+    - seco-2024-10-04
+    - seco-2024-10-05
+    - seco-2024-10-06
+    - seco-2024-10-07
+    - seco-2024-10-08
+    - seco-2024-10-09
+    - seco-2024-10-10
+    - seco-2024-10-11
+    - seco-2024-10-12
+    - seco-2024-10-13
+    - seco-2024-10-14
+    - seco-2024-10-15
+    - seco-2024-10-16
+    - seco-2024-10-17
+    - seco-2024-10-18
+    - seco-2024-10-19
+    - seco-2024-10-20
+    - seco-2024-10-21
+    - seco-2024-10-22
+    - seco-2024-10-23
+    - seco-2024-10-24
+    - seco-2024-10-25
+    - seco-2024-10-26
+    - seco-2024-10-27
+    - seco-2024-10-28
+    - seco-2024-10-29
+    - seco-2024-10-30
+    - seco-2024-10-31
+units:
+  - id: seco-2024-01-01
+    area: SECO
+    origin: 2024-01-01
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2023-12-22, history_start: 2022-12-22 }
+      infer: { history_start: 2023-11-17, available_until: "2024-01-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-07-01
+    area: SECO
+    origin: 2024-07-01
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-06-21, history_start: 2023-06-22 }
+      infer: { history_start: 2024-05-17, available_until: "2024-07-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-01
+    area: SECO
+    origin: 2024-10-01
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-21, history_start: 2023-09-22 }
+      infer: { history_start: 2024-08-17, available_until: "2024-10-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: sp-2024-01-01
+    area: SP
+    origin: 2024-01-01
+    data_areas: [SP]
+    cuts:
+      train: { train_origin: 2023-12-22, history_start: 2022-12-22 }
+      infer: { history_start: 2023-11-17, available_until: "2024-01-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: sp-2024-07-01
+    area: SP
+    origin: 2024-07-01
+    data_areas: [SP]
+    cuts:
+      train: { train_origin: 2024-06-21, history_start: 2023-06-22 }
+      infer: { history_start: 2024-05-17, available_until: "2024-07-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: sp-2024-10-01
+    area: SP
+    origin: 2024-10-01
+    data_areas: [SP]
+    cuts:
+      train: { train_origin: 2024-09-21, history_start: 2023-09-22 }
+      infer: { history_start: 2024-08-17, available_until: "2024-10-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: rs-2024-01-01
+    area: RS
+    origin: 2024-01-01
+    data_areas: [RS]
+    cuts:
+      train: { train_origin: 2023-12-22, history_start: 2022-12-22 }
+      infer: { history_start: 2023-11-17, available_until: "2024-01-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: rs-2024-07-01
+    area: RS
+    origin: 2024-07-01
+    data_areas: [RS]
+    cuts:
+      train: { train_origin: 2024-06-21, history_start: 2023-06-22 }
+      infer: { history_start: 2024-05-17, available_until: "2024-07-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: rs-2024-10-01
+    area: RS
+    origin: 2024-10-01
+    data_areas: [RS]
+    cuts:
+      train: { train_origin: 2024-09-21, history_start: 2023-09-22 }
+      infer: { history_start: 2024-08-17, available_until: "2024-10-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: baoe-2024-01-01
+    area: BAOE
+    origin: 2024-01-01
+    data_areas: [BAOE]
+    cuts:
+      train: { train_origin: 2023-12-22, history_start: 2022-12-22 }
+      infer: { history_start: 2023-11-17, available_until: "2024-01-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: baoe-2024-07-01
+    area: BAOE
+    origin: 2024-07-01
+    data_areas: [BAOE]
+    cuts:
+      train: { train_origin: 2024-06-21, history_start: 2023-06-22 }
+      infer: { history_start: 2024-05-17, available_until: "2024-07-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: baoe-2024-10-01
+    area: BAOE
+    origin: 2024-10-01
+    data_areas: [BAOE]
+    cuts:
+      train: { train_origin: 2024-09-21, history_start: 2023-09-22 }
+      infer: { history_start: 2024-08-17, available_until: "2024-10-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: pa-2024-01-01
+    area: PA
+    origin: 2024-01-01
+    data_areas: [PA]
+    cuts:
+      train: { train_origin: 2023-12-22, history_start: 2022-12-22 }
+      infer: { history_start: 2023-11-17, available_until: "2024-01-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: pa-2024-07-01
+    area: PA
+    origin: 2024-07-01
+    data_areas: [PA]
+    cuts:
+      train: { train_origin: 2024-06-21, history_start: 2023-06-22 }
+      infer: { history_start: 2024-05-17, available_until: "2024-07-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: pa-2024-10-01
+    area: PA
+    origin: 2024-10-01
+    data_areas: [PA]
+    cuts:
+      train: { train_origin: 2024-09-21, history_start: 2023-09-22 }
+      infer: { history_start: 2024-08-17, available_until: "2024-10-01T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-02
+    area: SECO
+    origin: 2024-10-02
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-22, history_start: 2023-09-23 }
+      infer: { history_start: 2024-08-18, available_until: "2024-10-02T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-03
+    area: SECO
+    origin: 2024-10-03
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-23, history_start: 2023-09-24 }
+      infer: { history_start: 2024-08-19, available_until: "2024-10-03T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-04
+    area: SECO
+    origin: 2024-10-04
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-24, history_start: 2023-09-25 }
+      infer: { history_start: 2024-08-20, available_until: "2024-10-04T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-05
+    area: SECO
+    origin: 2024-10-05
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-25, history_start: 2023-09-26 }
+      infer: { history_start: 2024-08-21, available_until: "2024-10-05T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-06
+    area: SECO
+    origin: 2024-10-06
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-26, history_start: 2023-09-27 }
+      infer: { history_start: 2024-08-22, available_until: "2024-10-06T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-07
+    area: SECO
+    origin: 2024-10-07
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-27, history_start: 2023-09-28 }
+      infer: { history_start: 2024-08-23, available_until: "2024-10-07T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-08
+    area: SECO
+    origin: 2024-10-08
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-28, history_start: 2023-09-29 }
+      infer: { history_start: 2024-08-24, available_until: "2024-10-08T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-09
+    area: SECO
+    origin: 2024-10-09
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-29, history_start: 2023-09-30 }
+      infer: { history_start: 2024-08-25, available_until: "2024-10-09T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-10
+    area: SECO
+    origin: 2024-10-10
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-09-30, history_start: 2023-10-01 }
+      infer: { history_start: 2024-08-26, available_until: "2024-10-10T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-11
+    area: SECO
+    origin: 2024-10-11
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-01, history_start: 2023-10-02 }
+      infer: { history_start: 2024-08-27, available_until: "2024-10-11T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-12
+    area: SECO
+    origin: 2024-10-12
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-02, history_start: 2023-10-03 }
+      infer: { history_start: 2024-08-28, available_until: "2024-10-12T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-13
+    area: SECO
+    origin: 2024-10-13
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-03, history_start: 2023-10-04 }
+      infer: { history_start: 2024-08-29, available_until: "2024-10-13T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-14
+    area: SECO
+    origin: 2024-10-14
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-04, history_start: 2023-10-05 }
+      infer: { history_start: 2024-08-30, available_until: "2024-10-14T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-15
+    area: SECO
+    origin: 2024-10-15
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-05, history_start: 2023-10-06 }
+      infer: { history_start: 2024-08-31, available_until: "2024-10-15T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-16
+    area: SECO
+    origin: 2024-10-16
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-06, history_start: 2023-10-07 }
+      infer: { history_start: 2024-09-01, available_until: "2024-10-16T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-17
+    area: SECO
+    origin: 2024-10-17
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-07, history_start: 2023-10-08 }
+      infer: { history_start: 2024-09-02, available_until: "2024-10-17T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-18
+    area: SECO
+    origin: 2024-10-18
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-08, history_start: 2023-10-09 }
+      infer: { history_start: 2024-09-03, available_until: "2024-10-18T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-19
+    area: SECO
+    origin: 2024-10-19
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-09, history_start: 2023-10-10 }
+      infer: { history_start: 2024-09-04, available_until: "2024-10-19T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-20
+    area: SECO
+    origin: 2024-10-20
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-10, history_start: 2023-10-11 }
+      infer: { history_start: 2024-09-05, available_until: "2024-10-20T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-21
+    area: SECO
+    origin: 2024-10-21
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-11, history_start: 2023-10-12 }
+      infer: { history_start: 2024-09-06, available_until: "2024-10-21T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-22
+    area: SECO
+    origin: 2024-10-22
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-12, history_start: 2023-10-13 }
+      infer: { history_start: 2024-09-07, available_until: "2024-10-22T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-23
+    area: SECO
+    origin: 2024-10-23
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-13, history_start: 2023-10-14 }
+      infer: { history_start: 2024-09-08, available_until: "2024-10-23T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-24
+    area: SECO
+    origin: 2024-10-24
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-14, history_start: 2023-10-15 }
+      infer: { history_start: 2024-09-09, available_until: "2024-10-24T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-25
+    area: SECO
+    origin: 2024-10-25
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-15, history_start: 2023-10-16 }
+      infer: { history_start: 2024-09-10, available_until: "2024-10-25T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-26
+    area: SECO
+    origin: 2024-10-26
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-16, history_start: 2023-10-17 }
+      infer: { history_start: 2024-09-11, available_until: "2024-10-26T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-27
+    area: SECO
+    origin: 2024-10-27
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-17, history_start: 2023-10-18 }
+      infer: { history_start: 2024-09-12, available_until: "2024-10-27T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-28
+    area: SECO
+    origin: 2024-10-28
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-18, history_start: 2023-10-19 }
+      infer: { history_start: 2024-09-13, available_until: "2024-10-28T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-29
+    area: SECO
+    origin: 2024-10-29
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-19, history_start: 2023-10-20 }
+      infer: { history_start: 2024-09-14, available_until: "2024-10-29T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-30
+    area: SECO
+    origin: 2024-10-30
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-20, history_start: 2023-10-21 }
+      infer: { history_start: 2024-09-15, available_until: "2024-10-30T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}
+  - id: seco-2024-10-31
+    area: SECO
+    origin: 2024-10-31
+    data_areas: [SECO]
+    cuts:
+      train: { train_origin: 2024-10-21, history_start: 2023-10-22 }
+      infer: { history_start: 2024-09-16, available_until: "2024-10-31T09:00", weather_issue_cutoff: origin_midnight_utc }
+    params: { ntree: 100 }
+    seed: 123
+    day0_source: oracle_origin_minus_1
+    oracle_env: {}

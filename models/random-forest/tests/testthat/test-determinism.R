@@ -23,7 +23,7 @@ test_that("[PLUGINS] determinismo: 2 treinos identicos => sha256 iguais; 216 sub
   expect_identical(attr(a$model, "n_train"), nrow(a$feats$table))
 })
 
-test_that("[PLUGINS] determinismo CONTROL: seed 124 muda as predicoes de pelo menos um sub-modelo (> 1e-5)", {
+test_that("[PLUGINS] determinismo: CONTROL seed 124 muda as predicoes de pelo menos um sub-modelo (> 1e-5)", {
   a <- rf_tr_run(spec = rf_tr_spec(seed = 123L)); b <- rf_tr_run(spec = rf_tr_spec(seed = 124L))
   d <- abs(probe_pred(a$model, a$feats) - probe_pred(b$model, b$feats))
   expect_gt(max(d), 1e-5)

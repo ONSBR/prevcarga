@@ -1,0 +1,13 @@
+# Topologia da paridade do random-forest (RF.4): o oraculo roda o RF por area do store, inclusive SECO (area de subsistema,
+# nao folha na topologia de producao). Aqui SECO e declarada como area para o leitor do clean-room aceita-la; so o RF e membro.
+# Mesmo esquema de config/topology.yaml. Nao e a topologia do produto. ASCII.
+schema_version: 1
+khat_range: [1.00, 1.15]
+subsystems:
+  SECO: {areas: [SECO, SP], loss: PESE}
+  S: {areas: [RS], loss: PES}
+  "N": {areas: [PA], loss: PEN}
+  NE: {areas: [BAOE], loss: PENE}
+order: [SECO, S, "N", NE]
+members:
+  - {sigla: RF, mdir: random-forest, exogena: null}

@@ -18,11 +18,20 @@ mk <- function(seed = 11, label = "start", ..., days = DAYS, areas = c("A", "B")
 ## de 71 dias nao cobre os historicos reais dos modelos (anos).
 fx_root <- local({
   d <- tempfile("fx-root-"); dir.create(d)   # removido com o tempdir da sessao
-  file.copy(file.path(pc_root(), c("config", "models")), d, recursive = TRUE)
-  for (m in list.files(file.path(d, "models"))) {
-    f <- file.path(d, "models", m, "run.yaml")
-    if (!file.exists(f)) next
-    y <- yaml::read_yaml(f); y$history_days <- list(train = 20, infer = if (grepl("^dessem", m)) 20 else 5); yaml::write_yaml(y, f)
+  file.copy(file.path(pc_root(), "config"), d, recursive = TRUE)
+  ## run.yaml sinteticos por mdir de membro (nao le o models/ real; so o config/ de topologia)
+  shape <- list(`random-forest` = c("origin_agnostic", 60, 9), lgbm = c("origin_agnostic", 30, 1),
+                `holt-winters` = c("origin_scoped", 30, 8), `dessem-regdin` = c("origin_scoped", 60, 9),
+                `dessem-linear` = c("origin_scoped", 60, 9))
+  for (m in names(shape)) {
+    dir.create(file.path(d, "models", m), recursive = TRUE)
+    sh <- shape[[m]]
+    yaml::write_yaml(list(name = m, split = sh[[1L]], granularity_min = as.integer(sh[[2L]]), horizon_days = as.integer(sh[[3L]]),
+                          history_days = list(train = 20, infer = if (grepl("^dessem", m)) 20 else 5), seed = 1L,
+                          modes = if (sh[[1L]] == "origin_scoped") c("train", "infer", "forecast") else c("train", "infer"),
+                          backtest = list(protocol_default = "daily"), constraints = structure(list(), names = character()),
+                          params = structure(list(), names = character())),
+                     file.path(d, "models", m, "run.yaml"))
   }
   tp <- file.path(d, "topology.yaml")
   writeLines(c("schema_version: 1", "khat_range: [1.00, 1.15]", "subsystems:", "  X: {areas: [A, B], loss: PX}",
@@ -35,7 +44,7 @@ fx_validate <- function(dir) env$prevcarga_validate_deck(fx_ctx(dir), origin = O
 fx_errors <- function(v) v$findings[v$findings$level == "error", ]
 
 test_that("[ac-0] mesma semente => sha256 igual; outra semente => diferente; layout Hive naive; .Random.seed e arquivos do chamador intactos", {
-  set.seed(5); before <- .Random.seed
+  withr::local_seed(5); before <- .Random.seed
   d1 <- mk(11); d2 <- mk(11); d3 <- mk(12)
   expect_identical(.Random.seed, before)
   g1 <- env$prevcarga_fixture_digest(d1); g2 <- env$prevcarga_fixture_digest(d2); g3 <- env$prevcarga_fixture_digest(d3)

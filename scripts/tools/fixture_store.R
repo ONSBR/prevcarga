@@ -313,7 +313,7 @@ prevcarga_fixture_set_holiday <- function(dir, area, date, codes) {
   f <- file.path(out, .PC_FX_DATASETS[["holidays"]], paste0("area_code=", area),
                  paste0("year=", lubridate::year(d0)), "part-0.parquet")
   x <- if (file.exists(f)) .pc_fx_read_file(f, "holidays") else
-    data.table::data.table(date = as.Date(character()), holiday_type_id = integer(), prevcarga_code = integer(),
+    data.table::data.table(date = lubridate::as_date(character()), holiday_type_id = integer(), prevcarga_code = integer(),
                            simplified_code = integer())
   x <- rbind(x[!(x$date %in% d0)], data.table::data.table(date = d0, holiday_type_id = as.integer(codes[["holiday_type_id"]]),
                                                        prevcarga_code = as.integer(codes[["prevcarga_code"]]),

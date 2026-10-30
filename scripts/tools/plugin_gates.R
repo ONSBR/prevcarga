@@ -5,7 +5,8 @@
 ##      source(<repo>/scripts/tools/plugin_gates.R)
 ##      gate_table <- <data.frame(gate, owner, tier)>
 ##      prevcarga_gates_run(gate_table, tier = "fast", model = "<m>")
-##    e `--tier fast|parity|parity-full`, `--format text|json` na linha de comando do runner.
+##    e `--tier fast|parity|parity-full`, `--units <grupo>` (grupo de units.yaml; testes leem `pc_gate_units()`), `--format text|json`
+##    na linha de comando do runner.
 ##    O runtime (TZ/locale/BLAS) e fixado in-process ANTES de tudo; nao fixavel => exit 7 com stdout vazio.
 ##    Os testes de models/<m>/tests/testthat rotulam cada teste `[PLUGINS] <gate>:` ou `[DEFERRED Mx] <gate>:`.
 ##    Alem da gate_table do plugin, o runner DESCOBRE sub-gates em scripts/tools/gates/*.R (barrel por descoberta,
@@ -27,6 +28,7 @@
 ## --- localizacao do repositorio (captura no source; ou --file= quando e o script principal) ---------------------
 .pc_gates_state <- new.env(parent = emptyenv())
 .pc_gates_state$tier <- "fast"
+.pc_gates_state$units <- NULL
 .pc_gates_state$repo <- local({
   of <- tryCatch(sys.frame(1L)$ofile, error = function(e) NULL)
   if (!(is.character(of) && length(of) == 1L && file.exists(of))) {
@@ -55,6 +57,9 @@ pc_gate_tier <- function(min) {
     testthat::skip(sprintf("[tier] gate so roda no tier %s (atual: %s)", min, .pc_gates_state$tier))
   invisible(TRUE)
 }
+
+## grupo de unidades de paridade pedido por `--units <grupo>` no runner (NULL => o default do teste, por tier).
+pc_gate_units <- function(default = NULL) if (is.null(.pc_gates_state$units)) default else .pc_gates_state$units
 
 ## golden ausente no tier parity FALHA (fail(), nunca skip). Golden = tests/parity/golden.lock versionado do modelo.
 pc_gate_require_golden <- function(model, unit = NULL, root = file.path(.pc_gates_repo(), "models")) {
@@ -249,6 +254,7 @@ pc_gate_require_golden <- function(model, unit = NULL, root = file.path(.pc_gate
 .pc_gates_main <- function(gate_table, tier, model, argv, gates_dir, tests_dir) {
   tier <- .pc_gates_tier(argv, tier)
   .pc_gates_state$tier <- tier
+  .pc_gates_state$units <- .pc_gates_opt(argv, "--units", NULL)
   ctx <- list(model = model, tier = tier, tests_dir = tests_dir, gates_dir = gates_dir)
   rows <- c(.pc_gates_table_rows(gate_table), .pc_gates_packs(model, ctx, tier, gates_dir))
   tab <- .pc_gates_classify(rows, .pc_gates_run_tests(tests_dir), tier)

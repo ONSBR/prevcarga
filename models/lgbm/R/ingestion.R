@@ -170,6 +170,8 @@ lgbm_ingest <- function(panel, cuts, spec = NULL, mode = c("train", "infer"), co
   data.table::setcolorder(frame, c("DataHora", "Data", "Hora", "Minuto", "CargaGlobal", "is_synthetic", "Temperatura"))
   data.table::setattr(frame, "feriados", lgbm_holidays(panel$holidays, consts, area))
   data.table::setattr(frame, "area", area)
+  ## cortes ja resolvidos por dates.R, para a FE (o estagio recebe so (frame, params)); o plugin nao os recalcula
+  data.table::setattr(frame, "cuts", cuts[c("last_data_day", "train_origin")])
   frame[]
 }
 

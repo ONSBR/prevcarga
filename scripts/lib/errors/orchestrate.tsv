@@ -1,0 +1,12 @@
+id	class	message	hint
+partial.backtest_delivery	partial	entrega parcial do backtest: ha celulas falhas ou nao despachadas	veja o resumo (membro, folha, origem, available_until, classe, mensagem) e rode de novo com --resume
+state.lock_held	state	run.lock/ presente: outra execucao no mesmo run_id	use --break-lock se a execucao anterior morreu
+contract.protocol_incompatible	contract	protocolo de backtest incompativel com a classe de split do membro	fixed so em origin_agnostic; retrain_harness so em origin_scoped; daily vale nas duas
+contract.run_yaml_protocol	contract	run.yaml sem backtest.protocol_default	declare backtest.protocol_default no run.yaml do modelo
+contract.plan_run_id_mismatch	contract	plan.json existente tem run_id diferente do pedido	rode sem --resume ou use o mesmo pedido (janela, cortes, protocolo, membros, folhas)
+contract.run_cell_result	contract	run_cell nao devolveu a tabela LONG do membro	run_cell(cell) deve devolver um data.frame (member_long) da celula
+config.bad_corte	config	--corte fora da grade de 30 min (HH:00 ou HH:30)	use --corte=08:00 ou --corte=08:00,09:30
+config.bad_protocol	config	--protocol invalido	use fixed, daily ou retrain_harness
+config.origin_range_required	config	backtest/plan exigem --origin A..B (ou uma data)	use --origin=2025-01-01..2025-01-07
+warning.lock_broken	state	run.lock/ de outra execucao retomado por --break-lock (aviso)	confirme que a execucao anterior nao esta mais rodando
+contract.run_yaml_split	contract	run.yaml sem split valido (origin_agnostic ou origin_scoped)	declare split no run.yaml do modelo

@@ -61,7 +61,7 @@ test_that("[ac-1] excesso do oraculo vira fora_da_faixa sem falhar; um dia a men
     r <- cmp(E(g), g$golden, g$unit)
     expect_true(r$ok, info = cs[[1L]])
     expect_identical(r$fora_da_faixa_long, 48L, info = cs[[1L]])
-    expect_identical(r$fora_da_faixa, if (cs[[1L]] == "rf_wide_hourly_216") 0L else 48L, info = cs[[1L]])
+    expect_identical(r$fora_da_faixa, 48L, info = cs[[1L]])   # RF: o O+9 da origem O (a origem nativa T preve de T+1 em diante)
   }
   g <- G("dessem_semihourly_48", 9L, extra_day = TRUE)
   expect_identical(cmp(E(g), g$golden, g$unit)$fora_da_faixa, 48L)
@@ -75,6 +75,22 @@ test_that("[ac-1] excesso do oraculo vira fora_da_faixa sem falhar; um dia a men
     expect_gt(r$delivery_missing, 0L)
     if (cs[[1L]] != "rf_wide_hourly_216") expect_false(r$shape_ok)
   }
+})
+
+test_that("[RF.4] sentinela do deslocamento de 24 h: a origem nativa T do RF preve de T+1 00:00 em diante", {
+  tz <- "Etc/GMT+3"; O <- lubridate::ymd("2026-10-01")
+  ce <- env$.pc_parity_cell_ends("rf_wide_hourly_216", c(2L, 216L), O, tz)
+  t0 <- function(d) as.numeric(lubridate::force_tz(lubridate::as_datetime(d), tz))
+  expect_identical(ce[1L, 1L], t0(O) + 3600)                  # origem O-1, lead 1: termina em O 01:00 (nao em O-1 01:00)
+  expect_identical(ce[2L, 1L], t0(O + 1L) + 3600)             # origem O, lead 1: termina em O+1 01:00
+  expect_identical(ce[2L, 216L], t0(O + 10L))                 # lead 216 termina em O+10 00:00
+  ## dias: linha i = dia O+i-1 (sem o +1 d)
+  cd <- env$.pc_parity_cell_ends("lgbm_day_48", c(2L, 48L), O, tz)
+  expect_identical(cd[1L, 1L], t0(O) + 1800)
+  ## com o deslocamento de 24 h o RF toy nao teria cauda fora da faixa (fora_da_faixa 0): o O+9 tem de ficar de fora
+  g <- G("rf_wide_hourly_216", 9L)
+  r <- cmp(E(g), g$golden, g$unit)
+  expect_true(r$ok); expect_identical(r$fora_da_faixa, 48L)
 })
 
 test_that("[ac-2] join por interval_end = timestamp + 30 min; a meia hora ja observada nao entra; sem o +30 min acusa deslocamento", {

@@ -121,7 +121,7 @@ test_that("ac-3 sem aritmetica de hora na ingestao e demais fontes do plugin (gr
   bait <- tempfile(fileext = ".R"); writeLines("x <- t + 3600", bait)
   expect_true(any(grepl(pat, readLines(bait), perl = TRUE)))
   ## so-definicoes: o loader aceitou (nenhum codigo de topo) e nenhum arquivo fora do conjunto esperado
-  expect_true(all(basename(files) %in% c("feature_engineering.R", "freeze.R", "helpers_nowcast.R", "ingestion.R", "register.R", "training.R")))
+  expect_true(all(basename(files) %in% c("feature_engineering.R", "freeze.R", "helpers_nowcast.R", "inference.R", "inference_features.R", "ingestion.R", "register.R", "training.R")))
 })
 
 test_that("despachante de treino alcanca ingestao, feature_engineering e o estagio de treino de DL.6 (erro de variante antes do motor)", {

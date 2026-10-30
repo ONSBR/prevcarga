@@ -1,0 +1,7 @@
+id	class	message	hint
+contract.load_label_mismatch	contract	rotulo da carga do artefato diverge do efetivo do deck	confira load_label (end|start) do artefato vs o efetivo do deck; retreine com a convencao atual
+contract.timezone_mismatch	contract	fuso da carga do artefato diverge do fuso do deck	confira o fuso do artefato vs o do manifest do deck; retreine com o fuso atual
+contract.weather_cutoff_mismatch	contract	regra de corte do clima previsto do artefato diverge da efetiva	confira weather_issue_cutoff (available_until|origin_midnight_utc) do artefato vs --weather-cutoff; retreine ou ajuste a flag
+contract.origin_mismatch	contract	artefato origin_scoped treinado em outra origem	o artefato deve ter a mesma origem de --origin; treine a origem pedida (available_until nao e conferido)
+contract.output_misaligned	contract	entrega do plugin fora da grade (available_until + 30 min ate O + delivery_days, passo 30, rotulo interval_end)	confira o primeiro/ultimo target_datetime esperado vs obtido no detalhe; o plugin deve entregar a partir de available_until + 30 min
+contract.panel_beyond_cut	contract	painel de inferencia contem intervalo alem de available_until	o leitor unico deve cortar em available_until; nao leia carga alem do corte

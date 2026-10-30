@@ -1,0 +1,7 @@
+# config.yaml de fixture do M7 (backtest/plan). A topologia de 2 folhas (A, B) e montada pelos testes na instalacao-copia
+# (config/topology.yaml); este arquivo so fixa o schema v1 do config. Sem variaveis de ambiente.
+schema_version: 1
+load_label: start
+weather_issue_cutoff: available_until
+backtest:
+  corte_default: "08:00"

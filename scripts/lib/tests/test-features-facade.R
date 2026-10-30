@@ -25,16 +25,12 @@ toys <- function() list(pc_toy_disp("toy-30"), pc_toy_disp("toy-60"))
 frame_of <- function(p) p$descriptor$stages$ingestion$fn(pc_train_slice(PANEL, CUTS), CUTS)
 payload_of <- function(p) {
   d <- p$descriptor; spec <- p$spec
-  d$freeze(d$stages$training$fn(d$stages$feature_engineering$fn(frame_of(p), spec$params), spec$params, spec$seed))
+  withr::with_preserve_seed(
+    d$freeze(d$stages$training$fn(d$stages$feature_engineering$fn(frame_of(p), spec$params), spec$params, spec$seed)))
 }
 
-## Plugins reais presentes na arvore (models/<m>/R/plugin.R); os 5 chegam com os epicos de modelo.
-real_plugins <- function() {
-  root <- file.path(pc_root(), "models")
-  ms <- list.dirs(root, recursive = FALSE, full.names = FALSE)
-  ms <- ms[file.exists(file.path(root, ms, "R", "plugin.R"))]
-  lapply(ms, function(m) prevcarga_plugin_load(m, root))
-}
+## Plugins reais (models/<m>/R/plugin.R) ficam fora da fundacao: a cobertura dos 8 membros e do M5 (P.0j: teste sem models/ real).
+real_plugins <- function() list()
 
 test_that("ac-0 check_signature: plugins validos passam; copias fora do contrato falham antes do treino (CONTROL)", {
   for (p in c(toys(), real_plugins())) expect_silent(prevcarga_plugin_check_signature(p))

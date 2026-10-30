@@ -21,3 +21,6 @@ Arquivo: `scripts/tools/plugin_gates.R` (ferramenta de desenvolvimento, fora do 
 `Rscript --vanilla scripts/tools/plugin_gates.R --models <m[,m2]|all> [--tier T] [--root <models>] [--topology <yaml>]`. `all` = `unique(prevcarga_members()$mdir)`;
 um processo `Rscript --vanilla` por runner (`system2`), uma linha por modelo, sai com o maior codigo. Runner ausente => `FAIL tools.gate_failed` com o caminho esperado.
 O hint de `tools.bad_tier` no catalogo (plugin.tsv, P.0a) cita "fast, full ou deploy" e esta desatualizado em relacao aos tiers reais (follow-up de P.0a).
+
+## RF.4: `--units <grupo>`
+O runner le `--units <grupo>` (nome de grupo do units.yaml do modelo) e o expoe aos testes por `pc_gate_units(default)`; sem a opcao, vale o default de cada teste (RF: `smoke` no tier parity, `foundation` no parity-full). Nenhuma outra mudanca no runner.
