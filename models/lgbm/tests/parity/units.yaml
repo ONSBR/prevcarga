@@ -1,0 +1,186 @@
+# Unidades de paridade do plugin lgbm (LGBM.5): clean-room x oraculo, Delta = 0 (limiar 1e-5 MW absoluto).
+# Contrato do plugin_golden.R (P.0f) / plugin_parity.R (P.0g). Cortes POR FASE literais: o oraculo treina com `--origin = O-2`
+# (= train_origin do clean-room, O-1-H com H = 1; `data_lag_days: 2` => o clean-room le carga so ate last_data_day = O-3, como o
+# oraculo le ate origin-1) e history_start O-2-730; infer em O com history_start O-45 e available_until = interval_end do corte
+# (O 08:30). `oracle_cut: start_label`: o golden passa ao oraculo `--available-until = available_until - 30 min` (O 08:00 = rotulo de
+# INICIO do ultimo intervalo real). `day0_source: native`: o dia O da entrega e `attr(pred, "completed_D")$mw` (linha 1 do native.rds).
+# oracle_env = job.json do oraculo (ex-env flags do LGBM); o env existe so no processo filho do oraculo. data_areas = area +
+# heat_area(area) (SECO -> SECO + SP). Clean-room com weather_issue_cutoff = origin_midnight_utc. Todo valor entre aspas (YAML 1.1).
+# Grupos: smoke (tier parity) = SECO 2024-10-02, RS 2024-07-01 (1o do mes), SP 2024-12-24 (dez/24: G-CAL/G-SAZ);
+# foundation = SECO x outubro/2024 (semanal, 1o do mes incluso); fanout = SP, RS, PA, BAOE x 2024-07-15 (um por subsistema);
+# controls = aditividade (oracle_env LGBM_TRAIN_CV "0" contra o clean-room train_cv false). O CONTROL `train_cv false` contra o
+# golden de CV reusa um golden do smoke com params mutado no teste (sem unidade propria). O golden vive em plugins/lgbm/<variant|_>/
+# <area>/<origin>: a unidade de aditividade (mesma area e origem do smoke seco-2024-10-02) tem `variant: aditividade` para nao
+# sobrescrever o golden de CV.
+# `rules` e conferido em toda unidade por pc_golden_units (violacao => tools.bad_units, exit 2).
+packages: [lightgbm, data.table, lubridate, wavelets, zoo, arrow]
+rules:
+  train_origin_offset: 2
+  train_history_offset: 732
+  infer_history_offset: 45
+  day0_source: [native]
+  equals: { seed: 123 }
+groups:
+  smoke: [seco-2024-10-02, rs-2024-07-01, sp-2024-12-24]
+  foundation: [seco-2024-10-01, seco-2024-10-08, seco-2024-10-15, seco-2024-10-22, seco-2024-10-29]
+  fanout: [sp-2024-07-15, rs-2024-07-15, pa-2024-07-15, baoe-2024-07-15]
+  controls: [ctl-aditividade-seco-2024-10-02]
+units:
+  - id: seco-2024-10-02
+    area: SECO
+    origin: "2024-10-02"
+    data_areas: [SECO, SP]
+    cuts:
+      train: {train_origin: "2024-09-30", history_start: "2022-10-01"}
+      infer: {history_start: "2024-08-18", available_until: "2024-10-02T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: rs-2024-07-01
+    area: RS
+    origin: "2024-07-01"
+    data_areas: [RS]
+    cuts:
+      train: {train_origin: "2024-06-29", history_start: "2022-06-30"}
+      infer: {history_start: "2024-05-17", available_until: "2024-07-01T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: sp-2024-12-24
+    area: SP
+    origin: "2024-12-24"
+    data_areas: [SP]
+    cuts:
+      train: {train_origin: "2024-12-22", history_start: "2022-12-23"}
+      infer: {history_start: "2024-11-09", available_until: "2024-12-24T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: seco-2024-10-01
+    area: SECO
+    origin: "2024-10-01"
+    data_areas: [SECO, SP]
+    cuts:
+      train: {train_origin: "2024-09-29", history_start: "2022-09-30"}
+      infer: {history_start: "2024-08-17", available_until: "2024-10-01T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: seco-2024-10-08
+    area: SECO
+    origin: "2024-10-08"
+    data_areas: [SECO, SP]
+    cuts:
+      train: {train_origin: "2024-10-06", history_start: "2022-10-07"}
+      infer: {history_start: "2024-08-24", available_until: "2024-10-08T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: seco-2024-10-15
+    area: SECO
+    origin: "2024-10-15"
+    data_areas: [SECO, SP]
+    cuts:
+      train: {train_origin: "2024-10-13", history_start: "2022-10-14"}
+      infer: {history_start: "2024-08-31", available_until: "2024-10-15T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: seco-2024-10-22
+    area: SECO
+    origin: "2024-10-22"
+    data_areas: [SECO, SP]
+    cuts:
+      train: {train_origin: "2024-10-20", history_start: "2022-10-21"}
+      infer: {history_start: "2024-09-07", available_until: "2024-10-22T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: seco-2024-10-29
+    area: SECO
+    origin: "2024-10-29"
+    data_areas: [SECO, SP]
+    cuts:
+      train: {train_origin: "2024-10-27", history_start: "2022-10-28"}
+      infer: {history_start: "2024-09-14", available_until: "2024-10-29T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: sp-2024-07-15
+    area: SP
+    origin: "2024-07-15"
+    data_areas: [SP]
+    cuts:
+      train: {train_origin: "2024-07-13", history_start: "2022-07-14"}
+      infer: {history_start: "2024-05-31", available_until: "2024-07-15T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: rs-2024-07-15
+    area: RS
+    origin: "2024-07-15"
+    data_areas: [RS]
+    cuts:
+      train: {train_origin: "2024-07-13", history_start: "2022-07-14"}
+      infer: {history_start: "2024-05-31", available_until: "2024-07-15T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: pa-2024-07-15
+    area: PA
+    origin: "2024-07-15"
+    data_areas: [PA]
+    cuts:
+      train: {train_origin: "2024-07-13", history_start: "2022-07-14"}
+      infer: {history_start: "2024-05-31", available_until: "2024-07-15T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: baoe-2024-07-15
+    area: BAOE
+    origin: "2024-07-15"
+    data_areas: [BAOE]
+    cuts:
+      train: {train_origin: "2024-07-13", history_start: "2022-07-14"}
+      infer: {history_start: "2024-05-31", available_until: "2024-07-15T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "1"}
+
+  - id: ctl-aditividade-seco-2024-10-02
+    variant: aditividade
+    area: SECO
+    origin: "2024-10-02"
+    data_areas: [SECO, SP]
+    cuts:
+      train: {train_origin: "2024-09-30", history_start: "2022-10-01"}
+      infer: {history_start: "2024-08-18", available_until: "2024-10-02T08:30", weather_issue_cutoff: origin_midnight_utc}
+    oracle_cut: start_label
+    day0_source: native
+    seed: 123
+    params: {train_cv: false}
+    oracle_env: {LGBM_DISABLE_LOESS: "1", LGBM_CALENDAR_YEAREND: "1", LGBM_TRAIN_CV: "0"}
+

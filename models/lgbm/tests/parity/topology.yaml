@@ -1,0 +1,13 @@
+# Topologia da paridade do lgbm (LGBM.5): o oraculo roda o LGBM por area do store, inclusive SECO (area de subsistema, nao folha
+# na topologia de producao) e SP (heat_area de SECO). Aqui SECO, SP, RS, PA e BAOE sao folhas para o leitor do clean-room aceita-las;
+# so o LGBM e membro. Mesmo esquema de config/topology.yaml. Nao e a topologia do produto. ASCII.
+schema_version: 1
+khat_range: [1.00, 1.15]
+subsystems:
+  SECO: {areas: [SECO, SP], loss: PESE}
+  S: {areas: [RS], loss: PES}
+  "N": {areas: [PA], loss: PEN}
+  NE: {areas: [BAOE], loss: PENE}
+order: [SECO, S, "N", NE]
+members:
+  - {sigla: LGBM, mdir: lgbm, exogena: null}

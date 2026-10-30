@@ -85,3 +85,23 @@ Escopo do LGBM.1: contrato (`run.yaml` + `register.R`) e ingestao. FE, treino e 
   (honesty_gate 4 bracos + CONTROL 09:00-09:30 + granularidade 09:00 x 09:30 + 12:00/16:00), `test-delivery.R` (grade e sentinela Hora 17). Helpers novos em `helper-lgbm-train.R`
   (`lgbm_with_cli`, `lgbm_fx_origin/infer/ragged/base/at`); `helper-lgbm.R` ganhou `sentinel` em `lgbm_fx_deck`. O ticket citava `prevcarga_plugin_infer("lgbm", panel, cuts, spec, ctx)`; a
   assinatura real e `prevcarga_plugin_infer(plugin, artifact, panel, cuts)` e o plugin vem do loader.
+
+## LGBM.5 -- paridade vs oraculo (Delta = 0), units.yaml, oracle_driver, golden.lock
+
+- Arquivos: `models/lgbm/tests/parity/{units.yaml, topology.yaml, oracle_driver.R, golden.lock}` e `tests/testthat/test-parity.R`. O golden (`.state/golden`, gitignored) so e regenerado por
+  `Rscript --vanilla scripts/tools/plugin_golden.R --model lgbm --units models/lgbm/tests/parity/units.yaml --oracle <clone limpo do oraculo> --data <store> --out .state/golden`
+  (R 4.5.3, lightgbm 4.7.0 nos dois lados; cada unidade roda 2x e as saidas tem de ser identicas, senao exit 12). `topology.yaml` declara SECO/SP/RS/PA/BAOE como folhas (so para o leitor da paridade; nao e a topologia do produto).
+- Oraculo: `/opt/ons-source/prevcargadessem3` tem untracked em `docs/roadmap/` e `plugin_golden.R` recusa oraculo sujo (`tools.oracle_dirty`); o golden roda de um `git clone` limpo do HEAD (mesmo commit) em tempdir e o oraculo real fica intocado (`git status --porcelain` identico antes e depois).
+- Unidades (`units.yaml`, esquema P.0f): treino do oraculo com `--origin = O-2` (= `train_origin` do clean-room, O-1-H, H=1) e `history_start = O-2-730`, lendo carga so ate O-3 = `last_data_day` (`data_lag_days: 2`); infer em O com `history_start = O-45` e
+  `available_until = O 08:30`; `oracle_cut: start_label` => o gerador passa `--available-until = O 08:00` (rotulo de inicio do ultimo intervalo real); `day0_source: native`; `weather_issue_cutoff: origin_midnight_utc`; `oracle_env` = job.json do oraculo
+  (`LGBM_DISABLE_LOESS/CALENDAR_YEAREND/TRAIN_CV = "1"`), so no processo filho; `data_areas` = area + heat_area. Grupos: `smoke` (SECO 2024-10-02, RS 2024-07-01 = 1o do mes, SP 2024-12-24 = dez/24), `foundation` (SECO x outubro/2024: 01, 08, 15, 22, 29),
+  `fanout` (SP, RS, PA, BAOE x 2024-07-15) e `controls` (aditividade: `oracle_env LGBM_TRAIN_CV "0"` x clean-room `train_cv: false`). `rules` de topo confere O-2 / O-732 / O-45, `day0_source native` e `seed 123` em toda unidade.
+- `oracle_driver.R` (filho do `plugin_golden.R`): `run_pipeline("train", ...)` e `run_pipeline("infer", ..., available_until)` do `orchestrator.R` do oraculo (nunca do `run_pipeline.R`, cujo `.main()` roda em sessao nao interativa), artefato em scratch; `long.parquet` = saida do CLI do
+  oraculo (`run_pipeline.R --mode infer --out`) sobre o MESMO artefato. `native.rds = list(layout "lgbm_day_48", values 2x48 [linha O = attr(pred,"completed_D")$mw; linha O+1 = pred$y_pred], completed_D, d1, meta$artifact_tables)`.
+  `meta$artifact_tables` (sazonalidade + fallbacks, min_max_BLF, colunas, best_iter e os rotulos de calendario do quadro de infer do oraculo) vive DENTRO de `native.rds` porque `plugin_golden.R` so publica `native.rds` e `long*.parquet`
+  (o ticket citava um `artifact_tables.rds` a parte; nao existe no contrato do gerador). `PREVCARGA_MODEL_R_DIR` e o contrato do proprio oraculo e e setado so neste filho.
+- `test-parity.R`: o clean-room roda EM PROCESSO pelo despachante (`prevcarga_plugin_train` -> freeze/stamp -> `prevcarga_plugin_infer` com thaw) com os cortes literais da unidade e o painel do leitor (overlay de symlinks do store real + `manifest.json`, `truncate_at` = available_until da unidade);
+  compara por `prevcarga_parity_compare` (layout `lgbm_day_48`, `day0_source native`, limiar 1e-5 MW): `values` 2x48, `delivery` x `long.parquet` (`interval_end = target_datetime + 30 min`), `cut_ok`, gate02 (`min_max_BLF$CargaGlobal["max"] > 1000`) e, por unidade,
+  G-CAL (rotulos de calendario do quadro de infer, identicos) e G-SAZ (Sazonalidade, fallbacks, min_max_BLF, colunas e `best_iter` do artefato, <= 1e-9). Golden ausente, digest de dados ou fingerprint divergente => `fail()` com
+  "golden ausente ou divergente: regere com scripts/tools/plugin_golden.R --model lgbm" (nunca skip). CONTROLs com dente: `train_cv: false` contra o golden de CV acusa > 1e-5; aditividade (`oracle_env LGBM_TRAIN_CV "0"` x `train_cv: false`) <= 1e-5; o pai nunca ganha `LGBM_*`.
+- Rotulos dos testes (linhas da tabela do `run_all_gates.R`, que e do LGBM.6): `units_yaml` (fast), `paridade`, `paridade_control`, `aditividade` (tier parity; foundation/fanout so em parity-full).
