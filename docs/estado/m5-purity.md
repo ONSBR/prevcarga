@@ -12,7 +12,7 @@ Sub-gate `scripts/tools/gates/m5.R` (barrel por descoberta; roda `test-m5-purity
   rede. Cada regra tem isca plantada em copia (tempdir) em 5 funcoes e acusada com `arquivo:linha`.
 - Isencao do `%in% c("`: a linha com `"latest.txt"` em `registry.R` (`.prevcarga_reg_walk`) checa arquivos do registry, nao nomes de modelo.
 - Pacotes usados (`::`, `requireNamespace`, `library`) devem estar no `Packages` do `renv.lock`. **O repo ainda nao tem `renv.lock`**
-  (ver discovery do M5.9): ate la o conjunto declarado e o das bibliotecas instaladas; o CONTROL cobre a leitura do JSON e o pacote ausente.
+  (dono: item aberto do Gabriel): ate la o conjunto declarado e o das bibliotecas instaladas, e o teste imprime `AVISO m5-purity: renv.lock AUSENTE ... NAO e estrita`. **A checagem de dependencias nao e estrita ate o renv.lock existir**; o CONTROL cobre a leitura do JSON e o pacote ausente.
 - `granularity_min == 60L` em `training.R:72`/`inference.R:171` e interino do despachante (branch `fix/foundation-w1-f4-lag` o remove).
 
 ## Contrato de saida (`scripts/lib/tests/test-m5-envelope.R`)
@@ -20,5 +20,6 @@ Sub-gate `scripts/tools/gates/m5.R` (barrel por descoberta; roda `test-m5-purity
   Exits cobertos: 0, 2, 4, 8, 9, 13 nos 3 verbos; um unico JSON com as 8 chaves do ADR-0040, `exit_code` = exit do processo = exit do
   modo texto, stderr vazio em json, stdout vazio no erro em texto, bytes <= 127.
 - Os 7 TSV do M5 sao ASCII puro; todo id citado por `prevcarga_abort/condition` no codigo do M5 existe no catalogo; nenhum id repetido.
+- `--horizon`/`--exogena` agora sao `scoped = c(...)` no registro do `train-models` (mecanismo do M7.1, `.prevcarga_check_scoped` em cli.R): o `infer-model` os recusa com `config.usage` (exit 8). `test-infer-model.R` AC1 usa deck valido + CONTROL (sem a flag passa do guard), logo nao e mais vacuo.
 - Correcao minima feita aqui: `scripts/lib/cli/infer-model.R` nao carregava `validation.R` (o verbo falhava por processo com
   `plugin.contract` em `deck_spec`); o `modules` agora o inclui.

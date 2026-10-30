@@ -71,7 +71,7 @@ CASES <- list(
   list(verb = "train-models", args = c("--area=INEXISTENTE", "--dry-run"), exit = 4L, st = "fresh"),
   list(verb = "train-models", args = c("--jobs=0"), exit = 8L, st = "fresh"),
   list(verb = "infer-model", args = c(paste0("--model=", MD), "--area=A"), exit = 0L, st = "trained"),
-  list(verb = "infer-model", args = c(paste0("--model=", MD), "--area=A"), exit = 8L, st = "trained", data = FALSE),
+  list(verb = "infer-model", args = c(paste0("--model=", MD), "--area=A", "--horizon", "3"), exit = 8L, st = "trained", id = "config.usage"),
   list(verb = "infer-model", args = c(paste0("--model=", MD), "--area=A"), exit = 9L, st = "tampered"),
   list(verb = "infer-model", args = c(paste0("--model=", MD), "--area=B"), exit = 13L, st = "trained"),
   list(verb = "registry", args = c("ls"), exit = 0L, st = "trained"),
@@ -105,6 +105,7 @@ for (cs in CASES) local({
     expect_true(is.list(j$json$warnings))
     expect_identical(is.null(j$json$error), cs$exit == 0L)
     if (cs$exit != 0L) expect_true(is.character(j$json$error$id) && nzchar(j$json$error$id))
+    if (!is.null(cs$id)) expect_identical(j$json$error$id, cs$id)
     expect_true(is.character(j$json$version) && nzchar(j$json$version))
     pc_assert_ascii(j$raw, lab)
     ## o mesmo caso em texto: mesmo exit; erro => stderr, stdout vazio

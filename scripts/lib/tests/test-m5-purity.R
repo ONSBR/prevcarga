@@ -187,7 +187,10 @@ pc5_pkgs_used <- function(files, scope = M5_SCOPE) {
 ## o conjunto declarado e o das bibliotecas instaladas do R que roda o teste: o CONTROL abaixo garante que o teste tem dente.
 pc5_declared_pkgs <- function(lock = file.path(pc_root(), "renv.lock")) {
   if (file.exists(lock)) names(jsonlite::fromJSON(lock, simplifyVector = FALSE)$Packages)
-  else rownames(utils::installed.packages())
+  else {
+    message("AVISO m5-purity: renv.lock AUSENTE no repo; a checagem de dependencias NAO e estrita (usa as bibliotecas instaladas) ate o renv.lock existir")
+    rownames(utils::installed.packages())
+  }
 }
 pc5_pkgs_missing <- function(used, declared) setdiff(used, declared)
 
