@@ -1176,21 +1176,24 @@ prevcarga_registry_unpin <- function(key, version, ctx = NULL) {
 ## Celula = diretorio com latest.txt, .pin ou v_<hex>/; nunca desce em v_*/ nem em .tmp-*/. Entradas `.tmp-*` (arquivo
 ## ou diretorio, qualquer nivel) sao staging de algum escritor do registry (publish/promote/pin, combina, k-hat).
 .prevcarga_reg_walk <- function(start) {
-  cells <- list()
-  tmps <- character()
   rec <- function(d) {
     ents <- list.files(d, all.files = TRUE, no.. = TRUE)
     full <- file.path(d, ents)
     link <- .prevcarga_reg_is_link(full)
-    tmps <<- c(tmps, full[.prevcarga_reg_is_tmp(ents) & !link])
     isdir <- dir.exists(full) & !link
-    vers <- ents[grepl(.prevcarga_reg_version_rx, ents) & isdir]
+    isver <- grepl(.prevcarga_reg_version_rx, ents)
+    vers <- ents[isver & isdir]
+    out <- list(cells = list(), tmp = full[.prevcarga_reg_is_tmp(ents) & !link])
     if (length(vers) || any(ents %in% c("latest.txt", ".pin")))
-      cells[[length(cells) + 1L]] <<- list(path = d, versions = vers[order(vers, method = "radix")])
-    for (s in ents[isdir & !grepl(.prevcarga_reg_version_rx, ents) & !.prevcarga_reg_is_tmp(ents)]) rec(file.path(d, s))
+      out$cells <- list(list(path = d, versions = vers[order(vers, method = "radix")]))
+    for (s in ents[isdir & !isver & !.prevcarga_reg_is_tmp(ents)]) {
+      sub <- rec(file.path(d, s))
+      out$cells <- c(out$cells, sub$cells)
+      out$tmp <- c(out$tmp, sub$tmp)
+    }
+    out
   }
-  if (.prevcarga_reg_real_dir(start)) rec(start)
-  list(cells = cells, tmp = tmps)
+  if (.prevcarga_reg_real_dir(start)) rec(start) else list(cells = list(), tmp = character())
 }
 
 ## model (sigla ou mdir de prevcarga_members, ou nome de pasta do registry como combina/reconcile) -> segmentos
