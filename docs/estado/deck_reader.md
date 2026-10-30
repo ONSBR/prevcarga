@@ -36,10 +36,12 @@
   truncate_at == deck fisicamente truncado) e `test-dates.R`.
 - `prevcarga_last_load_day(ctx, areas = NULL)`: dia (`as_date(interval_start, tz)`) do ultimo intervalo; le so a particao `year` mais alta nao vazia.
 - `prevcarga_weather_issue_limit(rule, origin, available_until, tz_load)`: `available_until` => ele mesmo; `origin_midnight_utc` => `O 00:00 UTC` no fuso da carga.
-  Regra vem de `ctx$weather_issue_cutoff` (fonte `ctx$sources$weather_issue_cutoff`, default `default` se ausente). `prevcarga_freshest_issue(fc, limit)`: emissao mais fresca <= limite por area.
+  Regra vem de `ctx$weather_issue_cutoff` (fonte `ctx$sources$weather_issue_cutoff`, default `default` se ausente). `prevcarga_freshest_issue(fc, limit)`: emissao mais fresca <= limite por `(area, valid_time)` (fix/facade-channels: os oraculos HW/dessem-linear/regdin/LGBM
+  combinam por valid_time; a 06Z comeca as 03:00 e o inicio do dia O vem da 00Z). `prevcarga_read_forecast_vintages(ctx, areas, from, to, limit)`: TODAS as emissoes
+  `<= limit` em `[from, to]` (insumo dos plugins com `weather_forecast_in_train`, no treino e no infer; usado por `training.R` e `inference.R`).
 - `prevcarga_read_weather(..., origin, truncate_at)`: o observado sai com `valid_time` (F4: a coluna crua `timestamp` do store e renomeada na borda de entrada, logo
-  apos o fuso; chave `(area_code, valid_time)`; nenhum consumidor ve `timestamp`); observado `<= available_until`; previsto so a emissao mais fresca permitida (escolhida antes do recorte de `valid_time`);
-  attrs `weather_issue_cutoff`, `weather_issue_cutoff_source`, `weather_issue_limit`, `freshest_issue_by_area`. `available_until` vem da carga lida pelo proprio leitor.
+  apos o fuso; chave `(area_code, valid_time)`; nenhum consumidor ve `timestamp`); observado `<= available_until`; previsto so a emissao mais fresca permitida por `(area, valid_time)` (escolhida antes do recorte de `valid_time`);
+  attrs `weather_issue_cutoff`, `weather_issue_cutoff_source`, `weather_issue_limit`, `freshest_issue_by_area` (a maior emissao usada por area). `available_until` vem da carga lida pelo proprio leitor.
 - Catalogo: `scripts/lib/errors/deck_cut.tsv`. Testes: `test-deck-reader-cut.R`; helper ganhou `pc_deck_until`, `pc_deck_drop`, `pc_deck_perturb`, `pc_deck_issues`.
 
 ## M2.7 (parte 3): feriados e painel do leitor
@@ -48,7 +50,7 @@
   (`simplified_code = -1` sai como esta; o finding `code_negative` e do validate-deck, M2.4). Chaveado `(area_code, date)`.
 - `prevcarga_read_panel(ctx, origin, areas, horizon_days, history_days)`: origem ja resolvida (o leitor nao depende de `dates.R`); valida `areas` contra
   `prevcarga_topology(path)$leaves` (`ctx$topology_path` ou `<ctx$root>/config/topology.yaml`) antes de ler => `topology.area_undeclared` (exit 4, `where` = a area).
-  Devolve `load` (O-hist..O, cortada), `weather_observed` (O-hist..O, <= available_until), `weather_forecast` (O..O+horizon, emissao mais fresca permitida), `holidays`
+  Devolve `load` (O-hist..O, cortada), `weather_observed` (O-hist..O, <= available_until), `weather_forecast` (O..O+horizon, emissao mais fresca permitida por valid_time), `holidays`
   (FIX 6: o calendario INTEIRO da area, sem janela, como o `.read_holidays` do oraculo; a janela antiga perdia o feriado anterior ao inicio do historico e
   o `days_since_last_holiday` do RF divergia, ex. RS 2023-09-20 em rs-2024-10-01) e `attrs` (`origin`, `available_until`, `available_until_by_area`, `load_label`, `load_label_source`, `tz`, `weather_issue_cutoff`, `weather_issue_limit`).
   `pc_panel_attrs` copia os atributos sem recalcular e aborta `contract.constraint_violated` se `tz`/`available_until` divergirem. O mapeamento area -> serie de clima e do plugin.

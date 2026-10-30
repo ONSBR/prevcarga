@@ -210,6 +210,10 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
   wl <- panel$attrs$weather_issue_limit
   if (inherits(wl, "POSIXct") && length(wl) == 1L && !is.na(wl)) cuts$weather_issue_limit <- wl
   panel <- .prevcarga_inf_select_area(panel, area)
+  ## mesmo insumo de clima do treino (training.R): o plugin que monta a propria safra recebe todas as emissoes <= limite
+  if (isTRUE(plugin$descriptor$weather_forecast_in_train))
+    panel$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - spec$history_days$infer,
+                                                               origin + spec$horizon_days, cuts$weather_issue_limit)
   panel <- prevcarga_infer_panel(panel, cuts, spec)
 
   pred <- prevcarga_infer(plugin, art, panel, cuts, list(), spec = NULL)

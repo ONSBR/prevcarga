@@ -849,6 +849,17 @@ prevcarga_preserve_rng <- function(expr) {
   list(panel = pm, cuts = cm)
 }
 
+## --- Entrada dos estagios (canal INTERINO cuts$spec / cuts$phase, pendente do F1) --------------------------------
+## Unico ponto que monta o que os estagios recebem: reamostragem (FIX 7) -> deslocamento de modelagem -> canal de spec/fase.
+## `cuts$spec` = spec EFETIVO do despacho e `cuts$phase` = "train" | "infer", em TODA chamada de estagio de todo plugin
+## (leitores interinos nos plugins). So os `cuts` dos estagios ganham os campos; carimbo e conferencias usam os originais.
+.prevcarga_plugin_stage_input <- function(panel, cuts, d, spec, phase) {
+  m <- .prevcarga_plugin_to_model(.prevcarga_plugin_resample(panel, d, spec), cuts, d$model_time_offset_min)
+  m$cuts$spec <- spec
+  m$cuts$phase <- phase
+  m
+}
+
 .prevcarga_plugin_check_mode <- function(plugin, spec, mode) {
   if (!(mode %in% spec$modes) || !(mode %in% plugin$descriptor$modes_implemented) ||
       (identical(mode, "forecast") && !identical(spec$split, "origin_scoped")))
@@ -864,7 +875,7 @@ prevcarga_plugin_train <- function(plugin, panel, cuts, spec, ctx = list()) {
   .prevcarga_plugin_check_train_panel(panel, cuts, d)
   .prevcarga_plugin_check_raw_cols(panel)
   .prevcarga_plugin_require_data_cols(panel, d, c("ingestion", "feature_engineering", "training"))
-  m <- .prevcarga_plugin_to_model(.prevcarga_plugin_resample(panel, d, spec), cuts, d$model_time_offset_min)
+  m <- .prevcarga_plugin_stage_input(panel, cuts, d, spec, "train")
   st <- d$stages
   payload <- .prevcarga_plugin_guarded(plugin, {
     frame <- st$ingestion$fn(m$panel, m$cuts)
@@ -881,7 +892,7 @@ prevcarga_plugin_train <- function(plugin, panel, cuts, spec, ctx = list()) {
   d <- plugin$descriptor
   prevcarga_plugin_check_artifact(artifact, plugin, spec, cuts)
   .prevcarga_plugin_check_infer_panel(panel, cuts, d)
-  m <- .prevcarga_plugin_to_model(.prevcarga_plugin_resample(panel, d, spec), cuts, d$model_time_offset_min)
+  m <- .prevcarga_plugin_stage_input(panel, cuts, d, spec, "infer")
   st <- d$stages
   payload <- artifact$payload
   raw <- .prevcarga_plugin_guarded(plugin, {
