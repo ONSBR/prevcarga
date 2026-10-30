@@ -1,4 +1,4 @@
-# Estado: reconcile (R.1, nucleo puro)
+# Estado: reconcile (epico fechado pelo R.V)
 
 - `scripts/lib/reconcile.R`: funcoes puras (sem I/O/leitor/registry). Requer errors, schema_long, evaluation
   (`prevcarga_assert_long`), data.table e lubridate.
@@ -97,3 +97,35 @@ Desvios do plano original, por unify: (1) nao existe `prevcarga_khat_promote` (g
   `--out` default = `<state_dir>/scratch/<run_id>/`; `out` nao vazio e fora do layout (`SIN.parquet`, `subsistemas/*.parquet`) => io.out_unwritable; no layout e substituido (rerun idempotente).
 - `run_id` do envelope: o verbo anexa `attr(result, "run_id")`; `cli.R` o honra de forma generica (4 linhas, sem caso por verbo). Em erro o run_id e o do processo.
 - Teste: `test-reconcile-cli.R` (processo real; ~30 s).
+
+## Modulo vivo e indice (fechamento do epico, R.V)
+- **Dono:** epico Reconcile. **Consumidores:** M6 (forecast/export) e M7 (backtest: uma origem por chamada, em sequencia).
+- `scripts/lib/reconcile.R` -- publicas: `prevcarga_reconcile_plan`, `_bottomup`, `prevcarga_khat_ratio`, `_fit`, `_apply`, `prevcarga_reconcile_sin`,
+  `prevcarga_reconcile_long`, `prevcarga_khat_key/_data_hash/_version/_freeze/_advance_latest/_resolve/_thaw` (R.2), `prevcarga_reconcile_train/_apply`
+  e `prevcarga_khat_check_policy` (R.3), `prevcarga_khat_reach_arms` (R.4), borda de I/O `prevcarga_reconcile_read_from/_run_id/_write/_check_subsystem` (R.5).
+- Regra: **soma por interval_end, bucket por interval_start** (uma so fonte de interval_start: `prevcarga_long_interval_start`). Sem aritmetica de hora.
+- Verbo: `scripts/lib/cli/reconcile.R` (auto-registrado, handler fino).
+- Formula: `y_pred = BU_pred x k_hat(hora, mes, dow do interval_start)`, `dow` com `week_start = 7`, sem clamp (a faixa e do `check-coherence`).
+- Janela: W dias `[O-W, O-1]` inclusiva nas duas pontas (fiel ao `seq(O - W, O - 1)` do oraculo); `window_days` so por flag `--khat-window`.
+- Layout: `<state_dir>/artifacts/reconcile/<ss>/{latest.txt, v_<hash>/}` = prefixo do bucket; staging unico `.tmp-*` + `file.rename`
+  (orfaos limpos pelo registry gc do M5).
+- Politica: `khat_origin == O` sempre (reajustado por origem, como o oraculo; decisao do Gabriel 2026-10-29); `latest.txt` so anda para frente.
+  `forecast_origin` e texto `yyyy-MM-dd` no LONG de subsistema/SIN.
+- Catalogo: `scripts/lib/errors/reconcile.tsv`.
+- Excecoes conscientes do A/B do M8 (nenhuma entra em `ab_excecoes.yaml`): glob da janela em vez do historico inteiro; fallback silencioso
+  do oraculo removido (aviso `reconcile.khat_fallback` + `n_fallback`); bucket por interval_start.
+- Decisoes taticas L2: ids do catalogo no R.1; `window_days` so por flag; `dow week_start = 7`; unify do k-hat no registry (R.2).
+
+## R.V -- verificacao
+- `test-reconcile-coherence.R`: apply com perfil sintetico (um bucket k = 1,20, faixa [1,00; 1,15]) => `y_pred = BU_pred x 1,20` sem clamp;
+  `prevcarga_check_coherence` e o verbo `check-coherence --long` saem exit 11 `coherence.khat` no subsistema/instante, sem `coherence.sin_sum`;
+  com k na faixa exit 0 e findings vazio.
+- `test-reconcile-determinism.R`: verbo por processo 4x (2 limpas, 2 com TZ/LC_ALL/OPENBLAS_NUM_THREADS errados no filho): sha256 por arquivo e
+  run_id identicos; `--out` default = `<state_dir>/scratch/<run_id>/`. Manifesto de plataforma em `tempdir()` (sha256, linhas, soma de y_pred).
+  **[DEFERRED M8] Windows nativo (dono: M8.1, matriz de plataforma):** esta maquina so roda Linux; o arquivo nao tem skip por plataforma e a
+  comparacao Windows x Linux (mesmas linhas, max rel <= 0,1%) roda no M8.
+- `test-reconcile-greps.R`: gates de fonte em `reconcile.R` e `cli/reconcile.R` (sem env/relogio/datas base/minutes(30)/system/symlink/rede/wmape local/
+  clamp/`PREVCARGA_*`/`.staging-`/literal de topologia; `pc_time_arith_patterns()` com `allow = list()`; sem byte > 127 em mensagens), cada um com CONTROL por injecao.
+  Para passar `allow = list()`, `cli/reconcile.R` formata datas com `as.character(lubridate::as_date(x))` (o formato `"%Y-%m-%d"` casava o padrao `%m-%`).
+- Paridade com o golden: copiar `.state/golden/reconcile/` (gitignored) da checkout principal como diretorio real; sem ele o tier de paridade fica em SKIP.
+- Bateria: `testthat::test_dir("scripts/lib/tests", filter = "reconcile|reach_control")` = 0 falhas, 0 skips (Linux, R 4.5.3, com golden).
