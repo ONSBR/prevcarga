@@ -183,3 +183,67 @@ prevcarga_install_root <- function(args = commandArgs(FALSE)) {
     prevcarga_abort("runtime.install_root_unresolved", where = root)
   root
 }
+
+## --- Contrato do RUNTIME.json do bundle (M8.1) ----------------------------------------------------------
+## Fonte unica usada no build (scripts/tools/bundle_manifest.R) e no doctor/validacao do bundle instalado.
+## O runtime_id e content-addressed: sha256 da serializacao canonica SEM `built_at` (campo lateral, nunca relogio:
+## o build o recebe de fora ou o omite). Nenhuma leitura de variavel de ambiente aqui.
+
+## Ordena chaves de listas nomeadas recursivamente (radix); listas sem nome (arrays) mantem a ordem.
+.prevcarga_runtime_sort_keys <- function(x) {
+  if (!is.list(x)) return(x)
+  if (!is.null(names(x))) x <- x[order(names(x), method = "radix")]
+  lapply(x, .prevcarga_runtime_sort_keys)
+}
+
+## with_built_at = FALSE (default) e a forma que entra no runtime_id; TRUE e a forma gravada em RUNTIME.json.
+prevcarga_runtime_json_canonical <- function(x, with_built_at = FALSE) {
+  if (!isTRUE(with_built_at)) x$built_at <- NULL
+  if (length(x$files))
+    x$files <- x$files[order(vapply(x$files, function(f) as.character(f[["path"]]), ""), method = "radix")]
+  x <- .prevcarga_runtime_sort_keys(x)
+  txt <- jsonlite::toJSON(x, auto_unbox = TRUE, null = "null", digits = NA)
+  enc2utf8(paste0(gsub("\r\n", "\n", as.character(txt), fixed = TRUE), "\n"))
+}
+
+## sha256 (chr 64) do conteudo; symlink = sha256 do texto "symlink:<alvo>" (nao segue o link: o alvo pode ser relativo/pendente).
+.prevcarga_runtime_file_sha <- function(path) {
+  tgt <- Sys.readlink(path)
+  if (nzchar(tgt))
+    return(digest::digest(paste0("symlink:", tgt), algo = "sha256", serialize = FALSE))
+  digest::digest(file = path, algo = "sha256")
+}
+
+prevcarga_runtime_id <- function(path_runtime_json) {
+  if (!file.exists(path_runtime_json)) return(NULL)
+  x <- jsonlite::read_json(path_runtime_json, simplifyVector = FALSE)
+  digest::digest(prevcarga_runtime_json_canonical(x), algo = "sha256", serialize = FALSE)
+}
+
+## Recalcula o sha256 de TODO files[] sob `root` (raiz do bundle, onde mora RUNTIME.json). Sem RUNTIME.json => ok = FALSE com
+## divergentes = "RUNTIME.json" (arvore de dev nao e um bundle). strict = TRUE aborta com bundle.manifest_mismatch (exit 6).
+prevcarga_runtime_validate <- function(root, strict = FALSE) {
+  mf <- file.path(root, "RUNTIME.json")
+  bad <- character()
+  if (!file.exists(mf)) bad <- "RUNTIME.json"
+  else {
+    fl <- jsonlite::read_json(mf, simplifyVector = FALSE)$files
+    for (f in fl) {
+      p <- file.path(root, f$path)
+      if (!file.exists(p) && !nzchar(Sys.readlink(p))) bad <- c(bad, f$path)
+      else if (!identical(.prevcarga_runtime_file_sha(p), f$sha256)) bad <- c(bad, f$path)
+    }
+  }
+  bad <- sort(unique(bad), method = "radix")
+  if (strict && length(bad))
+    prevcarga_abort("bundle.manifest_mismatch", where = root, details = list(paths = as.list(bad)))
+  list(ok = length(bad) == 0L, divergentes = bad)
+}
+
+## Pacotes obrigatorios do bundle: aborta (exit 6) no PRIMEIRO ausente, com o nome em details.
+prevcarga_bundle_require <- function(pkgs) {
+  for (p in pkgs)
+    if (!requireNamespace(p, quietly = TRUE))
+      prevcarga_abort("bundle.package_missing", where = p, details = list(package = p))
+  invisible(pkgs)
+}

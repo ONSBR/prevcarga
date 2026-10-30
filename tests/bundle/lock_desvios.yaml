@@ -1,0 +1,304 @@
+# tests/bundle/lock_desvios.yaml -- lista FECHADA dos pacotes cujo renv.lock do clean-room (R 4.5.3, snapshot P3M 2026-10-27)
+# difere em versao do renv.lock da referencia (R 4.2.3, snapshot 2023-04-21). Pacote fora desta lista com versao diferente reprova
+# o teste (test-bundle-linux.R). Vazio = paridade total. Origem: docs/estado/m1-spike-r453.md (ADR-0036).
+desvios:
+  - pacote: BH
+    versao_referencia: "1.81.0-1"
+    versao_adotada: "1.90.0-1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: R6
+    versao_referencia: "2.5.1"
+    versao_adotada: "2.6.1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: Rcpp
+    versao_referencia: "1.0.10"
+    versao_adotada: "1.1.2"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: RcppArmadillo
+    versao_referencia: "0.12.2.0.0"
+    versao_adotada: "15.6.2-1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: WeightSVM
+    versao_referencia: "1.7-11"
+    versao_adotada: "1.7-16"
+    motivo: "versao do conjunto relock do spike M1.7; diverge do dessem-regdin conforme ADR-0036"
+    adr: ADR-0036
+  - pacote: XML
+    versao_referencia: "3.99-0.14"
+    versao_adotada: "3.99-0.25"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: anytime
+    versao_referencia: "0.3.9"
+    versao_adotada: "0.3.13"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: arrow
+    versao_referencia: "11.0.0.3"
+    versao_adotada: "26.0.0"
+    motivo: "falha em cascata de dependencia que nao compila em R 4.5.3 (spike M1.7, braco estrito)"
+    adr: ADR-0036
+  - pacote: bit
+    versao_referencia: "4.0.5"
+    versao_adotada: "4.6.0"
+    motivo: "nao compila em R 4.5.3 (spike M1.7, braco estrito: erro de C com os headers do R 4.5)"
+    adr: ADR-0036
+  - pacote: bit64
+    versao_referencia: "4.0.5"
+    versao_adotada: "4.8.6"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: cli
+    versao_referencia: "3.6.1"
+    versao_adotada: "3.6.6"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: colorspace
+    versao_referencia: "2.1-0"
+    versao_adotada: "2.1-4"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: cpp11
+    versao_referencia: "0.4.3"
+    versao_adotada: "0.5.5"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: data.table
+    versao_referencia: "1.14.8"
+    versao_adotada: "1.18.6.1"
+    motivo: "nao compila em R 4.5.3 (spike M1.7, braco estrito: erro de C com os headers do R 4.5)"
+    adr: ADR-0036
+  - pacote: digest
+    versao_referencia: "0.6.31"
+    versao_adotada: "0.6.39"
+    motivo: "nao compila em R 4.5.3 (spike M1.7, braco estrito: erro de C com os headers do R 4.5)"
+    adr: ADR-0036
+  - pacote: distributional
+    versao_referencia: "0.3.2"
+    versao_adotada: "0.9.0"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: docopt
+    versao_referencia: "0.7.1"
+    versao_adotada: "0.7.2"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: dplyr
+    versao_referencia: "1.1.1"
+    versao_adotada: "1.2.1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: e1071
+    versao_referencia: "1.7-13"
+    versao_adotada: "1.7-17"
+    motivo: "versao do conjunto relock do spike M1.7; diverge do dessem-regdin conforme ADR-0036"
+    adr: ADR-0036
+  - pacote: fable
+    versao_referencia: "0.3.3"
+    versao_adotada: "0.5.0"
+    motivo: "falha em cascata de dependencia que nao compila em R 4.5.3 (spike M1.7, braco estrito)"
+    adr: ADR-0036
+  - pacote: fabletools
+    versao_referencia: "0.3.3"
+    versao_adotada: "0.8.0"
+    motivo: "falha em cascata de dependencia que nao compila em R 4.5.3 (spike M1.7, braco estrito)"
+    adr: ADR-0036
+  - pacote: farver
+    versao_referencia: "2.1.1"
+    versao_adotada: "2.1.2"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: feasts
+    versao_referencia: "0.3.1"
+    versao_adotada: "0.5.0"
+    motivo: "falha em cascata de dependencia que nao compila em R 4.5.3 (spike M1.7, braco estrito)"
+    adr: ADR-0036
+  - pacote: forecast
+    versao_referencia: "8.21"
+    versao_adotada: "9.0.2"
+    motivo: "falha em cascata de dependencia que nao compila em R 4.5.3 (spike M1.7, braco estrito)"
+    adr: ADR-0036
+  - pacote: fracdiff
+    versao_referencia: "1.5-2"
+    versao_adotada: "1.5-4"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: generics
+    versao_referencia: "0.1.3"
+    versao_adotada: "0.1.4"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: ggplot2
+    versao_referencia: "3.4.2"
+    versao_adotada: "4.0.3"
+    motivo: "nao compila em R 4.5.3 (spike M1.7, braco estrito: erro de C com os headers do R 4.5)"
+    adr: ADR-0036
+  - pacote: glue
+    versao_referencia: "1.6.2"
+    versao_adotada: "1.8.1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: gtable
+    versao_referencia: "0.3.3"
+    versao_adotada: "0.3.6"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: isoband
+    versao_referencia: "0.2.7"
+    versao_adotada: "0.3.0"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: jsonlite
+    versao_referencia: "1.8.4"
+    versao_adotada: "2.0.0"
+    motivo: "nao compila em R 4.5.3 (spike M1.7, braco estrito: erro de C com os headers do R 4.5)"
+    adr: ADR-0036
+  - pacote: labeling
+    versao_referencia: "0.4.2"
+    versao_adotada: "0.4.3"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: lifecycle
+    versao_referencia: "1.0.3"
+    versao_adotada: "1.0.5"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: lightgbm
+    versao_referencia: "3.3.5"
+    versao_adotada: "4.7.0"
+    motivo: "falha em cascata de dependencia que nao compila em R 4.5.3 (spike M1.7, braco estrito)"
+    adr: ADR-0036
+  - pacote: lubridate
+    versao_referencia: "1.9.2"
+    versao_adotada: "1.9.5"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: magrittr
+    versao_referencia: "2.0.3"
+    versao_adotada: "2.0.5"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: pillar
+    versao_referencia: "1.9.0"
+    versao_adotada: "1.11.1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: progressr
+    versao_referencia: "0.13.0"
+    versao_adotada: "1.1.0"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: proxy
+    versao_referencia: "0.4-27"
+    versao_adotada: "0.4-29"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: purrr
+    versao_referencia: "1.0.1"
+    versao_adotada: "1.2.2"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: randomForest
+    versao_referencia: "4.7-1.1"
+    versao_adotada: "4.7-1.2"
+    motivo: "nao compila em R 4.5.3 (spike M1.7, braco estrito: erro de C com os headers do R 4.5)"
+    adr: ADR-0036
+  - pacote: rlang
+    versao_referencia: "1.1.0"
+    versao_adotada: "1.3.0"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: scales
+    versao_referencia: "1.2.1"
+    versao_adotada: "1.4.0"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: slider
+    versao_referencia: "0.3.0"
+    versao_adotada: "0.3.3"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: stringi
+    versao_referencia: "1.7.12"
+    versao_adotada: "1.8.9"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: stringr
+    versao_referencia: "1.5.0"
+    versao_adotada: "1.6.0"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: tibble
+    versao_referencia: "3.2.1"
+    versao_adotada: "3.3.1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: tidyr
+    versao_referencia: "1.3.0"
+    versao_adotada: "1.3.2"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: tidyselect
+    versao_referencia: "1.2.0"
+    versao_adotada: "1.2.1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: timeDate
+    versao_referencia: "4022.108"
+    versao_adotada: "4052.112"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: timechange
+    versao_referencia: "0.2.0"
+    versao_adotada: "0.4.0"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: tsibble
+    versao_referencia: "1.1.3"
+    versao_adotada: "1.2.0"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: urca
+    versao_referencia: "1.3-3"
+    versao_adotada: "1.3-4"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: utf8
+    versao_referencia: "1.2.3"
+    versao_adotada: "1.2.6"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: vctrs
+    versao_referencia: "0.6.2"
+    versao_adotada: "0.7.3"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: viridisLite
+    versao_referencia: "0.4.1"
+    versao_adotada: "0.4.3"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: warp
+    versao_referencia: "0.2.0"
+    versao_adotada: "0.2.3"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: withr
+    versao_referencia: "2.5.0"
+    versao_adotada: "3.0.3"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: yaml
+    versao_referencia: "2.3.7"
+    versao_adotada: "2.3.12"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
+  - pacote: zoo
+    versao_referencia: "1.8-12"
+    versao_adotada: "1.9-1"
+    motivo: "versao do conjunto relock do snapshot P3M 2026-10-27 (spike M1.7, braco relock); movida junto com as dependencias acima"
+    adr: ADR-0036
