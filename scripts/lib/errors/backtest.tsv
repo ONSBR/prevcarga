@@ -1,0 +1,2 @@
+id	class	message	hint
+contract.backtest_long_na	contract	LONG da celula do backtest com y_pred NA ou entrega ate o corte	nunca preenche com 0: corrija o plugin/painel da celula

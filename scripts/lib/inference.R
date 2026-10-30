@@ -189,8 +189,9 @@ prevcarga_infer_check_alignment <- function(pred, cuts, descriptor) {
 ## deck (corte global, M2.2), adota available_until/weather_issue_limit do painel, seleciona a area e, para plugin com
 ## `weather_forecast_in_train`, troca o previsto por TODAS as emissoes <= limite em [O - history_days.infer, O + H] (o mesmo
 ## insumo do treino, training.R). Devolve list(panel, cuts). Nenhum corte e calculado aqui.
-prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx) {
-  panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, spec$history_days$infer)
+prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, truncate_at = NULL) {
+  panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, spec$history_days$infer,
+                                truncate_at = truncate_at)
   au <- panel$attrs$available_until
   cuts$available_until <- if (inherits(au, "POSIXct") && length(au) == 1L && !is.na(au)) au else cuts$available_until
   wl <- panel$attrs$weather_issue_limit
@@ -202,7 +203,10 @@ prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx) {
   list(panel = prevcarga_infer_panel(panel, cuts, spec), cuts = cuts)
 }
 
-prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, version = NULL, pin = FALSE) {
+## `artifact` (M7.3, backtest): artefato em memoria (do cache local), no lugar da resolucao do registry; `truncate_at`: corte
+## intradiario da celula, repassado AO LEITOR (o available_until continua derivado do dado, nunca calculado aqui).
+prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, version = NULL, pin = FALSE,
+                                 artifact = NULL, truncate_at = NULL) {
   if (is.null(origin)) origin <- prevcarga_resolve_origin(ctx)$origin
   origin <- lubridate::as_date(origin)
   if (is.null(ctx$weather_issue_cutoff)) ctx$weather_issue_cutoff <- "available_until"
@@ -210,7 +214,8 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
   prevcarga_plugin_check_signature(plugin)
   vp <- plugin$descriptor$variant_param
   needs <- is.character(vp) && length(vp) == 1L && !is.na(vp)
-  res <- prevcarga_infer_resolve(member, area, ctx, variant, version, pin, needs_variant = needs)
+  res <- if (is.null(artifact)) prevcarga_infer_resolve(member, area, ctx, variant, version, pin, needs_variant = needs)
+         else list(artifact = artifact, version = NA_character_, resolved_by = "memory", member = member)
   member <- res$member
   art <- res$artifact
   spec <- art$spec_efetivo
@@ -223,7 +228,7 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
   cuts <- .prevcarga_inf_cuts(plugin, spec, origin, ctx, member$mdir)
   prevcarga_infer_check_conventions(art, cuts, list(load_label = cuts$load_label), plugin$descriptor)
   .prevcarga_inf_check_artifact_cut(art, spec, cuts, member$mdir)
-  rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, origin, ctx)
+  rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, origin, ctx, truncate_at = truncate_at)
   panel <- rp$panel
   cuts <- rp$cuts
 

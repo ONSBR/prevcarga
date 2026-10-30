@@ -146,7 +146,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
     code_version = ident$code_version, lock_hash = ident$lock_hash), "")]
   data.table::setorder(cells, membro, folha, origem, corte_hm)
   list(run_id = .m7_run_id(ctx, origins, cortes, cells, ident), cells = cells, origins = origins, cortes = cortes,
-       protocol = protocol, load_label = ident$load_label, tz = ident$tz)
+       protocol = protocol, load_label = ident$load_label, tz = ident$tz, ident = ident)
 }
 
 ## --- 3. Plano canonico em disco -----------------------------------------------------------------------------
@@ -384,10 +384,10 @@ prevcarga_plan_result <- function(plan) {
     }, ""))
 }
 
-## Celula do backtest: o M7.3 define `prevcarga_backtest_cell_runner(ctx)` (train + infer por origem); sem ele, falha classificada.
-.m7_run_cell_for <- function(ctx) {
+## Celula do backtest: o M7.3 define `prevcarga_backtest_cell_runner(ctx, plan)` (train + infer por origem); sem ele, falha classificada.
+.m7_run_cell_for <- function(ctx, plan) {
   mk <- get0("prevcarga_backtest_cell_runner", mode = "function")
-  if (is.function(mk)) return(mk(ctx))
+  if (is.function(mk)) return(mk(ctx, plan))
   function(cell) prevcarga_abort("todo.not_implemented", where = "backtest cell -> M7.3")
 }
 
@@ -402,7 +402,7 @@ prevcarga_backtest_run <- function(ctx, args) {
   plan <- prevcarga_plan_request(ctx, args)
   jobs <- .prevcarga_tr_arg(args, "--jobs")
   jobs <- if (is.null(jobs)) 1L else suppressWarnings(as.integer(jobs))
-  out <- prevcarga_orchestrate(ctx, plan, .m7_run_cell_for(ctx), jobs = jobs,
+  out <- prevcarga_orchestrate(ctx, plan, .m7_run_cell_for(ctx, plan), jobs = jobs,
                                keep_going = isTRUE(args[["--keep-going"]]), resume = isTRUE(args[["--resume"]]),
                                break_lock = isTRUE(args[["--break-lock"]]))
   s <- out$summary
