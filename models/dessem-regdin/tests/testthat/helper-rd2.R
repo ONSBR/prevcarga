@@ -2,6 +2,10 @@
 ## codigo de produto. Painel sintetico deterministico SEM RNG (ruido por senos), com 14 meses de historia comecando num
 ## primeiro de mes (fable::ARIMA com Mes exige todos os niveis do fator na janela), feriados espalhados e temperatura
 ## nao colinear. Cada treino custa ~1 min (216 ajustes de SVM): os treinos compartilhados ficam em cache de sessao.
+## determinismo e caixa compartilhada: BLAS/OpenMP em 1 thread dentro do processo (como o runtime.R), sem variavel de ambiente
+if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
+  RhpcBLASctl::blas_set_num_threads(1L); RhpcBLASctl::omp_set_num_threads(1L)
+}
 RD2_O <- lubridate::ymd("2024-12-23")
 RD2_D <- as.integer(RD2_O - lubridate::ymd("2023-11-01"))
 RD2_ORACLE_FIT <- "/opt/ons-source/prevcargadessem3/models/dessem-regdin/R/training/dessem_regdin_fit.R"
