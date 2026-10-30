@@ -313,7 +313,10 @@ prevcarga_platform_check <- function(ctx, host = .prevcarga_host_platform(), gli
   cand <- c(root, dirname(root))
   broot <- cand[file.exists(file.path(cand, "RUNTIME.json"))][1L]
   installed <- !is.na(broot)
-  campos <- list(runtime_id = NULL, version = ctx$version, platform = host, install_root = root,
+  ## install_root = raiz da INSTALACAO do usuario (<R>, M8.3: ctx$install_root); fora do layout instalado, a raiz do codigo.
+  ## bundle_root = <R>/versions/<v> (onde mora o RUNTIME.json), so quando instalado.
+  campos <- list(runtime_id = NULL, version = ctx$version, platform = host,
+                 install_root = if (is.null(ctx$install_root)) root else ctx$install_root, bundle_root = NULL,
                  state_dir = ctx$state_dir, artefatos = list(), state_bytes = .prevcarga_state_bytes(ctx$state_dir))
   na_names <- c("bundle.plataforma", "bundle.r_version", "bundle.integridade", "bundle.versao", "bundle.current",
                 "artefatos.presenca", "artefatos.sha")
@@ -324,7 +327,7 @@ prevcarga_platform_check <- function(ctx, host = .prevcarga_host_platform(), gli
   rt <- jsonlite::read_json(file.path(broot, "RUNTIME.json"), simplifyVector = FALSE)
   campos$runtime_id <- prevcarga_runtime_id(file.path(broot, "RUNTIME.json"))
   campos$version <- rt$version
-  campos$install_root <- broot
+  campos$bundle_root <- broot
   plat_ok <- identical(as.character(rt$platform), host)
   glibc_ok <- !grepl("^linux", host) || is.na(glibc) || utils::compareVersion(glibc, "2.35") >= 0
   r_plat <- if (!plat_ok) .prevcarga_pc_row("bundle.plataforma", "FAIL", as.character(rt$platform), host, "bundle")

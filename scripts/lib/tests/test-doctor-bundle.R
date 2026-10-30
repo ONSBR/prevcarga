@@ -106,5 +106,8 @@ test_that("platform_check in-process: glibc < 2.35 reprova no Linux; current div
   writeLines("1.0.0", file.path(d, "current"))
   cur <- H$prevcarga_platform_check(ctx, host = "linux-x86_64", glibc = "2.39", r_version = rver)
   expect_identical(cur$rows$status[cur$rows$check == "bundle.current"], "WARN")
-  expect_identical(cur$campos$install_root, b)
+  expect_identical(cur$campos$bundle_root, b)
+  ## install_root = raiz da instalacao do usuario (<R>, M8.3) quando o ctx a traz; senao a raiz do codigo
+  ctx_inst <- ctx; ctx_inst$install_root <- d
+  expect_identical(H$prevcarga_platform_check(ctx_inst, host = "linux-x86_64", glibc = "2.39", r_version = rver)$campos$install_root, d)
 })
