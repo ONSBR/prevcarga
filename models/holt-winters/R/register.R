@@ -39,7 +39,7 @@ plugin_constants <- function() list(
   semifer_floor   = lubridate::ymd("2019-01-01"),  # piso do arqCarga do SemiFer (hw_training.R)
   ts_frequency    = 7L,                            # frequency do ts() diario
   hv_tz           = "America/Sao_Paulo",           # so o flag historico HV (horario de verao)
-  hv_shift_hours  = 6L,                            # o oraculo avalia o fuso as 06:00 UTC do dia (GetData2.R:51)
+  hv_utc_hour     = 6L,                            # o oraculo avalia o fuso as 06:00 UTC do dia (GetData2.R:51)
   cmed_bounds     = c(1, 999999),                  # .preconsist_ctm: Cmed valida
   tmed_bounds     = c(-10, 50))                    # .preconsist_ctm: Tmed valida
 
