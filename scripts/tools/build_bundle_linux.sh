@@ -35,10 +35,13 @@ inside() {
       echo "deb https://snapshot.ubuntu.com/ubuntu/${APT_SNAPSHOT} ${suite} main restricted universe multiverse"
     done
   } > /etc/apt/sources.list
+  echo "[build] apt snapshot update" >&2
   apt-get -o Acquire::Check-Valid-Until=false update -qq
+  echo "[build] apt install toolchain" >&2
   # toolchain SEM python3 (nem recomendados); o R .deb puxa as bibliotecas de execucao
   apt-get install -y -qq --no-install-recommends ca-certificates curl zstd tar xz-utils binutils \
     build-essential gfortran pkg-config libcurl4-openssl-dev libssl-dev libxml2-dev zlib1g-dev libicu-dev >/dev/null
+  echo "[build] R .deb" >&2
   curl -fsSL -o /tmp/r.deb "${R_DEB_URL}"
   echo "${R_DEB_SHA256}  /tmp/r.deb" | sha256sum -c - >/dev/null
   apt-get install -y -qq --no-install-recommends /tmp/r.deb >/dev/null
@@ -53,6 +56,7 @@ inside() {
   "${RBIN}/Rscript" --vanilla -e "
     options(HTTPUserAgent = sprintf('R/%s R (%s)', getRversion(), paste(getRversion(), R.version\$platform, R.version\$arch, R.version\$os)))
     install.packages('renv', lib = '/build/renvlib', repos = '${P3M_BINARY_REPO}', quiet = TRUE)" >/dev/null
+  echo "[build] renv restore" >&2
   export RENV_CONFIG_CACHE_ENABLED=FALSE RENV_CONFIG_SANDBOX_ENABLED=FALSE RENV_CONFIG_AUTOLOADER_ENABLED=FALSE
   export RENV_PATHS_ROOT=/build/renvroot LIBARROW_BINARY=true
   unset ARROW_S3 || true
@@ -68,6 +72,7 @@ inside() {
   # pacotes que o renv compilou do fonte (sem binario P3M): honestidade em RUNTIME.json -> compilados
   grep -E 'built from source' /build/restore.log | sed -E 's/^- Installing ([^ ]+).*/\1/' | sort > /build/compilados.txt || true
 
+  echo "[build] stage + syslib + manifest" >&2
   # stage: runtime/ (R_HOME do R do container) + syslib/ + code/ + RUNTIME.json
   ROOT=/build/stage/prevcarga
   rm -rf "${ROOT}"; mkdir -p "${ROOT}"
@@ -84,6 +89,7 @@ inside() {
     --platform linux-x86_64 --code-commit "${CODE_COMMIT}" --apt-snapshot "${APT_SNAPSHOT}" --built-at "${BUILT_AT}" \
     --compilados /build/compilados.txt | tee /build/runtime_id.txt
 
+  echo "[build] tar.zst" >&2
   OUTF="/out/prevcarga-${VER}-linux-x86_64"
   tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner --format=posix \
       --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
