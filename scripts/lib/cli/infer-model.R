@@ -61,5 +61,5 @@ prevcarga_verb_infer_model <- list(
   handler = function(ctx, args) cmd_infer_model(ctx, args),
   owner   = "M5",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "features.R", "registry.R", "inference.R")
+  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference.R")
 )
