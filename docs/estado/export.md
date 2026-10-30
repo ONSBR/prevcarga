@@ -12,9 +12,10 @@
   - `manifest.json` (chaves em ordem fixa; `gerado_em` = `ctx$generated_at`, unico campo nao deterministico; nao hasheado nem listado),
     binario com LF, UTF-8, indent 2. khat por subsistema `{ss, versao, khat_origin}` copiado do run.json.
   - Atomicidade: staging `.tmp-<run_id>` no mesmo volume + `file.rename`; erro remove o staging (`integrity.copy_failed`, exit 9).
-- `scripts/lib/cli/export.R`: verbo `export --scratch=<dir> [--niveis=<n>] [--incluir-membros]` (flags `scoped`). Chave PROVISORIA
-  `exports/<basename(scratch)>`; a chave imutavel e o layout `forecasts/` sao do M6.7 e a gramatica final do M6.9. `gerado_em` sai do
-  carimbo do `run_id` da fachada (relogio lido uma vez em config.R).
+- `scripts/lib/cli/export.R` (M6.9): verbo `export --from=<scratch> [--niveis=<n>] [--incluir-membros]` (flags `scoped`, dono M6). A chave de entrega e
+  RECONSTRUIDA do `run.json` do `--from` (origem, available_until, versao, timezone) por `prevcarga_export_key`, nunca de flag (`--origin` e ignorado):
+  mesma chave e mesmo manifest que o `forecast` produziu. Scratch ausente/sem run.json => `state.nothing_to_deliver` (exit 13). `gerado_em` sai do carimbo do run_id da fachada.
+  O gate `test-static-greps-m2.R` aceita `--from` (diretorio, nao data); `--from-<x>` continua proibido.
 - Erros: `scripts/lib/errors/export.tsv`. Testes: `scripts/lib/tests/test-exports.R` (scratch de fixture montado no proprio teste).
 - Nome da entrega: o manifest da entrega e `manifest.json` (fixado pelo ticket/blueprint). O guard do leitor unico (m2_single_reader*,
   test-deck-reader) mira REFERENCIAS ao manifest do DECK: o literal em linha de codigo, exceto a linha que e so ESCRITA (write*), com

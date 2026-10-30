@@ -59,3 +59,15 @@
   (exit 9). Opcoes: incluir niveis/incluir_membros ordenados na versao, ou o export aceitar superconjunto e publicar so os faltantes. Nao tratado aqui (exports.R e do M6.7).
 - Limitacoes conhecidas (nao tratadas aqui): (1) o verbo `forecast` e a gramatica docopt sao do M6.9 (hoje stub): o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
   HHMM de `available_until` DENTRO do dia da origem: dia O completo ou `--origin` anterior ao ultimo dia do deck e recusado (ver acima); (3) `niveis`/`incluir_membros` nao entram na `versao` (M6.7): a mesma chave com outro conjunto de arquivos e `export.key_conflict`.
+
+## Verbos da CLI (M6.9; dono M6)
+- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--niveis=<n>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate]`.
+  `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options
+  de outros verbos (duplicata torna o docopt ambiguo): so a usage os cita, e o `scoped` do forecast os admite. `--subsistema all` = todas as folhas; subsistema fora => `topology.area_undeclared` (4).
+  O flag `--from` do snippet do ticket NAO foi declarado no forecast: `prevcarga_forecast` nao reaproveita scratch (seria flag morta).
+  Avisos do catalogo viram `warnings` do envelope (`prevcarga_warn`). Relatorio falho (status `failed`) => entrega mantida e `partial.report_failed` (exit 14) com o `result` no envelope. O id `partial.report_failed` e DONO do M6.10 (errors/report.tsv; `prevcarga_forecast` o aborta); o verbo so propaga e, como fallback, usa o mesmo id sem declara-lo.
+- `scripts/lib/cli/features.R`: `features --model=<m> --area=<a>` (+ `--origin`): le o artefato do registry (read-only), monta painel/cortes pelos mesmos passos da inferencia, chama
+  `prevcarga_build_features(stage = "infer")` UMA vez e grava `<state_dir>/scratch/features/<m>/<a>/features.parquet`; nunca chama train/infer. Modelo fora dos `members` =>
+  `topology.model_undeclared` (4); area fora => `topology.area_undeclared` (4); sem artefato => `state.artifact_missing` (13). Usa os internos `.prevcarga_plugin_stage_input`/`_guarded` do despachante (o ajuste de hora segue dele).
+- Erros novos: `scripts/lib/errors/cli_m6.tsv` (so topology.model_undeclared e contract.features_not_tabular). Teste: `scripts/lib/tests/test-cli_m6.R` (processo real; exits 2/3/4/5/7/8 reais, 0/9/13/14/15 por copia com forecast.R stub, features in-process com espioes).
+
