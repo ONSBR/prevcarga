@@ -45,13 +45,14 @@ lgbm_consts <- function(plugin) {
 ## Deck sintetico (P.0e) com as areas ZZ1 e SP, `days` dias terminando em O, emissoes 00Z/06Z/18Z, carga so ate
 ## `available_until` (O 09:30 => o ultimo intervalo de O tem interval_start 09:00). Cache por (days, seed, until).
 .lgbm_deck_cache <- new.env(parent = emptyenv())
-lgbm_fx_deck <- function(days = 800L, seed = 11, O = LGBM_O, available_until = NULL, areas = c(LGBM_AREA, LGBM_HEAT)) {
+lgbm_fx_deck <- function(days = 800L, seed = 11, O = LGBM_O, available_until = NULL, areas = c(LGBM_AREA, LGBM_HEAT),
+                         sentinel = FALSE) {
   au <- if (is.null(available_until)) lubridate::ymd_hm("2026-10-01 09:30", tz = LGBM_TZ) else available_until
-  key <- paste(days, seed, format(O), format(au, tz = "UTC"), paste(areas, collapse = ","))
+  key <- paste(days, seed, format(O), format(au, tz = "UTC"), paste(areas, collapse = ","), sentinel)
   if (!is.null(.lgbm_deck_cache[[key]])) return(.lgbm_deck_cache[[key]])
   dir <- tempfile("lgbm-deck-")
   lgbm_lib$prevcarga_fixture_deck(dir, seed, areas, O - (days - 1L):0L, load_label = "start", load_until = au,
-                                  tz = LGBM_TZ, horizon_days = 2L)
+                                  sentinel = sentinel, tz = LGBM_TZ, horizon_days = 2L)
   writeLines(c("schema_version: 1", "khat_range: [1.00, 1.15]", "subsystems:",
                sprintf("  X: {areas: [%s], loss: PX}", paste(areas, collapse = ", ")), "order: [X]", "members: []"),
              file.path(dir, "topology.yaml"))

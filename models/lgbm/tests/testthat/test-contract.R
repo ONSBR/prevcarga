@@ -93,17 +93,19 @@ test_that("catalogo: ids lgbm.* existem em errors/lgbm.tsv com a classe esperada
   expect_identical(unname(got), c("contract", "contract", "completude", "window", "contract"))
 })
 
-test_that("estagios ainda nao portados abortam lgbm.stage_missing (nao ha codigo silencioso)", {
+test_that("estagio sem definicao aborta lgbm.stage_missing (nao ha codigo silencioso); os 5 estagios e freeze/thaw existem", {
   p <- lgbm_source_plugin()
-  ## FE (LGBM.2) e treino/freeze/thaw (LGBM.3) ja existem; a inferencia (LGBM.4) ainda nao
+  ## FE (LGBM.2), treino/freeze/thaw (LGBM.3) e inferencia (LGBM.4) ja existem
+  for (f in c("plugin_build_features", "plugin_train", "lgbm_freeze", "lgbm_thaw", "plugin_inference_features", "plugin_infer"))
+    expect_true(is.function(p[[f]]), info = f)
+  ## CONTROL: o despacho por nome acusa a definicao ausente
+  rm("plugin_infer", envir = p)
   e <- fail(p$lgbm_stage_inference(NULL, NULL, NULL))
   expect_identical(e$id, "lgbm.stage_missing")
   expect_true(grepl("plugin_infer", conditionMessage(e), fixed = TRUE))
-  ## quando o ticket seguinte define o estagio por nome, o despacho o encontra
+  ## quando a definicao existe, o despacho a encontra
   p$plugin_infer <- function(payload, inf_features, cuts) "ok"
   expect_identical(p$lgbm_stage_inference(NULL, NULL, NULL), "ok")
-  expect_true(is.function(p$plugin_build_features))   # LGBM.2
-  expect_true(all(vapply(c("plugin_train", "lgbm_freeze", "lgbm_thaw"), function(f) is.function(p[[f]]), NA)))   # LGBM.3
 })
 
 test_that("plugin_constants: hiperparametros, spans, heat_area e feriados fixos do oraculo", {
