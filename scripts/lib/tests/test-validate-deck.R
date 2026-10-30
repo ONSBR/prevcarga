@@ -190,8 +190,7 @@ test_that("verbo auto-registrado: sai da lista de stubs e o usage traz --origin 
   expect_identical(r$owner, "M2")
   usage <- prevcarga_usage(tab)
   expect_true(grepl("--origin=<data>", usage, fixed = TRUE))
-  ## `--from=<dir>` e do reconcile (diretorio de folhas, nao data; R.5): fora o do reconcile, nenhum flag de data
-  expect_false(grepl("--(start|end|since|until|date|from|to)=", gsub("--from=<dir>", "", usage, fixed = TRUE)))
+  expect_false(grepl("--(start|end|since|until|date|from|to)=", usage))
   expect_true(file.exists(file.path(pc_root(), "scripts", "lib", "cli", "validate-deck.R")))
   env <- new.env(parent = globalenv())
   sys.source(file.path(pc_root(), "scripts", "lib", "cli", "validate-deck.R"), envir = env)

@@ -31,7 +31,7 @@ envelope_keys <- c("ok", "verb", "exit_code", "error", "warnings", "result", "ru
 
 ## ---- AC5: train pela CLI promove o latest; SIN sem perfil -------------------------------------------------------
 st <- new_state()
-tr30 <- rc(st, c("--mode=train", paste0("--origin=", O), "--window-days=30"))
+tr30 <- rc(st, c("--mode=train", paste0("--origin=", O), "--khat-window=30"))
 test_that("AC5 train: exit 0, khat por subsistema promovido, latest.txt existe, SIN sem perfil", {
   expect_identical(tr30$status, 0L, info = paste(tr30$stderr, collapse = "\n"))
   expect_identical(tr30$stderr, character(0)); expect_length(tr30$stdout, 1L)
@@ -53,8 +53,8 @@ v1 <- vapply(j1(tr30)$result$khat, function(k) k$versao, "")
 ## ---- AC2: gramatica; nada em disco ------------------------------------------------------------------------------
 test_that("AC2 flags invalidas => exit 8 sem tocar disco; CONTROL --origin aceito; reconcile nao e stub", {
   s <- new_state()
-  bad <- list(c("--mode=train", "--eval"), "--mode=xyz", c("--mode=apply", "--window-days=0"),
-              c("--mode=train", paste0("--from=", from)), c("--mode=train", "--khat-version=v_x"), character())
+  bad <- list(c("--mode=train", "--eval"), "--mode=xyz", c("--mode=apply", "--khat-window=0"),
+              c("--mode=train", paste0("--leaves-dir=", from)), c("--mode=train", "--khat-version=v_x"), character())
   for (a in bad) {
     r <- rc(s, a, "text")
     expect_identical(r$status, 8L, info = paste(a, collapse = " "))
@@ -62,7 +62,7 @@ test_that("AC2 flags invalidas => exit 8 sem tocar disco; CONTROL --origin aceit
     expect_identical(r$stdout, character(0))
   }
   expect_length(ls_files(s), 0L)
-  r <- rc(s, c("--mode=apply", paste0("--origin=", O), "--subsistema=all", paste0("--from=", from), paste0("--out=", file.path(tmp, "o-ctl"))))
+  r <- rc(s, c("--mode=apply", paste0("--origin=", O), "--subsistema=all", paste0("--leaves-dir=", from), paste0("--out=", file.path(tmp, "o-ctl"))))
   expect_false(identical(r$status, 8L), info = paste(r$stderr, collapse = "\n"))
   other <- pc_cli(root, c("score", "--eval"))
   expect_identical(other$status, 8L)                    # --eval so vale em reconcile (scoped)
@@ -73,9 +73,9 @@ test_that("AC2 flags invalidas => exit 8 sem tocar disco; CONTROL --origin aceit
 
 ## ---- AC1: apply, XX e sem --mode: JSON unico, stderr vazio, exits iguais ao texto, ASCII -------------------------
 test_that("AC1 envelope JSON unico + exits 0/4/8 iguais ao modo texto, ASCII", {
-  cases <- list(ok = list(c("--mode=apply", paste0("--from=", from)), 0L, NA),
-                xx = list(c("--mode=apply", paste0("--from=", from), "--subsistema=XX"), 4L, "topology.area_undeclared"),
-                nomode = list(c(paste0("--from=", from)), 8L, "config.usage"))
+  cases <- list(ok = list(c("--mode=apply", paste0("--leaves-dir=", from)), 0L, NA),
+                xx = list(c("--mode=apply", paste0("--leaves-dir=", from), "--subsistema=XX"), 4L, "topology.area_undeclared"),
+                nomode = list(c(paste0("--leaves-dir=", from)), 8L, "config.usage"))
   for (nm in names(cases)) {
     cs <- cases[[nm]]
     rj <- rc(st, cs[[1L]], "json"); rt <- rc(st, cs[[1L]], "text")
@@ -96,8 +96,8 @@ test_that("AC1 envelope JSON unico + exits 0/4/8 iguais ao modo texto, ASCII", {
 
 ## ---- AC3: scratch default, run_id e sha256 estaveis; CONTROL --khat-version ---------------------------------------
 test_that("AC3 --out default no scratch: run_id e sha256 estaveis; --khat-version de outra versao muda o run_id", {
-  a1 <- rc(st, c("--mode=apply", paste0("--from=", from), "--subsistema=all"))
-  a2 <- rc(st, c("--mode=apply", paste0("--from=", from), "--subsistema=all"))
+  a1 <- rc(st, c("--mode=apply", paste0("--leaves-dir=", from), "--subsistema=all"))
+  a2 <- rc(st, c("--mode=apply", paste0("--leaves-dir=", from), "--subsistema=all"))
   expect_identical(a1$status, 0L, info = paste(a1$stderr, collapse = "\n")); expect_identical(a2$status, 0L)
   j <- j1(a1); j2 <- j1(a2)
   expect_match(j$run_id, "^[0-9a-f]{16}$"); expect_identical(j$run_id, j2$run_id)
@@ -113,13 +113,13 @@ test_that("AC3 --out default no scratch: run_id e sha256 estaveis; --khat-versio
   expect_identical(vapply(j$result$arquivos, function(a) a$sha256, ""), vapply(j2$result$arquivos, function(a) a$sha256, ""))
   expect_true(j$result$sin)
   ## CONTROL: um segundo perfil (janela 20) vira o latest; fixar a versao antiga restaura o run_id original
-  tr20 <- rc(st, c("--mode=train", paste0("--origin=", O), "--window-days=20"))
+  tr20 <- rc(st, c("--mode=train", paste0("--origin=", O), "--khat-window=20"))
   expect_identical(tr20$status, 0L)
   v2 <- vapply(j1(tr20)$result$khat, function(k) k$versao, "")
   expect_false(any(v2 == v1))
-  jd <- j1(rc(st, c("--mode=apply", paste0("--from=", from))))
+  jd <- j1(rc(st, c("--mode=apply", paste0("--leaves-dir=", from))))
   expect_false(identical(jd$run_id, j$run_id))
-  jp <- j1(rc(st, c("--mode=apply", paste0("--from=", from), paste0("--khat-version=", v1[[1L]]), "--subsistema=SS1")))
+  jp <- j1(rc(st, c("--mode=apply", paste0("--leaves-dir=", from), paste0("--khat-version=", v1[[1L]]), "--subsistema=SS1")))
   expect_identical(jp$result$khat[[1L]]$versao, v1[[1L]])
   expect_false(jp$result$sin)
 })
@@ -130,7 +130,7 @@ test_that("AC4 folhas com lead divergente => exit 2 contract.reconcile_input; --
   i <- which(bad$area == "Ls1_1")[[3L]]; bad$lead[[i]] <- bad$lead[[i]] + 1L
   bfrom <- write_from(bad, file.path(tmp, "from-bad"))
   out <- file.path(tmp, "out-bad"); dir.create(out)
-  r <- rc(st, c("--mode=apply", paste0("--from=", bfrom), paste0("--out=", out)))
+  r <- rc(st, c("--mode=apply", paste0("--leaves-dir=", bfrom), paste0("--out=", out)))
   expect_identical(r$status, 2L); expect_identical(r$stderr, character(0))
   j <- j1(r)
   expect_identical(j$error$id, "contract.reconcile_input"); expect_match(j$error$where, "Ls1_1", fixed = TRUE)

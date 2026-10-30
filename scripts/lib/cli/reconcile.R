@@ -1,6 +1,6 @@
 ## scripts/lib/cli/reconcile.R - verbo auto-registrado `reconcile` (R.5; descoberto por scripts/lib/cli.R, M1.4).
 ##
-## Passthrough fino para prevcarga_reconcile_train / prevcarga_reconcile_apply (R.3). A borda de I/O (ler o --from,
+## Passthrough fino para prevcarga_reconcile_train / prevcarga_reconcile_apply (R.3). A borda de I/O (ler o --leaves-dir,
 ## run_id, escrever no scratch) mora em reconcile.R; aqui so se valida flag e se compoe o result. Daily = uma origem;
 ## o backtest laca origens fora deste verbo. khat_origin == O sempre: --khat-version so escolhe entre versoes ajustadas
 ## EM O. Erros e exits vem do catalogo (ADR-0040) pelo handler de topo da fachada: sem quit(), sem env vars.
@@ -23,15 +23,15 @@
   if (is.null(mode)) prevcarga_abort("config.usage", where = "--mode")
   if (!mode %in% c("train", "apply")) prevcarga_abort("config.bad_mode", where = paste0("--mode=", mode))
   if (identical(mode, "train"))
-    for (f in c("--eval", "--from", "--khat-version", "--out"))
+    for (f in c("--eval", "--leaves-dir", "--khat-version", "--out"))
       if (!is.null(.prevcarga_rc_opt(args, f)) && !(f == "--eval" && !isTRUE(args[[f]])))
         prevcarga_abort("config.usage", where = f, details = list(hint = paste(f, "so vale com --mode=apply")))
-  wd <- .prevcarga_rc_opt(args, "--window-days")
+  wd <- .prevcarga_rc_opt(args, "--khat-window")
   window <- prevcarga_khat_window_days
   if (!is.null(wd)) {
     v <- suppressWarnings(as.numeric(wd))
     if (length(v) != 1L || is.na(v) || v != floor(v) || v < 1)
-      prevcarga_abort("config.usage", where = "--window-days", details = list(hint = "inteiro > 0"))
+      prevcarga_abort("config.usage", where = "--khat-window", details = list(hint = "inteiro > 0"))
     window <- as.integer(v)
   }
   ss <- .prevcarga_rc_opt(args, "--subsistema")
@@ -51,13 +51,13 @@
 }
 
 .prevcarga_rc_apply <- function(ctx, args, fl, topo) {
-  from <- .prevcarga_rc_opt(args, "--from")
-  if (is.null(from)) prevcarga_abort("config.usage", where = "--from")
+  from <- .prevcarga_rc_opt(args, "--leaves-dir")
+  if (is.null(from)) prevcarga_abort("config.usage", where = "--leaves-dir")
   rd <- prevcarga_reconcile_read_from(from, ctx, topo)
   origins <- unique(unlist(lapply(rd$leaves, function(l) l$forecast_origin)))
   if (length(origins) == 1L && !is.null(ctx$origin) && !identical(origins, format(ctx$origin, "%Y-%m-%d")))
     prevcarga_abort("contract.reconcile_input", where = "--origin",
-                    details = list(reason = "--origin difere da forecast_origin do --from"))
+                    details = list(reason = "--origin difere da forecast_origin do --leaves-dir"))
   pin <- .prevcarga_rc_opt(args, "--khat-version")
   ev <- isTRUE(args[["--eval"]])
   ap <- prevcarga_reconcile_apply(unname(rd$leaves), ctx, fl$subsystem, khat_version = pin, eval = ev)
@@ -107,15 +107,15 @@ cmd_reconcile <- function(ctx, args) {
 
 prevcarga_verb_reconcile <- list(
   name    = "reconcile",
-  usage   = paste("prevcarga reconcile --mode=<mode> [--subsistema=<s>] [--window-days=<n>] [--eval] [--from=<dir>]",
+  usage   = paste("prevcarga reconcile --mode=<mode> [--subsistema=<s>] [--khat-window=<n>] [--eval] [--leaves-dir=<dir>]",
                   "[--out=<path>] [--khat-version=<v>]"),
   ## --mode/--out (combine) e --subsistema (train-models) ja constam no bloco Options; so as novas sao declaradas aqui
   options = c(
-    "--window-days=<n>       Janela do k-hat em dias (train; inteiro > 0; padrao 730)",
+    "--khat-window=<n>       Janela do k-hat em dias (train; inteiro > 0; padrao 730)",
     "--eval                  Calcula y_true e wmape no apply (le a verdade do deck)",
-    "--from=<dir>            Diretorio com um parquet LONG por folha (apply)",
+    "--leaves-dir=<dir>            Diretorio com um parquet LONG por folha (apply)",
     "--khat-version=<v>      v_<hash> do k-hat ajustado EM O (apply; senao o latest)"),
-  scoped  = c("--window-days", "--eval", "--from", "--khat-version"),   # so reconcile (cli.R .prevcarga_check_scoped)
+  scoped  = c("--khat-window", "--eval", "--leaves-dir", "--khat-version"),   # so reconcile (cli.R .prevcarga_check_scoped)
   handler = function(ctx, args) cmd_reconcile(ctx, args),
   owner   = "Reconcile",
   exempt  = FALSE,

@@ -565,7 +565,7 @@ prevcarga_khat_reach_arms <- function(origin, window_days, ss, factor = 1.3, shi
 }
 
 ## =====================================================================================================
-## R.5 -- borda de I/O do verbo `reconcile` (cli/reconcile.R so compoe): ler o --from, run_id, escrever no scratch.
+## R.5 -- borda de I/O do verbo `reconcile` (cli/reconcile.R so compoe): ler o --leaves-dir, run_id, escrever no scratch.
 ## Requer tambem provenance.R (.prevcarga_canon_json/.prevcarga_sha256) e arrow/digest.
 ## =====================================================================================================
 
@@ -582,11 +582,11 @@ prevcarga_reconcile_check_subsystem <- function(subsystem, topology) {
 ## Devolve list(leaves = list de data.frame nomeada pelo arquivo, sha256 = c(arquivo = sha256)).
 prevcarga_reconcile_read_from <- function(dir, ctx, topology) {
   if (!is.character(dir) || length(dir) != 1L || !dir.exists(dir))
-    prevcarga_abort("config.usage", where = paste0("--from=", paste(dir, collapse = "")))
+    prevcarga_abort("config.usage", where = paste0("--leaves-dir=", paste(dir, collapse = "")))
   fs <- list.files(dir, pattern = "\\.parquet$", full.names = FALSE)
   fs <- fs[order(fs, method = "radix")]
   if (!length(fs)) prevcarga_abort("contract.reconcile_input", where = dir,
-                                   details = list(reason = "nenhum parquet no --from"))
+                                   details = list(reason = "nenhum parquet no --leaves-dir"))
   leaves <- lapply(fs, function(f) {
     long <- prevcarga_read_long(file.path(dir, f), ctx)
     areas <- unique(long$area)

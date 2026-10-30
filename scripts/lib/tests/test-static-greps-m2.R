@@ -123,9 +123,7 @@ M2G_CLI_FILES <- c("scripts/lib/cli.R", PROD[grepl("^scripts/lib/cli/", PROD)])
 test_that("[FORBIDDEN] --origin e a unica opcao de data nas usages (nenhum --as-of/--date/--until/--end-date)", {
   opts <- m2g_long_opts(M2G_CLI_FILES)
   expect_true("origin" %in% opts)
-  ## `from` (diretorio de folhas do reconcile apply) e `window-days` (contagem de dias do k-hat) casam o padrao so pelo nome:
-  ## nao sao datas (R.5); toda outra opcao que case continua proibida.
-  expect_identical(setdiff(grep(M2G_DATE_OPT, opts, value = TRUE, perl = TRUE), c("from", "window-days")), "origin")
+  expect_identical(grep(M2G_DATE_OPT, opts, value = TRUE, perl = TRUE), "origin")
   ## o valor fixo do docopt da fachada tambem so declara --origin
   expect_false(any(grepl("--as-of|--date=|--until|--end-date|--start-date", readLines(file.path(m2g_root, "scripts", "lib", "cli.R")))))
 })
