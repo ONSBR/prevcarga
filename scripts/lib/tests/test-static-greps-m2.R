@@ -138,14 +138,12 @@ m2g_long_opts <- function(files) {
   sort(unique(sub("^--", "", opts)), method = "radix")
 }
 M2G_DATE_OPT <- "(^|-)(date|dates|day|days|origin|as-of|asof|until|since|from|to|end|start|ref|reference|cutoff-date)(-|$)"
-## Allowlist por NOME EXATO: `--from=<scratch>` (export, M6.9) nomeia um diretorio, nao uma data; `--valid-from` etc. seguem proibidos.
-M2G_DATE_OPT_ALLOW <- "from"
 M2G_CLI_FILES <- c("scripts/lib/cli.R", PROD[grepl("^scripts/lib/cli/", PROD)])
 
 test_that("[FORBIDDEN] --origin e a unica opcao de data nas usages (nenhum --as-of/--date/--until/--end-date)", {
   opts <- m2g_long_opts(M2G_CLI_FILES)
   expect_true("origin" %in% opts)
-  expect_identical(setdiff(grep(M2G_DATE_OPT, opts, value = TRUE, perl = TRUE), M2G_DATE_OPT_ALLOW), "origin")
+  expect_identical(grep(M2G_DATE_OPT, opts, value = TRUE, perl = TRUE), "origin")
   ## o valor fixo do docopt da fachada tambem so declara --origin
   expect_false(any(grepl("--as-of|--date=|--until|--end-date|--start-date", readLines(file.path(m2g_root, "scripts", "lib", "cli.R")))))
 })
@@ -157,11 +155,10 @@ test_that("[CONTROL] o detector de opcao de data pega uma usage com --as-of / --
   expect_false(any(c("load-label", "weather-cutoff") %in% grep(M2G_DATE_OPT, opts, value = TRUE, perl = TRUE)))
 })
 
-test_that("[CONTROL] a allowlist so libera o nome exato `from`: --valid-from e --from-date seguem pegos", {
-  b <- m2g_bait(c("  prevcarga x --from=<scratch> [--valid-from=<d>] [--from-date=<d>]"))
+test_that("[CONTROL] --from (mesmo nomeando um diretorio) e pego: o scratch do export e --scratch", {
+  b <- m2g_bait(c("  prevcarga x --from=<scratch> [--valid-from=<d>] [--from-date=<d>] [--scratch=<dir>]"))
   hit <- grep(M2G_DATE_OPT, m2g_long_opts(b), value = TRUE, perl = TRUE)
   expect_setequal(hit, c("from", "valid-from", "from-date"))
-  expect_setequal(setdiff(hit, M2G_DATE_OPT_ALLOW), c("valid-from", "from-date"))
 })
 
 ## ---- nenhum teste toca data/ ------------------------------------------------------------------------------------------------------

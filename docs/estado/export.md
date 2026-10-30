@@ -14,10 +14,10 @@
   - `run_manifest.json` (identidade da rodada, escrito pelo forecast no scratch; ver `docs/estado/forecast.md`): copiado em bytes para a raiz da
     entrega quando existe, fora de `arquivos[]` e ignorado no `.export_key_check` como o `manifest.json` (rerun = no-op). O `verificar` le dele.
   - Atomicidade: staging `.tmp-<run_id>` no mesmo volume + `file.rename`; erro remove o staging (`integrity.copy_failed`, exit 9).
-- `scripts/lib/cli/export.R` (M6.9): verbo `export --from=<scratch> [--niveis=<n>] [--incluir-membros]` (flags `scoped`, dono M6). A chave de entrega e
-  RECONSTRUIDA do `run.json` do `--from` (origem, available_until, versao, timezone) por `prevcarga_export_key`, nunca de flag (`--origin` e ignorado):
+- `scripts/lib/cli/export.R` (M6.9): verbo `export --scratch=<dir> [--niveis=<n>] [--incluir-membros]` (flags `scoped`, dono M6). A chave de entrega e
+  RECONSTRUIDA do `run.json` do `--scratch` (origem, available_until, versao, timezone) por `prevcarga_export_key`, nunca de flag (`--origin` e ignorado):
   mesma chave e mesmo manifest que o `forecast` produziu. Scratch ausente/sem run.json => `state.nothing_to_deliver` (exit 13). `gerado_em` sai do carimbo do run_id da fachada.
-  O gate `test-static-greps-m2.R` aceita `--from` (diretorio, nao data); `--from-<x>` continua proibido.
+  Flag `--scratch` (nao `--from`, como dizia o ticket): `--from` casa o gate de flags de data e o docopt global o aceitaria em qualquer verbo; `--origin` segue o unico flag de data.
 - Erros: `scripts/lib/errors/export.tsv`. Testes: `scripts/lib/tests/test-exports.R` (scratch de fixture montado no proprio teste).
 - Nome da entrega: o manifest da entrega e `manifest.json` (fixado pelo ticket/blueprint). O guard do leitor unico (m2_single_reader*,
   test-deck-reader) mira REFERENCIAS ao manifest do DECK: o literal em linha de codigo, exceto a linha que e so ESCRITA (write*), com

@@ -114,11 +114,11 @@ test_that("AC3: forecast --corte 09:00 => exit 8 config.usage; --origin=2026-13-
 })
 
 test_that("AC3: --corte (do backtest/plan) e flags escopadas de outros verbos nao vazam para o M6", {
-  for (v in list(c("export", "--from=/x"), c("features", "--model=m", "--area=a"))) {
+  for (v in list(c("export", "--scratch=/x"), c("features", "--model=m", "--area=a"))) {
     r <- cli(root_stub, c(v, "--corte=09:00"))
     expect_envelope(r, 8L, "config.usage")
   }
-  r <- cli(root_stub, c("forecast", "--from=/x"))                         # --from e do export
+  r <- cli(root_stub, c("forecast", "--scratch=/x"))                         # --scratch e do export
   expect_envelope(r, 8L, "config.usage")
   r <- cli(root_stub, c("forecast", "--horizon=3"))                       # --horizon e do train-models
   expect_envelope(r, 8L, "config.usage")
@@ -241,7 +241,7 @@ test_that("AC1: exits da matriz so existem na tabela do ADR-0040; --niveis/--rep
   }
   expect_envelope(cli(root_stub, c("forecast", "--niveis=x")), 8L, "config.usage")
   expect_envelope(cli(root_stub, c("forecast", "--report-format=docx")), 8L, "config.usage")
-  expect_envelope(cli(root_stub, c("export", "--from=/x", "--niveis=x")), 8L, "config.usage")
+  expect_envelope(cli(root_stub, c("export", "--scratch=/x", "--niveis=x")), 8L, "config.usage")
 })
 
 test_that("AC1: traceback so com --debug: inesperado => exit 1 generic.unexpected, stderr vazio em JSON sem --debug", {
@@ -286,10 +286,10 @@ make_scratch <- function(origem = "2026-01-15", au = "2026-01-15T09:00", versao 
 }
 exp_env <- pc_source_lib(c("errors", "schema_long", "exports"))
 
-test_that("AC5: export --from <scratch> --niveis tudo entrega em forecasts/<O>/<au>/<versao>/ com o manifest que o forecast produziria", {
+test_that("AC5: export --scratch <dir> --niveis tudo entrega em forecasts/<O>/<au>/<versao>/ com o manifest que o forecast produziria", {
   sc <- make_scratch()
   st <- tempfile("m6cli-exp-state-"); dir.create(st)
-  r <- pc_cli(root_stub, c("export", paste0("--from=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck), "--format=json"))
+  r <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck), "--format=json"))
   j <- expect_envelope(r, 0L)
   expect_match(j$result$saida, "/forecasts/2026-01-15/20260115T0900/abc123def456$")
   expect_identical(normalizePath(j$result$saida, winslash = "/"), normalizePath(file.path(st, "forecasts/2026-01-15/20260115T0900/abc123def456"), winslash = "/"))
@@ -305,10 +305,10 @@ test_that("AC5: export --from <scratch> --niveis tudo entrega em forecasts/<O>/<
   expect_identical(m1, m2)
   expect_match(jsonlite::read_json(file.path(j$result$saida, "manifest.json"))$gerado_em, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T")
   ## segunda entrega do mesmo scratch: no-op (ja_publicado), mesma chave
-  r2 <- pc_cli(root_stub, c("export", paste0("--from=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck), "--format=json"))
+  r2 <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck), "--format=json"))
   expect_true(expect_envelope(r2, 0L)$result$ja_publicado)
   ## texto ASCII
-  t <- pc_cli(root_stub, c("export", paste0("--from=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck)))
+  t <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck)))
   expect_identical(t$status, 0L); expect_length(t$stderr, 0L)
   pc_assert_ascii(t$raw, "export texto")
 })
@@ -317,13 +317,13 @@ test_that("AC5: --niveis invalido => exit 8 config.usage; scratch sem run.json/a
   sc <- make_scratch()
   st <- tempfile("m6cli-exp-state-"); dir.create(st)
   base <- c(paste0("--state=", st), paste0("--data=", deck), "--format=json")
-  expect_envelope(pc_cli(root_stub, c("export", paste0("--from=", sc), "--niveis=zzz", base)), 8L, "config.usage")
-  expect_envelope(pc_cli(root_stub, c("export", paste0("--from=", tempfile("nada-")), base)), 13L, "state.nothing_to_deliver")
+  expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=zzz", base)), 8L, "config.usage")
+  expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", tempfile("nada-")), base)), 13L, "state.nothing_to_deliver")
   empty <- tempfile("m6cli-empty-"); dir.create(empty)
-  expect_envelope(pc_cli(root_stub, c("export", paste0("--from=", empty), base)), 13L, "state.nothing_to_deliver")
-  j <- expect_envelope(pc_cli(root_stub, c("export", paste0("--from=", sc), "--origin=2030-01-01", base)), 0L)
+  expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", empty), base)), 13L, "state.nothing_to_deliver")
+  j <- expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--origin=2030-01-01", base)), 0L)
   expect_match(j$result$saida, "/forecasts/2026-01-15/")
-  expect_envelope(pc_cli(root_stub, c("export", base)), 8L, "config.usage")          # --from obrigatorio (docopt)
+  expect_envelope(pc_cli(root_stub, c("export", base)), 8L, "config.usage")          # --scratch obrigatorio (docopt)
 })
 
 ## =====================================================================================================
