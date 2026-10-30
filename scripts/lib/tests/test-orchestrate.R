@@ -352,13 +352,13 @@ test_that("[AC7] --resume com plan.json de run_id diferente aborta contract.plan
   expect_identical(jsonlite::read_json(file.path(d, "plan.json"))$run_id, p$run_id)
 })
 
-test_that("run_cell que nao devolve LONG falha a celula; jobs > 1 e do M7.6", {
+test_that("run_cell que nao devolve LONG falha a celula; --jobs invalido => config", {
   ctx <- ictx(); p <- mkplan(ctx)
   r <- mod$prevcarga_orchestrate(ctx, p, function(cell) NULL, keep_going = TRUE)
   expect_identical(r$summary$failed, nrow(p$cells))
   expect_true(all(r$status$error_id == "contract.run_cell_result"))
-  e <- tryCatch(mod$prevcarga_orchestrate(ictx(), p, ok_cell, jobs = 2L), prevcarga_error = function(e) e)
-  expect_identical(e$id, "todo.not_implemented")
+  e <- tryCatch(mod$prevcarga_orchestrate(ictx(), p, ok_cell, jobs = 0L), prevcarga_error = function(e) e)   # jobs > 1: test-orchestrate-psock.R
+  expect_identical(e$id, "config.bad_type")
 })
 
 test_that("config: --origin A..B so em backtest/plan; corte_default na grade de 30 min com default 08:00", {

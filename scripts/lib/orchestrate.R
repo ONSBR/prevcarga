@@ -8,7 +8,7 @@
 ## horario do --corte, no fuso declarado pelo deck. A chave esperada de cada celula e a de cache.R (kind member_long,
 ## chaveada nos dois cortes).
 ##
-## prevcarga_orchestrate() despacha as celulas (serial; --jobs > 1 PSOCK e do M7.6) sob run.lock/ (dir.create exclusivo),
+## prevcarga_orchestrate() despacha as celulas (serial; --jobs > 1 = cluster PSOCK, M7.6) sob run.lock/ (dir.create exclusivo),
 ## com ledger DERIVADO DE PRESENCA: celula `done` <=> `long.parquet` + `.key` iguais a chave esperada; falhas em
 ## ledger/failures.jsonl, escrito so pelo processo pai. O ciclo de vida de artefatos continua em registry.R.
 ## Sem variaveis de ambiente e sem relogio fora do ctx (ts da falha = prefixo de data de ctx$run_id); nunca chama quit().
@@ -269,36 +269,123 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
 .m7_dispatch_order <- function(idx, cells) idx[order(-as.numeric(cells$origem[idx]), cells$membro[idx],
                                                     cells$folha[idx], cells$corte_hm[idx], method = "radix")]
 
-.m7_dispatch_serial <- function(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total) {
-  stop_now <- FALSE
-  done <- done0
-  fails <- list()
-  for (i in todo) {
-    if (stop_now) { state[[i]] <- "skipped"; next }
-    cell <- cells[i]
-    res <- tryCatch({ .m7_publish_cell(ctx, run_id, cell, run_cell(cell)); NULL },
-                    error = function(e) list(error_class = .m7_err_class(e),
-                                             error_id = if (!is.null(e$id)) e$id else NA_character_,
-                                             mensagem = conditionMessage(e)))
-    if (is.null(res)) {
-      state[[i]] <- "done"; done <- done + 1L
+## Semente do run.yaml do membro, aplicada IMEDIATAMENTE antes de cada celula (serial e worker: mesmo gerador, mesma semente).
+## Funcao nomeada de proposito: o hook de teste (ctx$worker_hooks) pode sabotar so o worker, para o CONTROL do M7.6.
+.m7_seed_apply <- function(seed)
+  set.seed(seed, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
+
+.m7_cell_seeds <- function(ctx, cells, idx) {
+  md <- unique(cells$mdir[idx])
+  by <- stats::setNames(vapply(md, function(m) as.integer(prevcarga_model_spec(m, ctx$root)$seed), integer(1L)), md)
+  stats::setNames(by[cells$mdir], NULL)
+}
+
+## Uma celula: semente -> run_cell -> publicacao dentro do diretorio da PROPRIA celula. Devolve um envelope serializavel
+## (nunca o LONG: ele ja esta no disco) com a classe e o id originais do erro; nunca levanta.
+.m7_cell_exec <- function(ctx, run_id, cell, run_cell, seed) {
+  tryCatch({
+    .m7_seed_apply(seed)
+    .m7_publish_cell(ctx, run_id, cell, run_cell(cell))
+    list(key = cell$cache_key, state = "done")
+  }, error = function(e)
+    list(key = cell$cache_key, state = "failed", error_class = .m7_err_class(e),
+         error_id = if (!is.null(e$id)) e$id else NA_character_, mensagem = conditionMessage(e)))
+}
+
+## Consolida os envelopes de um lote na ordem de despacho (estado, falhas, progresso); devolve se deve parar.
+.m7_collect <- function(ctx, idx, envs, keep_going, acc, total) {
+  acc$seen <- c(acc$seen, idx)
+  for (k in seq_along(idx)) {
+    i <- idx[[k]]; e <- envs[[k]]
+    if (identical(e$state, "done")) {
+      acc$state[[i]] <- "done"; acc$done <- acc$done + 1L
     } else {
-      state[[i]] <- "failed"
-      res$i <- i
-      fails[[length(fails) + 1L]] <- res
-      if (!isTRUE(keep_going)) stop_now <- TRUE
+      acc$state[[i]] <- "failed"
+      acc$fails[[length(acc$fails) + 1L]] <- list(error_class = e$error_class, error_id = e$error_id,
+                                                  mensagem = e$mensagem, i = i)
     }
-    .m7_progress(ctx, done, total)
+    .m7_progress(ctx, acc$done, total)
   }
-  list(state = state, fails = fails)
+  !isTRUE(keep_going) && any(vapply(envs, function(e) !identical(e$state, "done"), NA))
+}
+
+.m7_dispatch_serial <- function(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total) {
+  acc <- new.env(); acc$state <- state; acc$done <- done0; acc$fails <- list(); acc$seen <- integer()
+  seeds <- if (length(todo)) .m7_cell_seeds(ctx, cells, todo) else integer()
+  for (i in todo) {
+    stop_now <- .m7_collect(ctx, i, list(.m7_cell_exec(ctx, run_id, cells[i], run_cell, seeds[[i]])), keep_going, acc, total)
+    if (stop_now) break
+  }
+  list(state = .m7_mark_skipped(acc, todo), fails = acc$fails)
+}
+
+## --- 6b. Despacho PSOCK (M7.6; ADR-0038: so PSOCK, igual em Linux e Windows nativo) --------------------------
+## Modulos que cada worker (R novo) carrega, em ordem fixa, do MESMO lib do pai (options prevcarga.lib / ctx$lib_dir).
+.m7_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R", "deck_reader.R",
+                        "dates.R", "validation.R", "features.R", "registry.R", "training.R", "inference.R",
+                        "build_long_output.R", "cache.R", "orchestrate.R", "backtest.R")
+
+## Cria o cluster e inicializa cada worker (prevcarga_worker_init: modulos + runtime enforce in-process, sem env).
+## Devolve list(cl, bad): `bad` = o 1o envelope de init que falhou (ou NULL). O chamador fecha o cluster em on.exit.
+.m7_cluster_start <- function(ctx, jobs) {
+  lib <- if (!is.null(ctx$lib_dir)) ctx$lib_dir else getOption("prevcarga.lib")
+  if (is.null(lib)) prevcarga_abort("config.bad_type", where = "--jobs", details = list(expected = "lib dir (prevcarga.lib)"))
+  mods <- if (!is.null(ctx$worker_modules)) ctx$worker_modules else .m7_worker_modules
+  cl <- parallel::makePSOCKcluster(jobs)
+  ok <- FALSE
+  on.exit(if (!ok) parallel::stopCluster(cl), add = TRUE)
+  init <- parallel::clusterCall(cl, prevcarga_worker_init, lib, mods,
+                                if (is.null(ctx$worker_hooks)) list() else ctx$worker_hooks)
+  ok <- TRUE
+  list(cl = cl, bad = Find(function(r) !isTRUE(r$ok), init))
+}
+
+.m7_worker_task <- function(x, ctx, run_id, run_cell) .m7_cell_exec(ctx, run_id, x$cell, run_cell, x$seed)
+
+.m7_init_failure_env <- function(bad) {
+  id <- if (!is.null(bad$error_id) && !is.na(bad$error_id)) bad$error_id else "runtime.worker_unfixable"
+  list(state = "failed", error_class = sub("\\..*$", "", id), error_id = id,
+       mensagem = if (is.null(bad$message)) paste0("[prevcarga/runtime] worker ", id) else bad$message)
+}
+
+## o que nao foi despachado (fail-fast) vira `skipped`, qualquer que fosse o estado anterior
+.m7_mark_skipped <- function(acc, todo) {
+  st <- acc$state
+  st[setdiff(todo, acc$seen)] <- "skipped"
+  st
+}
+
+.m7_dispatch_psock <- function(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total, jobs) {
+  acc <- new.env(); acc$state <- state; acc$done <- done0; acc$fails <- list(); acc$seen <- integer()
+  if (!length(todo)) return(list(state = state, fails = list()))
+  seeds <- .m7_cell_seeds(ctx, cells, todo)
+  nw <- min(as.integer(jobs), length(todo))
+  st <- .m7_cluster_start(ctx, nw)
+  on.exit(parallel::stopCluster(st$cl), add = TRUE)
+  if (!is.null(st$bad)) {
+    ## runtime nao fixavel no worker: nenhuma celula roda; todas viram `failed` classificadas (nunca saida silenciosa)
+    .m7_collect(ctx, todo, rep(list(.m7_init_failure_env(st$bad)), length(todo)), TRUE, acc, total)
+    return(list(state = acc$state, fails = acc$fails))
+  }
+  wctx <- ctx
+  wctx$progress <- NULL                       # closure do pai nao viaja
+  for (b in split(todo, ceiling(seq_along(todo) / nw))) {
+    tasks <- lapply(b, function(i) list(cell = cells[i], seed = seeds[[i]]))
+    envs <- parallel::clusterApplyLB(st$cl, tasks, .m7_worker_task, ctx = wctx, run_id = run_id, run_cell = run_cell)
+    if (.m7_collect(ctx, b, envs, keep_going, acc, total)) break      # fail-fast: nenhum lote novo depois da 1a falha
+  }
+  list(state = .m7_mark_skipped(acc, todo), fails = acc$fails)
+}
+
+.m7_dispatch <- function(ctx, run_id, cells, todo, run_cell, jobs, keep_going, state, done0, total) {
+  if (jobs <= 1L) return(.m7_dispatch_serial(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total))
+  .m7_dispatch_psock(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total, jobs)
 }
 
 prevcarga_orchestrate <- function(ctx, plan, run_cell, jobs = 1L, keep_going = FALSE, resume = FALSE,
                                   break_lock = FALSE) {
   if (!is.numeric(jobs) || length(jobs) != 1L || is.na(jobs) || jobs < 1L)
     prevcarga_abort("config.bad_type", where = "--jobs", details = list(expected = "inteiro >= 1"))
-  if (jobs > 1L)
-    prevcarga_abort("todo.not_implemented", where = "--jobs > 1", details = list(hint = "cluster PSOCK: M7.6"))
   run_id <- plan$run_id
   cells <- plan$cells
   total <- nrow(cells)
@@ -312,7 +399,7 @@ prevcarga_orchestrate <- function(ctx, plan, run_cell, jobs = 1L, keep_going = F
   }, "")
   done0 <- sum(state == "done")
   todo <- .m7_dispatch_order(which(state != "done"), cells)
-  r <- .m7_dispatch_serial(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total)
+  r <- .m7_dispatch(ctx, run_id, cells, todo, run_cell, as.integer(jobs), keep_going, state, done0, total)
   state <- r$state
 
   ts <- sub("-[0-9]+$", "", as.character(ctx$run_id))
