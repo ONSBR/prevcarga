@@ -183,6 +183,7 @@ prevcarga_usage <- function(verbs) {
   a[["--config"]] <- NULL
   ctx <- prevcarga_ctx(a, nofile, verb)
   ctx$root <- root
+  ctx$install_root <- prevcarga_install_dir(root)
   ctx$version <- .prevcarga_version(root)
   ctx$config_path <- NULL
   if (is.null(args[["--state"]]) || identical(args[["--state"]], FALSE))

@@ -1,0 +1,15 @@
+#!/bin/sh
+# prevcarga -- lancador fino. Nao altera nem le variavel de ambiente: TZ, locale e BLAS sao fixados in-process pelo runtime.R.
+# A raiz <R> e achada pelo proprio caminho (readlink -f); o ponteiro `current` escolhe a versao instalada.
+R=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+if [ ! -f "$R/current" ]; then
+  printf 'prevcarga: erro [bundle] (exit 6)\no que: ponteiro current ausente\nonde: %s/current\ncomo corrigir: reinstale com install.sh\n' "$R" >&2
+  exit 6
+fi
+v=$(head -n 1 "$R/current" | tr -d '\r')
+V="$R/versions/$v"
+if [ -z "$v" ] || [ ! -x "$V/runtime/bin/Rscript" ]; then
+  printf 'prevcarga: erro [bundle] (exit 6)\no que: versao %s ausente\nonde: %s\ncomo corrigir: install.sh --rollback ou reinstale\n' "$v" "$V" >&2
+  exit 6
+fi
+exec env -u R_HOME "$V/runtime/bin/Rscript" --vanilla "$V/code/scripts/prevcarga" "$@"

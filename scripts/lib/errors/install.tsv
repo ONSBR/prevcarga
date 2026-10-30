@@ -1,0 +1,10 @@
+id	class	message	hint
+install.download_failed	network	falha ao baixar o bundle	confira --release-base e a rede
+install.io_failed	bundle	falha de escrita na raiz da instalacao	confira permissoes e espaco em disco da raiz
+install.manifest_invalid	bundle	RUNTIME.json invalido ou arquivo do bundle divergente	reinstale o bundle da mesma versao; a versao atual nao foi alterada
+install.no_previous_version	config	nao ha versao anterior retida para voltar	instale a versao desejada com install.sh --version
+install.preflight_failed	bundle	plataforma nao suportada	Linux x86_64 glibc >= 2.35 com zstd, tar, sha256sum e um cliente HTTPS do sistema
+install.sha_mismatch	integrity	sha256 do bundle nao confere	baixe o bundle novamente e confira o SHA256SUMS
+install.sha_missing	integrity	sha256 do bundle nao informado	passe --sha256 ou um SHA256SUMS ao lado do bundle
+install.state_inside_versions	config	--state aponta para dentro de versions/	use um diretorio de estado fora de <raiz>/versions
+install.usage	config	argumento invalido ou ausente	veja install.sh --help
