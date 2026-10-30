@@ -36,3 +36,23 @@ Escopo do LGBM.1: contrato (`run.yaml` + `register.R`) e ingestao. FE, treino e 
 - `lgbm_split_cutoffs`: `train_cv` => ambos `last_data_day`; v2_old/legacy_month/rolling replicam `default_val/train_cutoff` (v2_old: treino = fim do mes anterior ao de `val`); corte > `last_data_day` => `lgbm.contract`.
 - Custo: o `rollapply` de `dwt` e ~40 s por 36k linhas (igual ao oraculo); os testes usam deck de 120 dias.
 - INTERIM (decisao do Gabriel): `attr(frame, "cuts")` (anexado por `lgbm_ingest`) e o canal provisorio dos cortes para a FE, ja que o loader fixa o estagio em `(frame, params)`; o seed fica so no treino. O canal definitivo (F1) sera decidido apos a implementacao; nao mexer no despachante nem em `register.R` ate la.
+
+## LGBM.3 -- treino, normalizacao e freeze do booster
+
+- Arquivos: `R/helpers_norm.R` (`lgbm_compute_min_max` so de `Data <= train_cutoff`, `lgbm_normalise_dt`, `lgbm_norm`/`lgbm_denorm` para o infer com o `min_max_BLF` do artefato),
+  `R/training.R` (`lgbm_cv_folds`, `lgbm_train_cv`, `lgbm_train_holdout`, `lgbm_train(features, spec, cuts)` e o estagio `plugin_train(features, params, seed)`),
+  `R/freeze.R` (`lgbm_freeze(model)`, `plugin_freeze(model, spec, cuts, ctx)`, `lgbm_thaw(payload)`, `plugin_thaw(artifact, cuts)`).
+- Assinaturas: o loader fixa `training = (features, params, seed)`, `freeze = (model)`, `thaw = (payload)`. `plugin_train`/`lgbm_freeze`/`lgbm_thaw` sao as formas despachadas
+  (por nome, via `register.R`); `lgbm_train`, `plugin_freeze` e `plugin_thaw` sao as formas completas (spec + cuts) do contrato do ticket. O despachante carimba o payload de `lgbm_freeze`;
+  `plugin_freeze` ja devolve o artefato plano carimbado (`prevcarga_plugin_stamp`) e varre a pureza.
+- INTERIM (F1 adiado, decisao do Gabriel): os cortes chegam ao treino por `attr(features, "cuts")` (anexado por `lgbm_build_features`, mesmo canal do `attr(frame, "cuts")` da FE). O plugin nao recalcula
+  `last_data_day`: so confere que nenhuma linha da `feature_table` nem corte interno passa dele (`lgbm.contract`).
+- `train_cv: true` => CV blocos-semana (4 folds de 7x48 linhas round-robin, index-based) + refit em 100% das linhas com `nrounds = best_iter`; `lgb.cv`/`lgb.train` com `seed = spec$seed`,
+  `num_threads = 1`, `deterministic`, `force_row_wise`. `train_cv: false` => holdout pelos cortes internos de LGBM.2 (`valids` + early stopping 50; diverge do oraculo so no determinismo: seed, `num_threads = 1`, `deterministic`, `force_row_wise`, pois o OpenMP padrao nao e reproduzivel e ~150x mais lento sob contencao); sem linhas de validacao => contract.
+  Holdout `v2_old` exige historia anterior ao corte de treino (2 meses antes da validacao): deck de teste de 170 dias.
+- `set.seed(spec$seed)` na entrada, dentro de `prevcarga_preserve_rng`. gate02: lag com max <= 1 => `lgbm.double_norm` (contract). `min_max_BLF` inclui o alvo `CargaGlobal`.
+- Freeze: `booster_txt = save_model_to_string(num_iteration = NULL)` (ASCII, LF), `booster_sha256` (digest sha256 do texto), tabelas como `data.frame`, cortes ISO, `engine_version$lightgbm`; sem `lgb.Booster`, caminho ou relogio.
+  Thaw: versao do lightgbm (`lgbm.engine_version`, contract) -> sha256 -> `lgb.load(model_str)` -> arvores == `best_iter` (`lgbm.integrity`, exit 9). Cross-OS do booster: `[DEFERRED M8]`.
+- Racional do holdout pinado (aprovado): o default de producao do oraculo e CV (TRAIN_CV_DEFAULT TRUE, ja pinado); o holdout e so o kill-switch, entao o pin nao toca o caminho de paridade. Principio 2 exige determinismo.
+- Erros novos em `scripts/lib/errors/lgbm.tsv`: `lgbm.double_norm`, `lgbm.engine_version`, `lgbm.integrity`.
+- Testes: `models/lgbm/tests/testthat/` (`helper-lgbm-train.R`, `test-training.R`, `test-portability.R`).

@@ -95,14 +95,15 @@ test_that("catalogo: ids lgbm.* existem em errors/lgbm.tsv com a classe esperada
 
 test_that("estagios ainda nao portados abortam lgbm.stage_missing (nao ha codigo silencioso)", {
   p <- lgbm_source_plugin()
-  ## o estagio de FE foi definido pelo LGBM.2; o treino (LGBM.3) ainda nao
-  e <- fail(p$lgbm_stage_training(NULL, list(), 1L))
+  ## FE (LGBM.2) e treino/freeze/thaw (LGBM.3) ja existem; a inferencia (LGBM.4) ainda nao
+  e <- fail(p$lgbm_stage_inference(NULL, NULL, NULL))
   expect_identical(e$id, "lgbm.stage_missing")
-  expect_true(grepl("plugin_train", conditionMessage(e), fixed = TRUE))
+  expect_true(grepl("plugin_infer", conditionMessage(e), fixed = TRUE))
   ## quando o ticket seguinte define o estagio por nome, o despacho o encontra
-  p$plugin_train <- function(features, params, seed) "ok"
-  expect_identical(p$lgbm_stage_training(NULL, list(), 1L), "ok")
+  p$plugin_infer <- function(payload, inf_features, cuts) "ok"
+  expect_identical(p$lgbm_stage_inference(NULL, NULL, NULL), "ok")
   expect_true(is.function(p$plugin_build_features))   # LGBM.2
+  expect_true(all(vapply(c("plugin_train", "lgbm_freeze", "lgbm_thaw"), function(f) is.function(p[[f]]), NA)))   # LGBM.3
 })
 
 test_that("plugin_constants: hiperparametros, spans, heat_area e feriados fixos do oraculo", {

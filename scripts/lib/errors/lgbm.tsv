@@ -4,3 +4,6 @@ lgbm.contract	contract	painel ou cuts fora do contrato do plugin lgbm	Confira o 
 lgbm.completude	completude	dia do historico do plugin lgbm sem os 48 intervalos de 30 min	Reponha os intervalos faltantes no deck; o plugin nunca preenche
 lgbm.window	window	historico insuficiente para o plugin lgbm	Amplie a janela do deck ou reduza history_days no run.yaml
 lgbm.stage_missing	contract	estagio do plugin lgbm ainda nao implementado	O estagio e definido por um ticket posterior do epico Plugin LGBM
+lgbm.double_norm	contract	carga ja normalizada na entrada do treino do plugin lgbm	A FE deve entregar MW cru; o treino normaliza uma unica vez (min_max_BLF so do treino)
+lgbm.engine_version	contract	versao do lightgbm da sessao difere da do artefato lgbm	Retreine com a versao instalada ou instale a versao do artefato (engine_version$lightgbm)
+lgbm.integrity	integrity	booster congelado do plugin lgbm adulterado ou ilegivel	Regenere o artefato; nao edite booster_txt nem os metadados congelados
