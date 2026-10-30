@@ -17,7 +17,7 @@ with_dirty_env <- function(code) {
   force(code)
 }
 
-test_that("[AC2] artefato disable_loess/calendar_yearend/train_cv = true; processo com LGBM_* sujo e spec alterado => y_pred e values identicos", {
+test_that("[PLUGINS] gate_inf_adequacao: [AC2] artefato disable_loess/calendar_yearend/train_cv = true; processo com LGBM_* sujo e spec alterado => y_pred e values identicos", {
   expect_identical(b$art$payload$params[c("disable_loess", "calendar_yearend", "train_cv")],
                    list(disable_loess = TRUE, calendar_yearend = TRUE, train_cv = TRUE))
   clean <- lgbm_fx_infer(b)
@@ -35,7 +35,7 @@ test_that("[AC2] artefato disable_loess/calendar_yearend/train_cv = true; proces
   expect_identical(lgbm_fx_sha(b$art), lgbm_fx_sha(lgbm_fx_base()$art))
 })
 
-test_that("[AC2] CONTROL: artefato treinado com disable_loess=false da max|D y_pred| > 1e-5 sobre o mesmo painel", {
+test_that("[PLUGINS] gate_inf_adequacao: [AC2] CONTROL: artefato treinado com disable_loess=false da max|D y_pred| > 1e-5 sobre o mesmo painel", {
   bl <- lgbm_fx_base(loess_off = FALSE)
   expect_false(bl$art$payload$params$disable_loess)
   out <- lgbm_fx_infer(bl)
@@ -48,7 +48,7 @@ test_that("[AC2] CONTROL: artefato treinado com disable_loess=false da max|D y_p
   expect_identical(lgbm_fx_infer(bl2)$delivery$y_pred, out$delivery$y_pred)
 })
 
-test_that("[AC2] artefatos inconsistentes abortam [prevcarga/contract] lgbm: artefato inconsistente", {
+test_that("[PLUGINS] gate_inf_adequacao: [AC2] artefatos inconsistentes abortam [prevcarga/contract] lgbm: artefato inconsistente", {
   pay <- b$art$payload
   chk <- function(p, what) {
     e <- fail(P$lgbm_check_artifact_params(p))
@@ -74,7 +74,7 @@ test_that("[AC2] artefatos inconsistentes abortam [prevcarga/contract] lgbm: art
   e <- fail(P$lgbm_check_artifact_params(bad)); expect_identical(e$id, "lgbm.params")
 })
 
-test_that("[AC2] G-ART estatico: nenhum Sys.getenv/Sys.setenv em models/lgbm/R", {
+test_that("[PLUGINS] gate_inf_adequacao: [AC2] G-ART estatico: nenhum Sys.getenv/Sys.setenv em models/lgbm/R", {
   expect_identical(pc_grep_code(file.path(lgbm_root(), "models", "lgbm", "R"), "Sys\\.(getenv|setenv|unsetenv)"), character())
   ## CONTROL do detector: ele acusa uma linha com Sys.setenv em codigo (e ignora comentario)
   d <- tempfile("lgbm-grep-"); dir.create(d)

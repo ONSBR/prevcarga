@@ -329,7 +329,7 @@ test_that("[PLUGINS] paridade_control: train_cv false contra o golden de CV acus
   }
 })
 
-test_that("[PLUGINS] aditividade: oracle_env LGBM_TRAIN_CV 0 contra o clean-room train_cv false, max|d| <= 1e-5 (ex-gate_adequacao_add.sh)", {
+test_that("[PLUGINS] gate_adequacao_add: oracle_env LGBM_TRAIN_CV 0 contra o clean-room train_cv false, max|d| <= 1e-5 (ex-gate_adequacao_add.sh)", {
   lgp_gate_tier("parity")
   u <- lgp_unit(LGP_CTL)
   expect_identical(u$oracle_env$LGBM_TRAIN_CV, "0")

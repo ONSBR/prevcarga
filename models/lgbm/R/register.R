@@ -109,7 +109,7 @@ plugin_descriptor <- function() list(
   granularity_supported = 30L, modes_implemented = c("train", "infer"),
   variant_param = NA_character_, native_layout = "lgbm_day_48",
   semihourly_rule = NULL, delivery_days = 2L,
-  data_lag_days = 2L,              # last_data_day = O-1-2 = O-3 (ADR-0023; o oraculo le carga so ate train_origin-1)
+  data_lag_days = 2L,              # last_data_day = origem menos 1 menos 2 dias (ADR-0023; o oraculo le carga so ate train_origin-1)
   history_infer_equals_train = FALSE, engine = NULL,
   packages = c("lightgbm", "data.table", "lubridate", "wavelets", "zoo"),
   params_schema = lgbm_params_schema(),

@@ -15,13 +15,13 @@ panel_in <- lgbm_fx_panel(deck, ctx, "infer", cuts)
 ingest <- function(panel, cuts_ = cuts, mode, spec = SPEC, consts = K) P$lgbm_ingest(panel, cuts_, spec, mode, consts)
 clone <- function(p) { q <- p; for (n in c("load", "weather_forecast", "holidays")) q[[n]] <- data.table::copy(p[[n]]); q }
 
-test_that("[AC3] cuts: last_data_day = O-3 (data_lag_days = 2 do descriptor)", {
+test_that("[PLUGINS] ingest_cortes: [AC3] cuts: last_data_day = O-3 (data_lag_days = 2 do descriptor)", {
   expect_identical(cuts$last_data_day, lubridate::ymd("2026-09-28"))
   expect_identical(cuts$train_origin, lubridate::ymd("2026-09-29"))
   expect_identical(cuts$tz, LGBM_TZ)
 })
 
-test_that("[AC3] treino: 48 slots/dia, DataHora = interval_start, max(Data) = last_data_day; painel com 09-29 aborta", {
+test_that("[PLUGINS] ingest_cortes: [AC3] treino: 48 slots/dia, DataHora = interval_start, max(Data) = last_data_day; painel com 09-29 aborta", {
   f <- ingest(panel_tr, mode = "train")
   expect_equal(max(f$Data), cuts$last_data_day)
   expect_identical(lubridate::tz(f$DataHora), cuts$tz)
@@ -48,7 +48,7 @@ test_that("[AC3] treino: 48 slots/dia, DataHora = interval_start, max(Data) = la
   expect_equal(max(f0$Data), lubridate::ymd("2026-09-30"))
 })
 
-test_that("[AC4] infer: O 09:30, Hora 18 real, depois NA sintetico; O+1 sintetico; cortes e completude abortam", {
+test_that("[PLUGINS] ingest_cortes: [AC4] infer: O 09:30, Hora 18 real, depois NA sintetico; O+1 sintetico; cortes e completude abortam", {
   f <- ingest(panel_in, mode = "infer")
   expect_identical(f[Data == O, .N], 48L); expect_identical(f[Data == O + 1L, .N], 48L)
   expect_equal(max(f$Data), O + 1L)
@@ -94,7 +94,7 @@ expected_temp <- function(weather, heat, t, lead, tz_issue = "UTC") {
   w$temperature[which.max(as.numeric(w$issue_time))]
 }
 
-test_that("[AC5] safra: emissao mais recente por slot, lead 0 no historico e em O, lead 1 em O+1; CONTROL issue_day_tz", {
+test_that("[PLUGINS] ingest_safra: [AC5] safra: emissao mais recente por slot, lead 0 no historico e em O, lead 1 em O+1; CONTROL issue_day_tz", {
   wf <- panel_in$weather_forecast
   expect_true(all(wf$issue_time <= cuts$weather_issue_limit))
   area <- LGBM_AREA
@@ -133,7 +133,7 @@ test_that("[AC5] safra: emissao mais recente por slot, lead 0 no historico e em 
   expect_true(grepl("area ZZ1 sem heat_area", conditionMessage(e6), fixed = TRUE))
 })
 
-test_that("[AC6] requires ausente, timestamp cru e historia curta abortam; estagio despachado (panel, cuts)", {
+test_that("[PLUGINS] ingest_contrato: [AC6] requires ausente, timestamp cru e historia curta abortam; estagio despachado (panel, cuts)", {
   p1 <- clone(panel_in); p1$load[, load_mwh := NULL]
   e1 <- fail(ingest(p1, mode = "infer"))
   expect_identical(c(e1$class_name, e1$exit_code), c("contract", 2L))
@@ -176,7 +176,7 @@ test_that("[AC6] requires ausente, timestamp cru e historia curta abortam; estag
   expect_length(pc_grep_code(tf, "Sys\\.(getenv|setenv|time|Date)"), 1L)
 })
 
-test_that("[AC7] feriados: prevcarga_code >= 1 + lista fixa; holidays ausente aborta; CONTROL remove um feriado", {
+test_that("[PLUGINS] ingest_feriados: [AC7] feriados: prevcarga_code >= 1 + lista fixa; holidays ausente aborta; CONTROL remove um feriado", {
   p <- clone(panel_in)
   extra <- data.table::data.table(area_code = LGBM_AREA, date = lubridate::ymd(c("2026-06-10", "2026-10-03", "2026-03-04")),
                                   holiday_type_id = 1L, prevcarga_code = c(1L, 1L, 0L), simplified_code = c(1L, 1L, -1L))
@@ -200,7 +200,7 @@ test_that("[AC7] feriados: prevcarga_code >= 1 + lista fixa; holidays ausente ab
   expect_false(identical(attr(ingest(pc, mode = "infer"), "feriados"), fer))
 })
 
-test_that("efeitos: .Random.seed e ambiente global intactos; sem Sys.getenv no plugin", {
+test_that("[PLUGINS] ingest_efeitos: efeitos: .Random.seed e ambiente global intactos; sem Sys.getenv no plugin", {
   set.seed(7); seed0 <- .Random.seed; g0 <- ls(globalenv(), all.names = TRUE); s0 <- search()
   ingest(panel_in, mode = "infer"); ingest(panel_tr, mode = "train")
   expect_identical(.Random.seed, seed0)

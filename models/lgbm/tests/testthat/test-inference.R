@@ -18,7 +18,7 @@ inf_direct <- function(o, panel = o$panel, cuts = o$cuts) {
 }
 
 ## ---- AC1: registro dos 5 estagios pelo loader --------------------------------------------------------------------------
-test_that("[AC1] loader: 5 estagios Tier A qualificados, 2a carga identica (memo), nada em globalenv/search; sem params/spec", {
+test_that("[PLUGINS] loader_estagios: [AC1] loader: 5 estagios Tier A qualificados, 2a carga identica (memo), nada em globalenv/search; sem params/spec", {
   g0 <- ls(globalenv(), all.names = TRUE); s0 <- search()
   lgbm_lib$prevcarga_plugin_unload_all()
   root <- file.path(lgbm_root(), "models")
@@ -40,7 +40,7 @@ test_that("[AC1] loader: 5 estagios Tier A qualificados, 2a carga identica (memo
   expect_identical(names(formals(p1$descriptor$stages$inference$fn)), c("payload", "inf_features", "cuts"))
 })
 
-test_that("[AC1] CONTROL: estagio de infer com formal `params` e recusado pelo loader [prevcarga/contract]", {
+test_that("[PLUGINS] loader_estagios: [AC1] CONTROL: estagio de infer com formal `params` e recusado pelo loader [prevcarga/contract]", {
   r <- lgbm_fx_runyaml()
   writeLines("lgbm_stage_inference <- function(payload, inf_features, cuts, params) NULL", file.path(r, "lgbm", "R", "zz_params.R"))
   lgbm_lib$prevcarga_plugin_unload_all()
@@ -53,7 +53,7 @@ test_that("[AC1] CONTROL: estagio de infer com formal `params` e recusado pelo l
 })
 
 ## ---- AC5: gate07 (Stage A = 48 sem reciclagem) -------------------------------------------------------------------------
-test_that("[AC5] gate07: Stage A devolve exatamente 48 previsoes; matriz de 47 linhas => contract (sem reciclagem)", {
+test_that("[PLUGINS] gate07_stage_a_48: [AC5] gate07: Stage A devolve exatamente 48 previsoes; matriz de 47 linhas => contract (sem reciclagem)", {
   r <- inf_direct(b)
   expect_identical(dim(r$inf$dt_D), c(48L, ncol(r$inf$dt_D))); expect_identical(nrow(r$inf$dt_D1), 48L)
   art <- P$plugin_thaw(b$art$payload, b$cuts)
@@ -67,7 +67,7 @@ test_that("[AC5] gate07: Stage A devolve exatamente 48 previsoes; matriz de 47 l
 })
 
 ## ---- AC5: gate05 (1o de jul/out/jan: 48 finitos em O+1 com o dia O cheio) --------------------------------------------
-test_that("[AC5] gate05: origem no 1o de jul/out/jan, dia O cheio => 48 valores finitos em O+1 e values 1x48", {
+test_that("[PLUGINS] gate05_sem_crash: [AC5] gate05: origem no 1o de jul/out/jan, dia O cheio => 48 valores finitos em O+1 e values 1x48", {
   for (o in list(D("2026-07-01"), D("2026-10-01"), D("2027-01-01"))) {
     until <- lubridate::force_tz(lubridate::as_datetime(o + 1L), LGBM_TZ)
     deck <- lgbm_fx_deck(days = 120L, O = o, available_until = until)
@@ -83,7 +83,7 @@ test_that("[AC5] gate05: origem no 1o de jul/out/jan, dia O cheio => 48 valores 
 })
 
 ## ---- AC5: gate12 + parity_construcao_d1 (features de O+1 == treino que inclui O+1) --------------------------------------
-test_that("[AC5] gate12/parity_construcao_d1: features e lag de O+1 do infer == plugin_build_features de um treino que inclui o dia (<= 1e-9)", {
+test_that("[PLUGINS] parity_construcao_d1: [AC5] gate12/parity_construcao_d1: features e lag de O+1 do infer == plugin_build_features de um treino que inclui o dia (<= 1e-9)", {
   at <- lgbm_fx_at(lubridate::ymd_hm("2026-10-02 00:00", tz = LGBM_TZ))     # dia O cheio
   r <- inf_direct(b, at$panel, at$cuts)
   ## treino que INCLUI O+1: carga crua (alem do corte do leitor) do store ragged ate O+1; mesmo clima/feriados
@@ -129,7 +129,7 @@ test_that("[AC5] gate12/parity_construcao_d1: features e lag de O+1 do infer == 
 })
 
 ## ---- AC6: window / contract / completude -------------------------------------------------------------------------------
-test_that("[AC6] historia curta => window; sem load_mwh => contract; furo antes do corte => completude; nunca silencioso", {
+test_that("[PLUGINS] infer_contrato: [AC6] historia curta => window; sem load_mwh => contract; furo antes do corte => completude; nunca silencioso", {
   expect_hv <- function(e, cls, exit) {
     expect_s3_class(e, "prevcarga_error"); expect_identical(e$class_name, cls); expect_identical(e$exit_code, exit)
   }
@@ -167,7 +167,7 @@ test_that("[AC6] historia curta => window; sem load_mwh => contract; furo antes 
   expect_identical(env$layout, "lgbm_day_48"); expect_identical(env$model_id, "lgbm")
 })
 
-test_that("[AC6] Stage B sem carga real em O: so as razoes do Stage A, aviso ASCII e perfil finito", {
+test_that("[PLUGINS] infer_contrato: [AC6] Stage B sem carga real em O: so as razoes do Stage A, aviso ASCII e perfil finito", {
   r <- inf_direct(b)
   art <- P$plugin_thaw(b$art$payload, b$cuts)
   dn <- data.table::copy(r$inf$dt_D); P$lgbm_normalise_dt(dn, art$min_max_BLF)

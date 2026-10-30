@@ -36,7 +36,7 @@ store_for <- function(base, p) {
   perturbed(after = min(s0) - lubridate::minutes(30L), at_or_before = max(s0))
 }
 
-test_that("[AC3] o corte e O 09:30 derivado do dado e o artefato e o mesmo para qualquer meia hora do dia O", {
+test_that("[PLUGINS] corte_intradiario: [AC3] o corte e O 09:30 derivado do dado e o artefato e o mesmo para qualquer meia hora do dia O", {
   expect_identical(au, at_time("2026-10-01 09:30"))
   expect_identical(b$art$stamp$train_origin, LGBM_O - 2L)
   expect_identical(b$cuts$last_data_day, LGBM_O - 3L)
@@ -45,7 +45,7 @@ test_that("[AC3] o corte e O 09:30 derivado do dado e o artefato e o mesmo para 
   expect_gt(sum(raw$interval_end > au), 0L)          # o store tem carga alem do corte; o leitor a esconde
 })
 
-test_that("[AC3] molde honesty_gate: FORBIDDEN (interval_end > 09:30 e O+1) Delta <= 1e-5; CONTROL (09:00-09:30 dentro do corte) > 1e-5 => HONESTO", {
+test_that("[PLUGINS] corte_intradiario: [AC3] molde honesty_gate: FORBIDDEN (interval_end > 09:30 e O+1) Delta <= 1e-5; CONTROL (09:00-09:30 dentro do corte) > 1e-5 => HONESTO", {
   gp <- gate_panel()
   run_fn <- function(p) run_on(store_for(gp, p))
   g <- lgbm_lib$prevcarga_honesty_gate(run_fn, gp, cut = au, horizon = 2L, tol = TOL)
@@ -68,7 +68,7 @@ test_that("[AC3] molde honesty_gate: FORBIDDEN (interval_end > 09:30 e O+1) Delt
   expect_gt(max(abs(early$y_pred - base$y_pred)), TOL)
 })
 
-test_that("[AC3] CONTROL de granularidade: decks com available_until 09:00 e 09:30 dao previsoes diferentes para O+1", {
+test_that("[PLUGINS] corte_intradiario: [AC3] CONTROL de granularidade: decks com available_until 09:00 e 09:30 dao previsoes diferentes para O+1", {
   a09 <- lgbm_fx_at(at_time("2026-10-01 09:00")); a0930 <- lgbm_fx_at(at_time("2026-10-01 09:30"))
   e09 <- lgbm_fx_infer(b, a09$panel, a09$cuts); e0930 <- lgbm_fx_infer(b, a0930$panel, a0930$cuts)
   com <- intersect(as.numeric(e09$delivery$interval_end), as.numeric(e0930$delivery$interval_end))
@@ -80,7 +80,7 @@ test_that("[AC3] CONTROL de granularidade: decks com available_until 09:00 e 09:
   expect_identical(lgbm_fx_infer(b, a0930$panel, a0930$cuts)$delivery, e0930$delivery)
 })
 
-test_that("[AC3] painel com interval_end > available_until entregue direto => [prevcarga/contract]; sem carga real em O => so razoes, finito", {
+test_that("[PLUGINS] corte_intradiario: [AC3] painel com interval_end > available_until entregue direto => [prevcarga/contract]; sem carga real em O => so razoes, finito", {
   a09 <- lgbm_fx_at(at_time("2026-10-01 09:00"))
   e <- fail(lgbm_fx_infer(b, b$panel, a09$cuts))                       # painel ate 09:30 com corte 09:00 (despachante)
   expect_s3_class(e, "prevcarga_error"); expect_identical(e$class_name, "contract"); expect_identical(e$exit_code, 2L)
@@ -103,7 +103,7 @@ test_that("[AC3] painel com interval_end > available_until entregue direto => [p
   expect_identical(dim(out$values), c(2L, 48L))
 })
 
-test_that("[AC3] cortes 12:00 e 16:00: entrega e values 2x48 finitos, grade da fundacao", {
+test_that("[PLUGINS] corte_intradiario: [AC3] cortes 12:00 e 16:00: entrega e values 2x48 finitos, grade da fundacao", {
   for (hhmm in c("12:00", "16:00")) {
     a <- lgbm_fx_at(at_time(paste("2026-10-01", hhmm)))
     env <- lgbm_fx_infer(b, a$panel, a$cuts)

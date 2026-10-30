@@ -77,8 +77,8 @@ lgbm_load_grid <- function(load, days, cuts, mode = c("train", "infer")) {
   grid <- data.table::CJ(Data = days, Hora = 0:47)
   ## indice de slot (Hora 0..47) sobre a meia-noite civil do dia: nao e deslocamento de rotulo da carga
   grid[, Minuto := (Hora %% 2L) * 30L]
-  grid[, DataHora := lubridate::force_tz(lubridate::as_datetime(Data), tz) + lubridate::hours(Hora %/% 2L) +
-         lubridate::minutes(Minuto)]
+  grid[, DataHora := lubridate::make_datetime(lubridate::year(Data), lubridate::month(Data), lubridate::mday(Data),
+                                              Hora %/% 2L, Minuto, tz = tz)]
   ld <- data.table::data.table(DataHora = load$interval_start, interval_end = load$interval_end,
                                CargaGlobal = load$load_mwh)
   dt <- merge(grid, ld, by = "DataHora", all.x = TRUE)
@@ -92,7 +92,8 @@ lgbm_load_grid <- function(load, days, cuts, mode = c("train", "infer")) {
   if (mode == "infer") {
     ## interval_end do slot k = DataHora do slot k+1 (o ultimo e a meia-noite civil seguinte): um intervalo AUSENTE antes do
     ## corte nao vira sintetico (vira furo e aborta abaixo); sem aritmetica de hora
-    slot_end <- c(dt$DataHora[-1L], lubridate::force_tz(lubridate::as_datetime(max(days) + 1L), tz))
+    slot_end <- c(dt$DataHora[-1L], lubridate::make_datetime(lubridate::year(max(days) + 1L), lubridate::month(max(days) + 1L),
+                                                                      lubridate::mday(max(days) + 1L), tz = tz))
     dt[, is_synthetic := slot_end > cuts$available_until]
     holes <- dt[Data == O & !is_synthetic & is.na(CargaGlobal)]
     if (nrow(holes))
@@ -117,7 +118,7 @@ lgbm_weather_vintage <- function(weather, area, days, lead, consts = plugin_cons
   w <- w[area_code == heat]
   if (is.null(tz)) tz <- lubridate::tz(w$valid_time)
   w[, valid_day := lubridate::as_date(valid_time, tz = tz)]
-  w[, issue_day := lubridate::as_date(lubridate::with_tz(issue_time, consts$issue_day_tz))]
+  w[, issue_day := lubridate::as_date(issue_time, tz = consts$issue_day_tz)]
   w <- w[as.integer(valid_day - issue_day) >= as.integer(lead) & valid_day %in% days]
   w[, `:=`(DataHora = valid_time, Data = valid_day,
            Hora = lubridate::hour(valid_time) * 2L + lubridate::minute(valid_time) %/% 30L)]

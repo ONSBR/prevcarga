@@ -17,7 +17,7 @@ X <- local({
   as.matrix(utils::tail(dn[Data <= base$cuts$last_data_day], 200L)[, art$colunas_entrada_BLF, with = FALSE])
 })
 
-test_that("[AC4] artefato puro: scan_pure limpo; sem lgb.Booster, trained_at, package_version, caminho ou externalptr", {
+test_that("[PLUGINS] gate04_decoupling: [AC4] artefato puro: scan_pure limpo; sem lgb.Booster, trained_at, package_version, caminho ou externalptr", {
   expect_true(lgbm_lib$prevcarga_plugin_scan_pure(art))
   expect_false(any(c("booster", "trained_at", "package_version", "area") %in% names(art)))
   expect_false(any(vapply(art, function(x) inherits(x, "lgb.Booster") || typeof(x) == "externalptr" || is.environment(x), NA)))
@@ -30,7 +30,7 @@ test_that("[AC4] artefato puro: scan_pure limpo; sem lgb.Booster, trained_at, pa
   expect_identical(art$train_cutoff, "2026-09-28")
 })
 
-test_that("[AC4] booster_txt: character(1) ASCII so com LF; round-trip lgb.load(model_str) -> save_model_to_string byte-identico", {
+test_that("[PLUGINS] gate04_decoupling: [AC4] booster_txt: character(1) ASCII so com LF; round-trip lgb.load(model_str) -> save_model_to_string byte-identico", {
   txt <- art$booster_txt
   expect_true(is.character(txt) && length(txt) == 1L)
   expect_false(is.na(iconv(txt, "UTF-8", "ASCII")))
@@ -41,7 +41,7 @@ test_that("[AC4] booster_txt: character(1) ASCII so com LF; round-trip lgb.load(
   expect_identical(P$lgbm_n_trees(txt), art$best_iter)
 })
 
-test_that("[AC4] thaw em sessao R nova (Rscript --vanilla) prediz identico ao booster em memoria (max|D| = 0)", {
+test_that("[PLUGINS] gate04_decoupling: [AC4] thaw em sessao R nova (Rscript --vanilla) prediz identico ao booster em memoria (max|D| = 0)", {
   tmp <- tempfile("lgbm-thaw-"); dir.create(tmp)
   saveRDS(art, file.path(tmp, "art.rds")); saveRDS(X, file.path(tmp, "x.rds"))
   script <- file.path(tmp, "thaw.R")
@@ -64,7 +64,7 @@ test_that("[AC4] thaw em sessao R nova (Rscript --vanilla) prediz identico ao bo
   expect_identical(max(abs(predict(base$model$booster, X) - mem)), 0)
 })
 
-test_that("[AC4] dois freezes de treinos identicos => sha256 igual; CONTROL Sys.time() injetado muda o sha e o scan acusa", {
+test_that("[PLUGINS] gate04_decoupling: [AC4] dois freezes de treinos identicos => sha256 igual; CONTROL Sys.time() injetado muda o sha e o scan acusa", {
   m2 <- P$lgbm_train(base$features, base$spec, base$cuts, K)
   a2 <- P$plugin_freeze(m2, base$spec, base$cuts, list())
   expect_identical(lgbm_fx_sha(a2), lgbm_fx_sha(art))
@@ -78,7 +78,7 @@ test_that("[AC4] dois freezes de treinos identicos => sha256 igual; CONTROL Sys.
 ## ---- AC5: adulteracoes ---------------------------------------------------------------------------------------------
 reseal <- function(a, txt) { a$booster_txt <- txt; a$booster_sha256 <- digest::digest(txt, algo = "sha256", serialize = FALSE); a }
 
-test_that("[AC5] artefato intacto descongela sem erro; limiar alterado ou texto truncado => [prevcarga/integrity] (exit 9)", {
+test_that("[PLUGINS] thaw_integridade: [AC5] artefato intacto descongela sem erro; limiar alterado ou texto truncado => [prevcarga/integrity] (exit 9)", {
   th <- P$lgbm_thaw(art)
   expect_s3_class(th$booster, "lgb.Booster")
   expect_identical(th$best_iter, art$best_iter)
@@ -99,7 +99,7 @@ test_that("[AC5] artefato intacto descongela sem erro; limiar alterado ou texto 
   expect_identical(e3$class_name, "integrity"); expect_identical(e3$exit_code, 9L)
 })
 
-test_that("[AC5] best_iter != numero de arvores do texto => integrity; versao do lightgbm diferente => contract nomeando as duas", {
+test_that("[PLUGINS] thaw_integridade: [AC5] best_iter != numero de arvores do texto => integrity; versao do lightgbm diferente => contract nomeando as duas", {
   bi <- art; bi$best_iter <- art$best_iter + 1L
   e <- fail(P$lgbm_thaw(bi))
   expect_identical(e$class_name, "integrity"); expect_match(conditionMessage(e), "best_iter")
@@ -115,11 +115,11 @@ test_that("[AC5] best_iter != numero de arvores do texto => integrity; versao do
   expect_identical(fail(P$plugin_thaw(om, base$cuts))$class_name, "contract")
 })
 
-test_that("[AC5] sem saveRDS, lgb.save, trained_at, Sys.time ou variavel de ambiente no codigo do plugin", {
+test_that("[PLUGINS] higiene_artefato: [AC5] sem saveRDS, lgb.save, trained_at, Sys.time ou variavel de ambiente no codigo do plugin", {
   r <- file.path(lgbm_root(), "models", "lgbm", "R")
   expect_identical(pc_grep_code(r, "saveRDS|lgb\\.save\\s*\\(|trained_at|Sys\\.time|Sys\\.getenv|package_version"), character())
 })
 
-test_that("[AC5] [DEFERRED M8] cross-OS do booster (Windows x Linux <= 0,1%)", {
+test_that("[DEFERRED M8] cross_os: [AC5] cross-OS do booster (Windows x Linux <= 0,1%)", {
   skip("[DEFERRED M8] cross-OS do booster")
 })

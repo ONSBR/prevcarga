@@ -109,3 +109,17 @@ lgbm_fx_at <- function(until, days = 120L) {
   cuts <- lgbm_fx_cuts(ctx)
   list(deck = deck, ctx = ctx, cuts = cuts, panel = lgbm_fx_dpanel(deck, ctx, "infer", cuts))
 }
+
+## --- LGBM.6: cadeia completa train + freeze + infer pelo despachante (gate10_determinismo) --------------------------
+## Devolve o sha256 do artefato carimbado e a entrega. `runyaml_root` = raiz de modelos de uma copia do run.yaml (CONTROL seed 124).
+## Pode rodar em sessao R limpa (o script do teste carrega os helpers e chama esta funcao com argumentos por vetor).
+lgbm_fx_chain <- function(deck = lgbm_fx_deck(days = 120L), runyaml_root = file.path(lgbm_root(), "models")) {
+  ctx <- lgbm_fx_ctx(deck)
+  cuts <- lgbm_fx_cuts(ctx)
+  plugin <- lgbm_fx_plugin(root = runyaml_root)
+  tp <- lgbm_fx_dpanel(deck, ctx, "train", cuts, 115L)
+  stamp_ctx <- list(load_label = cuts$load_label, timezone = cuts$tz, weather_issue_cutoff = cuts$weather_issue_cutoff)
+  art <- suppressWarnings(lgbm_with_cli(lgbm_lib$prevcarga_plugin_train(plugin, tp, cuts, plugin$spec, stamp_ctx)))
+  env <- suppressWarnings(lgbm_with_cli(lgbm_lib$prevcarga_plugin_infer(plugin, art, lgbm_fx_dpanel(deck, ctx, "infer", cuts), cuts)))
+  list(sha = lgbm_fx_sha(art), booster_sha256 = art$payload$booster_sha256, delivery = as.data.frame(env$delivery), values = env$values)
+}

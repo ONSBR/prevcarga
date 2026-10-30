@@ -7,7 +7,7 @@ b <- lgbm_fx_base()
 O <- LGBM_O
 at_time <- function(s) lubridate::ymd_hm(s, tz = LGBM_TZ)
 
-test_that("[AC4] available_until 09:00/09:30/O+1 00:00: delivery == grade da fundacao (78/77/48), 30 min sem buraco, values 2x48/2x48/1x48", {
+test_that("[PLUGINS] gate09_fuso: [AC4] available_until 09:00/09:30/O+1 00:00: delivery == grade da fundacao (78/77/48), 30 min sem buraco, values 2x48/2x48/1x48", {
   cases <- list(list("2026-10-01 09:00", 78L, "2026-10-01 09:30", 2L), list("2026-10-01 09:30", 77L, "2026-10-01 10:00", 2L),
                 list("2026-10-02 00:00", 48L, "2026-10-02 00:30", 1L))
   for (cs in cases) {
@@ -32,7 +32,7 @@ test_that("[AC4] available_until 09:00/09:30/O+1 00:00: delivery == grade da fun
   }
 })
 
-test_that("[AC4] sentinela: a carga real de 08:30-09:00 aparece no Stage B na posicao Hora 17 (interval_start); CONTROL: indexar por interval_end reprova", {
+test_that("[PLUGINS] gate_nowcast_dplus0: [AC4] sentinela: a carga real de 08:30-09:00 aparece no Stage B na posicao Hora 17 (interval_start); CONTROL: indexar por interval_end reprova", {
   deck <- lgbm_fx_deck(days = 120L, available_until = at_time("2026-10-01 09:00"), sentinel = TRUE)
   ctx <- lgbm_fx_ctx(deck); cuts <- lgbm_fx_cuts(ctx)
   panel <- lgbm_fx_dpanel(deck, ctx, "infer", cuts)

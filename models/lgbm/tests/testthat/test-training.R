@@ -13,7 +13,7 @@ LDD <- D("2026-09-28")
 sha <- lgbm_fx_sha
 
 ## ---- AC1: corte de treino O-3 (FORBIDDEN / CONTROL) --------------------------------------------------------------
-test_that("[AC1] cuts de dates.R: train_origin = O-1-H e last_data_day = O-1-data_lag_days; o artefato carimba train_origin", {
+test_that("[PLUGINS] train_cortes: [AC1] cuts de dates.R: train_origin = O-1-H e last_data_day = O-1-data_lag_days; o artefato carimba train_origin", {
   expect_identical(base$cuts$train_origin, D("2026-09-29"))
   expect_identical(base$cuts$last_data_day, LDD)
   expect_identical(base$artifact$train_origin, D("2026-09-29"))
@@ -22,14 +22,14 @@ test_that("[AC1] cuts de dates.R: train_origin = O-1-H e last_data_day = O-1-dat
   expect_lte(max(base$features$feature_table$Data), LDD)
 })
 
-test_that("[AC1] FORBIDDEN: carga de todo dia > last_data_day +500 MW => sha256 do artefato identico", {
+test_that("[PLUGINS] gate01_perturbacao: [AC1] FORBIDDEN: carga de todo dia > last_data_day +500 MW => sha256 do artefato identico", {
   d2 <- lgbm_fx_perturb_days(deck, after = LDD, delta = 500)
   r2 <- lgbm_fx_train(d2, P = P)
   expect_identical(sha(r2$artifact), sha(base$artifact))
   expect_identical(r2$artifact$booster_sha256, base$artifact$booster_sha256)
 })
 
-test_that("[AC1] CONTROL: carga do dia last_data_day +500 MW => sha256 difere e min_max_BLF ou booster_txt mudam", {
+test_that("[PLUGINS] gate01_perturbacao: [AC1] CONTROL: carga do dia last_data_day +500 MW => sha256 difere e min_max_BLF ou booster_txt mudam", {
   d3 <- lgbm_fx_perturb_days(deck, days = LDD, delta = 500)
   r3 <- lgbm_fx_train(d3, P = P)
   expect_false(identical(sha(r3$artifact), sha(base$artifact)))
@@ -37,7 +37,7 @@ test_that("[AC1] CONTROL: carga do dia last_data_day +500 MW => sha256 difere e 
                 !identical(r3$artifact$booster_txt, base$artifact$booster_txt))
 })
 
-test_that("[AC1] painel com intervalo de O entregue ao despachante => contract; com 09-29 entregue ao plugin => contract", {
+test_that("[PLUGINS] train_cortes: [AC1] painel com intervalo de O entregue ao despachante => contract; com 09-29 entregue ao plugin => contract", {
   ctx <- lgbm_fx_ctx(deck); cuts <- base$cuts
   full <- lgbm_fx_panel(deck, ctx, "infer", cuts)   # carga ate O 09:30
   expect_gt(max(lubridate::as_date(full$load$interval_start, tz = cuts$tz)), LDD)
@@ -59,7 +59,7 @@ test_that("[AC1] painel com intervalo de O entregue ao despachante => contract; 
   expect_s3_class(e3, "prevcarga_error"); expect_identical(e3$class_name, "contract")
 })
 
-test_that("[AC1] o estagio plugin_train (features, params, seed) treina como lgbm_train e le os cortes de attr(features, 'cuts')", {
+test_that("[PLUGINS] train_cortes: [AC1] o estagio plugin_train (features, params, seed) treina como lgbm_train e le os cortes de attr(features, 'cuts')", {
   expect_identical(names(formals(P$plugin_train)), c("features", "params", "seed"))
   expect_identical(attr(base$features, "cuts")$last_data_day, LDD)
   m <- P$plugin_train(base$features, base$spec$params, base$spec$seed)
@@ -73,7 +73,7 @@ test_that("[AC1] o estagio plugin_train (features, params, seed) treina como lgb
 })
 
 ## ---- AC2: normalizacao so do treino (gate03), dupla normalizacao (gate02) ------------------------------------------
-test_that("[AC2] gate03: min_max_BLF so de Data <= train_cutoff, inclui o alvo; identico com a validacao/teste perturbados", {
+test_that("[PLUGINS] gate03_norm_train_only: [AC2] gate03: min_max_BLF so de Data <= train_cutoff, inclui o alvo; identico com a validacao/teste perturbados", {
   ft <- base$features$feature_table
   cols <- union(setdiff(base$features$colunas_entrada_BLF, base$features$colunas_nao_normalizar), "CargaGlobal")
   mm <- P$lgbm_compute_min_max(ft, cols, LDD)
@@ -106,7 +106,7 @@ for (sch in c("v2_old", "legacy_month", "rolling")) {
                                   history_days = if (long) 165L else 115L)
 }
 
-test_that("[AC2] gate03 nos 3 esquemas de holdout: validacao/teste perturbados nao mudam min_max_BLF; treino alem do corte nao entra", {
+test_that("[PLUGINS] gate03_norm_train_only: [AC2] gate03 nos 3 esquemas de holdout: validacao/teste perturbados nao mudam min_max_BLF; treino alem do corte nao entra", {
   for (sch in names(holdout)) {
     h <- holdout[[sch]]
     expect_lt(h$features$train_cutoff, LDD)   # o holdout usa os cortes internos, nao last_data_day
@@ -125,7 +125,7 @@ test_that("[AC2] gate03 nos 3 esquemas de holdout: validacao/teste perturbados n
   expect_gt(length(unique(vapply(holdout, function(h) format(h$features$train_cutoff), ""))), 1L)
 })
 
-test_that("[AC2] gate02: FE ja normalizada (lag com max <= 1) aborta [prevcarga/contract] lgbm.double_norm", {
+test_that("[PLUGINS] gate02_escala_mw: [AC2] gate02: FE ja normalizada (lag com max <= 1) aborta [prevcarga/contract] lgbm.double_norm", {
   ft <- base$features
   ft$feature_table <- data.table::copy(base$features$feature_table)
   ft$feature_table[, CargaGlobal_anterior_BLF := CargaGlobal_anterior_BLF / max(CargaGlobal_anterior_BLF)]
@@ -136,7 +136,7 @@ test_that("[AC2] gate02: FE ja normalizada (lag com max <= 1) aborta [prevcarga/
 })
 
 ## ---- AC3: G-CV e gate_cv_refit --------------------------------------------------------------------------------------
-test_that("[AC3] G-CV: folds 4 x 336 round-robin cobrem todas as linhas, disjuntos", {
+test_that("[PLUGINS] gate_cv_refit: [AC3] G-CV: folds 4 x 336 round-robin cobrem todas as linhas, disjuntos", {
   for (n in c(1L, 335L, 336L, 1337L, 5249L)) {
     f <- P$lgbm_cv_folds(n, K)
     expect_identical(f, split(seq_len(n), rep(rep(1:4, each = 336), length.out = n)), info = n)
@@ -148,7 +148,7 @@ test_that("[AC3] G-CV: folds 4 x 336 round-robin cobrem todas as linhas, disjunt
   expect_identical(f[[1L]][1:336], 1:336); expect_identical(f[[2L]][1L], 337L)
 })
 
-test_that("[AC3] G-CV/gate_cv_refit: lgb.cv e lgb.train recebem seed da spec + determinismo; refit = 100% com nrounds = best_iter", {
+test_that("[PLUGINS] gate_cv_refit: [AC3] G-CV/gate_cv_refit: lgb.cv e lgb.train recebem seed da spec + determinismo; refit = 100% com nrounds = best_iter", {
   seen <- list()
   real_cv <- lightgbm::lgb.cv; real_tr <- lightgbm::lgb.train
   testthat::local_mocked_bindings(
@@ -181,7 +181,7 @@ test_that("[AC3] G-CV/gate_cv_refit: lgb.cv e lgb.train recebem seed da spec + d
   expect_identical(seen$n2, K$num_iterations); expect_identical(m3$best_iter, K$num_iterations)
 })
 
-test_that("[AC3] CONTROL train_cv false: holdout com valids + early stopping 50 (determinismo da spec), booster_txt muda", {
+test_that("[PLUGINS] gate_cv_refit: [AC3] CONTROL train_cv false: holdout com valids + early stopping 50 (determinismo da spec), booster_txt muda", {
   h <- holdout$v2_old
   seen <- list()
   real_tr <- lightgbm::lgb.train
