@@ -176,3 +176,56 @@ prevcarga_honesty_gate_weather <- function(run_fn, panel, weather, weather_issue
                    weather_issue_limit = format(lubridate::with_tz(weather_issue_limit, "UTC"),
                                                 "%Y-%m-%dT%H:%M:%SZ")))
 }
+
+## --- Reach-control por SAIDA (R.4, ADR-0029) -------------------------------------------------------------
+## prevcarga_reach_control(module_fn, input, arms, compare, tol)
+##   - module_fn(input) -> data.frame/data.table de SAIDA; input = qualquer tabela (verdade, painel, clima).
+##   - arms = list(forbidden = list(<nome> = function(input) input_perturbado), control = list(...)).
+##     Cada braco recebe uma copia PROFUNDA da entrada; a entrada original sai intacta (parada dura se nao).
+##   - compare = list(value = <coluna numerica da saida>, keys = <chaves do merge>); delta = max|dvalue| casando
+##     as chaves; chaves diferentes ou NA = Inf (mesmo criterio estrutural de .prevcarga_hg_delta).
+##   - Veredito (vocabulario do M3): forbidden > tol => VAZA; braco que nao alterou a entrada ou control <= tol =>
+##     INDETERMINADO; senao HONESTO. Generico: sem disco, subprocesso, env nem logica de dominio; erros propagam.
+## Compara a entrada sem o atributo `index` que o data.table cria sozinho (auto-index) ao filtrar.
+.prevcarga_reach_same <- function(a, b) identical(as.data.frame(a), as.data.frame(b))
+
+.prevcarga_reach_delta <- function(ref, out, compare) {
+  k <- compare$keys; v <- compare$value
+  if (!is.data.frame(ref) || !is.data.frame(out) || !all(c(k, v) %in% names(ref)) || !all(c(k, v) %in% names(out)))
+    prevcarga_abort("contract.honesty_gate_args", where = "module_fn output")
+  a <- data.table::as.data.table(as.data.frame(ref))[, c(k, v), with = FALSE]
+  b <- data.table::as.data.table(as.data.frame(out))[, c(k, v), with = FALSE]
+  if (nrow(a) != nrow(b)) return(Inf)
+  if (!nrow(a)) return(0)
+  m <- merge(a, b, by = k, suffixes = c(".ref", ".out"))
+  if (nrow(m) != nrow(a)) return(Inf)
+  ya <- as.numeric(m[[paste0(v, ".ref")]]); yb <- as.numeric(m[[paste0(v, ".out")]])
+  if (!identical(is.na(ya), is.na(yb)) || anyNA(ya)) return(Inf)
+  max(0, abs(ya - yb))
+}
+
+prevcarga_reach_control <- function(module_fn, input, arms,
+                                    compare = list(value = "y_pred", keys = "target_datetime"), tol = 1e-5) {
+  bad <- function(where) prevcarga_abort("contract.honesty_gate_args", where = where)
+  if (!is.function(module_fn)) bad("module_fn")
+  if (!is.data.frame(input)) bad("input")
+  if (!is.list(arms) || !all(vapply(c(arms$forbidden, arms$control), is.function, NA))) bad("arms")
+  if (!is.list(compare) || !is.character(compare$value) || !is.character(compare$keys)) bad("compare")
+  pristine <- data.table::copy(input)
+  ref <- module_fn(data.table::copy(input))
+  run_arm <- function(fn, kind, name) {
+    pert <- fn(data.table::copy(input))
+    out <- module_fn(pert)
+    data.table::data.table(arm = name, kind = kind, changed_input = !.prevcarga_reach_same(pert, pristine),
+                           delta = .prevcarga_reach_delta(ref, out, compare))
+  }
+  rows <- c(Map(run_arm, arms$forbidden, "forbidden", names(arms$forbidden)),
+            Map(run_arm, arms$control, "control", names(arms$control)))
+  d <- data.table::rbindlist(rows)
+  if (!.prevcarga_reach_same(input, pristine)) prevcarga_abort("contract.honesty_gate_args", where = "input mutada")
+  dl <- d$delta[d$kind == "forbidden"]; dc <- d$delta[d$kind == "control"]
+  v <- if (any(dl > tol)) "VAZA"
+       else if (any(!d$changed_input) || any(dc <= tol)) "INDETERMINADO"
+       else "HONESTO"
+  list(veredito = v, deltas = d)
+}

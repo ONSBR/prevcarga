@@ -8,8 +8,10 @@ library(testthat)
 M2_TZ <- "Etc/GMT+3"
 
 ## ---- instalacao-copia com historicos pequenos (editaveis) ------------------------------------------------------------
-m2_root <- function(hw = c(30, 10)) {
+## `drop_plugins`: membros cuja pasta R/ do plugin sai da copia (membro sem plugin => data_lag_source `default`)
+m2_root <- function(hw = c(30, 10), drop_plugins = character()) {
   pc_install_copy(plugins = TRUE, mutate = function(r) {
+    for (m in drop_plugins) unlink(file.path(r, "models", m, "R"), recursive = TRUE)
     set <- function(m, tr, inf) {
       f <- file.path(r, "models", m, "run.yaml"); y <- yaml::read_yaml(f)
       y$history_days <- list(train = tr, infer = inf); yaml::write_yaml(y, f)
@@ -255,9 +257,15 @@ test_that("describe --origin 2026-10-01 por processo: uma linha por membro com t
   ## data_lag_days do descriptor do plugin, como no caminho in-process (ADR-0023): LGBM O-3
   expect_identical(lg$data_lag_days, 2L); expect_identical(lg$data_lag_source, "descriptor")
   expect_identical(lg$last_data_day, "2026-09-28")
-  ## CONTROL: RF declara data_lag_days 0 => O-1 pela mesma fonte; membro sem plugin (dessem-regdin) segue `default`
+  ## CONTROL: RF e dessem-regdin (plugin desde o RD.1) declaram data_lag_days 0 => O-1 pela mesma fonte
   expect_identical(rf$data_lag_days, 0L); expect_identical(rf$data_lag_source, "descriptor")
-  expect_identical(de$data_lag_source, "default")
+  expect_identical(de$data_lag_days, 0L); expect_identical(de$data_lag_source, "descriptor")
+  ## CONTROL: membro sem plugin (dessem-regdin sem R/ na copia) segue `default`, com o mesmo O-1
+  r2 <- m2_run(m2_root(drop_plugins = "dessem-regdin"), c("describe", "--origin", "2026-10-01", "--format", "json"))
+  expect_identical(r2$status, 0L)
+  de2 <- Filter(function(x) identical(x$model, "dessem-regdin"), m2_doc(r2)$result$cuts$members)[[1L]]
+  expect_identical(de2$data_lag_source, "default"); expect_identical(de2$data_lag_days, 0L)
+  expect_identical(de2$last_data_day, "2026-09-30")
 })
 
 test_that("validate-deck por processo: LGBM last_data_day O-3 do descriptor; CONTROL RF O-1 (ADR-0023)", {
