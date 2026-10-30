@@ -56,3 +56,32 @@ Escopo do LGBM.1: contrato (`run.yaml` + `register.R`) e ingestao. FE, treino e 
 - Racional do holdout pinado (aprovado): o default de producao do oraculo e CV (TRAIN_CV_DEFAULT TRUE, ja pinado); o holdout e so o kill-switch, entao o pin nao toca o caminho de paridade. Principio 2 exige determinismo.
 - Erros novos em `scripts/lib/errors/lgbm.tsv`: `lgbm.double_norm`, `lgbm.engine_version`, `lgbm.integrity`.
 - Testes: `models/lgbm/tests/testthat/` (`helper-lgbm-train.R`, `test-training.R`, `test-portability.R`).
+
+## LGBM.4 -- inferencia BLF de duas passadas (G-ART)
+
+- Arquivos: `R/inference_features.R` (`lgbm_check_artifact_params`, `plugin_inference_features(frame, artifact, cuts = NULL)`), `R/inference.R` (`lgbm_stage_a`, `lgbm_stage_b`,
+  `lgbm_predict_d1`, `lgbm_delivery`, `plugin_infer(artifact, inf_feat, cuts)`). Despachados por nome pelo `register.R` (nada mudou la); `lgbm.stage_missing` so se a definicao sumir.
+- G-ART: o infer so le o artefato (params, seed, min_max_BLF, sazonalidade + fallbacks, best_iter, booster). Nenhum `params`/`spec` nas assinaturas, nenhum refit, nenhuma env var
+  (o `Sys.setenv(LGBM_DISABLE_LOESS)` e o `.inherit_adequacao_flags` do oraculo viraram `lgbm_check_artifact_params`: params fora do schema => `lgbm.params`; `tipodia_legacy` sem
+  fallbacks, extra de adequacao fora de `colunas_entrada_BLF` (ou o inverso), campo ausente => `[prevcarga/contract] lgbm: artefato inconsistente: ...`). `set.seed(artifact$seed)` dentro de
+  `prevcarga_preserve_rng`, na posicao do oraculo (antes do 1o LOESS).
+- `plugin_inference_features` devolve `list(dt_features, dt_D, dt_D1, n_real_D, area)`: calendario/LOESS/lag/ondaletas/dummies como o treino (mesmas funcoes de LGBM.2), Sazonalidade so do
+  artefato, sem `na.omit` (as 48 linhas de O e O+1 sao preservadas; dia sem 48 => `lgbm.completude`; historia curta => `lgbm.window`). `area` e extra ao contrato do ticket: o envelope exige a area.
+- Corte real: `is_synthetic` da ingestao (`interval_end > available_until`), sem somar minutos no plugin. Stage B: `real = !is.na(CargaGlobal) & !is_synthetic`.
+  CORRECAO na ingestao (LGBM.1): `is_synthetic` agora vem do `interval_end` do slot = `DataHora` do slot seguinte (o ultimo = meia-noite civil seguinte); antes um intervalo AUSENTE antes
+  do corte (`interval_end` NA) virava sintetico em silencio e o infer o completava por razao. Agora e furo => `lgbm.completude` (exit 3).
+- Passada 1: Stage A (48 previsoes normalizadas; matriz != 48 linhas => contract gate07), Stage B (carga real normalizada pelo `min_max_BLF`, depois `prev * round(pred[i]/pmax(abs(pred[i-1]),1e-9), 7)`;
+  sem carga real em O => so razoes + aviso ASCII; perfil MW suavizado por `lgbm_loess_daily(span_lag, disable_loess do artefato)`). Passada 2: so o lag `CargaGlobal_anterior_BLF` de O+1 e
+  sobrescrito pelo dia O completado (CONSERTO A: ondaletas/Sazonalidade/dummies ficam como vieram); LOESS inline 0.1 grau 1 sobre o normalizado e 0.15 por dia sobre o MW.
+  Feature do artefato ausente na matriz => contract (nunca 0); `y_pred` nao finito => contract.
+- Entrega: `delivery = (interval_end, y_pred)` identica a `prevcarga_delivery_grid(cuts, 2)` (78/77/48 linhas para available_until 09:00/09:30/O+1 00:00). O `y_pred` de cada `interval_end` e casado
+  por POSICAO: o `interval_end` do slot k e o `DataHora` do slot k+1 (o ultimo, a meia-noite de O+2); sem aritmetica de hora. `values`: 2x48 (linha 1 = dia O completado, linha 2 = O+1);
+  com dia O cheio, 1x48 = so O+1 (o que e entregue). O trecho de O da entrega vem do perfil completado (com o mesmo LOESS do lag quando `disable_loess = false`; com o default do run.yaml, `true`, e cru).
+  Envelope sem `forecast_origin`/`lead`/`d_plus`/`y_true` (M6); `meta = list(best_iter, params_source = "artifact", n_real_D)`.
+- Canal de cortes: o estagio recebe `(frame, payload)` e `(payload, inf_features, cuts)`; nao ha `attr(frame, "cuts")` novo (F1 adiado). `cuts` opcional em `plugin_inference_features` so confere a origem.
+- Fidelidade ao oraculo: `real_mask` `DataHora <= avail_ts` do oraculo equivale a `interval_end <= available_until` do novo contrato porque o oraculo recebia `avail_ts` = ultimo `DataHora` real
+  (rotulo de inicio; ADR-0019/M5.10). A paridade A/B numerica do infer (Delta = 0 vs `prevcargadessem3/models/lgbm`) e o ticket LGBM.5.
+- Testes: `test-inference.R` (registro Tier A x2/memo, CONTROL `params`, gate07/05/12, parity_construcao_d1, window/contract/completude, Stage B sem carga), `test-params.R`, `test-cut.R`
+  (honesty_gate 4 bracos + CONTROL 09:00-09:30 + granularidade 09:00 x 09:30 + 12:00/16:00), `test-delivery.R` (grade e sentinela Hora 17). Helpers novos em `helper-lgbm-train.R`
+  (`lgbm_with_cli`, `lgbm_fx_origin/infer/ragged/base/at`); `helper-lgbm.R` ganhou `sentinel` em `lgbm_fx_deck`. O ticket citava `prevcarga_plugin_infer("lgbm", panel, cuts, spec, ctx)`; a
+  assinatura real e `prevcarga_plugin_infer(plugin, artifact, panel, cuts)` e o plugin vem do loader.
