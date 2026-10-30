@@ -210,7 +210,6 @@ dl_fx_panel <- function(st, cuts, mode = c("train", "infer"), history_days = st$
   p$load <- one(p$load); p$weather_observed <- one(p$weather_observed); p$holidays <- one(p$holidays)
   p$weather_forecast <- one(fc[issue_time <= cuts$weather_issue_limit])
   p$holidays <- p$holidays[date < O]
-  data.table::setnames(p$weather_observed, "timestamp", "valid_time")
   if (mode == "train") {
     p$load <- p$load[lubridate::as_date(interval_start, tz = cuts$tz) <= cuts$last_data_day]
     p$weather_observed <- p$weather_observed[lubridate::as_date(valid_time, tz = cuts$tz) <= cuts$last_data_day]
@@ -218,33 +217,11 @@ dl_fx_panel <- function(st, cuts, mode = c("train", "infer"), history_days = st$
   p
 }
 
-## --- motor: DL.3 emulado (so ate o DL.3 entrar) e espiao de tune_wsvm ------------------------------------------------
-## O motor ainda faz `%m-% hours(1)` em TransformaDeck (o DL.3 troca por lags de indice sobre grade completa verificada).
-## Enquanto a linha existir, este teste devolve +1 h aos rotulos de CARGAHIST (o estado pos-DL.3, como o shim do
-## test-dl-infer.R). Com o DL.3 integrado a linha some e a emulacao vira no-op. DEPENDENCIA: DL.3.
-dl_engine_has_hour_shift <- function(eng) any(grepl("hours\\(1", deparse(body(get("TransformaDeck", envir = eng)))))
-
-dl_emulate_dl3 <- function(eng) {
-  if (!dl_engine_has_hour_shift(eng)) return(invisible(FALSE))
-  orig <- get("TransformaDeck", envir = eng, inherits = FALSE)
-  unlock <- bindingIsLocked("TransformaDeck", eng)
-  if (unlock) unlockBinding("TransformaDeck", eng)
-  assign("TransformaDeck", function(deck, ...) {
-    deck$CARGAHIST <- data.table::copy(deck$CARGAHIST)[, DataHora := DataHora + lubridate::hours(1L)]
-    orig(deck = deck, ...)
-  }, envir = eng)
-  if (unlock) lockBinding("TransformaDeck", eng)
-  invisible(TRUE)
-}
-
+## --- motor e espiao de tune_wsvm ------------------------------------------------------------------------------------
 dl_engine_env <- function(plugin = dl_plugin()) parent.env(plugin$env)
 
-## Plugin do loader (motor como env-pai), carregado uma vez por sessao; emulacao do DL.3 aplicada.
-dl_plugin <- function() dl_cached("plugin", {
-  p <- dl_load()
-  dl_emulate_dl3(dl_engine_env(p))
-  p
-})
+## Plugin do loader (motor como env-pai), carregado uma vez por sessao.
+dl_plugin <- function() dl_cached("plugin", dl_load())
 
 ## espiao em `tune_wsvm` do ENV DO MOTOR: $n (contagem), $fml (formulas), $seed0 (.Random.seed do 1o ajuste desde o reset),
 ## $state (hash do .Random.seed na entrada de CADA ajuste: a posicao do gerador que cada SVM enxergou)
@@ -278,13 +255,13 @@ dl_fx_ctx_run <- function(cuts) list(load_label = cuts$load_label, timezone = cu
 dl_train <- function(st, cuts = dl_fx_cuts(st), spec = dl_fx_spec(hist = st$hist), plugin = dl_plugin(), panel = NULL) {
   pan <- if (is.null(panel)) dl_fx_panel(st, cuts, "train") else panel
   dl_with_cli(suppressWarnings(suppressMessages(
-    dl_lib$prevcarga_plugin_train(plugin, dl_lib$to_hourly(pan), cuts, spec, dl_fx_ctx_run(cuts)))))
+    dl_lib$prevcarga_plugin_train(plugin, pan, cuts, spec, dl_fx_ctx_run(cuts)))))
 }
 
 dl_infer <- function(art, st, cuts = dl_fx_cuts(st), plugin = dl_plugin(), panel = NULL) {
   pan <- if (is.null(panel)) dl_fx_panel(st, cuts, "infer") else panel
   dl_with_cli(suppressWarnings(suppressMessages(
-    dl_lib$prevcarga_plugin_infer(plugin, art, dl_lib$to_hourly(pan), cuts, dl_fx_ctx_run(cuts)))))
+    dl_lib$prevcarga_plugin_infer(plugin, art, pan, cuts, dl_fx_ctx_run(cuts)))))
 }
 
 ## forecast acoplado do plugin (mesmo codigo do train + infer, sem freeze no meio): painel de infer, frame de modelagem

@@ -126,7 +126,7 @@ test_that("ac-3 sem aritmetica de hora na ingestao e demais fontes do plugin (gr
 
 test_that("despachante de treino alcanca ingestao, feature_engineering e o estagio de treino de DL.6 (erro de variante antes do motor)", {
   p <- dl_load()
-  panel <- dl_lib$to_hourly(dl_panel(days = 60L)); cuts <- dl_cuts()
+  panel <- dl_panel(days = 60L); cuts <- dl_cuts()                  # cru: o despachante reamostra (weather_resample hourly)
   spec <- dl_spec("XYZ", 40L)
   expect_dl_error(dl_lib$prevcarga_plugin_train(p, panel, cuts, spec), "plugin.dessem_linear_bad_exogena")
 })

@@ -33,7 +33,8 @@ tr_models <- function(defs, key = paste(names(defs), collapse = ",")) {
     d <- defs[[nm]]
     vr <- pc_toy_variant(d$base, run_yaml = modifyList(list(backtest = list(protocol_default = "fixed")),
                                                         if (is.null(d$run_yaml)) list() else d$run_yaml),
-                         descriptor = if (is.null(d$descriptor)) list() else d$descriptor, name = nm)
+                         descriptor = if (is.null(d$descriptor)) list() else d$descriptor,
+                         files = if (is.null(d$files)) list() else d$files, name = nm)
     file.copy(file.path(vr, nm), file.path(rt, "models"), recursive = TRUE)
   }
   file.copy(file.path(pc_toy_root(), "_toy-engine"), file.path(rt, "models"), recursive = TRUE)
@@ -46,6 +47,15 @@ TR_DEFS <- list(
   "toy-60" = list(base = "toy-60"),
   ## H=9, lag 0 (RF) e H=1, lag 2 (LGBM) do ticket, com o historico curto dos brinquedos
   "toy-rf" = list(base = "toy-30", run_yaml = list(horizon_days = 9L)),
+  ## RF-like: H=9 origin_agnostic cuja ingestao confere a janela como o random-forest (1o dia <= train_origin - 10)
+  "toy-rfw" = list(base = "toy-30", run_yaml = list(horizon_days = 9L), files = list("R/zz_window.R" = c(
+    "toy_ingestion <- function(panel, cuts) {",
+    "  ld <- panel$load",
+    "  first <- min(lubridate::as_date(ld$interval_start, tz = cuts$tz))",
+    "  if (first > cuts$train_origin - 10L)",
+    "    stop(sprintf(\"plugin.window: 1o dia %s depois de %s\", format(first), format(cuts$train_origin - 10L)))",
+    "  list(load = ld, n = nrow(ld))",
+    "}"))),
   "toy-lg" = list(base = "toy-30", run_yaml = list(horizon_days = 1L), descriptor = list(data_lag_days = 2L)),
   "toy-lg0" = list(base = "toy-30", run_yaml = list(horizon_days = 1L), descriptor = list(data_lag_days = 0L)),
   "toy-lg9" = list(base = "toy-30", run_yaml = list(horizon_days = 9L), descriptor = list(data_lag_days = 2L)),
@@ -55,13 +65,13 @@ TR_DEFS <- list(
   "toy-60a" = list(base = "toy-60", run_yaml = list(split = "origin_agnostic", modes = c("train", "infer"))),
   "toy-long" = list(base = "toy-30", run_yaml = list(history_days = list(train = 30L, infer = 3L))))
 
-## --- decks (14 dias, areas A/B) ----------------------------------------------------------------------------------
+## --- decks (21 dias, areas A/B; cobre a janela origin_agnostic H=9 de 20 dias) ----------------------------------------------------------------------------------
 .tr_decks <- new.env()
 tr_deck <- function(until = "09:00") {
   hit <- .tr_decks[[until]]
   if (!is.null(hit)) return(hit)
   dir <- tempfile("tr-deck-")
-  env$prevcarga_fixture_deck(dir, seed = 11, areas = AREAS, days = seq(O - 13L, O, by = "day"),
+  env$prevcarga_fixture_deck(dir, seed = 11, areas = AREAS, days = seq(O - 20L, O, by = "day"),
                              load_until = at(until, "2026-10-01"))
   pc_deck_topology(file.path(dir, "topology.yaml"), AREAS)
   .tr_decks[[until]] <- dir
@@ -240,6 +250,43 @@ test_that("AC2: prevcarga_model_spec ordena por nome, aplica params.<k> declarad
   expect_pc(env$prevcarga_model_spec("lgbm", root, list(params.train_cv = "nao")), "config.override_bad_value", 8L)
 })
 
+test_that("W1: origin_agnostic H=9 carrega [train_origin - history_days.train, last_data_day]; a ingestao RF-like treina", {
+  s <- tr_setup("toy-rfw")
+  inp <- tr_inputs(s)
+  days <- sort(unique(lubridate::as_date(inp$panel$load$interval_start, tz = TZ)))
+  expect_identical(min(days), inp$cuts$train_origin - 10L)               # 2026-09-11
+  expect_identical(max(days), inp$cuts$last_data_day)                    # 2026-09-30
+  expect_length(days, 20L)                                               # history_days.train 10 + H 9 + 1
+  expect_identical(range(lubridate::as_date(inp$panel$weather_observed$valid_time, tz = TZ)), range(days))
+  row <- tr_train(s)                                                     # janela antiga (10 dias) => plugin.window
+  expect_identical(row$status, "trained")
+  expect_identical(row$train_origin, lubridate::ymd("2026-09-21"))
+  ## CONTROL: origin_scoped segue com history_days.train dias ate last_data_day
+  sc <- tr_inputs(tr_setup("toy-60s30"))
+  dsc <- unique(lubridate::as_date(sc$panel$load$interval_start, tz = TZ))
+  expect_length(dsc, 10L); expect_identical(max(dsc), sc$cuts$last_data_day)
+})
+
+test_that("FIX 7: a fachada entrega o painel CRU de 30 min; o despachante reamostra 1x (60 min) e nunca (30 min)", {
+  lib <- environment(env$prevcarga_plugin_train)
+  orig <- get("to_hourly", envir = lib)
+  n <- 0L
+  assign("to_hourly", function(panel, weather = TRUE) { n <<- n + 1L; orig(panel, weather) }, envir = lib)
+  on.exit(assign("to_hourly", orig, envir = lib), add = TRUE)
+  for (m in c("toy-60", "toy-30")) {
+    inp <- tr_inputs(tr_setup(m))
+    expect_identical(unique(lubridate::minute(inp$panel$load$interval_start)), c(0L, 30L), info = m)
+    expect_true(all(inp$panel$load$interval_end - inp$panel$load$interval_start == lubridate::minutes(30)), info = m)
+  }
+  expect_identical(n, 0L)                                           # a fachada nunca reamostra
+  for (m in c("toy-60", "toy-30")) {
+    n <- 0L
+    expect_identical(tr_train(tr_setup(m), force = TRUE)$status, "trained")
+    expect_identical(n, if (m == "toy-60") 1L else 0L, info = m)
+  }
+  expect_false(any(grepl("to_hourly", deparse(body(env$prevcarga_train_inputs)))))
+})
+
 test_that("AC2: o corpo de training.R nao faz conta de corte (sem days(, - 1, - 3)", {
   fns <- ls(env, pattern = "^\\.?prevcarga_(tr_|train|cell_row|artifact_build)")
   expect_true(all(c("prevcarga_train", "prevcarga_train_inputs", "prevcarga_train_fingerprint") %in% fns))
@@ -349,14 +396,14 @@ test_that("AC5: com file.rename falho o v_<hash>/ anterior fica intacto (CONTROL
 ## AC6 -- historico curto => exit 5 window.history_short; nada gravado; historico completo treina (CONTROL)
 ## =====================================================================================================
 test_that("AC6: menos dias que history_days.train antes de last_data_day => exit 5, sem .tmp-* nem v_*", {
-  s <- tr_setup("toy-long")                                    # exige 30 dias; o deck tem 14
+  s <- tr_setup("toy-long")                                    # exige 30 + H 1 + 1 = 32 dias; o deck tem 20 antes de O
   cond <- expect_pc(tr_train(s), "window.history_short", 5L)
-  expect_identical(cond$details$required_days, 30L)
-  expect_lt(cond$details$available_days, 30L)
+  expect_identical(cond$details$required_days, 32L)
+  expect_lt(cond$details$available_days, 32L)
   expect_identical(cond$details$member, "toy-long")
   expect_false(dir.exists(file.path(s$state, "artifacts", "toy-long")) &&
                  length(list.files(file.path(s$state, "artifacts", "toy-long"), recursive = TRUE, all.files = TRUE)) > 0L)
-  ok <- tr_setup("toy-30")                                     # 10 dias exigidos: treina
+  ok <- tr_setup("toy-30")                                     # 12 dias exigidos: treina
   expect_identical(tr_train(ok)$status, "trained")
 })
 

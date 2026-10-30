@@ -19,7 +19,7 @@ dl_rb_collect <- function(expr) {
 
 dl_rb_infer <- function(art, st, cuts, panel = NULL) {
   pan <- if (is.null(panel)) dl_fx_panel(st, cuts, "infer") else panel
-  dl_rb_collect(dl_with_cli(suppressWarnings(dl_lib$prevcarga_plugin_infer(dl_plugin(), art, dl_lib$to_hourly(pan), cuts))))
+  dl_rb_collect(dl_with_cli(suppressWarnings(dl_lib$prevcarga_plugin_infer(dl_plugin(), art, pan, cuts))))
 }
 
 dl_rb_complete <- function(e, cuts) {

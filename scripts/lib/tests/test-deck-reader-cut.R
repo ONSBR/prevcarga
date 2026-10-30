@@ -92,7 +92,7 @@ test_that("[FORBIDDEN] depois de available_until nada muda (carga, observado, pr
     fc = prevcarga_read_weather(ctx, "forecast", from = O - 2, to = O + 9, origin = O))
   base <- rd()
   expect_identical(attr(base$load, "available_until"), O_09h)
-  expect_true(all(base$load$interval_end <= O_09h)); expect_true(all(base$obs$timestamp <= O_09h))
+  expect_true(all(base$load$interval_end <= O_09h)); expect_true(all(base$obs$valid_time <= O_09h))
   expect_true(all(base$fc$issue_time <= O_09h))
   expect_gt(pc_deck_perturb(d, "load", quote(interval_end > O_09h)), 0L)
   expect_gt(pc_deck_perturb(d, "weather_observed", quote(timestamp > O_09h)), 0L)

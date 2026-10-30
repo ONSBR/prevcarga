@@ -73,7 +73,8 @@ im_models <- function(defs = IM_DEFS) {
 im_deck <- function() {
   if (!is.null(.im_decks$d)) return(.im_decks$d)
   dir <- tempfile("im-deck-")
-  env$prevcarga_fixture_deck(dir, seed = 11, areas = AREAS, days = seq(O - 13L, O, by = "day"),
+  ## 21 dias: a janela de treino origin_agnostic H=9 (toy-60a) e [train_origin - 10, last_data_day] = 20 dias (W1)
+  env$prevcarga_fixture_deck(dir, seed = 11, areas = AREAS, days = seq(O - 20L, O, by = "day"),
                              load_until = at("09:00", "2026-10-01"))
   pc_deck_topology(file.path(dir, "topology.yaml"), AREAS)
   .im_decks$d <- dir

@@ -299,16 +299,12 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
                                    derived = format(row$train_origin)))
   read <- function(origin, hist) {
     p <- suppressWarnings(prevcarga_read_panel(ctx, origin, unit$area, sp$horizon_days, hist))
-    wo <- data.table::copy(p$weather_observed)
-    if ("timestamp" %in% names(wo)) data.table::setnames(wo, "timestamp", "valid_time")   # adaptador interino (P.0i)
-    p$weather_observed <- wo
     ## previsto: o painel do leitor entrega so a emissao mais fresca; o plugin precisa de TODAS as emissoes ate o limite
     ## (safra por origem nativa), como nos testes do plugin (rf_fx_panel)
     lim <- attr(p$weather_forecast, "weather_issue_limit")
     fc <- prevcarga_read_weather(ctx, "forecast", unit$area, origin - hist, origin + sp$horizon_days + 1L)
     p$weather_forecast <- fc[issue_time <= lim]
-    ## painel de 30 min CRU: a agregacao horaria e do estagio de ingestao do plugin (RF: .rf_hourly_load -> to_hourly);
-    ## converter aqui antes do despachante a aplicaria duas vezes (hora com 1 intervalo some).
+    ## painel de 30 min CRU: o despachante reamostra (granularity_min + weather_resample do descriptor; FIX 7)
     p
   }
   ## `spec` e a fase viajam em cuts (interino do RF.1: o despachante P.0c ainda nao os repassa ao estagio de ingestao)

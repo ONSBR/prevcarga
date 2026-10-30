@@ -7,7 +7,9 @@ pc_repo_root <- function() pc_root()
 ## e grava UM arquivo de registro scripts/lib/cli/fixture-<x>.R por fixture (descoberto pela fachada da copia).
 ## broken_tz: injeta runtime_setter_tz_broken (anexa a runtime.R da copia; so a copia e alterada).
 ## mutate(root): quebra topology/run.yaml/config.yaml da copia.
-pc_install_copy <- function(fixtures = character(), mutate = NULL, broken_tz = FALSE, src = pc_repo_root()) {
+## plugins: copia tambem o codigo dos plugins (models/<m>/R e motores models/_*; sem tests/ nem artefatos models/).
+pc_install_copy <- function(fixtures = character(), mutate = NULL, broken_tz = FALSE, src = pc_repo_root(),
+                            plugins = FALSE) {
   root <- file.path(tempfile("pc-install-"), "prevcarga")
   dir.create(root, recursive = TRUE)
   for (d in c("scripts", "config", "install"))
@@ -18,6 +20,13 @@ pc_install_copy <- function(fixtures = character(), mutate = NULL, broken_tz = F
     dir.create(dst, recursive = TRUE)
     file.copy(ry, dst)
   }
+  if (isTRUE(plugins))
+    for (md in list.dirs(file.path(src, "models"), recursive = FALSE)) {
+      dst <- file.path(root, "models", basename(md))
+      dir.create(dst, showWarnings = FALSE, recursive = TRUE)
+      for (f in setdiff(list.files(md, all.files = TRUE, no.. = TRUE), c("tests", "models")))
+        file.copy(file.path(md, f), dst, recursive = TRUE)
+    }
   if (length(fixtures) || isTRUE(broken_tz)) {
     file.copy(file.path(src, "scripts", "lib", "tests", "fixtures", "cli_fixture_verbs.R"),
               file.path(root, "scripts", "lib"))

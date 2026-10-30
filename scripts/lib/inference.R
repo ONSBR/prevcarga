@@ -162,13 +162,12 @@ prevcarga_infer_check_conventions <- function(artifact, cuts, ctx, descriptor) {
 }
 
 ## O painel ja chega do leitor unico cortado em available_until (nenhum corte e calculado aqui): so confere que nada
-## passou do corte e aplica to_hourly nos modelos horarios (hora completa; meia hora isolada ignorada).
+## passou do corte. Segue CRU (30 min): o despachante reamostra por granularity_min/weather_resample (FIX 7).
 prevcarga_infer_panel <- function(panel, cuts, spec) {
   ie <- panel$load$interval_end
   if (length(ie) && any(ie > cuts$available_until))
     prevcarga_abort("contract.panel_beyond_cut", where = "prevcarga_infer_panel",
                     details = list(available_until = format(cuts$available_until, "%Y-%m-%d %H:%M")))
-  if (spec$granularity_min == 60L) panel <- to_hourly(panel)    # INTERINO: migra para o despachante (fix/foundation-w1-f4-lag)
   panel
 }
 
@@ -211,9 +210,6 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
   wl <- panel$attrs$weather_issue_limit
   if (inherits(wl, "POSIXct") && length(wl) == 1L && !is.na(wl)) cuts$weather_issue_limit <- wl
   panel <- .prevcarga_inf_select_area(panel, area)
-  obs <- panel$weather_observed
-  data.table::setnames(obs, "timestamp", "valid_time")           # INTERINO: o leitor entrega `timestamp`; o despachante exige `valid_time` (ver training.md)
-  panel$weather_observed <- obs
   panel <- prevcarga_infer_panel(panel, cuts, spec)
 
   pred <- prevcarga_infer(plugin, art, panel, cuts, list(), spec = NULL)

@@ -45,13 +45,12 @@ lgbm_with_cli <- function(code) {
   force(code)
 }
 
-## Painel do despachante: area real (SP, tem heat_area) e `weather_observed$valid_time` (o leitor entrega `timestamp`).
+## Painel do despachante: area real (SP, tem heat_area); o leitor ja entrega `weather_observed$valid_time` (F4).
 lgbm_fx_dpanel <- function(deck, ctx, mode, cuts, history_days = if (mode == "infer") 45L else 115L, area = LGBM_HEAT) {
   ## le TODAS as areas da topologia (o corte global e o minimo delas, como o despachante real) e restringe a `area`
   p <- suppressWarnings(lgbm_fx_panel(deck, ctx, mode, cuts, area = c(LGBM_AREA, LGBM_HEAT), history_days = history_days))
   one <- function(x) if (is.data.frame(x) && "area_code" %in% names(x)) x[x$area_code == area] else x
   for (n in c("load", "weather_observed", "weather_forecast", "holidays")) p[[n]] <- one(p[[n]])
-  data.table::setnames(p$weather_observed, "timestamp", "valid_time")
   p
 }
 

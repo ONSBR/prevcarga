@@ -47,7 +47,7 @@ dt_train <- function(p, au_hour = 9L, perturb_prev = FALSE, exogena = "MED", pan
     k <- which(lubridate::as_date(pan$load$interval_start) == O - 1L & lubridate::hour(pan$load$interval_start) == 15L)
     pan$load[k, load_mwh := load_mwh + 400]
   }
-  dl_with_cli(suppressMessages(dl_lib$prevcarga_plugin_train(p, dl_lib$to_hourly(pan), cuts, dl_spec(exogena, DT_DAYS),
+  dl_with_cli(suppressMessages(dl_lib$prevcarga_plugin_train(p, pan, cuts, dl_spec(exogena, DT_DAYS),
                                                    ctx = list(load_label = "end", timezone = DL_TZ, weather_issue_cutoff = "available_until"))))
 }
 

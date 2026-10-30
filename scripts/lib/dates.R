@@ -52,9 +52,10 @@ prevcarga_first_delivery <- function(available_until)
 
 ## --- Composicao: campos run-level + tabela `cuts` por modelo ---------------------------------------------
 ## `data_lag_days`: named integer (nome = diretorio do modelo) vindo do descriptor do plugin; ausente => 0L.
-prevcarga_resolve_cuts <- function(ctx, origin = NULL, model = NULL, data_lag_days = NULL) {
+## `truncate_at`: o mesmo valor dado ao prevcarga_read_panel (corte da manha O 00:00 num store que ja tem o dia O).
+prevcarga_resolve_cuts <- function(ctx, origin = NULL, model = NULL, data_lag_days = NULL, truncate_at = NULL) {
   o <- if (is.null(origin)) prevcarga_resolve_origin(ctx) else list(origin = origin, source = "flag")
-  ld <- prevcarga_read_load(ctx, origin = o$origin, from = o$origin, to = o$origin)
+  ld <- prevcarga_read_load(ctx, origin = o$origin, from = o$origin, to = o$origin, truncate_at = truncate_at)
   au <- attr(ld, "available_until")
   tz <- attr(ld, "tz")
   models <- if (is.null(model)) {

@@ -33,7 +33,7 @@ di_spy <- function(eng) {
 di_train <- function(p, seed = 42L, exogena = "MED") {
   cuts <- di_cuts(available_until = di_au(9L))
   spec <- dl_spec(exogena, DI_DAYS); spec$seed <- seed
-  dl_with_cli(suppressMessages(dl_lib$prevcarga_plugin_train(p, dl_lib$to_hourly(di_panel()), cuts, spec, ctx = di_ctx)))
+  dl_with_cli(suppressMessages(dl_lib$prevcarga_plugin_train(p, di_panel(), cuts, spec, ctx = di_ctx)))
 }
 
 di_infer <- function(p, art, au_h, au_m = 0L, perturb = NULL, panel = NULL) {
@@ -41,7 +41,7 @@ di_infer <- function(p, art, au_h, au_m = 0L, perturb = NULL, panel = NULL) {
   au <- di_au(au_h, au_m)
   pan <- if (is.null(panel)) di_panel(until = au) else panel
   if (!is.null(perturb)) pan$load[perturb(interval_start), load_mwh := load_mwh + 500]
-  dl_with_cli(suppressMessages(dl_lib$prevcarga_plugin_infer(p, art, dl_lib$to_hourly(pan), di_cuts(available_until = au))))
+  dl_with_cli(suppressMessages(dl_lib$prevcarga_plugin_infer(p, art, pan, di_cuts(available_until = au))))
 }
 
 di_state <- local({
@@ -153,7 +153,7 @@ test_that("ac-4 artefato de outra origem/variante/modelo: aborta antes de qualqu
   spy <- di_spy(eng); on.exit(spy$restore(), add = TRUE)
   ## outra origem: o despachante recusa (carimbo); o estagio recusa pelo proprio artefato
   cuts_prev <- di_cuts(origin = "2024-12-22", available_until = di_au(9L) - lubridate::days(1))
-  cond <- tryCatch(dl_with_cli(dl_lib$prevcarga_plugin_infer(p, st$art, dl_lib$to_hourly(di_panel(until = di_au(9L))), cuts_prev)),
+  cond <- tryCatch(dl_with_cli(dl_lib$prevcarga_plugin_infer(p, st$art, di_panel(until = di_au(9L)), cuts_prev)),
                    prevcarga_error = function(e) e)
   expect_identical(cond$exit_code, 2L); expect_identical(cond$class_name, "contract")
   cuts <- di_cuts(available_until = di_au(9L))

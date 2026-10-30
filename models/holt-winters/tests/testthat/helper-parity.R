@@ -121,14 +121,13 @@ hp_cuts <- function(u) {
 }
 
 ## Painel pelo leitor do M2 (carga e clima observado ate available_until; previsto: todas as emissoes <= weather_issue_limit,
-## o HW escolhe a mais fresca por dia/slot; observado como `valid_time`, adaptador do P.0i; sem o ponto de 00:00 de O: o
+## o HW escolhe a mais fresca por dia/slot; observado ja como `valid_time` do leitor; sem o ponto de 00:00 de O: o
 ## treino so ve dias <= last_data_day).
 hp_panel <- function(u, cuts, history_days = 730L, horizon_days = cuts$horizon_days) {
   ctx <- hp_ctx(); O <- u$origin; AU <- cuts$available_until
   load <- hw_lib$prevcarga_read_load(ctx, u$area, from = O - history_days, to = O, origin = O, truncate_at = AU)
   obs <- hw_lib$prevcarga_read_weather(ctx, "observed", u$area, O - history_days, O)
-  obs <- obs[timestamp <= AU & lubridate::as_date(timestamp) <= cuts$last_data_day]
-  data.table::setnames(obs, "timestamp", "valid_time")
+  obs <- obs[valid_time <= AU & lubridate::as_date(valid_time) <= cuts$last_data_day]
   fc <- hw_lib$prevcarga_read_weather(ctx, "forecast", u$area, O, O + horizon_days)
   list(load = load, weather_observed = obs, weather_forecast = fc[issue_time <= cuts$weather_issue_limit],
        holidays = hw_lib$prevcarga_read_holidays(ctx, u$area, O - history_days, O + horizon_days),

@@ -127,7 +127,6 @@ hv_ragged_panel <- function(st, cuts, mode = c("train", "infer")) {
   one <- function(x) x[x$area_code == HW_AREA]
   p$load <- one(p$load); p$weather_observed <- one(p$weather_observed); p$holidays <- one(p$holidays)
   p$weather_forecast <- one(fc[issue_time <= cuts$weather_issue_limit])
-  data.table::setnames(p$weather_observed, "timestamp", "valid_time")
   if (mode == "train") {
     p$load <- p$load[lubridate::as_date(interval_start, tz = cuts$tz) <= cuts$last_data_day]
     p$weather_observed <- p$weather_observed[lubridate::as_date(valid_time, tz = cuts$tz) <= cuts$last_data_day]

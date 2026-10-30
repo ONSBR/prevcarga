@@ -22,7 +22,7 @@ rf_inf_run <- function(dir, art = rf_inf_artifact(), O = RF_O, panel_edit = iden
   p <- rf_plug()
   cuts <- rf_fx_cuts(O = O, dir = dir, phase = "infer")
   spec <- rf_tr_spec(); cuts$spec <- spec
-  panel <- panel_edit(rf_fx_panel(dir, cuts))
+  panel <- rf_lib$to_hourly(panel_edit(rf_fx_panel(dir, cuts, hourly = FALSE)), weather = FALSE)   # edita o cru; reamostra como o despachante
   frame <- p$plugin_ingest(panel, cuts, spec)
   feat <- p$plugin_inference_features(frame, art, cuts)
   list(env = p$plugin_infer(art, feat, cuts), feat = feat, frame = frame, cuts = cuts)

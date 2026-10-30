@@ -175,3 +175,23 @@ test_that("AC 15 (module): origin_scoped iguais em decks 09:00/12:00; input_cut 
   for (m in ms) edit_run(root, m, function(x) { x$backtest$protocol_default <- "daily"; x })
   expect_identical(as.data.frame(prevcarga_resolve_cuts(mk_ctx(d9, root, O), O)$cuts), as.data.frame(c9))  # FORBIDDEN: protocolo
 })
+
+test_that("corte da manha: truncate_at = O 00:00 num store com o dia O => available_until O 00:00 (== deck truncado)", {
+  root <- fx_root()
+  full <- pc_deck_sentinel("end", days = days, until = at("2026-10-01 09:00"))
+  cut <- pc_deck_sentinel("end", days = days, until = at("2026-10-01 00:00"))
+  m <- prevcarga_resolve_cuts(mk_ctx(full, root, O), O, truncate_at = at("2026-10-01 00:00"))
+  expect_identical(m$available_until, at("2026-10-01 00:00"))
+  expect_identical(m$weather_issue_limit, at("2026-10-01 00:00"))
+  expect_identical(m$cuts[model == "holt-winters"]$input_cut, at("2026-10-01 00:00"))
+  expect_identical(m$cuts[model == "random-forest"]$first_delivery, at("2026-10-01 00:30"))
+  ## FORBIDDEN: deck fisicamente sem o dia O da os mesmos cortes (antes: completude.no_load)
+  p <- prevcarga_resolve_cuts(mk_ctx(cut, root, O), O)
+  expect_identical(p[names(p) != "cuts"], m[names(m) != "cuts"])
+  expect_identical(as.data.frame(p$cuts), as.data.frame(m$cuts))
+  ## CONTROL: sem truncate_at o store com o dia O deriva 09:00; o corte de treino nao muda
+  c9 <- prevcarga_resolve_cuts(mk_ctx(full, root, O), O)
+  expect_identical(c9$available_until, at("2026-10-01 09:00"))
+  expect_identical(c9$cuts$last_data_day, m$cuts$last_data_day)
+  expect_identical(c9$cuts$train_origin, m$cuts$train_origin)
+})

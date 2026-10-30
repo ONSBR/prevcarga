@@ -36,9 +36,10 @@ rd2_feats <- function(p, pan, au_hour = 9L, exogena = "MED") {
   rd_with_cli(suppressMessages(p$descriptor$stages$feature_engineering$fn(frame, rd2_spec(exogena)$params)))
 }
 
-## treino pelo despachante da fundacao (to_hourly -> to_model_frame -> estagios -> freeze -> carimbo -> scan_pure)
+## treino pelo despachante da fundacao com o painel CRU (o despachante reamostra: to_hourly -> to_model_frame -> estagios ->
+## freeze -> carimbo -> scan_pure; FIX 7)
 rd2_train <- function(p, au_hour = 9L, pan = rd2_panel(), exogena = "MED") {
-  rd_with_cli(suppressMessages(rd_lib$prevcarga_plugin_train(p, rd_lib$to_hourly(pan), rd_cuts(available_until = rd2_au(au_hour)),
+  rd_with_cli(suppressMessages(rd_lib$prevcarga_plugin_train(p, pan, rd_cuts(available_until = rd2_au(au_hour)),
                                                             rd2_spec(exogena), ctx = rd2_ctx())))
 }
 

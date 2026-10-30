@@ -94,7 +94,7 @@ test_that("[PLUGINS] contract CONTROL: os 3 membros resolvem a variante e MED x 
   expect_gt(dl_delta(o_med$delivery, o_max$delivery), DL8_TOL)
   expect_identical(o_med$variant, "MED"); expect_identical(o_max$variant, "MAX")
   ## artefato de uma variante nao serve a outra: o spec do infer e o do artefato (contract)
-  e <- dl_err(dl_lib$prevcarga_plugin_infer(p, med, dl_lib$to_hourly(dl_fx_panel(st, cuts, "infer")),
+  e <- dl_err(dl_lib$prevcarga_plugin_infer(p, med, dl_fx_panel(st, cuts, "infer"),
                                             modifyList(cuts, list(origin_day = cuts$origin_day - 1L))))
   expect_s3_class(e, "prevcarga_error"); expect_identical(e$exit_code, 2L)
 })

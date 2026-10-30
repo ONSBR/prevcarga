@@ -88,7 +88,6 @@ hw_fx_panel <- function(store, cuts, mode = c("train", "infer"), history_days = 
   p <- hw_lib$prevcarga_read_panel(ctx, O, HW_AREA, horizon_days = H, history_days = history_days)
   fc <- hw_lib$prevcarga_read_weather(ctx, "forecast", HW_AREA, O, O + H)
   p$weather_forecast <- fc[issue_time <= cuts$weather_issue_limit]
-  data.table::setnames(p$weather_observed, "timestamp", "valid_time")
   if (mode == "train") {
     p$load <- p$load[lubridate::as_date(interval_start, tz = cuts$tz) <= cuts$last_data_day]
     p$weather_observed <- p$weather_observed[lubridate::as_date(valid_time, tz = cuts$tz) <= cuts$last_data_day]

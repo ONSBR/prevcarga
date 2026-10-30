@@ -83,6 +83,7 @@ plugin_descriptor <- function() {
   list(
     model_id = "dessem-linear", contract_version = 1L,
     granularity_supported = 60L, modes_implemented = c("train", "infer", "forecast"),
+    weather_resample = "hourly",              # EXOGENAHIST/EXOGENAPREV horarios (to_hourly da fundacao)
     params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key))),
     variant_param = "exogena",
     native_layout = "dessem_semihourly_48", semihourly_rule = dl_semihourly_rule,

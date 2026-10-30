@@ -202,9 +202,11 @@ prevcarga_available_until <- function(load, origin, areas = NULL) {
 }
 
 ## Deriva o corte da carga (apos truncate_at) ou aborta: sem linha => completude.no_load; buraco no dia O =>
-## completude.origin_day_gap (o corte nunca encurta por causa do buraco).
+## completude.origin_day_gap (o corte nunca encurta por causa do buraco). A janela de derivacao inclui a vespera de O:
+## corte da manha (truncate_at = O 00:00) ou deck sem linha no dia O => available_until = O 00:00, nao no_load.
 .prevcarga_derive_cut <- function(ctx_d, areas, origin, truncate_at, from, to) {
-  lo <- if (is.null(from)) origin else min(from, origin)
+  eve <- lubridate::as_date(origin) - 1L
+  lo <- if (is.null(from)) eve else min(lubridate::as_date(from), eve)
   hi <- if (is.null(to)) origin else max(to, origin)
   ext <- .prevcarga_load_raw(ctx_d, areas, lo, hi)
   if (!is.null(truncate_at)) ext <- ext[interval_end <= truncate_at]
@@ -285,6 +287,7 @@ prevcarga_freshest_issue <- function(fc, limit) {
 ## --- Clima por area (exogenas instantaneas: nao deslocadas) --------------------------------------------
 ## Com `origin`: observado so <= available_until (derivado da carga lida pelo proprio leitor, mesmo
 ## origin/truncate_at); previsto so emissoes <= weather_issue_limit, a mais fresca por area.
+## O observado sai com `valid_time` (a coluna crua `timestamp` do store so existe aqui dentro).
 prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas = NULL, from = NULL,
                                    to = NULL, select = NULL, origin = NULL, truncate_at = NULL) {
   kind <- match.arg(kind)
@@ -294,23 +297,25 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
   tzs <- d$manifest$timezone
   if (kind == "observed") {
     tcols <- c(timestamp = tzs$weather_observed)
-    key <- "timestamp"; base <- c("timestamp", "temperature", "heat_index", "rh")
+    base <- c("timestamp", "temperature", "heat_index", "rh")
   } else {
     tcols <- c(issue_time = tzs$weather_forecast$issue_time, valid_time = tzs$weather_forecast$valid_time)
-    key <- "valid_time"; base <- c("issue_time", "valid_time", "temperature", "heat_index")
+    base <- c("issue_time", "valid_time", "temperature", "heat_index")
   }
+  key <- "valid_time"
   for (col in names(tcols)) .prevcarga_check_naive(ds$schema, dataset, col)
   want <- if (is.null(select)) base else intersect(base, union(select, names(tcols)))
   cols <- c("area_code", intersect(want, ds$schema$names))
   au <- NULL
-  if (!is.null(origin)) au <- .prevcarga_derive_cut(d, areas, origin, truncate_at, NULL, NULL)$au
+  if (!is.null(origin)) au <- .prevcarga_derive_cut(d, areas, origin, truncate_at, from, to)$au
   dt <- .prevcarga_scan(ds, cols, from, to, areas)
   for (col in intersect(names(tcols), names(dt)))
     data.table::set(dt, j = col, value = .prevcarga_apply_tz(dt[[col]], tcols[[col]], d$tz))
+  if (kind == "observed" && "timestamp" %in% names(dt)) data.table::setnames(dt, "timestamp", "valid_time")
   extra <- list()
   if (!is.null(au)) {
     if (kind == "observed") {
-      dt <- dt[timestamp <= au$available_until]
+      dt <- dt[valid_time <= au$available_until]
     } else {
       rule <- if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff
       src <- ctx$sources$weather_issue_cutoff
@@ -337,14 +342,16 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
 ## --- Feriados (M2.7): calendario conhecido de antemao ---------------------------------------------------------
 ## `date` e a data civil no fuso da carga: sem deslocamento de 30 min e SEM filtro de available_until. Particao `year`
 ## exata (data civil nao desloca); nao filtra nem corrige codigos (code_negative e do validate-deck).
-prevcarga_read_holidays <- function(ctx, areas, from, to) {
+## `from`/`to` NULL => todos os feriados da area (todas as particoes), como o oraculo le o calendario.
+prevcarga_read_holidays <- function(ctx, areas, from = NULL, to = NULL) {
   d <- .prevcarga_deck_ctx(ctx)
   ds <- .prevcarga_open(d$dir, .PREVCARGA_DECK_DATASETS[["holidays"]], "holidays")
-  yrs <- seq(lubridate::year(from), lubridate::year(to))
+  yrs <- if (is.null(from) || is.null(to)) NULL else seq(lubridate::year(from), lubridate::year(to))
   h <- .prevcarga_scan(ds, c("area_code", "date", "holiday_type_id", "prevcarga_code", "simplified_code"),
                        NULL, NULL, areas, years = yrs)
   data.table::set(h, j = "date", value = lubridate::as_date(h$date))
-  h <- h[date >= lubridate::as_date(from) & date <= lubridate::as_date(to)]
+  if (!is.null(from)) h <- h[date >= lubridate::as_date(from)]
+  if (!is.null(to)) h <- h[date <= lubridate::as_date(to)]
   data.table::setorderv(h, c("area_code", "date"))
   data.table::setkeyv(h, c("area_code", "date"))
   h[]
@@ -380,15 +387,16 @@ pc_panel_attrs <- function(load, weather_obs, weather_fc) {
 
 ## Origem ja resolvida pelo chamador (o leitor nao depende de dates.R). Topologia: ctx$topology_path ou
 ## <ctx$root>/config/topology.yaml; area fora dela => topology.area_undeclared antes de qualquer leitura.
-prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days) {
+## `truncate_at` (opcional) vai IGUAL aos tres leitores: carga, observado e previsto derivam o mesmo available_until.
+prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days, truncate_at = NULL) {
   O <- lubridate::as_date(origin)
   tp <- if (!is.null(ctx$topology_path)) ctx$topology_path else prevcarga_topology_path(ctx$root)
   undeclared <- setdiff(areas, prevcarga_topology(path = tp)$leaves)
   if (length(undeclared)) prevcarga_abort("topology.area_undeclared", where = undeclared[[1L]])
-  load <- prevcarga_read_load(ctx, areas, from = O - history_days, to = O, origin = O)
-  obs <- prevcarga_read_weather(ctx, "observed", areas, O - history_days, O, origin = O)
-  fc <- prevcarga_read_weather(ctx, "forecast", areas, O, O + horizon_days, origin = O)
-  hol <- prevcarga_read_holidays(ctx, areas, O - history_days, O + horizon_days)
+  load <- prevcarga_read_load(ctx, areas, from = O - history_days, to = O, origin = O, truncate_at = truncate_at)
+  obs <- prevcarga_read_weather(ctx, "observed", areas, O - history_days, O, origin = O, truncate_at = truncate_at)
+  fc <- prevcarga_read_weather(ctx, "forecast", areas, O, O + horizon_days, origin = O, truncate_at = truncate_at)
+  hol <- prevcarga_read_holidays(ctx, areas)                    # calendario: todos os feriados da area, sem janela
   list(load = load, weather_observed = obs, weather_forecast = fc, holidays = hol,
        attrs = c(list(origin = O), pc_panel_attrs(load, obs, fc)))
 }

@@ -158,8 +158,10 @@ test_that("origem default pelo deck x flag; result carrega os campos do ADR-0040
   for (row in j$cuts)
     expect_true(all(c("model", "train_origin", "last_data_day", "data_lag_days", "data_lag_source") %in% names(row)))
   lg <- Filter(function(x) x$model == "lgbm", j$cuts)[[1L]]
-  expect_identical(lg$train_origin, "2026-09-29"); expect_identical(lg$last_data_day, "2026-09-30")
-  expect_identical(lg$data_lag_source, "default")
+  expect_identical(lg$train_origin, "2026-09-29"); expect_identical(lg$last_data_day, "2026-09-28")
+  expect_identical(lg$data_lag_source, "descriptor")                 # data_lag_days 2 do descriptor (ADR-0023)
+  rf <- Filter(function(x) x$model == "random-forest", j$cuts)[[1L]]
+  expect_identical(rf$last_data_day, "2026-09-30"); expect_identical(rf$data_lag_source, "descriptor")   # CONTROL O-1
   j2 <- jdoc(run_v(root0, c("validate-deck", "--data", d, "--origin", "2026-09-28", "--format", "json")))$result
   expect_identical(j2$forecast_origin, "2026-09-28"); expect_identical(j2$origin_source, "flag")
   expect_identical(Filter(function(x) x$model == "lgbm", j2$cuts)[[1L]]$train_origin, "2026-09-26")

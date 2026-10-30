@@ -91,10 +91,12 @@ test_that("[PLUGINS] corte_intradiario: available_until 09:00 x 09:30 => saidas 
   s10 <- dl_fx_store("10:00"); c10 <- dl_fx_cuts(s10)
   o10 <- dl_infer(art, s10, c10)
   expect_gt(dl_delta(o09$delivery[interval_end >= dl_au("10:30")], o10$delivery[interval_end >= dl_au("10:30")]), DL8_TOL)
-  ## painel horario com a hora 09:00-10:00 completa (corte 10:00) entregue com o corte de 09:00 => contract; a meia hora
-  ## isolada de 09:30 e descartada pelo to_hourly, logo o painel de 09:30 e aceito com o corte de 09:00
-  e <- dl_err(dl_infer(art, s09, c09, panel = dl_fx_panel(s10, c10, "infer")))
-  expect_dl_class(e, "contract", 2L, id = "plugin.infer_beyond_cut")
-  expect_match(conditionMessage(e), "10:00", fixed = TRUE)
-  expect_null(dl_err(dl_infer(art, s09, c09, panel = dl_fx_panel(s0930, c0930, "infer"))))
+  ## painel CRU alem do corte entregue com o corte de 09:00 => contract. O despachante confere o painel cru ANTES de
+  ## reamostrar (FIX 7): a meia hora 09:00-09:30 ja passa do corte, mesmo que o to_hourly fosse descarta-la depois
+  for (st in list(list(s10, c10), list(s0930, c0930))) {
+    e <- dl_err(dl_infer(art, s09, c09, panel = dl_fx_panel(st[[1L]], st[[2L]], "infer")))
+    expect_dl_class(e, "contract", 2L, id = "plugin.infer_beyond_cut")
+    expect_match(conditionMessage(e), "09:30", fixed = TRUE)
+  }
+  expect_null(dl_err(dl_infer(art, s09, c09, panel = dl_fx_panel(s09, c09, "infer"))))   # CONTROL: o painel do proprio corte
 })

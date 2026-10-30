@@ -342,18 +342,35 @@ test_that("AC6: origin_agnostic nao confere a origem do artefato (CONTROL do bra
 ## =====================================================================================================
 ## Painel e catalogo
 ## =====================================================================================================
-test_that("prevcarga_infer_panel: painel alem de available_until => contract.panel_beyond_cut; 60 min aplica to_hourly", {
+test_that("prevcarga_infer_panel: painel alem de available_until => contract.panel_beyond_cut; 30 e 60 min seguem crus (o despachante reamostra)", {
   s <- ic_setup("toy-30")
   rc <- env$prevcarga_resolve_cuts(s$ctx, O, model = "toy-30")
   panel <- env$prevcarga_read_panel(s$ctx, O, "A", 1L, 3L)
-  data.table::setnames(panel$weather_observed, "timestamp", "valid_time")
   cuts <- list(available_until = rc$available_until, tz = rc$tz)
   p30 <- env$prevcarga_infer_panel(panel, cuts, list(granularity_min = 30L))
-  expect_identical(p30$load, panel$load)
+  expect_identical(p30, panel)
   p60 <- env$prevcarga_infer_panel(panel, cuts, list(granularity_min = 60L))
-  expect_lt(nrow(p60$load), nrow(panel$load))
+  expect_identical(p60, panel)                                     # FIX 7: nunca to_hourly aqui
   cuts$available_until <- cuts$available_until - lubridate::minutes(30L)
   expect_pc(env$prevcarga_infer_panel(panel, cuts, list(granularity_min = 30L)), "contract.panel_beyond_cut")
+})
+
+test_that("FIX 7: infer-model reamostra exatamente 1x (despachante) em 60 min e nunca em 30 min", {
+  lib <- environment(env$prevcarga_plugin_infer)
+  orig <- get("to_hourly", envir = lib)
+  n <- 0L
+  assign("to_hourly", function(panel, weather = TRUE) { n <<- n + 1L; orig(panel, weather) }, envir = lib)
+  on.exit(assign("to_hourly", orig, envir = lib), add = TRUE)
+  for (m in c("toy-60", "toy-30")) {
+    s <- ic_setup(m)
+    ic_train(s)
+    n <- 0L
+    r <- ic_infer(s)
+    expect_identical(n, if (m == "toy-60") 1L else 0L, info = m)
+    expect_gt(nrow(r$predictions), 0L)
+  }
+  expect_false(any(grepl("to_hourly", deparse(body(env$prevcarga_infer_cell)))))
+  expect_false(any(grepl("to_hourly", deparse(body(env$prevcarga_infer_panel)))))
 })
 
 test_that("errors/infer_cut.tsv: ASCII, carrega pelo loader junto com os demais sem id duplicado; 6 ids contract.* classe 2", {

@@ -17,7 +17,7 @@ rf_tr_spec <- function(ntree = 5L, seed = 123L, train_days = 40L) {
 rf_tr_run <- function(dir = rf_fx_store(), spec = rf_tr_spec(), panel_edit = identity) {
   p <- rf_plug()
   cuts <- rf_fx_cuts(dir = dir); cuts$spec <- spec
-  panel <- panel_edit(rf_fx_panel(dir, cuts))
+  panel <- rf_lib$to_hourly(panel_edit(rf_fx_panel(dir, cuts, hourly = FALSE)), weather = FALSE)   # edita o cru; reamostra como o despachante
   frame <- p$plugin_ingest(panel, cuts, spec)
   feats <- p$plugin_build_features(frame, spec)
   model <- p$plugin_train(feats, spec, cuts)

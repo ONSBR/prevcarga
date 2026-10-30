@@ -6,9 +6,9 @@
 ## e o handler de topo da fachada. Sem quit()/stop() cru, sem env vars, saida de terminal ASCII.
 ##
 ## Convencao da fachada: handler(ctx, args). No texto o handler devolve as linhas ja renderizadas (a fachada
-## so imprime); no JSON devolve o `result` (a fachada o embrulha no envelope). Os `data_lag_days` reais chegam
-## com os descriptors (P.0b/M5); ate la `data_lag_source = default`.
-## Requer errors.R, config.R, topology.R, provenance.R, deck_reader.R, dates.R e validation.R (campo `modules`).
+## so imprime); no JSON devolve o `result` (a fachada o embrulha no envelope). Os `data_lag_days` vem dos descriptors
+## dos plugins (prevcarga_plugin_data_lags, registry.R), como no caminho in-process; membro sem plugin => `default`.
+## Requer errors.R, config.R, topology.R, provenance.R, deck_reader.R, dates.R, validation.R, features.R e registry.R.
 
 .prevcarga_vd_opt <- function(args, name) {
   v <- args[[name]]
@@ -90,8 +90,14 @@ prevcarga_build_validate_deck <- function(ctx, opts, data_lag_days = NULL) {
 }
 
 ## --- Handler fino ----------------------------------------------------------------------------------------
+.prevcarga_vd_lags <- function(ctx) {
+  tp <- if (!is.null(ctx$topology_path)) ctx$topology_path else prevcarga_topology_path(ctx$root)
+  mem <- tryCatch(prevcarga_members(path = tp, root = ctx$root), prevcarga_error = function(e) NULL)
+  if (is.null(mem)) NULL else prevcarga_plugin_data_lags(unique(mem$mdir), ctx$root)    # topologia ilegivel: finding do M2.4
+}
+
 cmd_validate_deck <- function(ctx, args = NULL) {
-  res <- prevcarga_build_validate_deck(ctx, args)
+  res <- prevcarga_build_validate_deck(ctx, args, .prevcarga_vd_lags(ctx))
   if (!isTRUE(res$ok)) {
     errs <- Filter(function(r) identical(r$level, "error") && identical(r$class, res$class), res$findings)
     first <- errs[[1L]]
@@ -113,5 +119,5 @@ prevcarga_verb_validate_deck <- list(
   handler = function(ctx, args) cmd_validate_deck(ctx, args),
   owner   = "M2",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R")
+  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R")
 )

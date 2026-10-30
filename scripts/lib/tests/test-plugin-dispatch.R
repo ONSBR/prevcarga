@@ -185,7 +185,7 @@ test_that("ac-6 deslocamento de modelagem centralizado: spy com offset 60 vs 0, 
   }
   e60 <- run(p60); e0 <- run(p0)
   for (k in 1:2) {   # 1 = treino, 2 = infer
-    src <- if (k == 1L) tp else ip
+    src <- to_hourly(if (k == 1L) tp else ip)   # toy-60 (60 min, weather_resample hourly): o despachante reamostra antes
     s <- p60$spy$args[[k]]
     expect_identical(s[[1L]]$load$interval_start, src$load$interval_start - m)
     expect_identical(s[[1L]]$load$interval_end, src$load$interval_end - m)
@@ -208,4 +208,62 @@ test_that("ac-6 deslocamento de modelagem centralizado: spy com offset 60 vs 0, 
   ## CONTROL: plugin que desloca por conta propria alem do despachante sai da grade
   ps <- pc_toy_offset(60L, self_shift = 60L)
   expect_cond(prevcarga_plugin_infer(ps, train(ps, tp, cuts), ip, cuts, list()), "plugin.output_misaligned")
+})
+
+## =====================================================================================================
+## FIX 7 (C2): o despachante e o UNICO que reamostra. 60 min => carga por to_hourly; clima so com weather_resample hourly
+## =====================================================================================================
+.th_spy <- function(frame = parent.frame()) {
+  spy <- new.env(); spy$n <- 0L; spy$weather <- logical()
+  orig <- to_hourly
+  assign("to_hourly", function(panel, weather = TRUE) {
+    spy$n <- spy$n + 1L; spy$weather <- c(spy$weather, weather); orig(panel, weather)
+  }, envir = environment(prevcarga_plugin_train))
+  withr::defer(assign("to_hourly", orig, envir = environment(prevcarga_plugin_train)), envir = frame)
+  spy
+}
+.th_mins <- function(x) unique(lubridate::minute(x))
+
+test_that("FIX 7: 60 min hourly => to_hourly 1x por despacho (carga e clima horarios); forecast = 1 treino + 1 infer", {
+  cuts <- cuts_for("origin_scoped")
+  tp <- pc_train_slice(FULL, cuts)
+  p <- pc_spy(pc_toy_offset(0L), "ingestion")
+  ref <- to_hourly(tp)$load                                       # antes do espiao
+  spy <- .th_spy()
+  art <- train(p, tp, cuts)
+  expect_identical(spy$n, 1L); expect_identical(spy$weather, TRUE)
+  seen <- p$spy$args[[1L]][[1L]]
+  expect_identical(.th_mins(seen$load$interval_start), 0L)
+  expect_true(all(seen$load$interval_end - seen$load$interval_start == lubridate::minutes(60)))
+  expect_identical(.th_mins(seen$weather_observed$valid_time), 0L)
+  expect_identical(.th_mins(seen$weather_forecast$valid_time), 0L)
+  expect_identical(seen$load, ref)                                # a mesma transformacao da fundacao, uma vez
+  prevcarga_plugin_infer(p, art, pc_infer_slice(FULL, cuts), cuts, list())
+  expect_identical(spy$n, 2L)
+  spy$n <- 0L
+  prevcarga_plugin_forecast(p, pc_infer_slice(FULL, cuts), cuts, p$spec, list())
+  expect_identical(spy$n, 2L)                                     # treino (fatia) + infer, cada um 1x
+})
+
+test_that("FIX 7 [CONTROL]: 60 min raw => carga horaria e clima CRU de 30 min; 30 min => painel cru, to_hourly nunca", {
+  cuts <- cuts_for("origin_scoped")
+  tp <- pc_train_slice(FULL, cuts)
+  p <- pc_spy(pc_toy_disp("toy-60", descriptor = list(weather_resample = "raw")), "ingestion")
+  spy <- .th_spy()
+  train(p, tp, cuts)
+  expect_identical(spy$n, 1L); expect_identical(spy$weather, FALSE)
+  seen <- p$spy$args[[1L]][[1L]]
+  expect_identical(.th_mins(seen$load$interval_start), 0L)
+  expect_identical(seen$weather_observed, tp$weather_observed)
+  expect_identical(seen$weather_forecast, tp$weather_forecast)
+  expect_setequal(.th_mins(seen$weather_forecast$valid_time), c(0L, 30L))
+  ## 30 min: o estagio recebe o painel do chamador intocado
+  c30 <- cuts_for()
+  p30s <- pc_spy(p30(), "ingestion")
+  spy$n <- 0L
+  t30 <- pc_train_slice(FULL, c30)
+  train(p30s, t30, c30)
+  expect_identical(spy$n, 0L)
+  expect_identical(p30s$spy$args[[1L]][[1L]]$load, t30$load)
+  expect_identical(p30s$spy$args[[1L]][[1L]]$weather_forecast, t30$weather_forecast)
 })

@@ -166,7 +166,7 @@ test_that("[PLUGINS] features_contract: y_h216 da ultima origem = media horaria 
   z <- fx(); tb <- z$feats$table
   expect_equal(tail(tb$dataOrigem, 1L), lubridate::ymd("2026-09-21"))
   ## da carga de 30 min do leitor: media dos intervalos 23:00 e 23:30 de 2026-09-30
-  ld <- rf_fx_panel(cuts = z$cuts)$load
+  ld <- rf_fx_panel(cuts = z$cuts, hourly = FALSE)$load
   slots <- ld[interval_start >= lubridate::ymd_hm("2026-09-30 23:00", tz = RF_TZ) &
               interval_start <= lubridate::ymd_hm("2026-09-30 23:30", tz = RF_TZ)]
   expect_identical(nrow(slots), 2L)

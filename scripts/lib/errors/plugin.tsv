@@ -52,3 +52,4 @@ tools.parity_failed	generic	Paridade com o oraculo fora da tolerancia	Veja detai
 tools.gate_failed	generic	Gate reprovado	Veja a linha do gate em details$gate
 tools.gate_unowned	generic	Gate sem dono declarado	Declare applies_to no pack do gate (scripts/tools/gates/<dono>.R)
 tools.oracle_nondeterministic	repro	O oraculo deu saidas diferentes em duas rodadas	Fixe semente e threads do oraculo antes do golden
+registry.weather_resample	contract	weather_resample do descriptor ausente ou invalido para a granularidade do plugin	declare weather_resample: hourly ou raw quando granularity_supported inclui 60; nao declare quando o plugin so suporta 30

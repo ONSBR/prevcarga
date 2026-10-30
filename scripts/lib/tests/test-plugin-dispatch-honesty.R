@@ -74,15 +74,6 @@ z <- function(h) lubridate::ymd_h(paste("2026-10-01", h), tz = "UTC")
   dir
 }
 
-## o leitor entrega o observado com a coluna crua `timestamp`; o despachante e to_hourly esperam `valid_time`.
-## [discovery D1 desta sessao] adaptador de nome so no teste; nenhum valor e alterado nem cortado.
-.hz_adapt <- function(panel) {
-  wo <- data.table::copy(panel$weather_observed)
-  data.table::setnames(wo, "timestamp", "valid_time")
-  panel$weather_observed <- wo
-  panel
-}
-
 ## --- montagem ponta a ponta --------------------------------------------------------------------------------------
 ## `rule` = weather_issue_cutoff. Devolve as funcoes do fluxo leitor -> cortes -> despachante -> plugin.
 .hz_setup <- function(rule, deck = .hz_deck("09:00")) {
@@ -100,8 +91,7 @@ z <- function(h) lubridate::ymd_h(paste("2026-10-01", h), tz = "UTC")
     available_until = rc$available_until, weather_issue_limit = rc$weather_issue_limit,
     train_origin = row$train_origin, last_data_day = row$last_data_day)
   read <- function(m, dir, origin, hist, horizon) {
-    p <- .hz_adapt(env$prevcarga_read_panel(ctx_for(dir), origin, AREAS, horizon, hist))
-    if (plugins[[m]]$spec$granularity_min == 60L) env$to_hourly(p) else p
+    env$prevcarga_read_panel(ctx_for(dir), origin, AREAS, horizon, hist)     # cru: o despachante reamostra
   }
   prep <- function(m, dir) {
     rc <- suppressWarnings(cuts_for(m, dir))
@@ -193,7 +183,7 @@ test_that("ac-0 treino: o molde acusa VAZA quando o corte de treino vaza (CONTRO
   leaky <- function(p) {
     store <- .hz_store_for_gate(s, base, p)
     ctx <- s$ctx_for(store); sp <- x$plugin$spec
-    panel <- .hz_adapt(suppressWarnings(env$prevcarga_read_panel(ctx, O, AREAS, sp$horizon_days, sp$history_days$train)))
+    panel <- suppressWarnings(env$prevcarga_read_panel(ctx, O, AREAS, sp$horizon_days, sp$history_days$train))
     ld <- panel$load
     ## nivel por slot = media do ultimo dia lido (inclui o dia O parcial no fim da serie)
     v <- tapply(ld$load_mwh, ld$area_code, function(a) mean(utils::tail(a, 2L)))
@@ -236,6 +226,69 @@ test_that("ac-1 toy-60 horario: a meia hora isolada 09:00-09:30 e descartada; a 
   art30 <- s$train("toy-30", s$deck)
   b30 <- s$infer("toy-30", art30, s$deck)
   expect_gt(delta(b30, s$infer("toy-30", art30, half)), TOL)
+})
+
+test_that("ac-5 forecast (origin_scoped): treino corta em last_data_day, infer ve o dia O ate available_until", {
+  s <- .hz_setup("available_until", deck = .hz_deck("09:30", ragged = TRUE))
+  m <- "toy-60"
+  ## painel de INFER do leitor (dia O ate available_until); o despachante corta o treino em last_data_day
+  fc <- function(dir) {
+    x <- s$prep(m, dir); sp <- x$plugin$spec
+    panel <- suppressWarnings(env$prevcarga_read_panel(s$ctx_for(dir), O, AREAS, sp$horizon_days, sp$history_days$train))
+    expect_true(any(lubridate::as_date(panel$load$interval_start, tz = TZ) == O))   # o dia O chega ao forecast
+    env$prevcarga_plugin_forecast(x$plugin, panel, s$dcuts(x$rc, x$row), sp, list())
+  }
+  x <- s$prep(m, s$deck)
+  expect_identical(x$row$last_data_day, O - 1L)
+  expect_identical(x$rc$available_until, at("09:00"))
+  base <- fc(s$deck)
+  expect_identical(base$available_until, at("09:00"))
+  ## FORBIDDEN: carga do dia O depois de available_until (A 09:00-09:30) nao muda nada
+  forb <- fc(perturb_load(s$deck, after = at("08:30")))
+  expect_lte(delta(base, forb), TOL)
+  expect_identical(forb$values, base$values)
+  ## CONTROL infer: a hora 08:00-09:00 do dia O (antes de available_until) muda a entrega...
+  day_o <- fc(perturb_load(s$deck, after = at("07:30"), at_or_before = at("08:30")))
+  expect_gt(delta(base, day_o), TOL)
+  ## ...e FORBIDDEN treino: o mesmo dia O nao entra no artefato (nivel treinado identico)
+  expect_identical(day_o$values, base$values)
+  ## CONTROL treino: a manha de last_data_day muda o nivel treinado
+  ldd <- fc(perturb_load(s$deck, after = at("00:00", "2026-09-30") - lubridate::minutes(30L),
+                         at_or_before = at("10:30", "2026-09-30")))
+  expect_false(identical(ldd$values, base$values))
+})
+
+test_that("ac-5 forecast no corte da manha (O 00:00) num store que ja tem o dia O: um truncate_at para cortes e painel", {
+  s <- .hz_setup("available_until")
+  m <- "toy-60"; p <- s$plugins[[m]]; sp <- p$spec
+  t0 <- at("00:00")
+  fc <- function(dir) {
+    lag <- stats::setNames(p$descriptor$data_lag_days, m)
+    rc <- suppressWarnings(env$prevcarga_resolve_cuts(s$ctx_for(dir), origin = O, model = m, data_lag_days = lag,
+                                                      truncate_at = t0))
+    panel <- suppressWarnings(env$prevcarga_read_panel(s$ctx_for(dir), O, AREAS, sp$horizon_days,
+                                                       sp$history_days$train, truncate_at = t0))
+    list(rc = rc, panel = panel,
+         env = env$prevcarga_plugin_forecast(p, panel, s$dcuts(rc, rc$cuts[rc$cuts$model == m, ]), sp, list()))
+  }
+  base <- fc(s$deck)
+  expect_identical(base$rc$available_until, t0)
+  expect_identical(base$panel$attrs$available_until, t0)
+  expect_identical(base$env$available_until, t0)
+  ## (c) o observado guarda o ponto O 00:00 (<= available_until); o corte de treino do forecast o tira
+  expect_true(any(base$panel$weather_observed$valid_time == t0))
+  x <- base$rc$cuts[base$rc$cuts$model == m, ]
+  expect_identical(x$last_data_day, O - 1L)
+  grid <- env$prevcarga_delivery_grid(s$dcuts(base$rc, x), p$descriptor$delivery_days)
+  expect_identical(base$env$delivery$interval_end, grid)
+  expect_identical(min(grid), at("00:30"))
+  ## FORBIDDEN: toda a carga do dia O no store (00:00-09:00) nao chega
+  forb <- fc(perturb_load(s$deck, after = t0 - lubridate::minutes(30L)))
+  expect_lte(delta(base$env, forb$env), TOL)
+  expect_identical(forb$env$values, base$env$values)
+  ## CONTROL: a ultima hora da vespera (23:00-24:00) chega ao infer e ao treino
+  ctrl <- fc(perturb_load(s$deck, after = at("22:30", "2026-09-30"), at_or_before = at("23:30", "2026-09-30")))
+  expect_gt(delta(base$env, ctrl$env), TOL)
 })
 
 ## molde M3.5: run_fn(painel, clima) refaz o recorte de emissoes no store (copia) e confere contra o leitor

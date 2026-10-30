@@ -99,7 +99,7 @@ lgp_cuts <- function(u, ctx = lgp_ctx()) {
 }
 
 ## Painel pelo leitor unico (M2) com a janela LITERAL da fase. Area = area da unidade; clima da heat_area. Previsto: TODAS as
-## emissoes <= weather_issue_limit (a safra e do plugin); observado como `valid_time` (adaptador do P.0i), so ate o corte.
+## emissoes <= weather_issue_limit (a safra e do plugin); observado ja como `valid_time` (o leitor o entrega, F4), so ate o corte.
 lgp_consts <- function() {
   if (is.null(.lgp$consts)) .lgp$consts <- lgbm_consts(lgbm_source_plugin())
   .lgp$consts
@@ -114,8 +114,7 @@ lgp_panel <- function(u, cuts, mode, ctx = lgp_ctx(), consts = lgp_consts()) {
   rd <- function(...) suppressWarnings(lgbm_lib$prevcarga_read_load(ctx, u$area, from = from, to = to, ...))
   load <- if (mode == "train") rd() else rd(origin = O, truncate_at = AU)
   obs <- lgbm_lib$prevcarga_read_weather(ctx, "observed", heat, from, to)
-  obs <- if (mode == "train") obs[lubridate::as_date(timestamp, tz = cuts$tz) <= to] else obs[timestamp <= AU]
-  data.table::setnames(obs, "timestamp", "valid_time")
+  obs <- if (mode == "train") obs[lubridate::as_date(valid_time, tz = cuts$tz) <= to] else obs[valid_time <= AU]
   fc <- lgbm_lib$prevcarga_read_weather(ctx, "forecast", heat, from, O + 2L)
   list(load = load, weather_observed = obs, weather_forecast = fc[issue_time <= cuts$weather_issue_limit],
        holidays = lgbm_lib$prevcarga_read_holidays(ctx, u$area, from, O + 2L),

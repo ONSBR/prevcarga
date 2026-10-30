@@ -28,7 +28,7 @@ so o RF tem inferencia entre os modelos reais). Espelha a fachada de treino (`do
 - Artefato sem `spec_efetivo`/`fit` (malformado, apos SHA256SUMS ok) => `contract.artifact_spec_missing` (exit 2), nao integrity.
 - INTERINO (decisao do Gabriel, 2026-10-29; F1 fica para depois da implementacao): (a) `prevcarga_plugin_infer(plugin, artifact, panel, cuts, ctx)` nao recebe `spec` (usa `plugin$spec`); a fachada
   substitui `plugin$spec` (INTERINO, removivel em 1 linha quando o despachante ganhar `spec`) pelo spec do artefato antes da chamada (pendencia F1 do despachante: canal de spec/cortes); (b)
-  `weather_observed$timestamp` -> `valid_time` renomeado na celula (mesmo adaptador do treino); (c) o handler segue a convencao
+  [resolvido pelo F4: o leitor ja entrega `valid_time`; a renomeacao da celula saiu]; (c) o handler segue a convencao
   real da fachada `handler(ctx, args)`; `--area` e `--out` ja constam no bloco Options de validate-deck/combine (duplicata torna o
   docopt ambiguo), o Usage os exige.
 
@@ -40,11 +40,12 @@ so o RF tem inferencia entre os modelos reais). Espelha a fachada de treino (`do
   `timezone`, `weather_issue_cutoff` (so se `descriptor$weather_forecast_in_train`) e `origin` (so origin_scoped; ADR-0023, chave = origem;
   `available_until` NUNCA e conferido: o mesmo artefato serve todas as rodadas de O). `--weather-cutoff` chega por `ctx` ao leitor e aos `cuts`.
 - `available_until` e o MINIMO entre as areas do deck (M2.2): a celula le o painel com todas as areas do deck (`cuts$deck_areas`) e so depois
-  SELECIONA a area (`.prevcarga_inf_select_area`), senao a area com carga mais longa veria o que passa do corte global. Horario (60): `to_hourly`
-  na fachada ignora a meia hora isolada; semi-horario usa todo intervalo ate `available_until`. `contract.panel_beyond_cut` se sobrar
+  SELECIONA a area (`.prevcarga_inf_select_area`), senao a area com carga mais longa veria o que passa do corte global. O painel segue CRU (30 min)
+  ao despachante, que reamostra 1x por `granularity_min`/`weather_resample` (FIX 7; hora incompleta e a meia hora isolada somem no `to_hourly`
+  da fundacao); `prevcarga_infer_panel` e `prevcarga_infer_cell` nunca chamam `to_hourly` (espiao em `test-inference.R`). `contract.panel_beyond_cut` se sobrar
   `interval_end > available_until` (nao corta).
 - Alinhamento: `target_datetime` `identical` a `prevcarga_delivery_grid(cuts, delivery_days)` (1o = `available_until + 30`, tz da carga).
-- Dependencia/INTERINO: o `to_hourly` na fachada migra para o despachante (`fix/foundation-w1-f4-lag`); o despachante ja confere a grade
+- [resolvido pelo FIX 7] o `to_hourly` da fachada migrou para o despachante. O despachante ja confere a grade
   (`plugin.output_misaligned`, exit 2) ANTES da fachada, entao `contract.output_misaligned` e a conferencia de defesa em profundidade
   (testada com o despachante substituido). Com artefato de outro `weather_issue_cutoff` em modelo SEM clima no treino, o envelope do despachante
   (`weather_issue_cutoff diferente de cuts`) ainda recusa; a fachada so confere o corte quando o descriptor declara clima previsto no treino.
