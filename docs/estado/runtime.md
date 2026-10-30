@@ -13,3 +13,4 @@
 - Testes: `scripts/lib/tests/test-runtime.R` + helper `helper-prevcarga.R` (pc_root, pc_source_lib, pc_with_env,
   pc_rscript, pc_run_cli, pc_probe_script). Pacote adicionado no R 4.5.3: RhpcBLASctl.
 - `scripts/tools/export_error_catalog.R` ainda guarda `prevcarga_runtime_fix()` com `exists()`; este ticket nao o define.
+- M8.1: `runtime.R` ganhou o contrato do RUNTIME.json do bundle (`prevcarga_runtime_json_canonical/_id/_validate`, `prevcarga_bundle_require`); nenhuma leitura de env nova. Ver `m8-bundle.md`.

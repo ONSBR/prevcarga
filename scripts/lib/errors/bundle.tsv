@@ -1,0 +1,4 @@
+id	class	message	hint
+bundle.manifest_mismatch	bundle	arquivo do bundle diverge do RUNTIME.json	reinstale o bundle da mesma versao; details.paths lista os arquivos divergentes
+bundle.package_missing	bundle	pacote R obrigatorio ausente no bundle	reinstale o bundle da mesma versao; details.package e o pacote ausente
+bundle.platform_mismatch	bundle	plataforma do bundle diferente da plataforma do host	instale o bundle da plataforma do host (linux-x86_64 ou windows-x86_64); usado pelo doctor
