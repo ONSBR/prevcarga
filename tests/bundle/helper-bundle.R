@@ -47,8 +47,10 @@ bb_write_runtime <- function(e, root, ...) {
   id
 }
 
+## Candidato: dist/prevcarga-*.tar.zst ou, na falta, dist/repro-1/ (saida do build de reprodutibilidade).
 bb_dist_tarball <- function() {
-  fs <- Sys.glob(file.path(bb_root(), "dist", "prevcarga-*-linux-x86_64.tar.zst"))
+  fs <- c(Sys.glob(file.path(bb_root(), "dist", "prevcarga-*-linux-x86_64.tar.zst")),
+          Sys.glob(file.path(bb_root(), "dist", "repro-1", "prevcarga-*-linux-x86_64.tar.zst")))
   if (length(fs)) sort(fs, method = "radix")[length(fs)] else NA_character_
 }
 

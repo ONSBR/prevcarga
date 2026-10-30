@@ -157,12 +157,12 @@ test_that("[BUNDLE] tarball: etc/ldpaths inclui syslib/; library() de todo pacot
   expect_false(any(grepl("^scripts/tools|(^|/)tests/|\\.md$|^models/[^/]+/models/", list.files(file.path(b, "code"), recursive = TRUE))))
   rs <- file.path(b, "runtime", "bin", "Rscript")
   pk <- names(lock$Packages)
-  expr <- sprintf("pk <- c(%s); bad <- pk[!vapply(pk, function(p) requireNamespace(p, quietly = TRUE), NA)]; cat(R.version.string, '\\n'); cat(vapply(.libPaths(), normalizePath, ''), sep = '\\n'); cat('BAD:', bad, '\\n')",
+  expr <- sprintf("pk <- c(%s); bad <- pk[!vapply(pk, function(p) requireNamespace(p, quietly = TRUE), NA)]; cat(R.version.string, '\\n'); cat(vapply(.libPaths(), normalizePath, ''), sep = '\\n'); cat('BAD=', paste(bad, collapse = ','), '\\n', sep = '')",
                   paste0("'", pk, "'", collapse = ","))
   out <- system2(rs, c("--vanilla", "-e", shQuote(expr)), stdout = TRUE, stderr = TRUE,
                  env = c("R_HOME=", "R_LIBS=", "R_LIBS_USER=", "R_LIBS_SITE=", "LD_LIBRARY_PATH="))
   expect_match(out[1L], "R version 4.5.3")
-  expect_identical(out[length(out)], "BAD: ")
+  expect_identical(out[length(out)], "BAD=")
   libs <- out[-c(1L, length(out))]
   expect_true(all(startsWith(libs, normalizePath(file.path(b, "runtime")))))
   ## a CLI roda pelo R do bundle (relocavel: R_HOME vem do proprio caminho) e o doctor sai 0
