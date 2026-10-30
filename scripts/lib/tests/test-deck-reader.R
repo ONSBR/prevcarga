@@ -191,8 +191,9 @@ test_that("leitor nao le env nem relogio e e o unico a abrir manifest/dataset", 
   src <- readLines(file.path(pc_root(), "scripts", "lib", "deck_reader.R"), warn = FALSE)
   code <- src[!grepl("^\\s*##", src)]
   expect_false(any(grepl("Sys\\.getenv|Sys\\.time|Sys\\.Date|as\\.POSIXct|strptime|as\\.Date", code)))
+  ## verify_repro.R (M8.7) le o manifest.json da ENTREGA do forecast, nao o do deck (mesma excecao de test-static-greps-m2.R)
   others <- setdiff(list.files(file.path(pc_root(), "scripts", "lib"), pattern = "\\.R$", full.names = TRUE),
-                    file.path(pc_root(), "scripts", "lib", "deck_reader.R"))
+                    file.path(pc_root(), "scripts", "lib", c("deck_reader.R", "verify_repro.R")))
   hits <- vapply(others, function(f) {
     l <- readLines(f, warn = FALSE); any(grepl("open_dataset|^(?=.*(?<![[:alnum:]_.])manifest[.]json)(?:(?!.*((?<![A-Za-z])write|[.]export_write_json))|(?=.*((?<![A-Za-z])(read|fromJSON|parse_json|scan)|\\bfile\\())).*$", l[!grepl("^\\s*#", l)], perl = TRUE))
   }, NA)

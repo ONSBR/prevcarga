@@ -19,7 +19,7 @@
   members <- if (is.null(plan)) file.path(root, "members") else {
     cells <- plan$cells
     data.table::data.table(
-      membro = cells$membro, folha = cells$folha, origem = cells$origem, corte = cells$corte_hm,
+      membro = cells$membro, folha = cells$folha, origem = cells$origem, corte_hm = cells$corte_hm,
       long_parquet = file.path(root, "members", cells$membro, cells$folha, format(cells$origem, "%Y-%m-%d"),
                                gsub(":", "", cells$corte_hm, fixed = TRUE), "long.parquet"))
   }

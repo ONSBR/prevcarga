@@ -290,7 +290,7 @@
       if (!is.null(b) && nrow(b)) parts[[length(parts) + 1L]] <- data.frame(area = b$area, target_datetime = b$target_datetime, y_base = b$y_pred)
     }
     if (length(parts)) do.call(rbind, parts)
-    else data.frame(area = character(), target_datetime = as.POSIXct(character(), tz = rctx$tz), y_base = numeric())
+    else data.frame(area = character(), target_datetime = lubridate::ymd_hms(character(), tz = rctx$tz), y_base = numeric())
   }
   list(persistence_o1 = one("persistence"), seasonal_o7 = one("seasonal_naive"))
 }
