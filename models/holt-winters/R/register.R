@@ -91,7 +91,7 @@ plugin_descriptor <- function() list(
   params_schema = hw_params_schema(),
   variant_param = NA_character_, native_layout = "hw_matrix_nx48", semihourly_rule = NULL,
   delivery_days = 9L,                  # O..O+8
-  reads_day_O = TRUE,                  # o infer le a carga do dia O (ate available_until) so para delimitar a entrega
+  reads_day_O = FALSE,                 # carga so com dia < O, m_sql3 vazio (oraculo data_adapter.R:23,45,62)
   uses_rng = TRUE,                     # kmeans/MO1 com semente do run.yaml (o despachante isola o RNG)
   history_infer_equals_train = FALSE, engine = NULL,
   packages = c("forecast", "data.table", "lubridate", "stats"),

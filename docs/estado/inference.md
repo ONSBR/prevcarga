@@ -45,6 +45,9 @@ so o RF tem inferencia entre os modelos reais). Espelha a fachada de treino (`do
   da fundacao); `prevcarga_infer_panel` e `prevcarga_infer_cell` nunca chamam `to_hourly` (espiao em `test-inference.R`). `contract.panel_beyond_cut` se sobrar
   `interval_end > available_until` (nao corta).
 - Alinhamento: `target_datetime` `identical` a `prevcarga_delivery_grid(cuts, delivery_days)` (1o = `available_until + 30`, tz da carga).
+- Clima previsto (fix/facade-channels): plugin com `weather_forecast_in_train` recebe, como no treino, TODAS as emissoes `<= weather_issue_limit` em
+  `[O - history_days.infer, O + H]` (`prevcarga_read_forecast_vintages`, deck_reader.R) no lugar do previsto do painel; o plugin monta a propria safra (RF por
+  origem, LGBM por lead, DESSEM por valid_time). Os demais (HW) ficam com o previsto do painel (mais fresca por `(area, valid_time)`). Teste: `test-facade-members.R`.
 - [resolvido pelo FIX 7] o `to_hourly` da fachada migrou para o despachante. O despachante ja confere a grade
   (`plugin.output_misaligned`, exit 2) ANTES da fachada, entao `contract.output_misaligned` e a conferencia de defesa em profundidade
   (testada com o despachante substituido). Com artefato de outro `weather_issue_cutoff` em modelo SEM clima no treino, o envelope do despachante

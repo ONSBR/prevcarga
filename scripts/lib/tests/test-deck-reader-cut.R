@@ -111,13 +111,17 @@ test_that("emissoes 00Z/06Z/18Z nas duas regras; fonte flag e config; perturbar 
   d <- hist_deck(O_09h, days = O + (-2:0), issues = c(0L, 6L, 18L))
   rd <- function(rule, src) prevcarga_read_weather(cut_ctx(d, rule, src), "forecast", from = O - 1, to = O + 1, origin = O)
   a <- rd("available_until", "flag")
-  expect_identical(sort(unique(a$issue_time)), at("2026-10-01 03:00"))      # 06Z; 18Z (15:00) nao sai
+  ## por (area, valid_time) a mais fresca <= limite: 06Z onde ela cobre; 18Z (15:00) nunca sai
+  expect_identical(unique(a[valid_time > at("2026-10-01 03:00")]$issue_time), at("2026-10-01 03:00"))
+  expect_true(all(a$issue_time <= at("2026-10-01 03:00")))
+  expect_false(anyDuplicated(a[, .(area_code, valid_time)]) > 0L)
   expect_identical(attr(a, "weather_issue_cutoff"), "available_until")
   expect_identical(attr(a, "weather_issue_cutoff_source"), "flag")
   expect_identical(attr(a, "weather_issue_limit"), O_09h)
   expect_identical(attr(a, "freshest_issue_by_area")$issue_time, rep(at("2026-10-01 03:00"), 2L))
   m <- rd("origin_midnight_utc", "flag")
-  expect_identical(sort(unique(m$issue_time)), at("2026-09-30 21:00"))      # so a 00Z
+  expect_identical(unique(m[valid_time > at("2026-09-30 21:00")]$issue_time), at("2026-09-30 21:00"))   # a 00Z onde cobre
+  expect_true(all(m$issue_time <= at("2026-09-30 21:00")))                 # nada alem da 00Z
   expect_identical(attr(m, "weather_issue_limit"), at("2026-09-30 21:00"))
   expect_identical(attr(m, "weather_issue_cutoff"), "origin_midnight_utc")
   cfg <- rd("origin_midnight_utc", "config")

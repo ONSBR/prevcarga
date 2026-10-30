@@ -10,7 +10,7 @@ Documento de estado do epico M2, indexado por `docs/ESTADO-ATUAL.md` (so o M1.V 
   independente do fuso/locale da sessao. `--load-label` x manifest diferentes => `contract.load_label_conflict` (o manifest vence quando concorda).
 - **Corte intradiario derivado do dado**: `available_until` por area = `interval_end` do ultimo intervalo contiguo desde `O 00:00`; global = minimo; buraco no dia da origem
   => `completude.origin_day_gap`; areas divergentes => aviso `warning.available_until_spread`. Sem relogio, sem flag.
-- **Painel do leitor** (M2.7): `prevcarga_read_panel` entrega carga, clima observado e previsto (por area, emissao mais fresca permitida por `weather_issue_cutoff`),
+- **Painel do leitor** (M2.7): `prevcarga_read_panel` entrega carga, clima observado e previsto (por area e valid_time, emissao mais fresca permitida por `weather_issue_cutoff`),
   feriados por area (`prevcarga_read_holidays`, sem corte) e os atributos do deck; area fora da topologia => `topology.area_undeclared`.
 - **`weather_issue_cutoff`** (`available_until` | `origin_midnight_utc`): limite de emissao do clima previsto; emissao do dia O depois do limite => aviso `climate_after_cut` no validate-deck.
 - **`dates.R`** (M2.3): os tres cortes distintos. `--origin` e o unico flag humano de data; omitido, vale o dia do ultimo intervalo de carga do deck (`origin_source = deck`), nunca o relogio.

@@ -100,7 +100,7 @@ plugin_descriptor <- function() {
     variant_param = "exogena",
     native_layout = "dessem_semihourly_48", semihourly_rule = rd_semihourly_rule,
     delivery_days = 9L, data_lag_days = 0L, model_time_offset_min = 60L,
-    reads_day_O = FALSE, weather_forecast_in_train = TRUE, uses_rng = TRUE,
+    reads_day_O = TRUE, weather_forecast_in_train = TRUE, uses_rng = TRUE,   # mm do dia O ate available_until (oraculo data_adapter.R)
     history_infer_equals_train = TRUE, rng_deviation = NULL,
     packages = attach, attach = attach, engine = "_dessem-engine",
     freeze = rd_pick("rd_freeze", rd_stub_freeze), thaw = rd_pick("rd_thaw", rd_stub_thaw),

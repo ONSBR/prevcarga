@@ -29,3 +29,27 @@
   `O 00:00` (<= available_until) e o corte de treino do forecast o tira (o treino nunca ve o dia O). Teste: dia O inteiro perturbado => delta 0 (FORBIDDEN);
   ultima hora da vespera muda a entrega (CONTROL); grade comeca em O 00:30.
 - O leitor entrega `weather_observed` com `valid_time` (F4, deck_reader.md); o adaptador de teste `.hz_adapt` saiu e o painel do leitor chega ao despachante sem retoque.
+
+## fix/facade-channels (2026-10-30): canal interino de spec/fase, clima e `reads_day_O` dos 5 membros reais
+- Canal INTERINO (o F1 completo segue adiado): `.prevcarga_plugin_stage_input(panel, cuts, d, spec, phase)` e o UNICO ponto que monta a entrada dos estagios
+  (reamostragem -> deslocamento de modelagem -> `cuts$spec` = spec EFETIVO do despacho, `cuts$phase` = `"train"`/`"infer"`), usado por train e infer (forecast = os dois).
+  So os `cuts` dos estagios ganham os campos; conferencias, carimbo e o `cuts` do chamador ficam sem eles. Leitores interinos mantidos (RF `rf_stage_ingest`/`.rf_phase`,
+  RF `inference.R` via `cuts$spec`, `plugin_parity.R` que ja os passava). Teste: `test-plugin-dispatch.R` (canal em train/infer/forecast + CONTROL de outro spec).
+- Os 5 membros treinam por `prevcarga_train` e inferem por `prevcarga_infer_cell` no deck do fixture (`test-facade-members.R`; history 60 dias por `ctx$spec_overrides`;
+  DESSEM pede 2 feriados historicos do codigo do feriado futuro e carga com ruido proprio, ver o cabecalho do teste).
+- `reads_day_O` por oraculo (prevcargadessem3, somente leitura; o oraculo bate com a matriz do M5.8, sem contradicao):
+  random-forest FALSE (`models/random-forest/R/ingestion/data_adapter.R:80` carga com dia < O); lgbm TRUE (`models/lgbm/R/ingestion/data_adapter.R:540-545` carga ate D,
+  `inference/inference.R:24-27,431` completa D com a carga real ate available_until); holt-winters FALSE (`models/holt-winters/R/ingestion/data_adapter.R:23,45,62`
+  carga `[history_start, O-1]`, m_sql3 vazio); dessem-linear TRUE (`models/dessem-linear/R/ingestion/data_adapter.R:443-460,505-510` mm do dia O ate available_until);
+  dessem-regdin TRUE (`models/dessem-regdin/R/ingestion/data_adapter.R:238-251,301-302`). O campo e declarativo (nenhum codigo da fundacao o le).
+- `weather_forecast_in_train` por oraculo: lgbm TRUE (`lgbm/.../data_adapter.R:575-581`, treino com lead 0) e random-forest TRUE (`random-forest/.../data_adapter.R:84-85`,
+  origens de treino com previsto); DESSEM ja declarava TRUE. A fachada de treino e a de infer entregam a esses plugins todas as emissoes `<= weather_issue_limit`.
+- Safra de clima por oraculo: holt-winters por valid_time a mais recente `<= O 00Z` (`holt-winters/.../data_adapter.R:303-304,327-362,388-394`); dessem-linear idem
+  (`dessem-linear/.../data_adapter.R:253-301`); dessem-regdin por valid_time com corte `available_until` no intradiario e `O 00Z` na paridade
+  (`dessem-regdin/.../data_adapter.R:116-141,251,258`); lgbm por (Data, Hora) a mais recente com `dia_UTC(issue) <= dia_valido - lead` (lead 0 historico/D, 1 em D+1;
+  `lgbm/.../data_adapter.R:213,265-302,575-590`); random-forest a emissao EXATA de 00Z de cada origem, horizonte 1..9 (`random-forest/.../data_adapter.R:208-236`).
+  Logo o leitor unico combina por `(area, valid_time)` (`prevcarga_freshest_issue`, deck_reader.md). No store real (so emissoes 00Z, cobrindo O 00:00..O+9) as duas
+  regras de `weather_issue_cutoff` escolhem a mesma 00Z de O para todos os membros; em decks com 06Z/18Z (o fixture) a regra global `available_until` deixa
+  dessem-linear/HW/RF/LGBM verem emissoes que o oraculo nao usaria (regra por plugin seria decisao de ADR-0024, ABERTO).
+- Fixture: `fixture_store.R` ja emite a 00Z cobrindo desde 21:00 BRT de O-1 (o inicio do dia O); a lacuna `series_gap EXOGENAPREV 21/24` vinha da mais fresca por
+  area (06Z, comeca 03:00). Sem mudanca no fixture.

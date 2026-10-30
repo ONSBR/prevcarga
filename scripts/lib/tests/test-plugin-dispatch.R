@@ -194,7 +194,9 @@ test_that("ac-6 deslocamento de modelagem centralizado: spy com offset 60 vs 0, 
     expect_identical(s[[1L]]$weather_forecast, src$weather_forecast)
     expect_identical(s[[1L]]$holidays, src$holidays)
     expect_identical(p0$spy$args[[k]][[1L]], src)
-    expect_identical(p0$spy$args[[k]][[2L]], cuts)
+    c0 <- p0$spy$args[[k]][[2L]]                # offset 0: cuts intocados alem do canal interino spec/phase
+    expect_identical(c0[setdiff(names(c0), c("spec", "phase"))], cuts)
+    expect_identical(c0$phase, c("train", "infer")[[k]])
   }
   expect_equal(tp$load, keep); expect_equal(ip$load, keep_i)   # sem mutacao por referencia
   grid <- prevcarga_delivery_grid(cuts, 9L)
@@ -266,4 +268,43 @@ test_that("FIX 7 [CONTROL]: 60 min raw => carga horaria e clima CRU de 30 min; 3
   expect_identical(spy$n, 0L)
   expect_identical(p30s$spy$args[[1L]][[1L]]$load, t30$load)
   expect_identical(p30s$spy$args[[1L]][[1L]]$weather_forecast, t30$weather_forecast)
+})
+
+## Canal INTERINO (pendente do F1): o despachante preenche cuts$spec (spec EFETIVO do despacho) e cuts$phase em TODA
+## chamada de estagio que recebe cuts (ingestion e inference), num unico ponto (.prevcarga_plugin_stage_input).
+test_that("canal cuts$spec/cuts$phase chega aos estagios em train, infer e forecast; carimbo e chamador intocados", {
+  cuts <- cuts_for("origin_scoped")
+  tp <- pc_train_slice(FULL, cuts)
+  p <- pc_spy(pc_toy_offset(0L), "ingestion")
+  ing <- p$spy
+  p <- pc_spy(p, "inference")
+  inf <- p$spy
+  sp <- p$spec; sp$seed <- sp$seed + 1L                        # spec efetivo != run.yaml
+  art <- train(p, tp, cuts, spec = sp)
+  tr_cuts <- ing$args[[1L]][[2L]]
+  expect_identical(tr_cuts$phase, "train"); expect_identical(tr_cuts$spec, sp)
+  pi <- p; pi$spec <- sp                                        # infer usa plugin$spec (INTERINO do M5.5)
+  prevcarga_plugin_infer(pi, art, tp, cuts, list())
+  expect_identical(ing$args[[2L]][[2L]]$phase, "infer"); expect_identical(ing$args[[2L]][[2L]]$spec, sp)
+  expect_identical(inf$args[[1L]][[3L]]$phase, "infer"); expect_identical(inf$args[[1L]][[3L]]$spec, sp)
+  prevcarga_plugin_forecast(pi, tp, cuts, sp, list())
+  expect_identical(vapply(ing$args[3:4], function(a) a[[2L]]$phase, ""), c("train", "infer"))
+  expect_identical(inf$args[[2L]][[3L]]$phase, "infer")
+  ## o canal so existe na entrada dos estagios: o chamador e o carimbo do artefato nao ganham spec/phase
+  expect_null(cuts$spec); expect_null(cuts$phase)
+  expect_false(any(c("spec", "phase") %in% names(art$stamp)))
+  ## o restante de cuts chega intocado (offset 0)
+  expect_identical(tr_cuts[setdiff(names(tr_cuts), c("spec", "phase"))], cuts)
+})
+
+test_that("canal cuts$spec [CONTROL]: outro spec efetivo chega diferente ao estagio (o canal carrega o despacho)", {
+  cuts <- cuts_for("origin_scoped")
+  tp <- pc_train_slice(FULL, cuts)
+  p <- pc_spy(pc_toy_offset(0L), "ingestion")
+  sp2 <- p$spec; sp2$seed <- sp2$seed + 7L
+  train(p, tp, cuts); train(p, tp, cuts, spec = sp2)
+  a <- p$spy$args
+  expect_identical(a[[1L]][[2L]]$spec, p$spec)
+  expect_false(identical(a[[2L]][[2L]]$spec, a[[1L]][[2L]]$spec))
+  expect_identical(a[[2L]][[2L]]$spec, sp2)
 })
