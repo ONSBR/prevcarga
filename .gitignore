@@ -69,3 +69,6 @@ renv/staging/
 # Golden de paridade regeneravel (.state/golden/plugins/..., P.0f): nunca versionado; so o
 # models/<m>/tests/parity/golden.lock e versionado.
 /.state/
+
+# Relatorio de paridade do HW (gerado por models/holt-winters/tests/run_all_gates.R; sha256 vai na PR)
+/models/holt-winters/tests/parity/parity_report.json
