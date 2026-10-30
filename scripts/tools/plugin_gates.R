@@ -249,6 +249,20 @@ pc_gate_require_golden <- function(model, unit = NULL, root = file.path(.pc_gate
     sprintf("%-16s | %-14s | %-9s | %s", tab$gate, paste0("[", tab$owner, "]"), tab$status, det))
 }
 
+## Um pack descoberto de dono Mx SUBSTITUI os slots `DEFERRED Mx` da tabela do runner (e os testes rotulados `[DEFERRED Mx] <gate>:`).
+## Duplicata real (mesmo gate em duas fontes) continua abortando em .pc_gates_classify.
+.pc_gates_substitute <- function(rows, tests) {
+  from_table <- vapply(rows, function(r) identical(r$source, "gate_table"), NA)
+  owners <- unique(vapply(rows[!from_table], `[[`, "", "owner"))
+  slot <- from_table & vapply(rows, function(r) grepl("^DEFERRED ", r$owner) && sub("^DEFERRED ", "", r$owner) %in% owners, NA)
+  drop <- vapply(rows[slot], `[[`, "", "gate")
+  lab <- regmatches(tests$test, regexec(.PC_GATE_LABEL, tests$test))
+  t_owner <- vapply(lab, function(m) if (length(m)) m[[2L]] else NA_character_, "")
+  t_gate <- vapply(lab, function(m) if (length(m)) m[[3L]] else NA_character_, "")
+  gone <- !is.na(t_gate) & t_gate %in% drop & grepl("^DEFERRED", t_owner)
+  list(rows = rows[!slot], tests = tests[!gone, , drop = FALSE])
+}
+
 .pc_gates_blocking <- function(tab) tab$status == "FAIL" & !grepl("^DEFERRED", tab$owner)
 
 .pc_gates_main <- function(gate_table, tier, model, argv, gates_dir, tests_dir) {
@@ -257,7 +271,8 @@ pc_gate_require_golden <- function(model, unit = NULL, root = file.path(.pc_gate
   .pc_gates_state$units <- .pc_gates_opt(argv, "--units", NULL)
   ctx <- list(model = model, tier = tier, tests_dir = tests_dir, gates_dir = gates_dir)
   rows <- c(.pc_gates_table_rows(gate_table), .pc_gates_packs(model, ctx, tier, gates_dir))
-  tab <- .pc_gates_classify(rows, .pc_gates_run_tests(tests_dir), tier)
+  sb <- .pc_gates_substitute(rows, .pc_gates_run_tests(tests_dir))
+  tab <- .pc_gates_classify(sb$rows, sb$tests, tier)
   res <- list(model = model, tier = tier, gates = tab)
   bad <- tab$gate[.pc_gates_blocking(tab)]
   if (length(bad))
