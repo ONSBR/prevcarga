@@ -3,8 +3,10 @@
 ##   predict_dessem_linear  -> plugin_infer (TransformaDeck + mm em dl_inference_features)
 ##   .dl_predict_pass       -> .dl_predict_pass (recursao de INPUT: o LAG_1 de O+1 recebe a media de O PREVISTA)
 ##   dessem_linear_infer    -> .dl_envelope (desagregaModeloSH, fatiamento por Passo, matriz 9x48)
-## O unico ajuste do infer e a DM(O): set.seed(artifact$seed) e refit parcial por dl_dm_head com mm[O] (1 chamada de
-## tune_wsvm). Os SVMs vem congelados (thaw idempotente do motor). Nenhuma leitura de ambiente; RNG do chamador:
+## O unico ajuste do infer e a DM(O): set.seed(artifact$seed) e refit parcial (1 chamada de tune_wsvm). Com linha de O em
+## `mm` (modo "nowcast") e a cabeca dl_dm_head com mm[O]; sem ela (corte 00:00 de exibicao: nenhuma hora de O, como se
+## nao houvesse informacao do dia O; modo "no_day_o") e o SVM_DemandaMedia puro do motor, = DM(dataPrev) do modo
+## "paridade" do oraculo com origin_day = O-1. A escolha vem do dado (linhas de `mm`), nunca do relogio. Os SVMs vem congelados (thaw idempotente do motor). Nenhuma leitura de ambiente; RNG do chamador:
 ## restaurado pelo despachante (prevcarga_plugin_infer). Sem aritmetica de hora: a regra semi-horaria e o carimbo de
 ## 30 min sao de to_semihourly (fundacao); o deslocamento de 60 min, do despachante.
 
@@ -34,14 +36,28 @@
   predict(model, row)
 }
 
-## Passe de predict (porta de .dl_predict_pass): DM por dia (O: cabeca refeita; O+1..O+8: SVM congelado), write-back da
+## Modo da DM(O), decidido pelo dado: "nowcast" se `mm` tem a linha de O, senao "no_day_o".
+dl_dm_o_mode <- function(mm, origin_day) if (origin_day %in% mm$Data) "nowcast" else "no_day_o"
+
+## Ajuste da DM(O) no infer, na posicao de RNG do chamador (logo apos set.seed(artifact$seed)): cabeca com mm[O] ou, sem
+## linha de O, o SVM_DemandaMedia puro do motor (sem mm, formula do motor). Devolve o best.model.
+dl_dm_o_fit <- function(a, f, mode = dl_dm_o_mode(f$mm, f$cuts$origin_day)) {
+  if (identical(mode, "nowcast"))
+    return(dl_dm_head(f$engine, f$serieDM, f$config_mdl, f$mm, f$cuts$origin_day, constnorm = a$norm$dm_carga))
+  .dl_best(f$engine$SVM_DemandaMedia(format(f$cuts$origin_day), f$serieDM, f$config_mdl)$modeloTreinado)
+}
+
+## Passe de predict (porta de .dl_predict_pass): DM por dia (O: refeita no infer; O+1..O+8: SVM congelado), write-back da
 ## DM prevista em serieDM (recursao), 24 perfis com CargaMed = DM, desnormalizacao por norm$pf_cargadm.
-.dl_predict_pass <- function(a, f, dm_head) {
+.dl_predict_pass <- function(a, f, dm_head, mode = "nowcast") {
   eng <- f$engine
   sDM <- data.table::copy(f$serieDM); sPF <- data.table::copy(f$seriePF)
   O <- format(f$cuts$origin_day)
   for (dp in format(f$processado$DIASPREV)) {
-    if (identical(dp, O)) {
+    if (identical(dp, O) && identical(mode, "no_day_o")) {
+      inp <- eng$obterEntradaFormulaDM(dp, sDM, f$config_mdl)
+      infer <- .dl_predict_row(dm_head, inp$dadosEntrada$serieDiariaModelo[Data == dp], paste0("DM ", dp))
+    } else if (identical(dp, O)) {
       inp <- dl_dm_head_input(eng, sDM, f$config_mdl, f$mm, f$cuts$origin_day, TRUE, a$norm$dm_carga)
       infer <- .dl_predict_row(dm_head, inp$dadosEntrada$serieDiariaModelo[Data == dp], paste0("DM ", dp))
     } else {
@@ -71,7 +87,7 @@ dl_foundation <- function(name) {
 }
 
 ## Envelope bruto (area, values, delivery, meta): hourly = data.table(DataHora, Carga) O..O+8 no frame de modelagem.
-.dl_envelope <- function(hourly, a, cuts, warnings = character()) {
+.dl_envelope <- function(hourly, a, cuts, warnings = character(), mode = "nowcast") {
   x <- data.table::data.table(interval_end = hourly$DataHora, y_pred = hourly$Carga)
   acc <- new.env(parent = emptyenv()); acc$ws <- character()
   rule <- function(z) { r <- dl_semihourly_rule(z); acc$sh <- r; r }          # a regra roda UMA vez (aviso unico)
@@ -83,19 +99,20 @@ dl_foundation <- function(name) {
     })
   v <- matrix(as.numeric(acc$sh), nrow = plugin_constants()$horizon_days, ncol = 48L, byrow = TRUE)
   list(area = a$area, values = v, delivery = delivery,
-       meta = list(warnings = unique(c(warnings, acc$ws)), rng_mode = a$rng_mode, dm_head_refit = TRUE))
+       meta = list(warnings = unique(c(warnings, acc$ws)), rng_mode = a$rng_mode,
+                   dm_head_refit = identical(mode, "nowcast"), dm_o_mode = mode))
 }
 
 ## Estagio infer. `artifact` = payload (congelado ou nao; o thaw do motor e idempotente).
 plugin_infer <- function(artifact, inf_feat, cuts) {
   a <- dl_thaw(artifact)
+  mode <- dl_dm_o_mode(inf_feat$mm, inf_feat$cuts$origin_day)
   set.seed(as.integer(a$seed))                                    # mesma posicao de RNG do oraculo
-  head <- dl_dm_head(inf_feat$engine, inf_feat$serieDM, inf_feat$config_mdl, inf_feat$mm,
-                     inf_feat$cuts$origin_day, constnorm = a$norm$dm_carga)           # unico ajuste do infer
+  head <- dl_dm_o_fit(a, inf_feat, mode)                          # unico ajuste do infer
   acc <- new.env(parent = emptyenv()); acc$w <- character()
-  hourly <- withCallingHandlers(.dl_predict_pass(a, inf_feat, head),
+  hourly <- withCallingHandlers(.dl_predict_pass(a, inf_feat, head, mode),
     dessem_engine_guard = function(cnd) { acc$w <- c(acc$w, cnd$code); invokeRestart("muffleMessage") })
-  .dl_envelope(hourly, a, cuts, warnings = acc$w)
+  .dl_envelope(hourly, a, cuts, warnings = acc$w, mode = mode)
 }
 
 dl_inference <- function(payload, inf_features, cuts) plugin_infer(payload, inf_features, cuts)

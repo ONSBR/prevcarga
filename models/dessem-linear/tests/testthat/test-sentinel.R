@@ -45,7 +45,7 @@ test_that("[PLUGINS] sentinela: grade == prevcarga_delivery_grid(cuts, 9); valor
   unlock <- bindingIsLocked("desagregaModeloSH", eng)
   if (unlock) unlockBinding("desagregaModeloSH", eng)
   assign("desagregaModeloSH", function(modelo, dadosMdl) stop("forcado"), envir = eng)
-  assign(".dl_predict_pass", function(a, f, dm_head) {
+  assign(".dl_predict_pass", function(a, f, dm_head, ...) {
     sp <- f$seriePF[Prev == TRUE, .(DataHora)]
     sp[, Carga := as.numeric(as.integer(lubridate::as_date(DataHora) - f$cuts$origin_day)) * 100 + lubridate::hour(DataHora)]
     sp[]
