@@ -305,6 +305,8 @@ prevcarga_main <- function(argv, verbs = prevcarga_verbs_discover(), root, runti
     if (isTRUE(v$top)) return(as.integer(v$code))
     code <- attr(v$result, "exit_code", exact = TRUE)
     code <- if (is.null(code)) 0L else as.integer(code)
+    rid <- attr(v$result, "run_id", exact = TRUE)           # run_id deterministico do verbo (hash da chave), se declarado
+    if (is.character(rid) && length(rid) == 1L) v$ctx$run_id <- rid
     prevcarga_emit(v$result, v$ctx, st$verb, warnings = warns, exit_code = code)
     return(code)
   }

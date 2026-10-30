@@ -83,3 +83,17 @@ Desvios do plano original, por unify: (1) nao existe `prevcarga_khat_promote` (g
 - Canais comparados: k por (hour, month, dow) e y_pred de um BU fixo cobrindo um intervalo em cada dia de [O-W, O-1] (garante que todo
   bucket da janela e atingido; o bucket do dia O nao seria, e cairia no glob). Mutacoes (59 dias, 61 dias, incluindo O) => INDETERMINADO, VAZA, VAZA.
 - Testes: `test-honesty_gate-reach_control.R`, `test-reconcile-honesty.R` (verdade de entrada O-120..O+5; ~15 s).
+
+## R.5 -- verbo `prevcarga reconcile`
+- `scripts/lib/cli/reconcile.R` (auto-registrado; handler fino): `reconcile --mode={train,apply} [--subsistema <ss>|all] [--window-days <n>] [--eval] [--from <dir>] [--out <dir>] [--khat-version <v>]`.
+  `--window-days/--eval/--from/--khat-version` sao `scoped` ao verbo (demais verbos => exit 8); `--mode/--out/--subsistema` ja eram do bloco Options global
+  (combine/train-models), nao scoped. `--eval/--from/--khat-version/--out` so com apply; `--mode` ausente => config.usage, invalido => config.bad_mode; `--window-days` inteiro > 0.
+- Ordem: flags -> `--subsistema` contra `topology$order` (topology.area_undeclared, exit 4; o catalogo nao tem `topology.area_unknown`) -> `--data` -> tz do deck.
+  train = uma origem (`--origin` ou ultimo dia de carga), `prevcarga_reconcile_train`, result.khat[] {ss, versao, khat_origin, window_days, n_ratio, promovido, k_hat_resumo}.
+  apply = `--from` obrigatorio, uma origem; `--origin` diferente da forecast_origin do --from => contract.reconcile_input.
+- Borda de I/O em `reconcile.R`: `prevcarga_reconcile_check_subsystem`, `prevcarga_reconcile_read_from` (um parquet por area via `prevcarga_read_long`, ordem radix, sha256 por arquivo),
+  `prevcarga_reconcile_run_id(key)` (16 hex do sha256 do JSON canonico; chave = verb, mode, origem, subsistemas, window_days, sha256 do --from, versoes do k-hat, eval),
+  `prevcarga_reconcile_write(res, out, run_id)` (`.tmp-<run_id>` irmao + `file.rename`; parquet snappy, versao 2.6, sem dicionario, linhas por target_datetime/lead; erro => `out` intocado e sem `.tmp-*`).
+  `--out` default = `<state_dir>/scratch/<run_id>/`; `out` nao vazio e fora do layout (`SIN.parquet`, `subsistemas/*.parquet`) => io.out_unwritable; no layout e substituido (rerun idempotente).
+- `run_id` do envelope: o verbo anexa `attr(result, "run_id")`; `cli.R` o honra de forma generica (4 linhas, sem caso por verbo). Em erro o run_id e o do processo.
+- Teste: `test-reconcile-cli.R` (processo real; ~30 s).
