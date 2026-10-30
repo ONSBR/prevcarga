@@ -1,7 +1,7 @@
 # Plugin random-forest (`models/random-forest`)
 
 Porte do oraculo `prevcargadessem3/models/random-forest` (somente leitura) para o contrato de plugin da CLI `prevcarga`.
-O estado duravel (decisoes, paridade com o hash do relatorio, pendencias) mora em `docs/estado/random-forest.md`; este arquivo e o mapa,
+O estado duravel (decisoes, paridade com o hash do relatorio, pendencias) mora em `docs/estado/random_forest.md`; este arquivo e o mapa,
 o contrato e a tabela de gates. Nao duplica o estado.
 
 ## Mapa funcao -> arquivo:linha do oraculo

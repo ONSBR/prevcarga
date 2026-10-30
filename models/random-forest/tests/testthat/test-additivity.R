@@ -178,9 +178,9 @@ test_that("[PLUGINS] readme: secoes obrigatorias, desvios 1-5, toda linha do run
   i0 <- grep("^## Desvios conscientes", rd); i1 <- grep("^## ", rd); i1 <- i1[i1 > i0][1L]
   sec <- rd[(i0 + 1L):(i1 - 1L)]
   expect_identical(sub("^([0-9]+)[.] .*$", "\\1", grep("^[0-9]+[.] ", sec, value = TRUE)), as.character(1:5))
-  ## o estado duravel mora em docs/estado/random-forest.md e o README aponta para ele
-  expect_true(any(grepl("docs/estado/random-forest.md", rd, fixed = TRUE)))
-  expect_true(file.exists(file.path(rf_root(), "docs", "estado", "random-forest.md")))
+  ## o estado duravel mora em docs/estado/random_forest.md e o README aponta para ele
+  expect_true(any(grepl("docs/estado/random_forest.md", rd, fixed = TRUE)))
+  expect_true(file.exists(file.path(rf_root(), "docs", "estado", "random_forest.md")))
   ## todo gate do runner aparece na secao Gates x dono, com o dono certo na mesma linha
   g0 <- grep("^## Gates x dono", rd); gsec <- rd[g0:length(rd)]
   gt <- rfa_runner_gate_names()
