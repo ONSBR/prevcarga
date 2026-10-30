@@ -9,7 +9,7 @@
 ## versao/chave imutavel -> scratch + run.json -> export. Rotulo de hora so nas bordas (interval_start por dentro, interval_end
 ## na saida do LONG). Sem relogio (`generated_at` vem do ctx), sem variaveis de ambiente. Saida ASCII.
 ## Requer errors.R, config.R, topology.R, provenance.R, schema_long.R, evaluation.R, deck_reader.R, dates.R, validation.R,
-## features.R, registry.R, training.R, inference.R, combination.R, build_long_output.R, reconcile.R e exports.R carregados antes.
+## features.R, registry.R, training.R, inference.R, combination.R, build_long_output.R, reconcile.R, exports.R e reporting.R carregados antes.
 
 ## --- helpers de ambiente da rodada -------------------------------------------------------------------------
 .forecast_topo <- function(ctx) {
@@ -155,18 +155,19 @@
 ## Devolve LONG combinado por folha, LONG por membro x folha e a versao dos pesos por folha.
 .forecast_leaves <- function(ctx, members, g, plan, mem) {
   art_dir <- file.path(prevcarga_registry_root(ctx), "combina")
-  long <- list(); mlong <- list(); wver <- list()
+  long <- list(); mlong <- list(); wver <- list(); wtab <- list()
   for (a in c(plan$covered, plan$stray)) {
     lp <- .forecast_leaf_panel(ctx, members[[a]], a, g, mem)
     ap <- prevcarga_combina_apply(a, art_dir, lp$panel, ctx, members = mem, detail = TRUE)
     long[[a]] <- ap$long
     wver[[a]] <- ap$version_hash
+    wtab[[a]] <- ap$weights
     for (d in lp$members_long) {
       sg <- d$member[[1L]]
       mlong[[sg]][[a]] <- d[, names(prevcarga_schema_long), with = FALSE]
     }
   }
-  list(long = long, members = mlong, weights_version = wver)
+  list(long = long, members = mlong, weights_version = wver, weights = wtab)
 }
 
 ## --- 5. reconcile ----------------------------------------------------------------------------------------------
@@ -261,8 +262,54 @@
        ja_publicado = isTRUE(exp$ja_publicado), report = report)
 }
 
+## --- 7. relatorio diagnostico (M6.5) -----------------------------------------------------------------------------
+## Roda DEPOIS do commit da entrega e nunca a altera: grava so em `<state_dir>/reports/<origem>/<available_until>/<versao>/`
+## (fora de `forecasts/`). Pesos = media por membro dos pesos congelados do corte da rodada (a combina nao tem intercepto: 0).
+## Baselines O-1/O-7 por evaluation.R (so carga <= O 00:00 <= available_until); nada de verdade do painel entra no relatorio.
+.forecast_weights_table <- function(wtab, au) {
+  cut <- sprintf("%02d%02d", lubridate::hour(au), lubridate::minute(au))
+  rows <- list()
+  for (a in sort(names(wtab), method = "radix")) {
+    w <- wtab[[a]]
+    w <- w[as.character(w$cut) == cut, , drop = FALSE]
+    for (m in sort(unique(unlist(lapply(w$w, names))), method = "radix")) {
+      v <- vapply(w$w, function(x) if (m %in% names(x)) as.numeric(x[[m]]) else NA_real_, 0)
+      rows[[length(rows) + 1L]] <- data.frame(area = a, member = m, weight = mean(v, na.rm = TRUE), intercept = 0)
+    }
+  }
+  if (!length(rows)) return(data.frame(area = character(), member = character(), weight = numeric(), intercept = numeric()))
+  do.call(rbind, rows)
+}
+
+.forecast_baselines <- function(rctx, long, origin) {
+  day0 <- long[!is.na(long$d_plus) & long$d_plus == 0L & long$forecast_origin == format(origin), , drop = FALSE]
+  one <- function(kind) {
+    parts <- list()
+    for (a in unique(day0$area)) {
+      b <- tryCatch(prevcarga_baseline(rctx, a, origin, kind, day0), prevcarga_error = function(e) NULL)
+      if (!is.null(b) && nrow(b)) parts[[length(parts) + 1L]] <- data.frame(area = b$area, target_datetime = b$target_datetime, y_base = b$y_pred)
+    }
+    if (length(parts)) do.call(rbind, parts)
+    else data.frame(area = character(), target_datetime = as.POSIXct(character(), tz = rctx$tz), y_base = numeric())
+  }
+  list(persistence_o1 = one("persistence"), seasonal_o7 = one("seasonal_naive"))
+}
+
+.forecast_report_step <- function(rctx, g, plan, key, lv, rec, report_format) {
+  tryCatch({
+    long <- as.data.frame(data.table::rbindlist(c(unname(lv$long), unname(rec$long)), use.names = TRUE, fill = TRUE))
+    prov <- list(versao = key$versao, origem = format(g$origin), available_until = .forecast_iso_min(g$cuts$available_until, g$cuts$tz),
+                 available_until_por_area = .forecast_au_by_area(g$cuts), load_label = g$cuts$load_label, timezone = g$cuts$tz,
+                 weather_issue_cutoff = g$cuts$weather_issue_cutoff, subsistemas = names(plan$topology$subsystems))
+    out <- file.path(rctx$state_dir, sub("^forecasts/", "reports/", key$rel))
+    path <- prevcarga_report(long, .forecast_weights_table(lv$weights, g$cuts$available_until), .forecast_khat_rows(rec$khat), prov,
+                             .forecast_baselines(rctx, long, g$origin), format = report_format, out = out)
+    list(status = "ok", path = path)
+  }, prevcarga_error = function(e) list(status = "failed", path = NULL, error = e$id))
+}
+
 ## --- API publica ----------------------------------------------------------------------------------------------
-## `report`/`report_format`: o passo de relatorio e do M6.5; aqui o resultado e sempre list(status = "skipped").
+## `report = TRUE` liga o passo de relatorio (M6.5) depois da entrega; senao `report` = list(status = "skipped", path = NULL).
 ## Devolve list(result, warnings): `warnings` = avisos do catalogo (reconcile, export, gate-0) como list(id, message).
 prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsistemas", report = FALSE,
                                report_format = "html", skip_validate = FALSE, incluir_membros = FALSE) {
@@ -289,6 +336,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsi
     invokeRestart("muffleWarning")
   })
   for (w in rec$warnings) sink$add(w$id, w$message)
-  list(result = .forecast_result(g, plan, rec, key, versao, niveis, exp, list(status = "skipped", path = NULL)),
+  rep <- if (isTRUE(report)) .forecast_report_step(rctx, g, plan, key, lv, rec, report_format) else list(status = "skipped", path = NULL)
+  list(result = .forecast_result(g, plan, rec, key, versao, niveis, exp, rep),
        warnings = sink$get())
 }
