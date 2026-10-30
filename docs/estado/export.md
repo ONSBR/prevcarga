@@ -33,3 +33,6 @@
   da entrega sai do retorno da escrita (sem literal em linha de leitura), para nao enfraquecer o gate do leitor unico.
 - Catalogo: `scripts/lib/errors/export_key.tsv`. Testes: `test-exports_key.R`. O verbo `export` ainda usa a chave PROVISORIA (gramatica final: M6.9).
 - Aberto: a chave de cache do M7.2 tem 16 hex (nao 64); a `versao` aqui e 12 hex (regex aceita 12 a 64). Nao tratado neste ticket.
+- `code_commit` do fingerprint recebe `parts$package` (versao do pacote), como o ticket M6.7 fixa explicitamente ("versao do pacote"); NAO e o commit
+  git de `prevcarga_code_commit` (M7.1/M7.2). Dois builds com a mesma versao e codigo diferente geram a mesma `versao`: o chamador que quiser
+  distingui-los passa o commit em `parts$package`. Decisao a revisitar se o orquestrador (M6.9) tiver `ctx$code_commit`.
