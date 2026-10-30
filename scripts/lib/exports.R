@@ -5,9 +5,65 @@
 ## escrito pelo forecast; aqui sao copiados. O modulo nao le relogio: `gerado_em` vem de ctx$generated_at (a fachada le uma vez).
 ## Entrega atomica: staging `.tmp-<run_id>` no MESMO volume da chave final + file.rename; erro remove o staging.
 ## manifest.json: binario com LF final (mesmos bytes em Linux e Windows); nao entra na lista de arquivos nem em hash.
-## Requer errors.R, schema_long.R (prevcarga_schema_long), data.table, jsonlite, digest. Nao abre parquet (leitor unico: deck_reader.R).
+## Chave imutavel (M6.7): `prevcarga_forecast_versao` (hash dos insumos da versao), `prevcarga_export_key` (layout
+## forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>, ASCII, sem ':', separador '/'; run_id = hash da chave, nunca PID/relogio) e
+## `.export_key_check` (mesma chave + mesmos bytes = no-op; qualquer diferenca = integrity.export.key_conflict, nada sobrescrito).
+## Requer errors.R, provenance.R (prevcarga_version_hash), schema_long.R (prevcarga_schema_long), data.table, jsonlite, digest, lubridate.
+## Nao abre parquet (leitor unico: deck_reader.R).
 
 prevcarga_export_niveis <- c("sin", "subsistemas", "tudo")
+
+## --- Chave imutavel (M6.7) ------------------------------------------------------------------------------
+## `versao` = 12 hex do prevcarga_version_hash (provenance.R, 8 chaves fixas) sobre os insumos da entrega. As 8 chaves do contrato
+## recebem: model_id = "forecast"; code_commit = versao do pacote; data_fingerprint = v_<hash> do k-hat por subsistema (ordenado por ss);
+## feature_config = membros (por nome), pesos da combina e hash da topologia; cutoff = weather_issue_cutoff; load_label; load_tz.
+## Ordem de membros/subsistemas nao altera o hash (named lists sao ordenadas na canonicalizacao e aqui por nome).
+prevcarga_forecast_versao <- function(parts) {
+  sorted <- function(x) as.list(x[order(names(x), method = "radix")])
+  req <- c("package", "members", "combina_weights", "khat", "topology_hash", "load_label", "weather_issue_cutoff")
+  miss <- setdiff(req, names(parts))
+  if (length(miss)) prevcarga_abort("contract.fingerprint_missing_key", where = miss[[1L]])
+  fp <- list(model_id = "forecast",
+             data_fingerprint = sorted(parts$khat),
+             cutoff = parts$weather_issue_cutoff,
+             feature_config = list(members = sorted(parts$members), combina_weights = parts$combina_weights,
+                                   topology_hash = parts$topology_hash),
+             code_commit = parts$package,
+             renv_lock_hash = "n/a",
+             load_label = parts$load_label,
+             load_tz = NULL)
+  sub("^v_", "", substr(prevcarga_version_hash(fp), 1L, 14L))
+}
+
+## Caminho relativo da chave: data e hora de available_until no fuso da carga (tz explicito, sem ':'), unido por '/'.
+## `run_id` = 12 hex do sha256 da propria chave.
+prevcarga_export_key <- function(origin, available_until, versao, tz) {
+  day <- as.character(lubridate::as_date(origin))
+  au <- format(lubridate::with_tz(available_until, tz), "%Y%m%dT%H%M")
+  rel <- paste("forecasts", day, au, versao, sep = "/")
+  if (!grepl("^forecasts/[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{8}T[0-9]{4}/[0-9a-f]{12,64}$", rel))
+    prevcarga_abort("config.usage", where = "prevcarga_export_key", details = list(rel = rel))
+  list(rel = rel, origin = origin, available_until = available_until, versao = versao,
+       run_id = substr(digest::digest(rel, algo = "sha256", serialize = FALSE), 1L, 12L))
+}
+
+## Chave final ja existe? 'publish' (nao existe), 'noop' (mesmo conjunto de arquivos e mesmos sha256) ou
+## integrity.export.key_conflict com o 1o caminho divergente (radix); nunca altera a chave.
+.export_key_check <- function(final, entries, ignore = character()) {
+  if (!dir.exists(final)) return("publish")
+  got <- setdiff(list.files(final, recursive = TRUE, all.files = TRUE), ignore)
+  want <- vapply(entries, function(e) as.character(e$path), "")
+  conflict <- function(p) prevcarga_abort("export.key_conflict", where = "prevcarga_export", details = list(path = p))
+  if (!setequal(got, want)) {
+    diff <- setdiff(union(got, want), intersect(got, want))
+    conflict(sort(diff, method = "radix")[[1L]])
+  }
+  for (e in entries[order(want, method = "radix")]) {
+    sha <- digest::digest(file = file.path(final, e$path), algo = "sha256")
+    if (!identical(sha, e$sha256)) conflict(e$path)
+  }
+  "noop"
+}
 
 .export_chr <- function(x) as.character(unlist(x, use.names = FALSE))
 
@@ -115,7 +171,10 @@ prevcarga_export <- function(scratch, key, niveis = "subsistemas", incluir_membr
     prevcarga_abort("integrity.copy_failed", where = final, details = list(reason = "nao criou o staging"))
   on.exit(if (dir.exists(tmp)) unlink(tmp, recursive = TRUE), add = TRUE)
   for (i in seq_len(nrow(sel))) .export_copy(sel$src[[i]], file.path(tmp, sel$rel[[i]]))
-  .export_write_json(.export_manifest(run, entries, niveis, ctx), file.path(tmp, "manifest.json"))
+  mname <- basename(.export_write_json(.export_manifest(run, entries, niveis, ctx), file.path(tmp, "manifest.json")))
+  ## chave ja publicada: mesmos bytes = no-op (o staging sai no on.exit, a chave fica intacta); diferenca = key_conflict
+  if (identical(.export_key_check(final, entries, ignore = mname), "noop"))
+    return(list(saida = final, arquivos = entries, ja_publicado = TRUE))
   if (!file.rename(tmp, final)) prevcarga_abort("integrity.copy_failed", where = final, details = list(reason = "rename falhou"))
-  list(saida = final, arquivos = entries)
+  list(saida = final, arquivos = entries, ja_publicado = FALSE)
 }
