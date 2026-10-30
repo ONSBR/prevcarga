@@ -26,7 +26,7 @@ arquivos `docs/estado/plugin_dispatch.md`, `plugin_tools_*.md` e `features_facad
 - Despachantes `prevcarga_plugin_train/_infer/_forecast`: composicao identica para todos, sem switch por nome de modelo. Unico ponto de ajuste de hora de modelagem:
   `to_model_frame` na entrada e `to_display_frame` na saida, com `descriptor$model_time_offset_min` (ADR-0012/0019/0035). Nenhum plugin, motor ou adapter faz aritmetica de hora.
 - Gate `pc_grep_time_arith(model_dir, allow = pc_time_arith_allow())` (`scripts/lib/tests/helper-plugins.R`): nenhuma aritmetica de hora em `models/<m>/R/*.R` (nem no motor);
-  excecoes fechadas e versionadas em `pc_time_arith_allow()`: o `+ hours(6)` do flag de horario de verao do HW e o lag de feature `hours(lagh)` do motor DESSEM. Cada
+  excecao fechada e versionada em `pc_time_arith_allow()`: so o `+ hours(6)` do flag de horario de verao do HW (o motor DESSEM NAO tem excecao desde o DL.3/DL.4: lag por indice, `allow = list()`). Cada
   `run_all_gates.R` de modelo roda o gate sobre o seu `models/<m>/`; o M5.11 faz a varredura global. Reuso geral: `pc_grep_code(paths, patterns, allow)`, `pc_bytes_over_127`, `pc_foundation_forbidden`.
 
 ### Envelope e grade de entrega

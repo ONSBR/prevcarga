@@ -105,3 +105,122 @@ eng_semi_stamp <- function(semi, offset_min = 60L) {
   anchor <- eng_lib$to_display_frame(data.table::data.table(DataHora = semi$DataHora), offset_min, "DataHora")$DataHora
   anchor - lubridate::minutes(ifelse(semi$Passo %% 2L == 1L, 30L, 0L))
 }
+
+## ---- DL.4: golden do motor isolado (plugin_golden.R --model _dessem-engine) ---------------------------------------
+## O oraculo (somente leitura) so aparece como GOLDEN em `.state/golden` (gerado por scripts/tools/plugin_golden.R, nunca
+## versionado; so o `golden.lock` e versionado). Sem variaveis de ambiente; datas por lubridate com tz explicito.
+ENG_TOL <- 1e-5                                  # MW absoluto (ADR-0017)
+ENG_TZ <- "Etc/GMT+3"
+ENG_ORACLE_RSCRIPT <- "/opt/R/4.4.3/bin/Rscript" # runtime do oraculo (WeightSVM/e1071 na biblioteca do oracle_env)
+eng_parity_dir <- function() file.path(eng_dir(), "tests", "parity")
+eng_golden_root <- function() file.path(eng_root(), ".state", "golden")
+
+## tier do gate: o do runner de gates quando ele esta carregado; senao `options(prevcarga.tier = "parity")`; senao fast
+eng_tier <- function() {
+  if (exists(".pc_gates_state", mode = "environment")) return(get(".pc_gates_state")$tier)
+  t <- getOption("prevcarga.tier", "fast")
+  if (t %in% c("parity", "parity-full")) "parity" else "fast"
+}
+eng_require_parity <- function() {
+  if (!identical(eng_tier(), "parity")) testthat::skip("[tier] gate so roda no tier parity (atual: fast)")
+  invisible(TRUE)
+}
+
+## unidades de units.yaml do grupo (engine | robustez | all); cada uma com `model_key` derivado da variante
+eng_variant_key <- function(v) c(MED = "Linear.TmpMedia", MAX = "Linear.TmpMaxima", MXMN = "Linear.TmpMaxMin")[[v]]
+eng_units <- function(group = "all", path = file.path(eng_parity_dir(), "units.yaml")) {
+  doc <- yaml::read_yaml(path)
+  ids <- if (identical(group, "all")) vapply(doc$units, `[[`, "", "id") else unlist(doc$groups[[group]])
+  us <- Filter(function(u) u$id %in% ids, doc$units)
+  lapply(us[match(ids, vapply(us, `[[`, "", "id"))], function(u) {
+    u$model_key <- eng_variant_key(u$variant); u$group <- if (u$id %in% unlist(doc$groups$engine)) "engine" else "robustez"; u
+  })
+}
+eng_unit_dir <- function(u, root = eng_golden_root())
+  file.path(root, "plugins", "_dessem-engine", u$variant, u$area, u$origin)
+
+## NULL (ok) ou o texto ASCII da falha pedindo regerar: lock ausente/sem a unidade, arquivo do golden ausente, sha256 divergente
+## do lock ou fingerprint do runtime do oraculo (R, plataforma, BLAS, pacotes) diferente do gravado no lock.
+eng_check_golden <- function(u, root = eng_golden_root(), lock = file.path(eng_parity_dir(), "golden.lock"),
+                             rscript = ENG_ORACLE_RSCRIPT) {
+  regen <- "regere o golden: Rscript --vanilla scripts/tools/plugin_golden.R --model _dessem-engine --units engine|robustez --oracle <clone limpo do oraculo> --data data --rscript <R do oraculo>"
+  if (!file.exists(lock)) return(sprintf("golden.lock ausente (%s)", regen))
+  lk <- jsonlite::read_json(lock, simplifyVector = FALSE)
+  e <- lk$units[[u$id]]
+  if (is.null(e)) return(sprintf("unidade %s ausente do golden.lock (%s)", u$id, regen))
+  d <- eng_unit_dir(u, root)
+  for (f in names(e$files)) {
+    p <- file.path(d, f)
+    if (!file.exists(p)) return(sprintf("unidade %s: %s ausente (%s)", u$id, f, regen))
+    if (!identical(digest::digest(p, algo = "sha256", file = TRUE), e$files[[f]]))
+      return(sprintf("unidade %s: sha256 de %s difere do golden.lock (%s)", u$id, f, regen))
+  }
+  if (!file.exists(rscript)) return(sprintf("unidade %s: R do oraculo ausente (%s); fingerprint nao conferivel", u$id, rscript))
+  inv <- jsonlite::read_json(file.path(d, "invocation.json"), simplifyVector = TRUE)
+  tools_e <- new.env(parent = globalenv())
+  sys.source(file.path(eng_root(), "scripts", "tools", "plugin_golden.R"), envir = tools_e)
+  fp <- tools_e$pc_runtime_fingerprint(names(e$fingerprint$packages), rscript, as.character(inv$env))
+  for (k in c("R", "platform", "blas"))
+    if (!identical(fp[[k]], e$fingerprint[[k]])) return(sprintf("unidade %s: fingerprint %s difere do lock (%s)", u$id, k, regen))
+  for (p in names(e$fingerprint$packages))
+    if (!identical(fp$packages[[p]], e$fingerprint$packages[[p]]))
+      return(sprintf("unidade %s: fingerprint do pacote %s difere do lock (%s)", u$id, p, regen))
+  NULL
+}
+
+eng_golden <- function(u) {
+  msg <- eng_check_golden(u)
+  if (!is.null(msg)) { testthat::fail(msg); return(NULL) }
+  readRDS(file.path(eng_unit_dir(u), "native.rds"))
+}
+
+## O deck CRU do oraculo (rotulos naive-BRT em UTC) no frame que o despachante entrega ao motor: relabel do fuso por
+## force_tz (instante de parede preservado) e `to_model_frame` da carga com `offset_min` (60 no DESSEM; 0 e o CONTROL).
+eng_golden_deck <- function(g, offset_min = 60L, tz = ENG_TZ) {
+  d <- g$deck[c("CARGAHIST", "EXOGENAHIST", "EXOGENAPREV", "FERIADOS")]
+  for (n in c("CARGAHIST", "EXOGENAHIST", "EXOGENAPREV")) {
+    d[[n]] <- data.table::copy(d[[n]])
+    data.table::set(d[[n]], j = "DataHora", value = lubridate::force_tz(d[[n]]$DataHora, tz))
+  }
+  eng_model_deck(d, offset_min)
+}
+
+## Roda o motor clean-room (env `eng`, ja carregado) sobre o deck do golden como o despachante o faz: `to_model_frame` na
+## entrada, TransformaDeck, `set.seed(seed)` (NULL = sem semente: CONTROL), processaModelosDMPerfil, desagregaModeloSH, e na
+## saida semi-horaria `to_display_frame` + carimbo de 30 min (o motor nao desloca hora). `hourly` fica no frame de modelagem (e o
+## que `processaModelosDMPerfil` entrega e o oraculo grava); `semihourly` no de exibicao (end-of-interval).
+eng_run <- function(eng, g, model_key = g$model_key, seed = 42L, offset_min = 60L, tz = ENG_TZ) {
+  dk <- suppressMessages(eng$TransformaDeck(eng_golden_deck(g, offset_min, tz), format(g$dataPrev), "10DIAS", tz = tz))
+  cfg <- eng$getConfigModel(model_key)
+  if (is.null(seed)) set.seed(NULL) else set.seed(as.integer(seed))   # NULL: gerador reinicializado do relogio (CONTROL sem semente)
+  guards <- character()
+  hor <- withCallingHandlers(eng$processaModelosDMPerfil(dk, cfg), message = function(m) {
+    if (inherits(m, "dessem_engine_guard")) guards <<- c(guards, m$code)
+    invokeRestart("muffleMessage")
+  })
+  sh <- suppressMessages(eng$desagregaModeloSH(model_key, data.table::copy(hor)[, Modelo := model_key]))
+  hourly <- data.table::copy(hor)          # o horario do oraculo e o do frame de modelagem (rotulo = inicio da hora)
+  semi <- data.table::data.table(DataHora = eng_semi_stamp(sh, offset_min), Passo = sh$Passo, Carga = sh$Carga)
+  list(hourly = hourly, semihourly = semi, seriecomp = dk$SERIECOMP, diasprev = dk$DIASPREV, guards = guards)
+}
+
+## rotulo de parede (texto) para comparar o frame do oraculo (UTC naive) com o do clean-room (Etc/GMT+3)
+eng_wall <- function(x) format(x, "%Y-%m-%d %H:%M:%S")
+eng_maxdiff <- function(a, b) max(abs(a$Carga - b$Carga))
+
+## cache de rodadas do clean-room na sessao do test_dir (cada rodada e ~minutos): chave = unidade + offset + semente
+.eng_runs <- new.env(parent = emptyenv())
+eng_run_cached <- function(eng, g, u, seed = 42L, offset_min = 60L) {
+  key <- paste(u$id, if (is.null(seed)) "noseed" else seed, offset_min)
+  if (is.null(.eng_runs[[key]])) .eng_runs[[key]] <- eng_run(eng, g, u$model_key, seed, offset_min)
+  .eng_runs[[key]]
+}
+
+## Serie de carga de TransformaDeck (Prev == FALSE) do clean-room contra a do oraculo (`proc$SERIECOMP`), por rotulo de parede:
+## max|delta Carga| e n de linhas casadas. Com o deslocamento do despachante (offset 60) e 0; sem ele a carga fica 1 h defasada.
+eng_series_diff <- function(eng, g, offset_min = 60L, tz = ENG_TZ) {
+  dk <- suppressMessages(eng$TransformaDeck(eng_golden_deck(g, offset_min, tz), format(g$dataPrev), "10DIAS", tz = tz))
+  a <- dk$SERIECOMP[Prev == FALSE]; b <- g$proc$SERIECOMP[Prev == FALSE]
+  m <- merge(data.table::data.table(k = eng_wall(a$DataHora), a = a$Carga), data.table::data.table(k = eng_wall(b$DataHora), b = b$Carga), by = "k")
+  list(n = nrow(m), max = max(abs(m$a - m$b), na.rm = TRUE))
+}

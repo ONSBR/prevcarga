@@ -83,8 +83,8 @@ test_that("[ac-3][CONTROL] padroes plantados acusados; excecao do HW versionada;
   expect_equal(unique(h2$line), 1L); expect_equal(unique(basename(h2$file)), "holt_winters.R")
   ## fora do arquivo da excecao continua acusado
   expect_true(7L %in% h[basename(file) == "plugin.R", line])
-  ## a lista de excecoes e fechada: so HW (DST) e o lag de feature do motor DESSEM
-  expect_setequal(vapply(strsplit(names(pc_time_arith_allow()), " "), `[`, "", 1L), c("holt_winters.R", "dessem_engine.R"))
+  ## a lista de excecoes e fechada: so o HW (DST); o motor DESSEM nao tem excecao (lag por indice, DL.3/DL.4)
+  expect_setequal(vapply(strsplit(names(pc_time_arith_allow()), " "), `[`, "", 1L), "holt_winters.R")
 })
 
 test_that("[ac-1] suite da fundacao inteira em Rscript --vanilla: zero falha/skip/warning; sem models/ nem data/ reais", {

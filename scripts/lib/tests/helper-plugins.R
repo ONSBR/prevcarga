@@ -580,9 +580,7 @@ pc_time_arith_patterns <- function() list(
 ## Excecoes versionadas e FECHADAS (arquivo + padrao -> justificativa). Nada alem destas.
 pc_time_arith_allow <- function() list(
   "holt_winters.R period_arith" = "flag de horario de verao do HW: `+ hours(6)` (rotulo, nao deslocamento de frame)",
-  "holt_winters.R hours_call"   = "mesmo `+ hours(6)` do HW (o padrao hours() tambem casa a linha)",
-  "dessem_engine.R hours_call"  = "lag de feature hours(lagh) de obtemLagHora/obtemLagSemiHora (busca do valor defasado)",
-  "dessem_engine.R period_arith" = "lag de feature `- hours(lagh)` de obtemLagHora/obtemLagSemiHora (busca do valor defasado)"
+  "holt_winters.R hours_call"   = "mesmo `+ hours(6)` do HW (o padrao hours() tambem casa a linha)"
 )
 
 ## Varre <model_dir>/R/*.R (+ o motor de descriptor$engine, quando existir `engine_dir`).

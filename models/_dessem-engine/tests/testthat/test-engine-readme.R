@@ -49,3 +49,26 @@ test_that("ac-14 CONTROL: remover uma linha do mapa faz o teste apontar a funcao
   cut <- lines[!grepl("^desagregaModeloSH -> ", lines)]
   expect_identical(missing_map(manifest_of()$required_functions, cut), "desagregaModeloSH")
 })
+
+## DL.4: tabelas do README (reescrita de datas e teste -> AC do epico) e comando de regeneracao do golden
+test_that("ac-6 README tem a tabela de reescrita de datas, a tabela teste -> AC do epico (um teste por linha) e o comando do golden", {
+  lines <- readme_lines()
+  expect_true(any(grepl("^\\| oraculo [(]arquivo:linha[)] \\| forma no motor \\|$", lines)))
+  expect_gt(sum(grepl("^\\| pkgfun_[A-Za-z]+[.]R:[0-9]+", lines)), 5L)
+  expect_true(any(grepl("^\\| teste \\| AC do epico \\| tier \\|$", lines)))
+  tests <- sort(list.files(file.path(eng_dir(), "tests", "testthat"), pattern = "^test-engine-(golden|dates|isolation|robustez|svm-serial|readme)[.]R$"))
+  expect_length(tests, 6L)
+  for (t in tests) expect_true(any(grepl(paste0("^\\| ", t, " "), lines)), info = t)
+  ac <- c("golden" = "AC2", "dates" = "AC3", "isolation" = "AC1", "robustez" = "AC16", "svm-serial" = "AC14")
+  for (n in names(ac)) expect_true(any(grepl(paste0("^\\| test-engine-", n, "[.]R .*\\| ", ac[[n]]), lines)), info = n)
+  expect_true(any(grepl("plugin_golden[.]R --model _dessem-engine --units engine", lines)))
+  expect_true(any(grepl("plugin_golden[.]R --model _dessem-engine --units robustez", lines)))
+})
+
+test_that("ac-6 CONTROL: README-fixture sem SVMhorario falha nomeando-a", {
+  fx <- readme_lines()
+  fx <- fx[!grepl("^SVMhorario -> ", fx)]
+  expect_identical(missing_map(manifest_of()$required_functions, fx), "SVMhorario")
+  tmp <- tempfile(fileext = ".md"); writeLines(fx, tmp)
+  expect_false(any(grepl("^SVMhorario -> ", readLines(tmp))))
+})

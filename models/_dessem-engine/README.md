@@ -150,6 +150,41 @@ Sem excecao: nenhum `hours(...)`/`minutes(...)` no motor. O lag de feature e por
 `desagregaModeloSH` devolve 2 linhas por ancora horaria na ordem de `Passo` (impar = meia hora anterior a
 ancora, par = a ancora), ambas com o `DataHora` da ancora no frame de modelagem.
 
+## Testes do motor: teste -> AC do epico -> tier (DL.4)
+
+`Rscript --vanilla -e 'testthat::test_dir("models/_dessem-engine/tests/testthat", stop_on_failure = TRUE)'` (R 4.5.3, a
+partir da raiz). Tier `fast` = tudo menos as linhas `parity`; o tier `parity` entra com
+`options(prevcarga.tier = "parity")` antes do `test_dir` (ou pelo runner de gates, que fixa o tier) e exige o golden.
+
+| teste | AC do epico | tier |
+|---|---|---|
+| test-engine-golden.R (unidades `engine` e `robustez` do golden isolado; CONTROL offset 0 e sem set.seed) | AC2 | parity (+ fast: units.yaml, golden.lock) |
+| test-engine-dates.R (pc_grep_code + pc_grep_time_arith sem excecao, HVZ, tz) | AC3 | fast |
+| test-engine-isolation.R (duas instancias, globalenv intacto, CONTROL sem desagregaModeloSH) | AC1 | fast |
+| test-engine-robustez.R (modelo-vazio, clamp de cross, flag-12, cauda curta; kill-switches de ENV sem efeito) | AC16 (parte motor) | fast (+ unidades `robustez` no parity) |
+| test-engine-svm-serial.R (freeze/thaw puro, sha256 estavel, predict identico) | AC14 (parte motor) | fast |
+| test-engine-readme.R (mapa funcao -> arquivo -> linha do oraculo, tabelas) | AC14 (documentacao) | fast |
+
+## Golden isolado: regeneracao
+
+O golden (`native.rds`: deck cru + deck processado + saida horaria e semi-horaria do oraculo, `long.parquet`,
+`invocation.json`) mora em `.state/golden/plugins/_dessem-engine/<variante>/<area>/<origem>/` (gitignorado); so o
+`models/_dessem-engine/tests/parity/golden.lock` (sha256, commit do oraculo, fingerprint de R/pacotes/BLAS, digest dos dados)
+e versionado. O oraculo roda no R 4.4.3 com a biblioteca que tem WeightSVM/e1071 (`oracle_env.R_LIBS_USER` do `units.yaml`) e
+de um clone limpo do mesmo commit (o oraculo real tem arquivos nao rastreados que o preflight recusa):
+
+```
+git clone --no-hardlinks /opt/ons-source/prevcargadessem3 <tmp>/oracle-clone
+export PATH=/opt/R/4.5.3/bin:$PATH
+Rscript --vanilla scripts/tools/plugin_golden.R --model _dessem-engine --units engine   --oracle <tmp>/oracle-clone --data data --rscript /opt/R/4.4.3/bin/Rscript
+Rscript --vanilla scripts/tools/plugin_golden.R --model _dessem-engine --units robustez --oracle <tmp>/oracle-clone --data data --rscript /opt/R/4.4.3/bin/Rscript
+```
+
+Cada unidade roda 2x (saidas `identical`, senao exit 12) e leva ~4 min por rodada; as unidades podem ser geradas em paralelo (`--variant MED|MAX|MXMN`, ou um units.yaml de uma unidade; o lock tem exclusao mutua). O teste compara o clean-room (motor no frame de
+modelagem, saida devolvida por `to_display_frame` + carimbo de 30 min, `set.seed(42L)`) com `max|delta Carga| <= 1e-5` MW em
+`processaModelosDMPerfil` (horario) e `desagregaModeloSH` (semi-horario). Golden ausente ou fingerprint/sha256 divergente do lock
+=> falha pedindo para regerar (nunca skip no tier parity).
+
 ## Fato verificado: vendor linear == vendor regdin
 
 Os 7 `pkgfun_*.R` e o `model_parameters.json` de `dessem-linear/vendor` e `dessem-regdin/vendor` sao

@@ -124,3 +124,50 @@ test_that("ac-6 env do motor tem o wrapper e o globalenv nao ganha tune_wsvm nem
   expect_identical(environment(eng$SVM_DemandaMedia), eng)
   expect_identical(environment(eng$tune_wsvm), eng)
 })
+
+## DL.4 (AC4 do ticket): os quatro fixtures de robustez completam emitindo a condicao esperada, e os kill-switches de ambiente do
+## oraculo (DESSEM_EXOG_TAIL_FILL=0 / DESSEM_NORMALIZE_CODES=0) NAO existem no motor: o resultado e identico com eles no ambiente.
+rb_four_cases <- function(eng) {
+  msgs <- function(expr) { m <- character(); v <- withCallingHandlers(expr, message = function(c) {
+    m <<- c(m, if (inherits(c, "dessem_engine_guard")) c$code else conditionMessage(c)); invokeRestart("muffleMessage") }); list(value = v, msgs = m) }
+  ## (1) dummy rara => modelo-vazio contornado
+  set.seed(3); n <- 60L
+  d <- data.frame(Carga = rnorm(n) * 0.01, LAG_1 = rnorm(n), F11 = 0); d$F11[5L] <- 1; d$Carga[5L] <- 50
+  a1 <- list(Carga ~ LAG_1 + F11, iter.max = 500, weight = rep(1, n), data = d, ranges = list(cost = c(1, 2)),
+             kernel = "linear", pre.check = FALSE)
+  r1 <- msgs(suppressWarnings(do.call(eng$tune_wsvm, a1)))
+  ## (2) perfil de dia especial com 5 linhas de peso > 0 => cross clampado
+  set.seed(5); d2 <- data.frame(Carga = rnorm(10), LAG_1 = rnorm(10)); d2$Carga <- d2$Carga + d2$LAG_1
+  r2 <- msgs(do.call(eng$tune_wsvm, list(Carga ~ LAG_1, iter.max = 500, weight = c(rep(1, 5), rep(0, 5)), data = d2,
+                                         ranges = list(cost = 1), kernel = "linear")))
+  ## (3) codigo 12 no horizonte
+  fer <- data.table::data.table(Data = lubridate::ymd(c("2024-12-22", "2024-12-25")), Tipo = c(12L, 6L))
+  r3 <- msgs(eng$normalize_special_day_codes(fer, "Tipo", 0:11, "SP"))
+  ## (4) EXOGENAPREV com 2 dias curtos
+  O <- lubridate::ymd("2025-06-20"); t0 <- lubridate::force_tz(lubridate::as_datetime(O), "Etc/GMT+3")
+  tt <- do.call(c, lapply(0:8, function(i) t0 + lubridate::days(i) + lubridate::hours(seq_len(if (i %in% 7:8) 5L else 24L) - 1L)))
+  prev <- data.table::data.table(DataHora = tt, Exo_Temperatura = as.numeric(seq_along(tt)) %% 17 + 20)
+  r4 <- msgs(eng$fill_forecast_tail(prev, "DataHora", O, O + 8, 24L, "SP", O, max_fill_days = 2L))
+  list(empty = list(msgs = r1$msgs, class = class(r1$value), dropped = attr(r1$value$best.model$terms, "term.labels")),
+       cross = list(msgs = r2$msgs, cost = r2$value$best.parameters$cost),
+       flag12 = list(msgs = r3$msgs, tipo = r3$value$Tipo),
+       tail = list(msgs = r4$msgs, n = nrow(r4$value), finite = all(is.finite(r4$value$Exo_Temperatura))))
+}
+
+test_that("ac-4 modelo-vazio, clamp de cross, flag-12 e cauda curta completam com a condicao esperada; kill-switches de ENV sem efeito", {
+  eng <- rb_engine()
+  clean <- rb_four_cases(eng)
+  expect_identical(clean$empty$msgs, "warning.engine_empty_model_guard")
+  expect_true("tune" %in% clean$empty$class)
+  expect_identical(clean$empty$dropped, "LAG_1")
+  expect_identical(clean$cross$msgs, "warning.engine_cross_clamped")
+  expect_true(any(grepl("nao-modelado (12)", clean$flag12$msgs, fixed = TRUE)))
+  expect_identical(clean$flag12$tipo, c(0L, 6L))
+  expect_identical(clean$tail$n, 216L)
+  expect_true(clean$tail$finite)
+  expect_length(clean$tail$msgs, 2L)
+  expect_true(all(grepl("persistido do ultimo dia completo", clean$tail$msgs, fixed = TRUE)))
+  withr::local_envvar(DESSEM_EXOG_TAIL_FILL = "0", DESSEM_NORMALIZE_CODES = "0")
+  expect_identical(Sys.getenv("DESSEM_EXOG_TAIL_FILL"), "0")
+  expect_identical(rb_four_cases(eng), clean)
+})
