@@ -24,7 +24,7 @@ rd3_cuts <- function(au) {
 }
 
 rd3_train <- function(p, exogena = "MED", pan = rd3_panel()) {
-  rd_with_cli(suppressMessages(rd_lib$prevcarga_plugin_train(p, rd_lib$to_hourly(pan), rd3_cuts(rd3_au(9L)),
+  rd_with_cli(suppressMessages(rd_lib$prevcarga_plugin_train(p, pan, rd3_cuts(rd3_au(9L)),
                                                             rd2_spec(exogena), ctx = rd2_ctx())))
 }
 
@@ -33,7 +33,7 @@ rd3_infer <- function(p, art, au, pan = NULL, perturb = NULL) {
   if (is.null(pan)) pan <- rd3_panel(until = au)
   pan$weather_forecast <- pan$weather_forecast[issue_time <= au]            # nenhuma emissao depois do limite do corte
   if (!is.null(perturb)) pan$load[perturb(interval_start), load_mwh := load_mwh + 500]
-  rd_with_cli(suppressMessages(rd_lib$prevcarga_plugin_infer(p, art, rd_lib$to_hourly(pan), rd3_cuts(au))))
+  rd_with_cli(suppressMessages(rd_lib$prevcarga_plugin_infer(p, art, pan, rd3_cuts(au))))
 }
 
 ## forecast ACOPLADO do plugin (treina ate O-1 e infere numa passada, em memoria) sobre o MESMO painel do infer

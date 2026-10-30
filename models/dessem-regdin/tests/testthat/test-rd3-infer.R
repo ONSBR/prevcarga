@@ -75,7 +75,9 @@ test_that("[RD.3] AC3: cabeca so com mm (00:00 nao aciona), set.seed antes, FORB
   ## FORBIDDEN: a carga de O alem de available_until nunca chega (o despachante recusa); a meia hora 09:00-09:30 e ignorada
   cond <- tryCatch(rd3_infer(p, st$med, rd3_au(9L), pan = rd3_panel(until = rd3_au(10L))), prevcarga_error = function(c) c)
   expect_identical(cond$id, "plugin.infer_beyond_cut")
-  expect_identical(rd3_infer(p, st$med, rd3_au(9L), pan = rd3_panel(until = rd3_au(9L, 30L)))$delivery, r09$e$delivery)
+  ## o despachante confere o painel CRU contra o corte antes de reamostrar: a meia hora 09:00-09:30 tambem e recusada
+  cond30 <- tryCatch(rd3_infer(p, st$med, rd3_au(9L), pan = rd3_panel(until = rd3_au(9L, 30L))), prevcarga_error = function(c) c)
+  expect_identical(cond30$id, "plugin.infer_beyond_cut")
   base <- run(rd3_au(9L, 30L))$e
   pert <- run(rd3_au(9L, 30L), perturb = function(s) lubridate::as_date(s) == RD2_O & lubridate::hour(s) == 9L & lubridate::minute(s) == 0L)$e
   expect_lte(rd3_ymax(base, pert), 1e-5)
