@@ -15,7 +15,7 @@ source(file.path(.dl_repo, "scripts", "tools", "plugin_gates.R"))
 
 ## gate, oracle (gate do oraculo), owner, tier. gate01/gate06 (LONG/y_true) = M6; gate03 (varias origens pela CLI) = M7.
 .dl_gates <- list(
-  list("descritor", "-", "PLUGINS", "fast"), list("ingestao", "-", "PLUGINS", "fast"),
+  list("00h", "-", "PLUGINS", "fast"), list("descritor", "-", "PLUGINS", "fast"), list("ingestao", "-", "PLUGINS", "fast"),
   list("nowcast_mm", "-", "PLUGINS", "fast"), list("treino_freeze", "-", "PLUGINS", "fast"),
   list("inferencia", "-", "PLUGINS", "fast"),
   list("gate02_escala_mw", "gate02", "PLUGINS", "fast"), list("gate04_exogena_params", "gate04", "PLUGINS", "fast"),

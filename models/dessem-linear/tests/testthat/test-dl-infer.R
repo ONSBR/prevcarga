@@ -229,7 +229,7 @@ test_that("[PLUGINS] inferencia: ac-6 ENV ignorado, formals sem params, cauda de
 ## Corte 00h (decisao do Gabriel): available_until = O 00:00 => nenhuma carga do dia O, como se nao houvesse informacao
 ## de O. `mm` fica sem a linha de O e a DM(O) e o SVM_DemandaMedia puro do motor (sem mm), ajustado logo apos
 ## set.seed(artifact$seed): o modo "paridade" do oraculo com origin_day = O-1 (dataPrev = O).
-test_that("00h: available_until O 00:00 entrega os 9 dias sem abortar, DM(O) sem mm (no_day_o); CONTROL 09:00 usa a cabeca e difere", {
+test_that("[PLUGINS] 00h: available_until O 00:00 entrega os 9 dias sem abortar, DM(O) sem mm (no_day_o); CONTROL 09:00 usa a cabeca e difere", {
   st <- di_state(); p <- st$p; eng <- st$eng; O <- di_O()
   spy <- di_spy(eng)
   seen <- new.env(); seen$fml <- list()
