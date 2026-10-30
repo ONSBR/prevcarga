@@ -61,7 +61,7 @@ test_that("ac-9 to_hourly exogenas: emissoes separadas, hora incompleta por emis
 test_that("ac-9 CONTROL: embaralhar as linhas nao muda a saida", {
   p <- pc_sentinel_panel(origin = O, days = 2, areas = c("A", "B"))
   q <- p
-  set.seed(1)
+  withr::local_seed(1)
   for (n in c("load", "weather_observed", "weather_forecast")) q[[n]] <- q[[n]][sample(.N)]
   expect_identical(to_hourly(q)[c("load", "weather_observed", "weather_forecast")],
                    to_hourly(p)[c("load", "weather_observed", "weather_forecast")])

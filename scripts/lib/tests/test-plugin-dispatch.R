@@ -74,7 +74,7 @@ test_that("ac-2 RNG do chamador e globalenv intactos; seed do run.yaml tem dente
   cuts <- cuts_for()
   p <- p30()
   tp <- pc_train_slice(FULL, cuts); ip <- pc_infer_slice(FULL, cuts)
-  set.seed(7); before <- rs(); snap <- pc_globalenv_snapshot()
+  withr::local_seed(7); before <- rs(); snap <- pc_globalenv_snapshot()
   a1 <- train(p, tp, cuts)
   expect_identical(rs(), before)
   prevcarga_plugin_infer(p, a1, ip, cuts, list())
