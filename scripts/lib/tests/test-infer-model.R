@@ -134,28 +134,44 @@ test_that("AC1: o registro do verbo e a tabela prevcarga_verbs; usage/options se
 root_cli <- pc_install_copy()
 im_cli <- function(args, fmt = NULL) pc_cli(root_cli, c("infer-model", args, if (!is.null(fmt)) c("--format", fmt)))
 
-test_that("AC1: infer-model --model lgbm --area SECO --horizon 3 => exit 8 [prevcarga/config]; stdout vazio (texto)", {
-  r <- im_cli(c("--model", "lgbm", "--area", "SECO", "--horizon", "3"))
+## data valido + state vazio: o unico motivo possivel de exit 8 config.usage e a flag (nao a falta de --data)
+im_cli_data <- function(args, fmt = "json")
+  im_cli(c(args, paste0("--data=", im_deck()), paste0("--state=", pc5_state_tmp(parent.frame()))), fmt)
+im_err_id <- function(r) jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE)$error$id
+
+test_that("AC1: infer-model --model lgbm --area SECO --horizon 3 => exit 8 config.usage (flag escopada); stdout vazio (texto)", {
+  r <- im_cli_data(c("--model", "lgbm", "--area", "SECO", "--horizon", "3"), NULL)
   expect_identical(r$status, 8L)
   expect_length(r$stdout, 0L)
   expect_true(any(grepl("[config]", r$stderr, fixed = TRUE)))
   pc_assert_ascii(r$raw, "infer-model --horizon")
 })
 
-test_that("AC1: o mesmo com --format json => um unico JSON com error.class = config; --exogena idem", {
+test_that("AC1: o mesmo com --format json => um unico JSON com error.id = config.usage; --exogena idem", {
   for (flag in c("--horizon", "--exogena")) {
-    r <- im_cli(c("--model", "lgbm", "--area", "SECO", flag, "3"), "json")
+    r <- im_cli_data(c("--model", "lgbm", "--area", "SECO", flag, "3"))
     expect_identical(r$status, 8L)
     expect_length(r$stdout, 1L)
     j <- jsonlite::fromJSON(r$stdout, simplifyVector = FALSE)
     expect_identical(j$error$class, "config")
+    expect_identical(j$error$id, "config.usage")
+    expect_identical(j$error$where, flag)
     expect_false(j$ok)
   }
 })
 
-test_that("AC1 [CONTROL]: a flag declarada (--variant) passa pelo docopt (nao e exit 8 de uso)", {
-  r <- im_cli(c("--model", "lgbm", "--area", "SECO", "--variant", "MED"), "json")
-  expect_false(identical(r$status, 8L) && identical(jsonlite::fromJSON(r$stdout, simplifyVector = FALSE)$error$id, "config.usage"))
+test_that("AC1 [CONTROL]: o mesmo comando SEM a flag passa do guard de uso (nao e config.usage nem data_dir_missing)", {
+  r <- im_cli_data(c("--model", "lgbm", "--area", "SECO"))
+  expect_false(im_err_id(r) %in% c("config.usage", "config.data_dir_missing"))
+  r2 <- im_cli_data(c("--model", "lgbm", "--area", "SECO", "--variant", "MED"))
+  expect_false(identical(im_err_id(r2), "config.usage"))
+})
+
+test_that("AC1 [CONTROL]: train-models continua aceitando --horizon/--exogena (so o infer-model recusa)", {
+  r <- pc_cli(root_cli, c("train-models", "--model=lgbm", "--area=SECO", "--horizon", "3", "--dry-run", "--format=json",
+                          paste0("--data=", im_deck()), paste0("--state=", pc5_state_tmp())))
+  id <- if (length(r$stdout)) im_err_id(r)
+  expect_false(identical(id, "config.usage"))
 })
 
 ## =====================================================================================================

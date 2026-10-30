@@ -71,6 +71,7 @@ prevcarga_verb_train_models <- list(
     "--dry-run               Emite a matriz (cortes e versao-alvo) sem gravar nada",
     "--jobs=<n>              Workers PSOCK (padrao 1; sem fork)",
     "--force                 Retreina mesmo se a versao v_<hash> ja existe"),
+  scoped  = c("--horizon", "--exogena"),   # so train-models; nos demais verbos => config.usage (cli.R .prevcarga_check_scoped)
   handler = function(ctx, args) cmd_train_models(ctx, args),
   owner   = "M5",
   exempt  = FALSE,
