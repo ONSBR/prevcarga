@@ -80,11 +80,11 @@ test_that("[PLUGINS] nowcast_mm: plugin_build_features devolve as series do moto
   fx <- dm_fixture()
   f <- fx$feats
   expect_identical(names(f)[1:5], c("processado", "serieDM", "seriePF", "config_mdl", "norm"))
-  expect_length(f$processado$DIASPREV, 9L)
-  expect_identical(f$processado$NDIASPREV, 9L)
+  expect_length(f$processado$DIASPREV, 10L)      # O..O+9 (9 entregues + 1 do motor)
+  expect_identical(f$processado$NDIASPREV, 10L)
   expect_identical(f$config_mdl$nomModelo, "Linear.TmpMedia")
   expect_true(all(c("dm_carga", "dm_exo", "pf_cargadm", "pf_exo") %in% names(f$norm)))
-  expect_identical(nrow(f$seriePF[Prev == TRUE]), 9L * 24L)
+  expect_identical(nrow(f$seriePF[Prev == TRUE]), 10L * 24L)
   expect_identical(f$deck$variant, "MED")
   msgs <- character()
   withCallingHandlers(

@@ -68,7 +68,7 @@ dl_assert_train_cut <- function(deck) {
        head_recipe = list(model_key = features$deck$model_key, config_mdl = features$config_mdl,
                           mm_norm = features$norm$dm_carga, dias = format(features$processado$DIASPREV)),
        variant = features$deck$variant, model_key = features$deck$model_key, area = features$deck$area,
-       horizon_days = as.integer(plugin_constants()$horizon_days), seed = as.integer(spec$seed),
+       horizon_days = as.integer(features$deck$horizon), seed = as.integer(spec$seed),
        rng_mode = mode, n_leak = as.integer(n_leak))
 }
 

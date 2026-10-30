@@ -24,7 +24,7 @@ test_that("[PLUGINS] ingestao: ac-2 exogena ausente, 'XYZ' ou 'med' aborta [prev
     expect_identical(dl_with_cli(suppressMessages(p$env$plugin_ingest(m$panel, m$cuts, dl_spec(ex, 40L))))$model_key, unname(p$env$plugin_constants()$model_key[[ex]]))
 })
 
-test_that("[PLUGINS] ingestao: ac-3 deck: DataHora como recebido, 24 linhas/dia, O..O+8, flag-12 -> 0, origin_load, tzone de cuts", {
+test_that("[PLUGINS] ingestao: ac-3 deck: DataHora como recebido, 24 linhas/dia, O..O+9, flag-12 -> 0, origin_load, tzone de cuts", {
   p <- dl_load()
   cuts <- dl_cuts(); O <- cuts$origin_day
   until <- lubridate::force_tz(lubridate::as_datetime(O), DL_TZ) + lubridate::hours(9L)
@@ -47,15 +47,15 @@ test_that("[PLUGINS] ingestao: ac-3 deck: DataHora como recebido, 24 linhas/dia,
   expect_identical(deck$EXOGENAHIST$DataHora, dl_lib$to_hourly(panel)$weather_observed[
     lubridate::as_date(valid_time) <= O - 1L & lubridate::as_date(valid_time) >= O - 401L]$valid_time)
   expect_identical(names(deck$EXOGENAHIST), c("DataHora", "Exo_Temperatura"))
-  ## EXOGENAPREV: 216 linhas O..O+8, emissao mais recente por valid_time (a de 06Z soma +100)
-  expect_identical(nrow(deck$EXOGENAPREV), 216L)
-  expect_identical(range(lubridate::as_date(deck$EXOGENAPREV$DataHora)), c(O, O + 8L))
+  ## EXOGENAPREV: 240 linhas O..O+9, emissao mais recente por valid_time (a de 06Z soma +100)
+  expect_identical(nrow(deck$EXOGENAPREV), 240L)    # O..O+9: o motor roda horizon_days + 1 dias (oraculo)
+  expect_identical(range(lubridate::as_date(deck$EXOGENAPREV$DataHora)), c(O, O + 9L))
   expect_gt(min(deck$EXOGENAPREV$Exo_Temperatura), 100)
-  ## FERIADOS: 12 -> 0; dataPrev = O; horizon = 9L
+  ## FERIADOS: 12 -> 0; dataPrev = O; horizon = 10L (9 entregues + 1 do motor)
   expect_identical(sort(unique(deck$FERIADOS$Tipo)), c(0L, 3L, 4L, 5L, 6L, 9L, 10L))
   expect_identical(sum(deck$FERIADOS$Tipo == 0L), 1L)
   expect_s3_class(deck$FERIADOS$Data, "Date")
-  expect_identical(deck$dataPrev, O); expect_identical(deck$horizon, 9L); expect_identical(deck$area, "SE")
+  expect_identical(deck$dataPrev, O); expect_identical(deck$horizon, 10L); expect_identical(deck$area, "SE")
   ## tzone de cuts em todo POSIXct
   for (x in list(deck$CARGAHIST$DataHora, deck$EXOGENAHIST$DataHora, deck$EXOGENAPREV$DataHora,
                  deck$origin_load$interval_end, deck$hourly_load$interval_end))
@@ -94,9 +94,9 @@ test_that("[PLUGINS] ingestao: ac-3 CONTROL: EXOGENAPREV com 3 dias curtos => co
   cond <- expect_dl_error(p$env$plugin_ingest(m3$panel, m3$cuts, dl_spec("MED", 40L)),
                           "plugin.dessem_linear_series_gap", "EXOGENAPREV")
   expect_identical(cond$exit_code, 3L)
-  m2 <- dl_model_panel(dl_panel(days = 60L, fc_short = c(7L, 8L)), cuts)
+  m2 <- dl_model_panel(dl_panel(days = 60L, fc_short = c(8L, 9L)), cuts)
   deck <- dl_with_cli(suppressMessages(p$env$plugin_ingest(m2$panel, m2$cuts, dl_spec("MED", 40L))))
-  expect_identical(nrow(deck$EXOGENAPREV), 216L)
+  expect_identical(nrow(deck$EXOGENAPREV), 240L)
 })
 
 test_that("[PLUGINS] ingestao: ac-3 janela menor que history_days.train => [prevcarga/window] (exit 5); FERIADOS vazio => completude", {

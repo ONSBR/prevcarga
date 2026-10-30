@@ -31,7 +31,7 @@ dl_rb_complete <- function(e, cuts) {
 test_that("[PLUGINS] gate16_cauda_curta: cauda de EXOGENAPREV curta de 2 dias completa 9x48; 3 dias => completude exit 3", {
   st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st); art <- dl_base_art(); O <- cuts$origin_day
   ipan <- dl_fx_panel(st, cuts, "infer")
-  short <- function(k) { p <- ipan; p$weather_forecast <- ipan$weather_forecast[lubridate::as_date(valid_time, tz = DL_TZ) < O + 9L - k]; p }
+  short <- function(k) { p <- ipan; p$weather_forecast <- ipan$weather_forecast[lubridate::as_date(valid_time, tz = DL_TZ) < O + 10L - k]; p }
   base <- dl_infer(art, st, cuts)
   for (k in 1:2) {
     e <- dl_infer(art, st, cuts, panel = short(k))

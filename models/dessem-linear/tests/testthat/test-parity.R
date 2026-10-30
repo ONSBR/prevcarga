@@ -8,6 +8,13 @@
 ## scripts/tools/plugin_parity.R (.pc_parity_envelope) e o deck da unidade cortado em available_until; compara por
 ## prevcarga_parity_compare (layout dessem_semihourly_48, day0_source native): `values` 9x48 (O..O+8) contra native.rds (10x48; o O+9
 ## do oraculo sai como `fora_da_faixa`) e `delivery` contra o long.parquet do oraculo (interval_end = timestamp + 30 min).
+## DIVERGENCIA DELIBERADA (Gabriel 2026-10-30): hora incompleta e DESCARTADA tambem na previsao de clima (to_hourly da fundacao); o
+## oraculo tira a media dos slots existentes. Uma emissao 00Z termina em O+9 23:00 (hora 23 com UM slot): o dia O+9 fica curto e e
+## persistido, o que alcanca as ULTIMAS horas anteriores (spline monoH.FC de desagregaModeloSH e normalizacao do treino): os
+## intervalos nomeados saem de `dlp_partial_from` (3 h antes do dia cuja ultima hora do clima previsto tem um slot so). A comparacao
+## e EXATA (<= 1e-5) em todo o resto de O..O+8; a divergencia nomeada e MEDIDA e listada; o CONTROL emula a media de hora parcial do
+## oraculo numa copia do painel de infer (acrescenta o slot :30 que falta, mesmo valor) e TUDO tambem fecha em <= 1e-5: a causa e so
+## essa regra.
 ## O runtime do oraculo e R 4.4.3 + biblioteca com WeightSVM/rlist (oracle_env R_LIBS_USER): o fingerprint do lock e conferido com esse
 ## Rscript e o env gravado no invocation.json do golden (como o motor, DL.4). Tambem mede a regua split x forecast acoplado (ADR-0031)
 ## e grava tests/parity/foundation_report.json (sha256 por unidade) quando roda o grupo `foundation` inteiro.
@@ -24,7 +31,7 @@ DLP_ORACLE_RSCRIPT <- "/opt/R/4.4.3/bin/Rscript"  # runtime do oraculo (WeightSV
 DLP_ORACLE <- "/opt/ons-source/prevcargadessem3"
 DLP_REGEN <- "golden ausente ou divergente: regere com scripts/tools/plugin_golden.R --model dessem-linear"
 DLP_BASE <- "seco-2024-10-15"                    # unidade-base dos CONTROLs
-DLP_WMAPE_TAIL <- 0.01                           # [TBD: ADR-0031] cauda split x acoplado
+DLP_WMAPE_TAIL <- 0.01
 
 dlp_tier <- function() if (exists(".pc_gates_state", envir = globalenv())) get(".pc_gates_state", envir = globalenv())$tier else "parity"
 dlp_gate_tier <- function(min) if (exists("pc_gate_tier", mode = "function")) pc_gate_tier(min) else invisible(TRUE)
@@ -55,7 +62,10 @@ dlp_groups <- function() {
 
 dlp_units <- function(groups) {
   us <- unlist(lapply(groups, function(g) dlp_group_units(g)), recursive = FALSE)
-  us[!duplicated(vapply(us, `[[`, "", "id"))]
+  us <- us[!duplicated(vapply(us, `[[`, "", "id"))]
+  only <- getOption("prevcarga.parity_only")          # opcao de DESENVOLVIMENTO (rodar poucas unidades); nunca usada pelo runner
+  if (length(only)) us <- us[vapply(us, `[[`, "", "id") %in% only]
+  us
 }
 
 ## --- golden.lock: ausente/divergente => mensagem de regerar (nunca skip) -----------------------------------------
@@ -126,11 +136,13 @@ dlp_setup <- function(u, params = NULL, seed = NULL) {
   sp <- plugin$spec
   if (length(params)) sp$params <- utils::modifyList(sp$params, params)
   if (!is.null(seed)) sp$seed <- as.integer(seed)
+  ## Previsto: TODAS as emissoes ate o limite de O (`cuts$weather_issue_limit`, origin_midnight_utc) nas DUAS fases: o split e
+  ## origem-escopado (train_origin = O) e o oraculo treina com as emissoes ate O 00Z (o clima previsto entra na normalizacao do
+  ## treino); ler o painel de treino em O-1 daria a emissao de O-1 e normalizacao diferente (medido: SP 2024-11-15).
   read <- function(origin, hist) {
     p <- suppressWarnings(dl_lib$prevcarga_read_panel(ctx, origin, u$area, sp$horizon_days, hist))
-    lim <- attr(p$weather_forecast, "weather_issue_limit")
-    fc <- dl_lib$prevcarga_read_weather(ctx, "forecast", u$area, origin - hist, origin + sp$horizon_days + 1L)
-    p$weather_forecast <- fc[issue_time <= lim]       # todas as emissoes ate o limite (safra por origem nativa); painel de 30 min CRU
+    fc <- dl_lib$prevcarga_read_weather(ctx, "forecast", u$area, origin - hist, u$origin + sp$horizon_days + 2L)
+    p$weather_forecast <- fc[issue_time <= cuts$weather_issue_limit]       # painel de 30 min CRU
     p
   }
   list(plugin = plugin, deck = deck, cuts = cuts, sp = sp, read = read, hist = sp$history_days, u = u)
@@ -151,7 +163,7 @@ dlp_run <- function(u, mode = c("split", "coupled"), params = NULL, seed = NULL)
   dlp_quiet({
     if (identical(mode, "split")) {
       art <- dl_lib$prevcarga_plugin_train(s$plugin, s$read(s$cuts$last_data_day, s$hist$train), c(cuts, list(phase = "train")), s$sp, list())
-      ip <- s$read(u$origin, s$hist$infer)
+      ip <- s$read(u$origin, s$hist$infer + 1L)      # janela do oraculo: history_start + 1 dia de aquecimento (data_adapter.R)
       env <- dl_lib$prevcarga_plugin_infer(s$plugin, art, ip, c(cuts, list(phase = "infer")), list())
       out <- list(env = env, art = art, infer_panel = ip, setup = s)
     } else {
@@ -164,9 +176,79 @@ dlp_run <- function(u, mode = c("split", "coupled"), params = NULL, seed = NULL)
   out
 }
 
-dlp_compare <- function(run, gold, u) dlp_tools()$prevcarga_parity_compare(run$env, gold, u, tol = DLP_TOL)
+## DIVERGENCIA DELIBERADA, intervalos NOMEADOS: a regra (hora incompleta descartada tambem no clima previsto) afeta o dia cuja
+## ultima hora do clima previsto mais fresco tem UM slot (valid_time :00 sem o :30 seguinte; a 00Z termina em O+9 23:00; em AC
+## 2025-06-30 a emissao 06-29 termina em O+8 23:00) e, pelo spline monoH.FC e pela normalizacao do treino, as horas anteriores
+## (DLP_REACH_HOURS = 3 h, medido). Devolve o interval_end a partir do qual (exclusivo) a unidade esta na divergencia nomeada.
+DLP_REACH_HOURS <- 3L
+dlp_partial_from <- function(run, u) {
+  fc <- data.table::copy(run$infer_panel$weather_forecast)
+  data.table::setorder(fc, valid_time, -issue_time)
+  fc <- fc[, .SD[1L], by = valid_time]
+  fc <- fc[valid_time >= lubridate::force_tz(lubridate::as_datetime(u$origin), lubridate::tz(u$available_until))]
+  data.table::setorder(fc, valid_time)
+  v <- fc$valid_time
+  part <- lubridate::minute(v) == 0L & !((v + lubridate::minutes(30L)) %in% v)
+  part[length(v)] <- lubridate::minute(v[length(v)]) == 0L
+  if (!any(part)) return(NULL)
+  d0 <- lubridate::force_tz(lubridate::as_datetime(lubridate::as_date(v[which(part)[1L]], tz = lubridate::tz(v))), lubridate::tz(v))
+  d0 - lubridate::hours(DLP_REACH_HOURS)
+}
 
-dlp_report_line <- function(r) sprintf("%s max|D|=%.3e worst=%s", r$unit, r$max_abs_delta, paste(r$worst, collapse = ","))
+## interval_end de cada celula de `values` (linha r = dia O+r-1, coluna c termina em 00:00 + 30 min c)
+dlp_cell_ends <- function(u, nr) {
+  t0 <- lubridate::force_tz(lubridate::as_datetime(u$origin), lubridate::tz(u$available_until))
+  matrix(as.numeric(t0 + lubridate::days(rep(seq_len(nr) - 1L, 48L)) + lubridate::minutes(30L * rep(1:48, each = nr))), nr, 48L)
+}
+
+## Comparacao da fundacao + decomposicao: delta EXATO fora dos intervalos nomeados (values e delivery) e delta MEDIDO dentro deles.
+## `ok` = forma, NA, corte e cobertura da entrega ok e max|D| fora dos intervalos nomeados <= 1e-5 (limiar unico).
+dlp_compare <- function(run, gold, u) {
+  r <- dlp_tools()$prevcarga_parity_compare(run$env, gold, u, tol = DLP_TOL)
+  gm <- gold$native$values[seq_len(nrow(run$env$values)), , drop = FALSE]; em <- run$env$values
+  d <- if (identical(dim(gm), dim(em))) abs(gm - em) else matrix(Inf, 1L, 1L)
+  from <- dlp_partial_from(run, u)
+  tail <- if (is.null(from) || any(is.infinite(d))) matrix(FALSE, nrow(d), ncol(d)) else dlp_cell_ends(u, nrow(d)) > as.numeric(from)
+  dl <- run$env$delivery
+  ref <- gold$long$y_pred[match(as.numeric(dl$interval_end), as.numeric(gold$long$timestamp + lubridate::minutes(30L)))]
+  dd <- abs(dl$y_pred - ref)
+  in_tail <- if (is.null(from)) rep(FALSE, nrow(dl)) else as.numeric(dl$interval_end) > as.numeric(from)
+  mx <- function(x) if (any(!is.na(x))) max(x, na.rm = TRUE) else 0
+  r$max_abs_delta_full <- r$max_abs_delta
+  r$max_abs_delta <- max(mx(d[!tail]), mx(dd[!in_tail]))
+  r$cells_over <- which(d > DLP_TOL & !tail, arr.ind = TRUE)
+  r$delivery_over <- format(dl$interval_end[!in_tail & !is.na(dd) & dd > DLP_TOL], "%m-%d %H:%M")
+  r$tail_max_abs_delta <- max(mx(d[tail]), mx(dd[in_tail]))
+  r$tail_from <- if (is.null(from)) NA_character_ else format(from, "%Y-%m-%d %H:%M")
+  r$tail_intervals <- if (is.null(from)) character() else format(range(dl$interval_end[in_tail]), "%Y-%m-%d %H:%M")
+  r$ok <- isTRUE(r$shape_ok) && isTRUE(r$na_ok) && isTRUE(r$cut_ok) && r$delivery_missing == 0L && r$max_abs_delta <= DLP_TOL
+  r
+}
+
+## CONTROL da causa: infer com a media de hora parcial do oraculo emulada numa COPIA do painel de infer (acrescenta, em cada
+## emissao, o slot :30 que falta na ultima hora, com o valor do slot :00 = a media dos slots existentes). Reusa o artefato do split.
+## Compara TUDO (inclusive a cauda) com o limiar unico.
+dlp_emulated <- function(run, gold, u) {
+  key <- paste0("emu-", u$id)
+  if (!is.null(.dlp$runs[[key]])) return(.dlp$runs[[key]])
+  s <- run$setup
+  ip <- run$infer_panel
+  fc <- data.table::copy(ip$weather_forecast)
+  last <- fc[, .SD[which.max(valid_time)], by = issue_time]
+  last <- last[lubridate::minute(valid_time) == 0L]
+  add <- data.table::copy(last)[, valid_time := valid_time + lubridate::minutes(30L)]
+  ip$weather_forecast <- data.table::rbindlist(list(fc, add), use.names = TRUE, fill = TRUE)
+  cuts <- c(s$cuts, list(spec = s$sp, phase = "infer"))
+  env <- NULL
+  dlp_quiet(env <- dl_lib$prevcarga_plugin_infer(s$plugin, run$art, ip, cuts, list()))
+  r <- dlp_tools()$prevcarga_parity_compare(env, gold, u, tol = DLP_TOL)
+  out <- list(r = r, added = nrow(add))
+  .dlp$runs[[key]] <- out
+  out
+}
+
+dlp_report_line <- function(r) sprintf("%s max|D|=%.3e (fora da divergencia nomeada; cheio %.3e, nomeada %.3e desde %s) celulas>tol=%d", r$unit,
+                                       r$max_abs_delta, r$max_abs_delta_full, r$tail_max_abs_delta, r$tail_from, nrow(r$cells_over))
 
 ## regua split x acoplado (ADR-0031): dia D (O) e cauda O+1..O+8 do infer separado contra o forecast acoplado
 dlp_split_ruler <- function(a, b) {
@@ -186,12 +268,15 @@ dlp_sha_text <- function(txt) digest::digest(txt, algo = "sha256", serialize = F
 dlp_sha_obj <- function(x) dlp_sha_text(as.character(jsonlite::toJSON(dlp_canon(x), auto_unbox = TRUE, null = "null", digits = 15, na = "null")))
 
 ## entrada por unidade: so escalares (lista), valores em 12 digitos significativos (relido do JSON da o mesmo texto canonico)
-dlp_report_entry <- function(u, r, lock, split = NULL) {
+dlp_report_entry <- function(u, r, lock, split = NULL, emu = NULL) {
   e <- list(unit = u$id, area = u$area, origin = format(u$origin), layout = r$layout, ok = isTRUE(r$ok),
             max_abs_delta = signif(r$max_abs_delta, 12), n_compared = as.integer(r$n_compared),
             fora_da_faixa = as.integer(r$fora_da_faixa), fora_da_faixa_long = as.integer(r$fora_da_faixa_long),
             shape_ok = isTRUE(r$shape_ok), na_ok = isTRUE(r$na_ok), delivery_ok = isTRUE(r$delivery_ok), cut_ok = isTRUE(r$cut_ok),
             day0_source = r$day0_source, golden_native_sha256 = lock$units[[u$id]]$files[["native.rds"]])
+  e$max_abs_delta_full <- signif(r$max_abs_delta_full, 12)
+  e$deliberate_divergence_from <- r$tail_from; e$tail_max_abs_delta <- signif(r$tail_max_abs_delta, 12); e$tail_intervals <- as.list(r$tail_intervals)
+  if (!is.null(emu)) { e$emulated_partial_hour_max_abs_delta <- signif(emu$max_abs_delta, 12); e$emulated_ok <- isTRUE(emu$ok) }
   if (!is.null(split)) {
     e$split_day0_delta <- signif(split$day0_delta, 12); e$split_tail_wmape <- signif(split$tail_wmape, 12)
     e$split_max_abs_delta <- signif(split$max_abs_delta, 12)
@@ -207,7 +292,7 @@ dlp_report_write <- function(entries, path = DLP_REPORT(), groups = "foundation"
   units <- unname(entries[order(names(entries), method = "radix")])
   rep <- list(model = DLP_MODEL, groups = as.list(groups), tolerance = DLP_TOL, wmape_tail_limit = DLP_WMAPE_TAIL,
               golden_lock_sha256 = lock_sha, oracle_commit = jsonlite::read_json(DLP_LOCK())$oracle_commit,
-              all_ok = all(vapply(units, function(e) isTRUE(e$ok) && isTRUE(e$split_ok %||% TRUE), NA)), units = units)
+              all_ok = all(vapply(units, function(e) isTRUE(e$ok) && isTRUE(e$split_ok %||% TRUE) && isTRUE(e$emulated_ok %||% TRUE), NA)), units = units)
   rep$sha256 <- dlp_sha_obj(units)
   txt <- jsonlite::toJSON(rep, auto_unbox = TRUE, null = "null", digits = 15, na = "null", pretty = TRUE)
   writeBin(charToRaw(paste0(paste(as.character(txt), collapse = "\n"), "\n")), path)
@@ -279,19 +364,21 @@ test_that("[PLUGINS] paridade: values O..O+8 e delivery vs oraculo, max|d| <= 1e
     expect_true(isTRUE(r$shape_ok) && isTRUE(r$na_ok), info = u$id)                       # values 9x48: mesma forma e mesmo padrao de NA
     expect_identical(dim(run$env$values), c(9L, 48L))
     expect_identical(dim(gold$native$values), c(10L, 48L))                                # O..O+9 do oraculo
-    expect_true(isTRUE(r$delivery_ok), info = u$id)
     expect_identical(as.integer(r$delivery_missing), 0L)                                  # toda celula da entrega tem par no long do oraculo
     expect_true(isTRUE(r$cut_ok), info = u$id)
     expect_identical(as.integer(r$fora_da_faixa), 48L)                                    # O+9 do oraculo (1 dia x 48)
     expect_identical(as.integer(r$fora_da_faixa_long), 48L)
     expect_identical(run$env$available_until, u$available_until)
-    expect_lte(r$max_abs_delta, DLP_TOL)                                                  # Delta = 0 (limiar fixo)
+    expect_lte(r$max_abs_delta, DLP_TOL)                                                  # Delta = 0 (limiar fixo) fora da cauda nomeada
     expect_true(isTRUE(r$ok), info = dlp_report_line(r))
     ## delivery$interval_end = timestamp do oraculo + 30 min em toda celula: min(entrega) = available_until + 30 min
     expect_identical(min(run$env$delivery$interval_end), u$available_until + lubridate::minutes(30))
-    ## gate02 no deck REAL: finita, positiva e mediana na faixa do SIN (5000-120000 MW)
+    ## gate02 no deck REAL: finita, positiva, mediana ~ carga recente da area (e 5000-120000 MW em SECO)
     expect_true(all(is.finite(run$env$values)) && all(run$env$values > 0), info = u$id)
-    expect_gt(stats::median(run$env$delivery$y_pred), 5000); expect_lt(stats::median(run$env$delivery$y_pred), 120000)
+    ref_med <- stats::median(run$infer_panel$load[interval_start >= max(interval_start) - lubridate::days(7L), load_mwh])
+    r_med <- stats::median(run$env$delivery$y_pred) / ref_med
+    expect_gt(r_med, 0.5); expect_lt(r_med, 2)                                           # areas pequenas (GO, AC): escala relativa a carga recente
+    if (identical(u$area, "SECO")) { expect_gt(stats::median(run$env$delivery$y_pred), 5000); expect_lt(stats::median(run$env$delivery$y_pred), 120000) }
     ## regua split x acoplado nas origens da fundacao (area SECO): dia D == separado (<= 1e-5), cauda WMAPE <= 1% [TBD: ADR-0031]
     sp <- NULL
     if (identical(u$area, "SECO")) {
@@ -300,7 +387,15 @@ test_that("[PLUGINS] paridade: values O..O+8 e delivery vs oraculo, max|d| <= 1e
       expect_lte(sp$day0_delta, DLP_TOL)
       expect_lte(sp$tail_wmape, DLP_WMAPE_TAIL)
     }
-    entries[[u$id]] <- dlp_report_entry(u, r, lock, sp)
+    emu <- dlp_emulated(run, gold, u)
+    if (length(r$delivery_over) || nrow(r$cells_over))
+      cat(sprintf("OVER %s values=%s delivery=%s\n", u$id, paste(apply(r$cells_over, 1L, paste, collapse = ":"), collapse = " "),
+                  paste(r$delivery_over, collapse = " ")), file = stderr())
+    cat(sprintf("EMU %s max=%.3g\n", u$id, emu$r$max_abs_delta), file = stderr())
+    expect_gt(emu$added, 0L)                                                              # o painel de teste teve hora parcial acrescentada
+    expect_lte(emu$r$max_abs_delta, DLP_TOL)                                              # CONTROL: com a regra do oraculo a cauda tambem fecha
+    expect_true(isTRUE(emu$r$ok), info = dlp_report_line(emu$r))
+    entries[[u$id]] <- dlp_report_entry(u, r, lock, sp, emu$r)
   }
   ## o grupo `foundation` inteiro rodou: grava o relatorio da fundacao (pre-condicao do fan-out, DL.10)
   found <- dlp_spec()$groups$foundation

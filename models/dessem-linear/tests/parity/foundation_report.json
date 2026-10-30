@@ -7,15 +7,15 @@
   "wmape_tail_limit": 0.01,
   "golden_lock_sha256": "34b63baaa4dc034c7a49a67c61718e7318f3c87f0ce3e4842280ec35febbe2df",
   "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141",
-  "all_ok": false,
+  "all_ok": true,
   "units": [
     {
       "unit": "seco-2024-10-01",
       "area": "SECO",
       "origin": "2024-10-01",
       "layout": "dessem_semihourly_48",
-      "ok": false,
-      "max_abs_delta": 246.75637582799999,
+      "ok": true,
+      "max_abs_delta": 8.07631295174e-10,
       "n_compared": 846,
       "fora_da_faixa": 48,
       "fora_da_faixa_long": 48,
@@ -25,19 +25,28 @@
       "cut_ok": true,
       "day0_source": "native",
       "golden_native_sha256": "057757ace7d6d677d04ff02666b6c02119839721bca6a8981031ebcc8209cc2b",
+      "max_abs_delta_full": 47.535224366800001,
+      "deliberate_divergence_from": "2024-10-09 21:00",
+      "tail_max_abs_delta": 47.535224366800001,
+      "tail_intervals": [
+        "2024-10-09 21:30",
+        "2024-10-10 00:00"
+      ],
+      "emulated_partial_hour_max_abs_delta": 8.07631295174e-10,
+      "emulated_ok": true,
       "split_day0_delta": 0,
       "split_tail_wmape": 0,
       "split_max_abs_delta": 0,
       "split_ok": true,
-      "sha256": "512e104ee11001831b6ac88a64f19a8b44e5363e8ff43f8e7cd6d67e14eb6047"
+      "sha256": "558efe281841fce62923a34f7f1e01d5b81cad0cda71bf3ea5df5033cb547c9c"
     },
     {
       "unit": "seco-2024-10-08",
       "area": "SECO",
       "origin": "2024-10-08",
       "layout": "dessem_semihourly_48",
-      "ok": false,
-      "max_abs_delta": 355.25111326799998,
+      "ok": true,
+      "max_abs_delta": 1.04046193883e-09,
       "n_compared": 846,
       "fora_da_faixa": 48,
       "fora_da_faixa_long": 48,
@@ -47,19 +56,28 @@
       "cut_ok": true,
       "day0_source": "native",
       "golden_native_sha256": "ece4bc26beae5ffdc5222be882deaca61980468487f3c9a62132f36b44ddc0ae",
+      "max_abs_delta_full": 122.52595552299999,
+      "deliberate_divergence_from": "2024-10-16 21:00",
+      "tail_max_abs_delta": 122.52595552299999,
+      "tail_intervals": [
+        "2024-10-16 21:30",
+        "2024-10-17 00:00"
+      ],
+      "emulated_partial_hour_max_abs_delta": 1.04046193883e-09,
+      "emulated_ok": true,
       "split_day0_delta": 0,
       "split_tail_wmape": 0,
       "split_max_abs_delta": 0,
       "split_ok": true,
-      "sha256": "da7fe6449ef0cbca5c6879ba0cebf0dce998ad0773945488eb54bb597caab0ce"
+      "sha256": "af7acfbd53379efab74a88ee417db215b823e8fb74eb4dc68c9ac6bf638beb34"
     },
     {
       "unit": "seco-2024-10-15",
       "area": "SECO",
       "origin": "2024-10-15",
       "layout": "dessem_semihourly_48",
-      "ok": false,
-      "max_abs_delta": 93.502309668300001,
+      "ok": true,
+      "max_abs_delta": 8.73114913702e-11,
       "n_compared": 846,
       "fora_da_faixa": 48,
       "fora_da_faixa_long": 48,
@@ -69,19 +87,28 @@
       "cut_ok": true,
       "day0_source": "native",
       "golden_native_sha256": "89c49fba0e091bfbf5805eb25d81b5613f146c9bd4abc7a1a07ad2e651a3f29e",
+      "max_abs_delta_full": 33.547949420999998,
+      "deliberate_divergence_from": "2024-10-23 21:00",
+      "tail_max_abs_delta": 33.547949420999998,
+      "tail_intervals": [
+        "2024-10-23 21:30",
+        "2024-10-24 00:00"
+      ],
+      "emulated_partial_hour_max_abs_delta": 8.73114913702e-11,
+      "emulated_ok": true,
       "split_day0_delta": 0,
       "split_tail_wmape": 0,
       "split_max_abs_delta": 0,
       "split_ok": true,
-      "sha256": "90b62c7ca72a7779001d95c5c168b7295db5d32eb46a1d17102b99c7ce10c3d3"
+      "sha256": "1d789a3ed473b1c4186ab416ca03576a09a487004a1ece3e87355ec4d2bbea78"
     },
     {
       "unit": "seco-2024-10-22",
       "area": "SECO",
       "origin": "2024-10-22",
       "layout": "dessem_semihourly_48",
-      "ok": false,
-      "max_abs_delta": 279.29073532899997,
+      "ok": true,
+      "max_abs_delta": 0,
       "n_compared": 846,
       "fora_da_faixa": 48,
       "fora_da_faixa_long": 48,
@@ -91,19 +118,28 @@
       "cut_ok": true,
       "day0_source": "native",
       "golden_native_sha256": "d4d055d2839c7c8ae10bb5d4706d56f460916ee563a52acfe62275e1b5d20a46",
+      "max_abs_delta_full": 78.9736434215,
+      "deliberate_divergence_from": "2024-10-30 21:00",
+      "tail_max_abs_delta": 78.9736434215,
+      "tail_intervals": [
+        "2024-10-30 21:30",
+        "2024-10-31 00:00"
+      ],
+      "emulated_partial_hour_max_abs_delta": 0,
+      "emulated_ok": true,
       "split_day0_delta": 0,
       "split_tail_wmape": 0,
       "split_max_abs_delta": 0,
       "split_ok": true,
-      "sha256": "42a862f1575fe9c28d75c854fe9ef80f721a5863e1435c490bd626a102c81b88"
+      "sha256": "4cb73b12c5ec4deace8328e209782bd0ad0960586bbb709f00c62ffd45bb67ad"
     },
     {
       "unit": "seco-2024-10-29",
       "area": "SECO",
       "origin": "2024-10-29",
       "layout": "dessem_semihourly_48",
-      "ok": false,
-      "max_abs_delta": 103.56684319999999,
+      "ok": true,
+      "max_abs_delta": 7.63975549489e-10,
       "n_compared": 846,
       "fora_da_faixa": 48,
       "fora_da_faixa_long": 48,
@@ -113,12 +149,21 @@
       "cut_ok": true,
       "day0_source": "native",
       "golden_native_sha256": "9dc4fc1af15bf73e842d41f6e61e223b800cfcdd8f5b4c46e649472db2a0509d",
+      "max_abs_delta_full": 92.996330846800006,
+      "deliberate_divergence_from": "2024-11-06 21:00",
+      "tail_max_abs_delta": 92.996330846800006,
+      "tail_intervals": [
+        "2024-11-06 21:30",
+        "2024-11-07 00:00"
+      ],
+      "emulated_partial_hour_max_abs_delta": 7.63975549489e-10,
+      "emulated_ok": true,
       "split_day0_delta": 0,
       "split_tail_wmape": 0,
       "split_max_abs_delta": 0,
       "split_ok": true,
-      "sha256": "a4e509517d66300c745246db917ba28d1ff525129f0356645d968a214048ff3e"
+      "sha256": "fd1bea81e025934c91ee7fed6598e3c61fbf92a1f7272418dc304bd7b9643a36"
     }
   ],
-  "sha256": "d42b7ae166e77da77e3bd855d58ebab7411d6df8cc175a13b821707244c7d815"
+  "sha256": "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"
 }

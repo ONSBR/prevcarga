@@ -74,14 +74,21 @@ dl_foundation <- function(name) {
 .dl_envelope <- function(hourly, a, cuts, warnings = character()) {
   x <- data.table::data.table(interval_end = hourly$DataHora, y_pred = hourly$Carga)
   acc <- new.env(parent = emptyenv()); acc$ws <- character()
-  rule <- function(z) { r <- dl_semihourly_rule(z); acc$sh <- r; r }          # a regra roda UMA vez (aviso unico)
+  nd <- plugin_constants()$horizon_days                                       # dias ENTREGUES (O..O+8)
+  ## a regra roda UMA vez (aviso unico) sobre TODOS os dias do motor (O..O+9: o spline do ultimo dia entregue ve o dia
+  ## seguinte, como no oraculo); a entrega e os `values` ficam com as 2 x 24 x nd primeiras
+  rule <- function(z) {
+    if (is.null(acc$full)) acc$full <- dl_semihourly_rule(x)
+    r <- acc$full[seq_len(2L * nrow(z))]; acc$sh <- r; r
+  }
   delivery <- withCallingHandlers(
-    dl_foundation("to_semihourly")(x, rule, cuts$available_until, cuts$origin_day + (plugin_constants()$horizon_days - 1L)),
+    dl_foundation("to_semihourly")(x[seq_len(nd * plugin_constants()$hours_per_day)], rule, cuts$available_until,
+                                   cuts$origin_day + (nd - 1L)),
     warning = function(w) {
       acc$ws <- c(acc$ws, if (inherits(w, "prevcarga_warning")) w$id else sub("^\\[([^]]+)\\].*$", "\\1", conditionMessage(w)))
       invokeRestart("muffleWarning")
     })
-  v <- matrix(as.numeric(acc$sh), nrow = plugin_constants()$horizon_days, ncol = 48L, byrow = TRUE)
+  v <- matrix(as.numeric(acc$sh), nrow = nd, ncol = 48L, byrow = TRUE)
   list(area = a$area, values = v, delivery = delivery,
        meta = list(warnings = unique(c(warnings, acc$ws)), rng_mode = a$rng_mode, dm_head_refit = TRUE))
 }
