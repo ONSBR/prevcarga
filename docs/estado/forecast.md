@@ -32,6 +32,11 @@
   com `niveis = tudo`) e membros (so com `incluir_membros`) pelo mesmo escritor deterministico do LONG (`.reconcile_write_parquet`); o `run.json` registra EM `arquivos[]`
   {path, area, linhas, sha256} TODO arquivo entregue (folhas, membros, subsistemas e SIN), senao o export os omitiria com `completude.export_file_missing`.
   `runtime_id` = R + plataforma (deterministico); `generated_at` vem do ctx (unico campo nao deterministico do manifest).
+- Identidade (`run_manifest.json`, fix/export-run-manifest): depois do `run.json`, `.forecast_run_manifest` grava no scratch o run-manifest do provenance.R
+  (`data_hash` do deck, `bundle_id` = `prevcarga_bundle_id`, `model_versions` `<sigla>/<folha>` + `combina/<folha>` + `khat/<ss>`, `split`/`delivery_days`/`seeds` por sigla
+  -- o construtor valida `split` escalar e ele e sobreposto depois, como a combina faz com `model_versions` --, `code_commit`/`renv_lock_hash` do ctx quando dados,
+  `run_id`/`versao` da chave). O `export` copia o arquivo para a entrega fora de `arquivos[]` e fora da comparacao da chave (rerun continua `ja_publicado`; entregas
+  antigas sem ele seguem no-op). E o que o `verificar` (M8.7) le na fase de identidade; teste `test-forecast_verificar.R`.
 - Avisos: `warnings` = avisos do catalogo capturados (gate-0 `warning.<what>`, `reconcile.*`, `completude.export_file_missing`) como `list(id, message)`; o verbo (M6.9) os emite.
 - Report (M6.5, `scripts/lib/reporting.R`, errors/reporting.tsv `contract.report_input`): `report = TRUE` roda `.forecast_report_step` DEPOIS do export; `result$report = {status "ok", path}` com
   `path = <state_dir>/reports/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/report.html` (fora de `forecasts/`; a entrega e identica com e sem report; falha do report: ver M6.10 abaixo; nunca

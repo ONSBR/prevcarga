@@ -6,7 +6,7 @@
 ## Ordem invariante: gate-0 (exit 3, antes de qualquer infer/scratch) -> plano de topologia (exit 4) -> infer por membro x folha
 ## (origin_agnostic so le artefato; origin_scoped treina so se nao ha artefato da origem O) -> LONG por membro -> combina (pesos
 ## congelados) -> reconcile UMA vez (em memoria; erros 13/15 sobem intactos, antes de criar scratch ou diretorio de entrega) ->
-## versao/chave imutavel -> scratch + run.json -> export. Rotulo de hora so nas bordas (interval_start por dentro, interval_end
+## versao/chave imutavel -> scratch + run.json + run_manifest.json (identidade) -> export. Rotulo de hora so nas bordas (interval_start por dentro, interval_end
 ## na saida do LONG). Sem relogio (`generated_at` vem do ctx), sem variaveis de ambiente. Saida ASCII.
 ## Requer errors.R, config.R, topology.R, provenance.R, schema_long.R, evaluation.R, deck_reader.R, dates.R, validation.R,
 ## features.R, registry.R, training.R, inference.R, combination.R, build_long_output.R, reconcile.R, exports.R e reporting.R carregados antes.
@@ -254,6 +254,35 @@
   .export_write_json(run, file.path(scratch, "run.json"))
 }
 
+## Identidade da rodada (`run_manifest.json` do scratch; o export a copia para a entrega, fora de arquivos[]; o `verificar` a le).
+## Contrato do provenance.R (prevcarga_run_manifest): data_hash = identidade do deck (prevcarga_data_hash, a mesma receita do
+## evaluation/orchestrate; ctx$data_hash sobrepoe), bundle_id = prevcarga_bundle_id (runtime.R), model_versions = versao de cada
+## artefato usado (`<sigla>/<folha>`, `combina/<folha>`, `khat/<ss>`), platform/tz/lc/blas do stamp. Os membros misturam classes de
+## split: `split`, `delivery_days` e `seeds` vao por sigla (o construtor valida `split` escalar; sobreposto depois, como a combina).
+.forecast_run_manifest <- function(ctx, g, members, lv, rec, mem, key) {
+  man <- prevcarga_deck_manifest(prevcarga_require_data_dir(ctx)$data_dir)
+  dh <- if (is.null(ctx$data_hash)) prevcarga_data_hash(ctx$data_dir, man, prevcarga_resolve_load_label(ctx, man)$value) else ctx$data_hash
+  mv <- list()
+  for (a in names(members)) for (sg in names(members[[a]])) mv[[paste0(sg, "/", a)]] <- members[[a]][[sg]]$version
+  for (a in names(lv$weights_version)) mv[[paste0("combina/", a)]] <- as.character(lv$weights_version[[a]])
+  for (ss in names(rec$khat)) mv[[paste0("khat/", ss)]] <- as.character(rec$khat[[ss]]$versao)
+  sg <- as.character(mem$sigla)
+  spec <- lapply(as.character(mem$mdir), prevcarga_model_spec, root = ctx$root)
+  dd <- lapply(as.character(mem$mdir), function(d)
+    as.integer(prevcarga_plugin_descriptor(d, prevcarga_models_root(ctx$root))$delivery_days))
+  m <- prevcarga_run_manifest(
+    data_hash = dh, origin = g$origin, available_until = g$cuts$available_until, load_label = g$cuts$load_label,
+    load_tz = g$cuts$tz, weather_issue_cutoff = g$cuts$weather_issue_cutoff, split = spec[[1L]]$split,
+    delivery_days = stats::setNames(dd, sg), model_versions = mv,
+    seeds = stats::setNames(lapply(spec, function(s) as.integer(s$seed)), sg), bundle_id = prevcarga_bundle_id(ctx$root),
+    root = ctx$root, package_version = if (is.null(ctx$version)) "unknown" else ctx$version, run_id = key$run_id,
+    members = mem, versao = key$versao)
+  m$split <- stats::setNames(lapply(spec, function(s) s$split), sg)
+  if (!is.null(ctx$code_commit)) m$code_commit <- ctx$code_commit
+  if (!is.null(ctx$renv_lock_hash)) m$renv_lock_hash <- ctx$renv_lock_hash
+  m
+}
+
 .forecast_result <- function(g, plan, rec, key, versao, niveis, exp, report) {
   list(origem = format(g$origin), available_until = .forecast_iso_min(g$cuts$available_until, g$cuts$tz),
        available_until_por_area = .forecast_au_by_area(g$cuts), weather_issue_cutoff = g$cuts$weather_issue_cutoff,
@@ -331,6 +360,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsi
     key <- prevcarga_export_key(g$origin, g$cuts$available_until, versao, g$cuts$tz)
     sc <- .forecast_write_scratch(rctx, key, plan, niveis, incluir_membros, lv, rec)
     .forecast_write_run_json(ctx, sc$dir, g, plan, lv, rec, versao, sc, incluir_membros)
+    prevcarga_write_run_manifest(.forecast_run_manifest(ctx, g, members, lv, rec, mem, key), sc$dir)
     exp <- prevcarga_export(sc$dir, key, niveis = niveis, incluir_membros = incluir_membros, ctx = ctx)
   }, prevcarga_warning = function(w) {
     sink$add(w$id, conditionMessage(w))
