@@ -189,11 +189,8 @@ pcc_infer_artifact <- function(plugin, art, member, ctx) {
   area <- pcc_area_of(member$mdir)
   spec <- art$spec_efetivo
   cuts <- .prevcarga_inf_cuts(plugin, spec, PCC_O, ctx, member$mdir)
-  panel <- prevcarga_read_panel(ctx, PCC_O, union(cuts$deck_areas, area), spec$horizon_days, spec$history_days$infer)
-  cuts$available_until <- panel$attrs$available_until
-  cuts$weather_issue_limit <- panel$attrs$weather_issue_limit
-  panel <- prevcarga_infer_panel(.prevcarga_inf_select_area(panel, area), cuts, spec)
-  suppressWarnings(suppressMessages(prevcarga_infer(plugin, art, panel, cuts, list(), spec = NULL)))
+  rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, PCC_O, ctx)   # a mesma montagem de prevcarga_infer_cell
+  suppressWarnings(suppressMessages(prevcarga_infer(plugin, art, rp$panel, rp$cuts, list(), spec = NULL)))
 }
 
 ## --- cenario `check_members`: a matriz de cobertura dos membros da topologia `opt$topology` ------------------------

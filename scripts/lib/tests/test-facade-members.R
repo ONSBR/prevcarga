@@ -150,3 +150,67 @@ test_that("leitor: a 00Z de O cobre desde 21:00 BRT de O-1; o painel do dia O sa
   expect_identical(unique(d2$issue_time), brt(O, 0))
   expect_identical(nrow(d2), 48L)
 })
+
+## =====================================================================================================
+## Janela do previsto com historico LONGO: a safra de cada origem que o plugin usa (treino e infer) chega no painel,
+## pelas duas montagens da fachada (prevcarga_train_inputs e prevcarga_infer_read_panel, a que prevcarga_infer_cell usa).
+## Janela derivada de spec/cuts; nada alem do limite de emissao.
+## =====================================================================================================
+FM_LONG <- 200L
+fm_long_deck <- local({
+  dir <- NULL
+  function() {
+    if (is.null(dir)) {
+      dir <<- tempfile("fm-long-")
+      env$prevcarga_fixture_deck(dir, seed = 11, areas = AREA, days = seq(O - (FM_LONG + 25L), O, by = "day"),
+                                 load_until = at("09:30"))
+    }
+    dir
+  }
+})
+fm_long_ctx <- function(mdir, rule = "origin_midnight_utc")
+  list(root = pc_root(), data_dir = fm_long_deck(), weather_issue_cutoff = rule, origin = O, state_dir = tempdir(),
+       spec_overrides = list(history_days.train = FM_LONG, history_days.infer = FM_LONG))
+## dia (UTC) de cada emissao presente no previsto do painel
+fm_issue_days <- function(fc) sort(unique(lubridate::as_date(fc$issue_time, tz = "UTC")))
+
+test_that("random-forest com historico longo: treino e infer recebem a emissao 00Z de cada origem nativa; nada alem do limite", {
+  m <- FM_MEMBERS[["random-forest"]]
+  ctx <- fm_long_ctx("random-forest")
+  inp <- suppressWarnings(env$prevcarga_train_inputs(m, AREA, O, ctx))
+  H <- inp$spec$horizon_days
+  first <- inp$cuts$train_origin - inp$spec$history_days$train
+  origins <- seq(first + H, inp$cuts$train_origin, by = "day")            # origens de treino do RF (ingestion.R)
+  fc <- inp$panel$weather_forecast
+  expect_true(all(origins %in% fm_issue_days(fc)))
+  expect_true(all(fc$issue_time <= inp$cuts$weather_issue_limit))
+  ## cada origem de treino tem os dias de horizonte 1..H no previsto da sua emissao
+  for (k in c(1L, length(origins))) {
+    T <- origins[[k]]
+    v <- fc[lubridate::as_date(issue_time, tz = "UTC") == T]
+    expect_true(all((T + seq_len(H)) %in% lubridate::as_date(v$valid_time, tz = TZ)), info = format(T))
+  }
+  ## infer: origens seq(O - history_days.infer, O), pela montagem que a celula usa
+  plugin <- env$prevcarga_plugin_load("random-forest", file.path(pc_root(), "models"))
+  spec <- inp$spec
+  cuts <- env$.prevcarga_inf_cuts(plugin, spec, O, ctx, "random-forest")
+  rp <- suppressWarnings(env$prevcarga_infer_read_panel(plugin, spec, cuts, AREA, O, ctx))
+  io <- seq(O - spec$history_days$infer, O, by = "day")
+  expect_true(all(io %in% fm_issue_days(rp$panel$weather_forecast)))
+  expect_true(all(rp$panel$weather_forecast$issue_time <= rp$cuts$weather_issue_limit))
+  ## CONTROL: o previsto do painel sem a troca (so a mais fresca por valid_time em O..O+H) nao traz as origens antigas
+  bare <- suppressWarnings(env$prevcarga_read_panel(ctx, O, AREA, spec$horizon_days, spec$history_days$infer))
+  expect_false(all(io %in% fm_issue_days(bare$weather_forecast)))
+})
+
+test_that("lgbm com historico longo: todo dia da janela de treino tem emissao com lead 0 (dia UTC <= dia valido)", {
+  m <- FM_MEMBERS[["lgbm"]]
+  inp <- suppressWarnings(env$prevcarga_train_inputs(m, AREA, O, fm_long_ctx("lgbm")))
+  first <- inp$cuts$train_origin - inp$spec$history_days$train
+  days <- seq(first, inp$cuts$last_data_day, by = "day")
+  fc <- inp$panel$weather_forecast
+  ok <- vapply(days, function(d) any(lubridate::as_date(fc$issue_time, tz = "UTC") <= d &
+                                        lubridate::as_date(fc$valid_time, tz = TZ) == d), NA)
+  expect_true(all(ok))
+  expect_true(all(fc$issue_time <= inp$cuts$weather_issue_limit))
+})

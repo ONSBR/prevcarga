@@ -183,6 +183,23 @@ prevcarga_infer_check_alignment <- function(pred, cuts, descriptor) {
   invisible(TRUE)
 }
 
+## Painel de infer da celula pelo leitor unico (unica montagem; a celula e os testes a reusam): le com todas as areas do
+## deck (corte global, M2.2), adota available_until/weather_issue_limit do painel, seleciona a area e, para plugin com
+## `weather_forecast_in_train`, troca o previsto por TODAS as emissoes <= limite em [O - history_days.infer, O + H] (o mesmo
+## insumo do treino, training.R). Devolve list(panel, cuts). Nenhum corte e calculado aqui.
+prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx) {
+  panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, spec$history_days$infer)
+  au <- panel$attrs$available_until
+  cuts$available_until <- if (inherits(au, "POSIXct") && length(au) == 1L && !is.na(au)) au else cuts$available_until
+  wl <- panel$attrs$weather_issue_limit
+  if (inherits(wl, "POSIXct") && length(wl) == 1L && !is.na(wl)) cuts$weather_issue_limit <- wl
+  panel <- .prevcarga_inf_select_area(panel, area)
+  if (isTRUE(plugin$descriptor$weather_forecast_in_train))
+    panel$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - spec$history_days$infer,
+                                                               origin + spec$horizon_days, cuts$weather_issue_limit)
+  list(panel = prevcarga_infer_panel(panel, cuts, spec), cuts = cuts)
+}
+
 prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, version = NULL, pin = FALSE) {
   if (is.null(origin)) origin <- prevcarga_resolve_origin(ctx)$origin
   origin <- lubridate::as_date(origin)
@@ -204,17 +221,9 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
   cuts <- .prevcarga_inf_cuts(plugin, spec, origin, ctx, member$mdir)
   prevcarga_infer_check_conventions(art, cuts, list(load_label = cuts$load_label), plugin$descriptor)
   .prevcarga_inf_check_artifact_cut(art, spec, cuts, member$mdir)
-  panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, spec$history_days$infer)
-  au <- panel$attrs$available_until
-  cuts$available_until <- if (inherits(au, "POSIXct") && length(au) == 1L && !is.na(au)) au else cuts$available_until
-  wl <- panel$attrs$weather_issue_limit
-  if (inherits(wl, "POSIXct") && length(wl) == 1L && !is.na(wl)) cuts$weather_issue_limit <- wl
-  panel <- .prevcarga_inf_select_area(panel, area)
-  ## mesmo insumo de clima do treino (training.R): o plugin que monta a propria safra recebe todas as emissoes <= limite
-  if (isTRUE(plugin$descriptor$weather_forecast_in_train))
-    panel$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - spec$history_days$infer,
-                                                               origin + spec$horizon_days, cuts$weather_issue_limit)
-  panel <- prevcarga_infer_panel(panel, cuts, spec)
+  rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, origin, ctx)
+  panel <- rp$panel
+  cuts <- rp$cuts
 
   pred <- prevcarga_infer(plugin, art, panel, cuts, list(), spec = NULL)
   prevcarga_infer_check_alignment(pred, cuts, plugin$descriptor)
