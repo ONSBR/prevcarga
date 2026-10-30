@@ -44,19 +44,37 @@ test_that("ac-4 freeze e puro (scan_pure limpo, sem call/environment) e thaw pre
   expect_identical(predict(eng$engine_svm_thaw(back$payload), fx$newdata), predict(m, fx$newdata))
 })
 
-test_that("ac-4 duas congelacoes do mesmo modelo tem o mesmo sha256 de serialize; lista de 24 perfis", {
+## DL.4: o artefato de um dia do plugin = 1 SVM de demanda media + 24 SVMs de perfil, todos DISTINTOS (dado e semente diferentes)
+sv_day <- function(eng) {
+  mk <- function(seed, h) {
+    set.seed(seed); n <- 120L
+    d <- data.table::data.table(LAG_1 = rnorm(n), LAG_7 = rnorm(n), Exo_Temperatura = rnorm(n), F01 = rbinom(n, 1L, 0.5))
+    d[, Carga := 5 + (1 + h / 24) * LAG_1 + LAG_7 - Exo_Temperatura + 0.1 * rnorm(n)]
+    tn <- eng$tune_wsvm(eng$getFormula(names(d)), iter.max = 500, weight = rep(1, n), data = d,
+                        ranges = list(cost = c(1, 2)), kernel = "linear")
+    list(model = tn$best.model, newdata = d[1:24])
+  }
+  list(dm = mk(100L, 0L), perfil = lapply(0:23, function(h) mk(200L + h, h)))
+}
+
+test_that("ac-4 1 DM + 24 perfis: freeze puro (scan_pure limpo), sha256 de serialize estavel em 2 execucoes, predict identico apos thaw", {
   eng <- eng_env(eng_load(eng_plugin_root()))
-  fx <- sv_fixture(eng)
+  day <- sv_day(eng)
   h <- function(x) {
     f <- tempfile(); on.exit(unlink(f)); writeBin(serialize(x, NULL, version = 3L), f); unname(tools::sha256sum(f))
   }
-  expect_identical(h(eng$engine_svm_freeze(fx$model)), h(eng$engine_svm_freeze(fx$model)))
-  perfis <- list("2025-06-20" = rep(list(fx$model), 24L))
-  fz <- eng$engine_svm_freeze(perfis)
-  expect_true(eng_lib$prevcarga_plugin_scan_pure(fz))
-  expect_length(fz[[1L]], 24L)
-  th <- eng$engine_svm_thaw(fz)
-  expect_identical(predict(th[[1L]][[24L]], fx$newdata), predict(fx$model, fx$newdata))
+  frz <- function() eng$engine_svm_freeze(list(dm = day$dm$model, perfil = lapply(day$perfil, `[[`, "model")))
+  fz1 <- frz(); fz2 <- frz()
+  expect_true(eng_lib$prevcarga_plugin_scan_pure(fz1))
+  expect_length(fz1$perfil, 24L)
+  expect_identical(h(fz1), h(fz2))                                   # sha256 estavel
+  ## CONTROL: modelos distintos => sha256 distintos (o hash enxerga o conteudo)
+  expect_false(identical(h(eng$engine_svm_freeze(day$perfil[[1L]]$model)), h(eng$engine_svm_freeze(day$perfil[[24L]]$model))))
+  th <- eng$engine_svm_thaw(fz1)
+  expect_identical(predict(th$dm, day$dm$newdata), predict(day$dm$model, day$dm$newdata))
+  for (k in 1:24) expect_identical(predict(th$perfil[[k]], day$perfil[[k]]$newdata), predict(day$perfil[[k]]$model, day$perfil[[k]]$newdata), info = k)
+  ## descongelar e congelar de novo e ponto fixo (mesmo sha256)
+  expect_identical(h(eng$engine_svm_freeze(th)), h(fz1))
 })
 
 test_that("ac-4 CONTROL: SV removido => [prevcarga/integrity] exit 9 engine.dessem_svm_thaw_failed", {

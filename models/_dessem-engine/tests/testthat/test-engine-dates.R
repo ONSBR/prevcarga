@@ -1,38 +1,71 @@
-## test-engine-dates.R -- DL.3: datas do motor em lubridate com tz explicito e sem aritmetica de hora (AC1..AC5).
-## Ate o P.0j entregar pc_grep_code()/pc_grep_time_arith(), o grep local abaixo aplica os mesmos padroes do AC1.
+## test-engine-dates.R -- DL.3/DL.4: datas do motor em lubridate com tz explicito e sem aritmetica de hora (AC1..AC5).
+## O grep do codigo e o da FUNDACAO (P.0j, scripts/lib/tests/helper-plugins.R): `pc_grep_code()` (padroes proibidos) e
+## `pc_grep_time_arith()` (aritmetica de hora) com a lista de excecoes VAZIA: o motor nao tem excecao (lag por indice, DL.3).
 
-## Padroes proibidos no motor (codigo, sem comentarios). Sem excecao: o lag de feature e por INDICE na grade
-## regular (obtemLagHora/obtemLagSemiHora), nunca `hours(<qualquer>)`/`minutes(<qualquer>)`.
-ENG_FORBIDDEN <- c("as\\.Date\\(", "as\\.POSIXct", "strptime", "difftime", "Sys\\.time", "Sys\\.Date", "Sys\\.getenv",
-                   "hours\\(", "minutes\\(", "\\b3600\\b", "\\b86400\\b",
-                   "to_model_frame\\(", "to_display_frame\\(")
+if (!exists("pc_grep_code", envir = eng_lib, inherits = FALSE))
+  sys.source(file.path(eng_root(), "scripts", "lib", "tests", "helper-plugins.R"), envir = eng_lib)
 
-## Devolve "arquivo:linha" de cada ocorrencia (comentarios descartados) + linhas com byte > 127.
-eng_grep_time <- function(files) {
-  hits <- character()
-  for (f in files) {
+## Padroes proibidos no motor (codigo, sem comentarios; mesma tabela do ticket + as chamadas de hora)
+ENG_FORBIDDEN <- list(
+  base_date = "as[.]Date[(]", base_posix = "as[.]POSIXct", strptime = "strptime", difftime = "difftime",
+  clock = "Sys[.]time", clock_d = "Sys[.]Date", env = "Sys[.]getenv", system = "(^|[^2a-z_])system2?[(]",
+  fork = "mclapply", superassign = "<<-", globalenv = "globalenv[(][)]",
+  lit_1h = "hours[(]1?[)]", hours_any = "hours[(]", minutes_30 = "minutes[(]", lit_3600 = "(?<![0-9.])3600L?(?![0-9])", lit_86400 = "(?<![0-9.])86400L?(?![0-9])",
+  frames = "to_model_frame[(]|to_display_frame[(]")
+
+eng_fmt_hits <- function(h) paste0(basename(h$file), ":", h$line, " [", h$pattern, "]", collapse = "; ")
+
+test_that("ac-1 motor sem padroes de data/hora proibidos (pc_grep_code + pc_grep_time_arith com allow vazio); sem bytes > 127", {
+  files <- sort(list.files(file.path(eng_dir(), "R"), pattern = "[.]R$", full.names = TRUE), method = "radix")
+  expect_gt(length(files), 9L)
+  ## UNICA divida pinada: `globalenv()` em engine_abort (engine.R) -- busca interina de `prevcarga_abort` da facade, a mesma
+  ## do `dl_abort` do plugin (discovery do DL.4). Qualquer outro hit, ou um 2o uso de globalenv(), reprova.
+  h <- eng_lib$pc_grep_code(files, ENG_FORBIDDEN)
+  expect_identical(paste0(basename(h$file), ":", h$line, " ", h$pattern), "engine.R:12 globalenv", info = eng_fmt_hits(h))
+  h2 <- eng_lib$pc_grep_code(files, eng_lib$pc_foundation_forbidden_tools)
+  expect_identical(nrow(h2), 0L, info = eng_fmt_hits(h2))
+  ## aritmetica de hora: SEM excecao (allow vazio); a lista versionada da fundacao tambem nao tem entrada do motor
+  r <- eng_lib$pc_grep_time_arith(eng_dir(), allow = list())
+  expect_identical(nrow(r), 0L, info = eng_fmt_hits(r))
+  expect_false(any(grepl("dessem|engine", names(eng_lib$pc_time_arith_allow()))))
+  expect_identical(nrow(eng_lib$pc_grep_time_arith(eng_dir())), 0L)
+  ## bytes > 127: em mensagens (helper da fundacao) e em qualquer linha do motor (ASCII puro)
+  expect_identical(nrow(eng_lib$pc_bytes_over_127(files)), 0L)
+  hi <- unlist(lapply(files, function(f) {
     ln <- readLines(f, warn = FALSE, encoding = "bytes")
-    code <- sub("#.*$", "", ln)
-    for (pt in ENG_FORBIDDEN) for (i in grep(pt, code, perl = TRUE)) hits <- c(hits, sprintf("%s:%d", basename(f), i))
-    for (i in which(vapply(ln, function(l) any(utf8ToInt(iconv(l, "latin1", "latin1")) > 127L), NA)))
-      hits <- c(hits, sprintf("%s:%d(nao-ASCII)", basename(f), i))
-  }
-  hits
-}
+    i <- which(vapply(ln, function(l) any(as.integer(charToRaw(l)) > 127L), NA))
+    if (length(i)) paste0(basename(f), ":", i) else character()
+  }))
+  expect_length(hi, 0L)
+})
 
-test_that("ac-1 motor sem padroes de data/hora proibidos; CONTROL: fixture com cada padrao e acusado linha a linha", {
-  files <- list.files(file.path(eng_dir(), "R"), pattern = "\\.R$", full.names = TRUE)
-  expect_identical(eng_grep_time(files), character())
-  fx <- tempfile(fileext = ".R")
-  writeLines(c("a <- as.Date(x)", "b <- as.POSIXct(x)", "c <- strptime(x, 'f')", "d <- difftime(a, b)", "e <- Sys.time()",
-               "f <- Sys.Date()", "g <- Sys.getenv('X')", "h <- DataHora %m-% hours(1)", "i <- DataHora %m+% hours()",
-               "j <- DataHora %m-% minutes(30)", "k <- x / 3600", "l <- x * 86400", "m <- to_model_frame(x, 60L)",
-               "n <- to_display_frame(x, 60L)", "o <- 'acentuação'", "p <- ok(1)",
-               "q <- x %m-% hours(k)", "r <- x %m+% minutes(lagsh * 30)"), fx, useBytes = FALSE)
-  hit <- eng_grep_time(fx)
-  expect_true(all(sprintf("%s:%d", basename(fx), c(1:14, 17, 18)) %in% hit))
-  expect_true(any(grepl(":15(nao-ASCII)", hit, fixed = TRUE)))
-  expect_false(any(grepl(":16", hit, fixed = TRUE)))
+test_that("ac-1 CONTROL: diretorio-fixture com um arquivo por padrao proibido; cada um acusado (inclusive DataHora %m-% hours(1))", {
+  d <- withr::local_tempdir(); dir.create(file.path(d, "m", "R"), recursive = TRUE)
+  plant <- c(base_date = "a <- as.Date(x)", base_posix = "b <- as.POSIXct(x)", strptime = "c <- strptime(x, 'f')",
+             difftime = "d <- difftime(a, b)", clock = "e <- Sys.time()", clock_d = "f <- Sys.Date()", env = "g <- Sys.getenv('X')",
+             system = "system('ls')", fork = "r <- parallel::mclapply(x, f)", superassign = "n <<- n + 1L",
+             globalenv = "e <- globalenv()", lit_1h = "h <- DataHora %m-% hours(1)", hours_any = "i <- DataHora %m+% hours(lagh)",
+             minutes_30 = "j <- DataHora %m-% minutes(30)", lit_3600 = "k <- DataHora + 3600L", lit_86400 = "l <- x * 86400",
+             frames = "m <- to_model_frame(x, 60L)")
+  fx <- character()
+  for (nm in names(plant)) {
+    f <- file.path(d, "m", "R", paste0("fx_", nm, ".R")); writeLines(c("# nada aqui", plant[[nm]], "# a <- hours(1)"), f); fx <- c(fx, f)
+  }
+  h <- eng_lib$pc_grep_code(fx, ENG_FORBIDDEN)
+  for (nm in names(plant)) {
+    got <- h[basename(file) == paste0("fx_", nm, ".R")]
+    expect_true(nm %in% got$pattern, info = nm)
+    expect_true(all(got$line == 2L), info = nm)        # a linha so-comentario nunca conta
+  }
+  ## pc_grep_time_arith (allow vazio) acusa o `DataHora %m-% hours(1)` e o lag `hours(lagh)` do antigo obtemLagHora
+  a <- eng_lib$pc_grep_time_arith(file.path(d, "m"), allow = list())
+  for (nm in c("lit_1h", "hours_any", "minutes_30", "lit_3600", "frames"))
+    expect_true(nrow(a[basename(file) == paste0("fx_", nm, ".R")]) > 0L, info = nm)
+  expect_true("period_arith" %in% a[basename(file) == "fx_lit_1h.R"]$pattern)
+  ## bytes > 127 em mensagem
+  f <- file.path(d, "m", "R", "fx_bytes.R")
+  writeBin(c(charToRaw("stop('a"), as.raw(c(0xC3, 0xA7)), charToRaw("')\n")), f)
+  expect_identical(eng_lib$pc_bytes_over_127(f)$line, 1L)
 })
 
 test_that("ac-2 do ticket: tzone de CARGAHIST diferente de cuts$tz => [prevcarga/contract] nomeando coluna e fusos; CONTROL segue", {

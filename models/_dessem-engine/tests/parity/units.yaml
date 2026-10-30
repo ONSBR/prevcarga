@@ -1,0 +1,26 @@
+# Unidades de paridade do motor DESSEM isolado (_dessem-engine, DL.4): clean-room x oraculo, limiar 1e-5 MW absoluto.
+# Contrato do plugin_golden.R (P.0f). O motor nao tem corte intradiario: o oraculo roda em modo paridade (dataPrev = O + 1,
+# available_until = 23:30 de O = default do load_dessem_input; o argumento --available-until e ignorado pelo driver) e
+# `history_days: 1825` (= O - 1825, history_start dos jobs de producao; so o caso TON/cross usa 730). A variante entra como `oracle_env: {EXOGENA: <v>}`
+# (MED -> Linear.TmpMedia, MAX -> Linear.TmpMaxima, MXMN -> Linear.TmpMaxMin). Cada unidade nomeia as chamadas comparadas.
+# Runtime do oraculo: R 4.4.3 + biblioteca com WeightSVM/e1071 (`--rscript` e `R_LIBS_USER` no oracle_env), como o DL.1.
+# Grupos: engine (golden numerico, 3 variantes SECO); robustez (modelo-vazio GO, TON/cross SP, flag-12 SP).
+packages: [WeightSVM, e1071, data.table, lubridate, rlist, jsonlite, arrow]
+rules:
+  forbid: [oracle_cut, cuts]
+  day0_source: [native]
+groups:
+  engine: [engine_med_seco_20241015, engine_max_seco_20241015, engine_mxmn_seco_20241015]
+  robustez: [robustez_go_20241005, robustez_ton_sp_20241119, robustez_flag12_sp_20241222]
+units:
+  # engine: SECO x {MED, MAX, MXMN} numa origem de outubro/2024; calls = processaModelosDMPerfil + desagregaModeloSH
+  - {id: engine_med_seco_20241015, area: "SECO", origin: "2024-10-15", available_until: "2024-10-15T23:30", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: engine_max_seco_20241015, area: "SECO", origin: "2024-10-15", available_until: "2024-10-15T23:30", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MAX", history_days: 1825, oracle_env: {EXOGENA: "MAX", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: engine_mxmn_seco_20241015, area: "SECO", origin: "2024-10-15", available_until: "2024-10-15T23:30", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MXMN", history_days: 1825, oracle_env: {EXOGENA: "MXMN", R_LIBS_USER: "/home/gabri/R/library"}}
+  # robustez (todos MED): GO 2024-10-05 (dummy rara -> modelo-vazio), SP 2024-11-19 (perfil de dia especial com amostra pequena ->
+  # cross: em modo paridade dataPrev = O + 1 = 2024-11-20, o feriado da Consciencia Negra, o 1o dia previsto; a origem 2024-11-20 do
+  # ticket poe o feriado no historico, onde a guarda nao age; e so com janela de 730 dias -- com 1825 ou 1095 a amostra do tipo ja
+  # chega a 10 e o clamp nao dispara), SP 2024-12-22 (codigo 12 no horizonte -> flag-12)
+  - {id: robustez_go_20241005, area: "GO", origin: "2024-10-05", available_until: "2024-10-05T23:30", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: robustez_ton_sp_20241119, area: "SP", origin: "2024-11-19", available_until: "2024-11-19T23:30", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 730, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: robustez_flag12_sp_20241222, area: "SP", origin: "2024-12-22", available_until: "2024-12-22T23:30", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
