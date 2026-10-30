@@ -64,3 +64,14 @@ Desvios do plano original, por unify: (1) nao existe `prevcarga_khat_promote` (g
 - `apply` e single-origin (uma `forecast_origin` por chamada, senao `contract.reconcile_input`): a rodada diaria e uma origem; o backtest
   roda muitas origens em SEQUENCIA para tras, um train+infer por origem, chamando train/apply uma vez por origem. Nada a relaxar.
 - Testes: `test-reconcile-apply.R` (leitor espionado; FORBIDDEN/CONTROL).
+
+## R.4 -- reach-control das bordas da janela do k-hat
+- `prevcarga_reach_control(module_fn, input, arms, compare, tol)` (honesty_gate.R, generico, reusavel por M6/M7): copia profunda da ENTRADA por braco,
+  delta por SAIDA (`.prevcarga_reach_delta`: merge nas chaves; chaves diferentes ou NA = Inf). Veredito HONESTO | VAZA | INDETERMINADO
+  (forbidden > tol => VAZA; braco que nao alterou a entrada ou control <= tol => INDETERMINADO). Sem disco/subprocesso/env.
+  A comparacao da entrada ignora o `index` automatico do data.table (`.prevcarga_reach_same`, via as.data.frame).
+- `prevcarga_khat_reach_arms(origin, window_days, ss)` (reconcile.R): FORBIDDEN `futuro` (dias >= O) e `antes_da_janela` (<= O-W-1);
+  CONTROL `ultimo_dia` (O-1) e `primeiro_dia` (O-W); perturbam SS_true x1,3+1 so nas linhas do subsistema.
+- Canais comparados: k por (hour, month, dow) e y_pred de um BU fixo cobrindo um intervalo em cada dia de [O-W, O-1] (garante que todo
+  bucket da janela e atingido; o bucket do dia O nao seria, e cairia no glob). Mutacoes (59 dias, 61 dias, incluindo O) => INDETERMINADO, VAZA, VAZA.
+- Testes: `test-honesty_gate-reach_control.R`, `test-reconcile-honesty.R` (verdade de entrada O-120..O+5; ~15 s).

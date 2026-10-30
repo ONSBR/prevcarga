@@ -544,3 +544,22 @@ prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat
   list(long = c(long, list(SIN = sin)), khat = khat, cobertura_descartada = cob,
        wmape = if (isTRUE(eval)) wm else NULL, scorecard = scorecard, warnings = warns)
 }
+
+## --- Reach-control das duas bordas da janela do k-hat (R.4) -----------------------------------------------------
+## Bracos para prevcarga_reach_control (honesty_gate.R): perturbam SS_true (x factor + shift) so nas linhas do
+## subsistema `ss` e so nos dias de interval_start do braco. Janela [O - W, O - 1]: FORBIDDEN = dias >= O e
+## dias <= O - W - 1; CONTROL = O - 1 e O - W. `truth` = saida do leitor (area_code, interval_start, load_mwh).
+prevcarga_khat_reach_arms <- function(origin, window_days, ss, factor = 1.3, shift = 1) {
+  origin <- lubridate::as_date(origin)
+  bump <- function(sel) function(tr) {
+    d <- lubridate::as_date(tr$interval_start, tz = lubridate::tz(tr$interval_start))
+    hit <- which(tr$area_code == ss & sel(d))
+    if (length(hit)) data.table::set(tr, i = hit, j = "load_mwh", value = tr$load_mwh[hit] * factor + shift)
+    tr
+  }
+  first <- origin - as.integer(window_days)
+  list(forbidden = list(futuro = bump(function(d) d >= origin),
+                        antes_da_janela = bump(function(d) d <= first - 1L)),
+       control = list(ultimo_dia = bump(function(d) d == origin - 1L),
+                      primeiro_dia = bump(function(d) d == first)))
+}
