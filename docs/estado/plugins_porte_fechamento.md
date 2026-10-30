@@ -46,9 +46,8 @@ So VERIFICA: nenhum plugin, motor, golden ou fachada foi alterado; achado vira c
 - Braco cross-OS: `[DEFERRED M8]` (Windows nativo nao roda aqui); no teste so o grep estatico de portabilidade dos 4 arquivos do fechamento.
 
 ## Achados (nao corrigidos aqui; donos nos epicos)
-- INTERINO F1 (ja documentado em `training.md`/`random_forest.md`): RF e LGBM nao treinam/inferem pelas fachadas sem o canal `cuts$spec`/`cuts$phase` +
-  clima previsto de TODAS as emissoes (o RF nao declara `weather_forecast_in_train`). O filho instala um shim (`pcc_install_f1_channel`) que envolve
-  `prevcarga_plugin_train/_infer` ANTES do snapshot de isolamento; as fachadas rodam intactas. Sai quando o F1 entregar o canal ao despachante.
+- RESOLVIDO (fix/facade-channels): o despachante preenche `cuts$spec`/`cuts$phase` em toda etapa e RF/LGBM declaram
+  `weather_forecast_in_train`; o shim `pcc_install_f1_channel` do teste saiu e os 8 membros rodam pelas fachadas sem ajuda.
 - Os plugins RF, LGBM e HW usam `.GlobalEnv` (nao `globalenv()`) no mesmo interino de busca da fundacao; o padrao de higiene do ticket (`globalenv()`) nao os pega.
   Quando o loader expuser a API, os pins e esse padrao devem ser revistos juntos.
 - `pc_time_arith_allow()` guarda uma excecao (`holt_winters.R`) que ja nao corresponde a arquivo algum; as excecoes `hours(lagh)` do motor citadas

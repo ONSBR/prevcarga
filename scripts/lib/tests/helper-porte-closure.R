@@ -152,41 +152,6 @@ pcc_child_ctx <- function(root, deck, state, mdir, extra = list()) {
        origin = PCC_O, state_dir = state, code_commit = "c0ffee", renv_lock_hash = "ab12", spec_overrides = ov)
 }
 
-## INTERINO (F1, docs/estado/training.md e random_forest.md): o RF e o LGBM leem `cuts$spec`/`cuts$phase` e o clima previsto
-## de TODAS as emissoes no treino/infer, canal que o despachante ainda nao oferece. Este shim so existe no filho de teste: envolve
-## prevcarga_plugin_train/_infer (no ambiente global, ANTES do snapshot de isolamento) e injeta o canal; as fachadas
-## prevcarga_train/prevcarga_infer_cell rodam intactas. Sai quando o F1 entregar o canal ao despachante.
-pcc_install_f1_channel <- function(chan) {
-  g <- globalenv()
-  orig_t <- get("prevcarga_plugin_train", envir = g)
-  orig_i <- get("prevcarga_plugin_infer", envir = g)
-  needs <- function(plugin) {
-    d <- plugin$descriptor
-    !isTRUE(d$weather_forecast_in_train) && any(grepl("^data[.]weather_forecast", d$stages$ingestion$requires))
-  }
-  add_fc <- function(panel, cuts, H) {
-    area <- panel$load$area_code[[1L]]
-    fc <- prevcarga_read_weather(chan$ctx, "forecast", area, PCC_O - 500L, PCC_O + H)
-    panel$weather_forecast <- fc[issue_time <= cuts$weather_issue_limit]
-    panel
-  }
-  assign("prevcarga_plugin_train", function(plugin, panel, cuts, spec, ctx = list()) {
-    if (needs(plugin)) {
-      cuts$spec <- spec; cuts$phase <- "train"
-      panel <- add_fc(panel, cuts, spec$horizon_days)
-    }
-    orig_t(plugin, panel, cuts, spec, ctx)
-  }, envir = g)
-  assign("prevcarga_plugin_infer", function(plugin, artifact, panel, cuts, ctx = list()) {
-    if (needs(plugin)) {
-      cuts$spec <- plugin$spec; cuts$phase <- "infer"
-      panel <- add_fc(panel, cuts, plugin$spec$horizon_days)
-    }
-    orig_i(plugin, artifact, panel, cuts, ctx)
-  }, envir = g)
-  invisible(TRUE)
-}
-
 pcc_snapshot <- function() {
   g <- globalenv()
   list(globalenv = sort(ls(g, all.names = TRUE)), search = search(),
@@ -261,7 +226,6 @@ pcc_check_members <- function(root, topology_path) {
 pcc_child_delivery <- function(root, deck, work) {
   mem <- prevcarga_members(root = root)
   chan <- new.env()
-  pcc_install_f1_channel(chan)
   out <- lapply(seq_len(nrow(mem)), function(i) {
     m <- mem[i, , drop = FALSE]
     st <- file.path(work, paste0("state-", m$sigla))
@@ -284,7 +248,6 @@ pcc_child_delivery <- function(root, deck, work) {
 ## --- cenario `isolation`: 5 plugins na mesma sessao limpa, treino 1x cada, snapshot antes/depois ----------------
 pcc_child_isolation <- function(root, deck, work) {
   chan <- new.env()
-  pcc_install_f1_channel(chan)
   set.seed(7)
   before <- pcc_snapshot()
   mdirs <- pcc_all_plugins(root)
@@ -310,7 +273,6 @@ pcc_child_isolation <- function(root, deck, work) {
 ## --- cenario `seeds`: o RF com semente 123 e 124 (e 123 de novo) pelo spec_overrides ---------------------------------
 pcc_child_seeds <- function(root, deck, work) {
   chan <- new.env()
-  pcc_install_f1_channel(chan)
   md <- "random-forest"
   m <- pcc_member_of(root, md)
   run <- function(seed, tag) {
@@ -326,7 +288,6 @@ pcc_child_seeds <- function(root, deck, work) {
 ## --- cenario `portability`: freeze 2x, thaw -> infer, ENV sujo, formals ------------------------------------------------
 pcc_child_portability <- function(root, deck, work) {
   chan <- new.env()
-  pcc_install_f1_channel(chan)
   dirty <- c(EXOGENA = "MAX", LGBM_DISABLE_LOESS = "0", LGBM_TRAIN_CV = "0", RF_ARTIFACT_COMPRESS = "gzip",
              PREVCARGA_DATA_DIR = "/nao/existe")
   res <- lapply(stats::setNames(pcc_all_plugins(root), pcc_all_plugins(root)), function(md) {
