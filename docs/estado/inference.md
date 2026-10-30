@@ -31,3 +31,21 @@ so o RF tem inferencia entre os modelos reais). Espelha a fachada de treino (`do
   `weather_observed$timestamp` -> `valid_time` renomeado na celula (mesmo adaptador do treino); (c) o handler segue a convencao
   real da fachada `handler(ctx, args)`; `--area` e `--out` ja constam no bloco Options de validate-deck/combine (duplicata torna o
   docopt ambiguo), o Usage os exige.
+
+## M5.6 -- cortes intradiarios, alinhamento da entrega e recusas de convencao (`errors/infer_cut.tsv`; `tests/test-inference.R`)
+- Cadeia da celula: resolve -> cortes -> `prevcarga_infer_check_conventions` -> (corte do artefato) -> leitor -> `prevcarga_infer_panel` ->
+  `prevcarga_infer` -> `prevcarga_infer_check_alignment`. A conferencia de convencao vem ANTES do `contract.cut_mismatch` do artefato
+  (origin_scoped de outra origem sai `contract.origin_mismatch`, nao cut_mismatch).
+- Conferencias (tabela `.prevcarga_inf_checks`; acumulam e abortam uma vez, exit 2, id da 1a; `details` traz todas): `load_label`,
+  `timezone`, `weather_issue_cutoff` (so se `descriptor$weather_forecast_in_train`) e `origin` (so origin_scoped; ADR-0023, chave = origem;
+  `available_until` NUNCA e conferido: o mesmo artefato serve todas as rodadas de O). `--weather-cutoff` chega por `ctx` ao leitor e aos `cuts`.
+- `available_until` e o MINIMO entre as areas do deck (M2.2): a celula le o painel com todas as areas do deck (`cuts$deck_areas`) e so depois
+  SELECIONA a area (`.prevcarga_inf_select_area`), senao a area com carga mais longa veria o que passa do corte global. Horario (60): `to_hourly`
+  na fachada ignora a meia hora isolada; semi-horario usa todo intervalo ate `available_until`. `contract.panel_beyond_cut` se sobrar
+  `interval_end > available_until` (nao corta).
+- Alinhamento: `target_datetime` `identical` a `prevcarga_delivery_grid(cuts, delivery_days)` (1o = `available_until + 30`, tz da carga).
+- Dependencia/INTERINO: o `to_hourly` na fachada migra para o despachante (`fix/foundation-w1-f4-lag`); o despachante ja confere a grade
+  (`plugin.output_misaligned`, exit 2) ANTES da fachada, entao `contract.output_misaligned` e a conferencia de defesa em profundidade
+  (testada com o despachante substituido). Com artefato de outro `weather_issue_cutoff` em modelo SEM clima no treino, o envelope do despachante
+  (`weather_issue_cutoff diferente de cuts`) ainda recusa; a fachada so confere o corte quando o descriptor declara clima previsto no treino.
+- Erros em `errors/infer_cut.tsv`: os 6 ids `contract.*` classe 2. Testes FORBIDDEN/CONTROL em `scripts/lib/tests/test-inference.R`.
