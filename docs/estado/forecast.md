@@ -54,3 +54,15 @@
   (exit 9). Opcoes: incluir niveis/incluir_membros ordenados na versao, ou o export aceitar superconjunto e publicar so os faltantes. Nao tratado aqui (exports.R e do M6.7).
 - Limitacoes conhecidas (nao tratadas aqui): (1) o verbo `forecast` e a gramatica docopt sao do M6.9 (hoje stub): o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
   HHMM de `available_until` DENTRO do dia da origem: dia O completo ou `--origin` anterior ao ultimo dia do deck e recusado (ver acima); (3) `niveis`/`incluir_membros` nao entram na `versao` (M6.7): a mesma chave com outro conjunto de arquivos e `export.key_conflict`.
+
+## M6.6 -- sub-gates [M6] do LONG e bench do NFR de 30 min
+- `scripts/tools/gates/m6_long.R` (pack descoberto por `prevcarga_gates_run`, dono `M6`, tier fast, `applies_to` = os 5 plugins; nenhum `models/<m>/tests/run_all_gates.R` editado). Gates `m6_schema_long`, `m6_ytrue_real`,
+  `m6_anti_leak`, `m6_no_dayshift`, `m6_primeira_entrega`, `m6_fim_da_faixa` (o charset do runner e `[a-z0-9_]`, entao `m6_<gate>` e nao `m6_long.<gate>`). O pack de dono `M6` SUBSTITUI os slots `[DEFERRED M6]`
+  das tabelas (RF `gate04`/`gate08`, LGBM `gate11_ytrue_real`/`nowcast_dplus0_long`, HW `schema_long`/`ytrue_real`); `harness_*`/`gate12` ([DEFERRED M7]) seguem como slot com dono.
+- Cada gate roda `prevcarga_long_subgates(panel, member, cuts)` (data.frame gate/passed/detail) sobre o painel de `prevcarga_build_long` com entrega SINTETICA na grade real do membro; `delivery_days` vem do descriptor do plugin (lido num
+  `Rscript --vanilla` filho). `no_dayshift` compara a correlacao y_pred x y_true no mesmo dia com a de +-1 dia (48 leads). `primeira_entrega`/`fim_da_faixa` comparam com `prevcarga_delivery_grid` (sem aritmetica de 30 min).
+  CONTROLs em `test-long_subgates.R` (lead off-by-one, deslocado 1 dia, y_true = y_pred, fim 1 slot antes, inicio em available_until).
+- `scripts/tools/bench_forecast.R --origin O --reference-seconds S [--format text|json] [--data d] [--state d] [--config f]`: cronometra `prevcarga_forecast(report = TRUE)` (proc.time elapsed), alvo FIXO 1800 s (sem flag; so
+  `bench_run(budget_s=)` em teste), estouro => veredito `bloqueante`, exit 1, "NFR 30 min estourado". `--state` e COPIADO para tempdir (fora do cronometro); data/ listado (nome, tamanho, sha256) antes/depois (symlink de diretorio nao e
+  seguido: o store real tem `data/data -> .`), diferente => `integrity.bench_data_changed` (exit 9, `errors/bench_forecast.tsv`). Nunca executa o oraculo. `treinou_origin_scoped` conta chamadas de `prevcarga_train` durante o forecast.
+- Medicao REAL (<= 1800 s no data/ real, com artefatos origin_agnostic e k-hat ja treinados) e do operador: o numero (segundos, razao, host) entra em `docs/estado/` pelo fechamento do epico (M6.11).
