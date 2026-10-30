@@ -20,13 +20,16 @@
   out[]
 }
 
-## mm[d] para cada dia do painel horario (historicos e O): media das horas completas com
-## `interval_end <= floor_hour(available_until)`. available_until em 00:00 => nenhuma hora entra => vazio.
+## mm[d] para cada dia do painel horario (historicos e O): media das horas completas ate floor_hour(available_until).
+## A existencia de dado da manha de O e decidida pelo dado (a hora cheia de O com rotulo <= o corte), nunca por um atalho
+## sobre o relogio do corte: corte 00:00 de exibicao => nenhuma hora de O (sem cabeca); 01:00 => a hora 00 de O esta completa
+## (cabeca); 00:30 e 01:30 caem na hora cheia anterior (a meia hora isolada nunca forma hora). Medido contra o oraculo
+## (.load_morning_means_rd): ele inclui o carimbo do proprio corte e meias horas; aqui so horas completas (correcao deliberada,
+## ver docs/estado/dessem_regdin.md).
 rd_morning_means <- function(panel_hourly, available_until, tz) {
-  cut_h <- lubridate::floor_date(available_until, "hour")
-  if (lubridate::hour(cut_h) == 0L)
-    return(data.table::data.table(Data = lubridate::as_date(character()), mm = numeric()))
-  .rd_mm_core(panel_hourly, lubridate::hour(cut_h), tz)
+  out <- .rd_mm_core(panel_hourly, lubridate::hour(lubridate::floor_date(available_until, "hour")), tz)
+  if (!nrow(out)) return(data.table::data.table(Data = lubridate::as_date(character()), mm = numeric()))
+  out
 }
 
 ## mm normalizada como o `fit` do oraculo (dessem_regdin_fit.R:149-155): so se a DM normaliza (chaves do regdin:
