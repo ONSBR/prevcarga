@@ -1,0 +1,3 @@
+id	class	message	hint
+integrity.bench_data_changed	integrity	o bench alterou data/ (listagem nome/tamanho/sha256 diferente antes e depois)	data/ e so leitura para o bench; confira --data e o estado (--state e copiado para tempdir)
+contract.bench_bad_args	contract	argumentos invalidos para bench_forecast.R	use: bench_forecast.R --origin AAAA-MM-DD --reference-seconds S [--format text|json] [--data dir] [--state dir]
