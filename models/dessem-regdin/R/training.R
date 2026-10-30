@@ -86,7 +86,7 @@ rd_training <- function(features, params, seed) {
   fits <- .rd_fit_pass(features, seed = seed, mm_ref = mm_ref, mode = mode)
   list(svm_perfil = fits$svm_perfil, norm = features$norm, config_mdl = features$config_mdl,
        day_types = features$day_types, dias = features$dias,
-       train_window = list(start = min(hist_days), end = deck$last_data_day),
+       train_window = list(start = min(hist_days), end = deck$last_data_day), seed = as.integer(seed),
        arima_fingerprint = .rd_arima_fingerprint(fits$base_fit, s$serieDM))
 }
 

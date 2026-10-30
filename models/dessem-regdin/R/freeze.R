@@ -12,7 +12,7 @@ rd_freeze <- function(model) {
 
 ## Forma esperada: 24 SVMs por dia normal; feriado = NULL. Falha de thaw => engine_abort ([prevcarga/integrity], exit 9).
 rd_thaw <- function(payload) {
-  need <- c("svm_perfil", "norm", "config_mdl", "day_types", "dias", "train_window", "arima_fingerprint")
+  need <- c("svm_perfil", "norm", "config_mdl", "day_types", "dias", "train_window", "arima_fingerprint", "seed")
   bad <- function(why) rd_abort("plugin.regdin_artifact_tampered", where = "dessem-regdin/thaw", reason = why,
                                 details = list(reason = why))
   miss <- setdiff(need, names(payload))
