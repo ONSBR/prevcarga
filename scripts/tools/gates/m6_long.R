@@ -14,7 +14,7 @@
 
 M6L_MODELS <- c("random-forest", "lgbm", "holt-winters", "dessem-linear", "dessem-regdin")
 M6L_SUBGATES <- c("schema_long", "ytrue_real", "anti_leak", "no_dayshift", "primeira_entrega", "fim_da_faixa")
-M6L_GATES <- paste0("m6_", M6L_SUBGATES)
+M6L_GATES <- c(paste0("m6_", M6L_SUBGATES), "m6_nowcast_dplus0")
 M6L_TZ <- "Etc/GMT+3"
 M6L_LIBS <- c("errors", "schema_long", "features", "build_long_output")
 M6L_FOUNDATION <- c("runtime", "errors", "config", "provenance", "topology", "schema_long", "deck_reader", "validation", "dates",
@@ -95,6 +95,18 @@ prevcarga_long_subgates <- function(panel, member, cuts, libdir = NULL) {
     .m6l_row("fim_da_faixa", last_ok, if (last_ok) "" else sprintf("faixa != grade de entrega (delivery_days = %d)", as.integer(member$delivery_days))))
 }
 
+## nowcast D+0 (oraculo gate_nowcast_dplus0): com corte intradiario, d_plus = 0 e o SUFIXO do dia O apos o corte (leads k+1..48, k = slots
+## ate available_until); sem informacao do dia O (corte 00:00) o dia O sai inteiro (leads 1..48). Devolve data.frame(gate, passed, detail).
+prevcarga_nowcast_check <- function(panel, cuts) {
+  au <- cuts$available_until
+  k <- (lubridate::hour(au) * 60L + lubridate::minute(au)) %/% 30L
+  want <- if (k >= 48L) integer() else seq.int(k + 1L, 48L)
+  got <- sort(as.integer(panel$lead[panel$d_plus == 0L]))
+  ok <- identical(got, as.integer(want))
+  .m6l_row("nowcast_dplus0", ok, sprintf("d_plus=0: leads %s..%s, esperado %s..%s", if (length(got)) min(got) else "-",
+                                         if (length(got)) max(got) else "-", if (length(want)) min(want) else "-", if (length(want)) max(want) else "-"))
+}
+
 ## --- fixture sintetica (pura: funcao de origem, corte e delivery_days) ----------------------------------------------------------
 ## Sinal sem periodicidade diaria exata (nivel e amplitude variam por dia), para o no_dayshift ter dente. y_pred = y_true * (1 + erro
 ## pequeno e deterministico). Posicao k (ordinal do rotulo em passos de 30 min desde O 00:00) so serve de fase do sinal.
@@ -156,6 +168,15 @@ prevcarga_gate_pack_m6_long <- function(model, ctx, tier) {
     }
     memo$res
   }
+  nowcast <- function() {
+    dd <- .m6l_delivery_days(model, root)
+    for (hm in c("00:00", "12:00", "13:30")) {
+      fx <- m6l_fixture(dd, available_hm = hm, libdir = libdir)
+      r <- prevcarga_nowcast_check(fx$panel, fx$cuts)
+      if (!r$passed) stop(sprintf("nowcast_dplus0 corte %s: %s", hm, r$detail), call. = FALSE)
+    }
+    invisible(TRUE)
+  }
   mk <- function(g) function() {
     r <- subgates()
     r <- r[r$gate == g, , drop = FALSE]
@@ -165,6 +186,6 @@ prevcarga_gate_pack_m6_long <- function(model, ctx, tier) {
   }
   df <- data.frame(gate = M6L_GATES, owner = "M6", tier_min = "fast", stringsAsFactors = FALSE)
   df$applies_to <- rep(list(M6L_MODELS), nrow(df))
-  df$test <- lapply(M6L_SUBGATES, mk)
+  df$test <- c(lapply(M6L_SUBGATES, mk), list(nowcast))
   df
 }

@@ -77,9 +77,26 @@ test_that("[CONTROL] fim 1 slot antes reprova fim_da_faixa; inicio em available_
   expect_false(.passed(.m6l$prevcarga_long_subgates(long$panel, long$member, long$cuts))[["fim_da_faixa"]])
 })
 
-test_that("pack: 6 gates, dono M6, tier fast, applies_to = os 5 modelos, sem harness_*/gate08, ids no charset do runner", {
+test_that("[M6] nowcast D+0: sufixo do dia O nos cortes 12:00 (1o rotulo 12:30, lead 25..48 por interval_start), 13:30 e 00h; [CONTROL] dia O completo/sem sufixo reprova", {
+  for (hm in c("00:00", "12:00", "13:30", "23:30")) {
+    fx <- .fx(2L, hm)
+    expect_true(.m6l$prevcarga_nowcast_check(fx$panel, fx$cuts)$passed, info = hm)
+  }
+  fx <- .fx(2L, "12:00")
+  d0 <- fx$panel[d_plus == 0L]
+  expect_identical(min(d0$lead), 25L); expect_identical(nrow(d0), 24L); expect_identical(min(d0$target_datetime), fx$cuts$available_until + 1800)
+  expect_identical(min(.fx(2L, "13:30")$panel[d_plus == 0L]$lead), 28L)
+  expect_identical(min(.fx(2L, "00:00")$panel[d_plus == 0L]$lead), 1L)
+  extra <- data.table::copy(fx$panel); extra <- rbind(extra[1L], extra); extra[1L, lead := 25L]
+  expect_false(.m6l$prevcarga_nowcast_check(extra, fx$cuts)$passed)           # slot dentro do que ja e conhecido
+  expect_false(.m6l$prevcarga_nowcast_check(fx$panel[d_plus != 0L], fx$cuts)$passed)   # sem sufixo
+  other <- .fx(2L, "00:00")                                                   # painel de 00h avaliado com corte 12:00
+  expect_false(.m6l$prevcarga_nowcast_check(other$panel, fx$cuts)$passed)
+})
+
+test_that("pack: 7 gates, dono M6, tier fast, applies_to = os 5 modelos, sem harness_*/gate08, ids no charset do runner", {
   d <- .m6l$prevcarga_gate_pack_m6_long("lgbm", list(gates_dir = dirname(.m6l_pack)), "fast")
-  expect_identical(d$gate, c("m6_schema_long", "m6_ytrue_real", "m6_anti_leak", "m6_no_dayshift", "m6_primeira_entrega", "m6_fim_da_faixa"))
+  expect_identical(d$gate, c("m6_schema_long", "m6_ytrue_real", "m6_anti_leak", "m6_no_dayshift", "m6_primeira_entrega", "m6_fim_da_faixa", "m6_nowcast_dplus0"))
   expect_true(all(d$owner == "M6") && all(d$tier_min == "fast") && all(vapply(d$test, is.function, NA)))
   expect_true(all(grepl("^[a-z0-9_]+$", d$gate)))
   for (a in d$applies_to) expect_setequal(a, c("random-forest", "lgbm", "holt-winters", "dessem-linear", "dessem-regdin"))
@@ -106,12 +123,13 @@ test_that("descoberta pelo runner: os 6 sub-gates entram para cada um dos 5 mode
     "}"))
   expect_identical(r$status, 0L, info = paste(r$stderr, collapse = "\n"))
   for (m in .m6l$M6L_MODELS) {
-    gl <- sub(paste0("^", m, " \\| (m6_[a-z_]+) \\| M6 \\| fast$"), "\\1", grep(paste0("^", m, " \\| m6_.* \\| M6 \\| fast$"), r$stdout, value = TRUE))
+    gl <- sub(paste0("^", m, " \\| (m6_[a-z0-9_]+) \\| M6 \\| fast$"), "\\1", grep(paste0("^", m, " \\| m6_.* \\| M6 \\| fast$"), r$stdout, value = TRUE))
     expect_setequal(gl, .m6l$M6L_GATES)
+    expect_true("m6_nowcast_dplus0" %in% gl)
   }
   expect_false(any(grepl("harness_|gate08", r$stdout)))
   expect_match(grep("^modelo-fora N", r$stdout, value = TRUE), "^modelo-fora N 0 ")
-  for (m in c("lgbm", "dessem-regdin")) expect_equal(sum(grepl(paste0("^", m, " \\| m6_.* \\| PASS$"), r$stdout)), 6L)
+  for (m in c("lgbm", "dessem-regdin")) expect_equal(sum(grepl(paste0("^", m, " \\| m6_.* \\| PASS$"), r$stdout)), 7L)
 })
 
 test_that("o pack substitui os slots [DEFERRED M6]; M7 segue como slot com dono", {
