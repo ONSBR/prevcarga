@@ -42,10 +42,17 @@
 ## ordem, coeficientes por nome (tolerancia 0) e dm_digest. Qualquer divergencia aborta nomeando o campo/coeficiente.
 ## `serieDM` e COPIADA (o motor atualiza a serie por referencia e o passe de predict parte da serie limpa).
 .rd_check_fingerprint <- function(serieDM, config_mdl, fp, acc = new.env()) {
-  drift <- function(field, ...) rd_abort("plugin.regdin_arima_drift", where = "dessem-regdin/infer",
-                                         reason = paste0("campo ", field), details = c(list(field = field), list(...)))
+  drift <- function(field, ..., reason = paste0("campo ", field, if (!is.null(list(...)$coef))
+                                                 paste0(": ", paste(list(...)$coef, collapse = ","))))
+    rd_abort("plugin.regdin_arima_drift", where = "dessem-regdin/infer", reason = reason,
+             details = c(list(field = field), list(...)))
   base <- tryCatch(.rd_guarded(acc, execDemandaMediaTS(data.table::copy(serieDM), config_mdl), quiet = TRUE),
                    error = function(e) drift("refit", message = conditionMessage(e)))
+  ## o fable (0.5.0) devolve um mable de "NULL model" SEM erro nem aviso quando a janela nao traz os 12 niveis do fator Mes
+  ## ou os regressores sao colineares: o fingerprint nao existiria, entao aborta nomeando a causa provavel
+  if (inherits(base$mdl$modeloTreinado[[1L]][[1L]]$fit, "null_mdl"))
+    drift("null_model", reason = paste0("campo null_model: o ARIMA refeito devolveu modelo NULL; causa provavel: a janela do ",
+                                        "painel nao cobre os 12 meses do fator Mes ou os regressores sao colineares"))
   got <- tryCatch(.rd_arima_fingerprint(base$mdl$modeloTreinado, serieDM),
                   error = function(e) drift("refit", message = conditionMessage(e)))
   if (!identical(unname(got$order), unname(fp$order)))
