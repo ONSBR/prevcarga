@@ -15,7 +15,6 @@ SVMhorario <- function(dataPrev,hora,serie,param_entrada){
                                addHourFac = F)
    formulaSVM <- getFormula(names(dadosEntrada[,-param_entrada$colunaRemoverPerfil,with = F]))
    dadosTreinamento <- dadosEntrada[!is.na(Carga)]
-   #message(paste(param_entrada$nomModelo,format(Sys.time(),'- %F %T'),"-",nrow(dadosTreinamento),"amostras no conjunto de treinamento de perfil"))
    modeloSVM <- tune_wsvm(formulaSVM,iter.max=500,
                           weight=getSVMWeights(param_entrada$alfa,nrow(dadosTreinamento)),
                           data=dadosTreinamento,
@@ -41,7 +40,6 @@ RL_perfilFeriado <- function(dataPrev,seriePF,config_mdl,constNorm){
                                          diaAno = diaAno,
                                          hv = HV,
                                          tpFer = diaEsp)
-   #message(paste(config_mdl$nomModelo,format(Sys.time(),'- %F %T'),"-",nrow(entradamdl[!is.na(Carga)]),"amostras no conjunto de treinamento de perfil de feriado"))
    mdlformula <- getFormula(names(entradamdl[,-config_mdl$colunaRemoverPerfil,with = F]))
    mdl <- lm(mdlformula,entradamdl[!is.na(Carga)])
    infer <- predict(mdl,entradamdl[Data == dataPrev])

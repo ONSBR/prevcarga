@@ -1,18 +1,41 @@
+#' Fuso semantico do horario de verao brasileiro (constante do motor; nao e o fuso da carga)
+.engine_hv_tz <- function() "America/Sao_Paulo"
+
+#' Flag de fuso ('%Z') do meio-dia de cada dia em `.engine_hv_tz()`; "-02" marca horario de verao
+.hvz_flag <- function(Data){
+   format(make_datetime(year(Data),month(Data),mday(Data),12L,tz = .engine_hv_tz()),"%Z")
+}
+
+#' Exige o mesmo `tzone` em DataHora de CARGAHIST/EXOGENAHIST/EXOGENAPREV (e igual a `tz`, se dado)
+.engine_assert_tz <- function(deck,tz = NULL){
+   cols <- c("CARGAHIST","EXOGENAHIST","EXOGENAPREV")
+   got <- vapply(cols,function(n) tz(deck[[n]]$DataHora),"")
+   want <- if(is.null(tz)) got[[1L]] else tz
+   bad <- which(got != want)
+   if(length(bad)){
+      engine_abort("engine.dessem_tz_mismatch",where = "_dessem-engine/TransformaDeck",
+                   details = list(column = paste0(cols[bad[[1L]]],"$DataHora"),tz_found = got[[bad[[1L]]]],
+                                  tz_expected = want))
+   }
+   invisible(TRUE)
+}
+
 #' Transforma os decks de entrada em arquivos de Series Historicas e de Dados Diarios
 #'
 #' @param deck Deck de entrada
 #' @param horizonteprevisao Horizonte de previsao Semana Operativa ou 10 dias c("SEMOPER","10DIAS")
 #' @param dataInicioPrev data de inicio da previsao
+#' @param tz fuso da carga (`cuts$tz`); NULL adota o `tzone` de CARGAHIST. O `DataHora` do deck chega no
+#'   frame de modelagem (o despachante aplicou `to_model_frame`); o motor nao faz aritmetica de hora.
 #'
 #' @return Dados para entrada de modelos
 #'
-TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","10DIAS")){
+TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","10DIAS"),tz = NULL){
+   .engine_assert_tz(deck,tz)
    #------------------------------------------------------ -
    # HORIZONTE DE PREVISAO ====
    #------------------------------------------------------ -
-   if(!is.Date(dataInicioPrev)){
-      dataInicioPrev <- as.Date(dataInicioPrev)
-   }
+   dataInicioPrev <- .as_day(dataInicioPrev)
    if(is.numeric(horizonteprevisao)) horizonteprevisao <- c("SEMOPER","10DIAS")[horizonteprevisao + 1]
    if (horizonteprevisao[1]=="SEMOPER") {
       if(wday(dataInicioPrev)==6){
@@ -22,7 +45,7 @@ TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","
       }
    } else if(horizonteprevisao[1] == "10DIAS"){
       dataFimPrev <- dataInicioPrev + 9
-      maxDataDisp <- max(as.Date(format(deck[["EXOGENAPREV"]]$DataHora,'%F')))
+      maxDataDisp <- max(as_date(deck[["EXOGENAPREV"]]$DataHora))
       if(dataFimPrev > maxDataDisp){
          message("Exogena prevista nao disponivel para o horizonte desejado")
          message("Ajustanto horizonte...")
@@ -42,8 +65,7 @@ TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","
    #------------------------------------------------------ -
 
    dtCarga <- copy(deck[["CARGAHIST"]])
-   dtCarga[,DataHora := DataHora %m-% hours(1)]
-   dtCarga <- dtCarga[,.(DataHora,Data = as.Date(format(DataHora,'%F')),Prev = F,Variavel = "Carga",Valor = Carga)]
+   dtCarga <- dtCarga[,.(DataHora,Data = as_date(DataHora),Prev = F,Variavel = "Carga",Valor = Carga)]
 
    message("CONCLUIDA LEITURA DOS DADOS DE CARGA")
 
@@ -61,7 +83,7 @@ TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","
    #============================================ =
 
    dtExogena <- copy(deck[["EXOGENAHIST"]])
-   dtExogena[,`:=` (Data = as.Date(format(DataHora,'%F')), Prev = F)]
+   dtExogena[,`:=` (Data = as_date(DataHora), Prev = F)]
    dtExogena <- melt(dtExogena,id.vars = c("DataHora","Data","Prev"),variable.name = "Variavel",value.name = "Valor")
 
    message("CONCLUIDA LEITURA DOS DADOS DE EXOGENA HISTORICA")
@@ -71,7 +93,7 @@ TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","
    #=============================================== =
 
    dtExogenaPrev <- copy(deck[["EXOGENAPREV"]])
-   dtExogenaPrev[,`:=` (Data = as.Date(format(DataHora,'%F')), Prev = T)]
+   dtExogenaPrev[,`:=` (Data = as_date(DataHora), Prev = T)]
    dtExogenaPrev <- melt(dtExogenaPrev[Data <= dataFimPrev],id.vars = c("DataHora","Data","Prev"),variable.name = "Variavel",value.name = "Valor")
    message("CONCLUIDA LEITURA DOS DADOS DE EXOGENA PREVISTA")
 
@@ -84,7 +106,7 @@ TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","
    dtDados <- dcast(dtDados,DataHora + Data + Prev ~ Variavel,value.var = "Valor")
    dtDados <- dtFeriados[dtDados, on = "Data"]
    dtDados[is.na(DiaEspecial),DiaEspecial := 0]
-   dtDados[,HVZ := format(as.POSIXct(format(Data,"%F 12:00:00"),"America/Sao_Paulo"),'%Z')]
+   dtDados[,HVZ := .hvz_flag(Data)]
    dtDados[HVZ == "-02",HV := 1]
    dtDados[!HVZ == "-02",HV := 0]
    dtDados[,HVZ := NULL]
