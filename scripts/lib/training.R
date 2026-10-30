@@ -71,7 +71,6 @@ prevcarga_train_inputs <- function(member, area, origin, ctx) {
   if (have < need)
     prevcarga_abort("window.history_short", where = member$mdir,
       details = list(available_days = have, required_days = need, member = member$mdir))
-  if (spec$granularity_min == 60L) panel <- to_hourly(panel)
   list(plugin = plugin, spec = spec, cuts = cuts, panel = panel)
 }
 

@@ -267,6 +267,26 @@ test_that("W1: origin_agnostic H=9 carrega [train_origin - history_days.train, l
   expect_length(dsc, 10L); expect_identical(max(dsc), sc$cuts$last_data_day)
 })
 
+test_that("FIX 7: a fachada entrega o painel CRU de 30 min; o despachante reamostra 1x (60 min) e nunca (30 min)", {
+  lib <- environment(env$prevcarga_plugin_train)
+  orig <- get("to_hourly", envir = lib)
+  n <- 0L
+  assign("to_hourly", function(panel, weather = TRUE) { n <<- n + 1L; orig(panel, weather) }, envir = lib)
+  on.exit(assign("to_hourly", orig, envir = lib), add = TRUE)
+  for (m in c("toy-60", "toy-30")) {
+    inp <- tr_inputs(tr_setup(m))
+    expect_identical(unique(lubridate::minute(inp$panel$load$interval_start)), c(0L, 30L), info = m)
+    expect_true(all(inp$panel$load$interval_end - inp$panel$load$interval_start == lubridate::minutes(30)), info = m)
+  }
+  expect_identical(n, 0L)                                           # a fachada nunca reamostra
+  for (m in c("toy-60", "toy-30")) {
+    n <- 0L
+    expect_identical(tr_train(tr_setup(m), force = TRUE)$status, "trained")
+    expect_identical(n, if (m == "toy-60") 1L else 0L, info = m)
+  }
+  expect_false(any(grepl("to_hourly", deparse(body(env$prevcarga_train_inputs)))))
+})
+
 test_that("AC2: o corpo de training.R nao faz conta de corte (sem days(, - 1, - 3)", {
   fns <- ls(env, pattern = "^\\.?prevcarga_(tr_|train|cell_row|artifact_build)")
   expect_true(all(c("prevcarga_train", "prevcarga_train_inputs", "prevcarga_train_fingerprint") %in% fns))

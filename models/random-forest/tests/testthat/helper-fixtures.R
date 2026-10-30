@@ -75,17 +75,20 @@ rf_fx_cuts <- function(O = RF_O, rule = "available_until", phase = "train", dir 
 
 ## Painel pelo leitor unico. O previsto traz TODAS as emissoes <= weather_issue_limit (o painel do leitor entrega so a mais
 ## fresca, que nao serve a safra historica). train: carga cortada em last_data_day (como o despachante exige).
-rf_fx_panel <- function(dir = rf_fx_store(), cuts = rf_fx_cuts(dir = dir), phase = cuts$phase) {
+## hourly = TRUE: a forma que o estagio recebe do despachante (carga por to_hourly, clima cru: weather_resample raw);
+## FALSE: painel cru de 30 min, para quem passa pelo despachante.
+rf_fx_panel <- function(dir = rf_fx_store(), cuts = rf_fx_cuts(dir = dir), phase = cuts$phase, hourly = TRUE) {
   O <- cuts$forecast_origin
   from <- cuts$train_origin - 370L
   ctx <- rf_fx_ctx(dir, cuts$weather_issue_cutoff)
   ld <- rf_lib$prevcarga_read_load(ctx, RF_AREA, from = from, to = O, origin = O)
   if (identical(phase, "train")) ld <- ld[lubridate::as_date(interval_start, tz = cuts$tz) <= cuts$last_data_day]
   fc <- rf_lib$prevcarga_read_weather(ctx, "forecast", RF_AREA, from, O + 10L)
-  list(load = ld, weather_forecast = fc[issue_time <= cuts$weather_issue_limit],
-       holidays = rf_lib$prevcarga_read_holidays(ctx, RF_AREA, from, O + 10L),
-       attrs = list(origin = O, tz = cuts$tz, available_until = cuts$available_until,
-                    weather_issue_limit = cuts$weather_issue_limit))
+  p <- list(load = ld, weather_forecast = fc[issue_time <= cuts$weather_issue_limit],
+            holidays = rf_lib$prevcarga_read_holidays(ctx, RF_AREA, from, O + 10L),
+            attrs = list(origin = O, tz = cuts$tz, available_until = cuts$available_until,
+                         weather_issue_limit = cuts$weather_issue_limit))
+  if (isTRUE(hourly)) rf_lib$to_hourly(p, weather = FALSE) else p
 }
 
 ## Copia do models/random-forest (R/ + run.yaml mutado por `mutate(yaml_list)`) num tempdir; devolve a raiz de modelos.

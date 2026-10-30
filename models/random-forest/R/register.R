@@ -64,6 +64,7 @@ plugin_descriptor <- function() list(
   granularity_supported = 60L, modes_implemented = c("train", "infer"),
   params_schema = rf_params_schema(), variant_param = NA_character_,
   native_layout = "rf_wide_hourly_216", semihourly_rule = rf_semihourly_rule,
+  weather_resample = "raw",                 # tmax/tmin diarios sobre as leituras de 30 min (oraculo data_adapter.R:262-275)
   delivery_days = 9L, data_lag_days = 0L,   # last_data_day = O-1 (ADR-0023)
   uses_rng = TRUE, history_infer_equals_train = FALSE,
   packages = c("randomForest", "data.table", "lubridate"),

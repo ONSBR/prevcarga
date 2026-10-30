@@ -9,8 +9,8 @@ sent_run <- function() {
   p <- rf_plug()
   dir <- rf_inf_deck("09:30", sentinel = TRUE)
   cuts <- rf_fx_cuts(dir = dir, phase = "infer"); spec <- rf_tr_spec(); cuts$spec <- spec
-  panel <- rf_fx_panel(dir, cuts)
-  frame <- p$plugin_ingest(panel, cuts, spec)
+  panel <- rf_fx_panel(dir, cuts, hourly = FALSE)                       # cru (o CONTROL agrupa o cru)
+  frame <- p$plugin_ingest(rf_lib$to_hourly(panel, weather = FALSE), cuts, spec)
   list(p = p, cuts = cuts, spec = spec, panel = panel, frame = frame)
 }
 

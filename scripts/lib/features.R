@@ -72,18 +72,21 @@
   out[]
 }
 
-to_hourly <- function(panel) {
+## `weather = FALSE`: so a carga vira horaria; clima observado/previsto seguem crus (descriptor weather_resample: raw).
+to_hourly <- function(panel, weather = TRUE) {
   tz <- .prevcarga_feat_panel_attr(panel, "tz")
   if (is.null(tz)) tz <- lubridate::tz(panel$load$interval_start)
   .prevcarga_feat_check_time(panel$load, "interval_start", "to_hourly", tz)
   .prevcarga_feat_check_time(panel$load, "interval_end", "to_hourly", tz)
-  .prevcarga_feat_check_time(panel$weather_observed, "valid_time", "to_hourly", tz)
-  .prevcarga_feat_check_time(panel$weather_forecast, "valid_time", "to_hourly", tz)
-  .prevcarga_feat_check_time(panel$weather_forecast, "issue_time", "to_hourly")
   out <- panel
   out$load <- .prevcarga_hourly_load(panel$load)
-  out$weather_observed <- .prevcarga_hourly_weather(panel$weather_observed, "area_code")
-  out$weather_forecast <- .prevcarga_hourly_weather(panel$weather_forecast, c("area_code", "issue_time"))
+  if (isTRUE(weather)) {
+    .prevcarga_feat_check_time(panel$weather_observed, "valid_time", "to_hourly", tz)
+    .prevcarga_feat_check_time(panel$weather_forecast, "valid_time", "to_hourly", tz)
+    .prevcarga_feat_check_time(panel$weather_forecast, "issue_time", "to_hourly")
+    out$weather_observed <- .prevcarga_hourly_weather(panel$weather_observed, "area_code")
+    out$weather_forecast <- .prevcarga_hourly_weather(panel$weather_forecast, c("area_code", "issue_time"))
+  }
   out$holidays <- panel$holidays
   attr(out, "granularity_min") <- 60L
   out

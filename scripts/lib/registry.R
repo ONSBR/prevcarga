@@ -88,7 +88,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
 .prevcarga_run_yaml_keys <- c("name", "split", "granularity_min", "horizon_days", "history_days", "seed",
                               "modes", "backtest", "constraints", "params")
 .prevcarga_plugin_fields <- c("model_id", "contract_version", "granularity_supported", "modes_implemented",
-  "params_schema", "variant_param", "native_layout", "semihourly_rule", "delivery_days", "data_lag_days",
+  "params_schema", "variant_param", "native_layout", "semihourly_rule", "weather_resample", "delivery_days", "data_lag_days",
   "model_time_offset_min", "reads_day_O", "weather_forecast_in_train", "uses_rng", "history_infer_equals_train",
   "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages")
 .prevcarga_plugin_param_types <- c("integer", "numeric", "logical", "character")
@@ -278,6 +278,13 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
   if (!.prevcarga_plg_chr1(d[["native_layout"]]) || !d[["native_layout"]] %in% prevcarga_native_layouts) bad("native_layout")
   rule <- d[["semihourly_rule"]]
   if (xor(is.function(rule), 60 %in% gs) || (!is.null(rule) && !is.function(rule))) bad("semihourly_rule")
+  ## weather_resample: OBRIGATORIO (hourly | raw) quando o plugin suporta 60 min; RECUSADO quando so suporta 30 min
+  wr <- d[["weather_resample"]]
+  if ((60 %in% gs) != !is.null(wr) || (!is.null(wr) && !(.prevcarga_plg_chr1(wr) && wr %in% c("hourly", "raw"))))
+    .prevcarga_plugin_abort("registry.weather_resample", where = model,
+      reason = sprintf("weather_resample=%s com granularity_supported=%s", if (is.null(wr)) "ausente" else
+                         paste(format(wr), collapse = ","), paste(gs, collapse = ",")),
+      details = list(model = model, weather_resample = wr, granularity_supported = as.integer(gs)))
   if (!.prevcarga_plg_int1(d[["delivery_days"]], 1)) bad("delivery_days")
   lag <- pick("data_lag_days", 0L)
   if (!.prevcarga_plg_int1(lag, 0)) bad("data_lag_days")
@@ -315,7 +322,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
   out <- list(model_id = model, contract_version = as.integer(d[["contract_version"]]),
     granularity_supported = as.integer(gs), modes_implemented = mi, params_schema = schema,
     variant_param = vp, native_layout = d[["native_layout"]], semihourly_rule = rule,
-    delivery_days = as.integer(d[["delivery_days"]]), data_lag_days = as.integer(lag),
+    weather_resample = wr, delivery_days = as.integer(d[["delivery_days"]]), data_lag_days = as.integer(lag),
     model_time_offset_min = as.integer(off), reads_day_O = flags$reads_day_O,
     weather_forecast_in_train = flags$weather_forecast_in_train, uses_rng = flags$uses_rng,
     history_infer_equals_train = flags$history_infer_equals_train, rng_deviation = rd,
@@ -821,6 +828,15 @@ prevcarga_preserve_rng <- function(expr) {
   out
 }
 
+## --- Reamostragem centralizada (FIX 7, opcao C2) ------------------------------------------------------
+## Unico ponto que reamostra o painel para o plugin: granularity_min 60 => carga por to_hourly (features.R) e o clima so
+## com weather_resample = hourly; 30 => painel cru. Nenhum plugin, fachada ou ferramenta reamostra.
+.prevcarga_plugin_resample <- function(panel, d, spec) {
+  g <- .prevcarga_feat_check_gran(spec$granularity_min, where = d$model_id)
+  if (identical(g, 30L)) return(panel)
+  to_hourly(panel, weather = identical(d$weather_resample, "hourly"))
+}
+
 ## --- Deslocamento de modelagem centralizado (ADR-0012/0019) --------------------------------------------
 ## So a carga (interval_start/interval_end) e o available_until de cuts; clima, dias e holidays intocados.
 .prevcarga_plugin_to_model <- function(panel, cuts, o) {
@@ -848,7 +864,7 @@ prevcarga_plugin_train <- function(plugin, panel, cuts, spec, ctx = list()) {
   .prevcarga_plugin_check_train_panel(panel, cuts, d)
   .prevcarga_plugin_check_raw_cols(panel)
   .prevcarga_plugin_require_data_cols(panel, d, c("ingestion", "feature_engineering", "training"))
-  m <- .prevcarga_plugin_to_model(panel, cuts, d$model_time_offset_min)
+  m <- .prevcarga_plugin_to_model(.prevcarga_plugin_resample(panel, d, spec), cuts, d$model_time_offset_min)
   st <- d$stages
   payload <- .prevcarga_plugin_guarded(plugin, {
     frame <- st$ingestion$fn(m$panel, m$cuts)
@@ -865,7 +881,7 @@ prevcarga_plugin_train <- function(plugin, panel, cuts, spec, ctx = list()) {
   d <- plugin$descriptor
   prevcarga_plugin_check_artifact(artifact, plugin, spec, cuts)
   .prevcarga_plugin_check_infer_panel(panel, cuts, d)
-  m <- .prevcarga_plugin_to_model(panel, cuts, d$model_time_offset_min)
+  m <- .prevcarga_plugin_to_model(.prevcarga_plugin_resample(panel, d, spec), cuts, d$model_time_offset_min)
   st <- d$stages
   payload <- artifact$payload
   raw <- .prevcarga_plugin_guarded(plugin, {

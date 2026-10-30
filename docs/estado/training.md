@@ -15,7 +15,7 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
   Cortes so de `prevcarga_resolve_cuts`/`prevcarga_train_cut`; a fachada so mede a janela a partir deles. `prevcarga_read_panel` le a janela + 1 dia; carga e clima
   observado cortados nela; o clima observado chega do leitor com `valid_time` (F4; sem adaptador na fachada); plugin com `weather_forecast_in_train` recebe todas as emissoes `<= weather_issue_limit` (nao so a mais fresca) (INTERINO, pendente da decisao do Gabriel sobre emissoes historicas do painel).
   Dias distintos de carga < dias da janela => `window.history_short` (exit 5; `details`: `available_days`, `required_days` = dias da janela, `member`), antes de qualquer escrita.
-  Granularidade 60 => `to_hourly`. O mapeamento area -> serie de clima (ex.: LGBM SECO -> SP) e do plugin: o painel traz o clima da propria area.
+  O painel vai CRU (30 min) ao despachante, que reamostra por `granularity_min`/`weather_resample` (FIX 7); a fachada nunca chama `to_hourly`. O mapeamento area -> serie de clima (ex.: LGBM SECO -> SP) e do plugin: o painel traz o clima da propria area.
 - Identidade: `prevcarga_train_fingerprint` preenche as 8 chaves do contrato de `provenance.R`: `model_id` = `member$mdir`; `data_fingerprint` = sha256 do CONTEUDO do painel ja
   cortado (carga, clima observado/previsto, feriados; `attrs` e `available_until` fora) -- NAO e o `prevcarga_data_hash` (esse hasheia os arquivos do deck e mudaria com o dia O);
   `cutoff` = origin_scoped `{origin}` | origin_agnostic `{train_origin, last_data_day}`; `feature_config` = `{spec (name, split, granularity_min, horizon_days, history_days, seed, params),

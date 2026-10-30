@@ -9,7 +9,8 @@ local0 <- function(d) lubridate::force_tz(lubridate::as_datetime(d), TZ)
 
 train_cuts <- rf_fx_cuts(phase = "train")
 infer_cuts <- rf_fx_cuts(phase = "infer")
-train_panel <- rf_fx_panel(cuts = train_cuts)
+train_raw <- rf_fx_panel(cuts = train_cuts, hourly = FALSE)       # 30 min cru do leitor
+train_panel <- rf_lib$to_hourly(train_raw, weather = FALSE)        # a forma que o despachante entrega (weather_resample raw)
 infer_panel <- rf_fx_panel(cuts = infer_cuts)
 
 test_that("[PLUGINS] ingest_frame: train -> 357 origens nativas, carga 2025-09-21..2026-09-30 com 24 h/dia, hora = media H:00 e H:30", {
@@ -31,12 +32,12 @@ test_that("[PLUGINS] ingest_frame: train -> 357 origens nativas, carga 2025-09-2
   expect_true(all(!fr$weather$locf))
   expect_setequal(unique(fr$weather$day_of_horizon), 1:9)
   ## hora H = media dos dois intervalos com interval_start H:00 e H:30 (agrupa por interval_start, nunca por interval_end)
-  ref <- data.table::as.data.table(train_panel$load)[, list(m = mean(load_mwh), n = .N),
+  ref <- data.table::as.data.table(train_raw$load)[, list(m = mean(load_mwh), n = .N),
     by = list(dia = lubridate::as_date(interval_start, tz = TZ), hora = lubridate::hour(interval_start))]
   expect_true(all(ref$n == 2L))
   j <- merge(fr$load, ref, by = c("dia", "hora"))
   expect_equal(j$load_mw, j$m, tolerance = 0)
-  one <- train_panel$load[interval_start %in% (local0(lubridate::ymd("2026-03-10")) + lubridate::hours(14) + lubridate::minutes(c(0, 30)))]
+  one <- train_raw$load[interval_start %in% (local0(lubridate::ymd("2026-03-10")) + lubridate::hours(14) + lubridate::minutes(c(0, 30)))]
   expect_equal(fr$load[dia == lubridate::ymd("2026-03-10") & hora == 14L, load_mw], mean(one$load_mwh), tolerance = 0)
 })
 
@@ -98,7 +99,7 @@ test_that("[PLUGINS] ingest_cut_check: 4 casos de conferencia abortam [prevcarga
   e <- chk(fail(P$plugin_ingest(bad, train_cuts, spec)), "plugin.raw_timestamp")
   expect_identical(e$details$column, "interval_start")
   ## CONTROL: o painel de treino termina exatamente no intervalo 23:30 de last_data_day e passa; o do infer em available_until
-  expect_identical(max(train_panel$load$interval_start), local0(O - 1L) + lubridate::hours(23) + lubridate::minutes(30))
+  expect_identical(max(train_raw$load$interval_start), local0(O - 1L) + lubridate::hours(23) + lubridate::minutes(30))
   expect_null(fail(P$plugin_ingest(train_panel, train_cuts, spec)))
   expect_identical(max(infer_panel$load$interval_end), infer_cuts$available_until)
   expect_null(fail(P$plugin_ingest(infer_panel, infer_cuts, spec)))
@@ -135,4 +136,12 @@ test_that("[PLUGINS] ingest_frame: o estagio despachado (panel, cuts) le spec/fa
   no_spec <- train_cuts; no_spec$spec <- NULL
   e <- fail(P$rf_stage_ingest(train_panel, no_spec))
   expect_identical(e$class_name, "contract")
+})
+
+test_that("[PLUGINS] ingest_frame: o plugin nao reamostra (FIX 7); declara weather_resample raw; carga de 30 min crua => completude", {
+  expect_length(rf_grep_code(file.path(RF_PLUGIN_DIR(), "R"), "to_hourly|floor_date\\([^)]*hour"), 0L)
+  expect_identical(P$plugin_descriptor()$weather_resample, "raw")
+  ## CONTROL: sem o despachante (painel de 30 min) o plugin acusa 48 linhas por dia em vez de agregar em silencio
+  e <- fail(P$plugin_ingest(train_raw, train_cuts, spec))
+  expect_identical(e$id, "plugin.completude"); expect_identical(e$details$horas, 48L)
 })

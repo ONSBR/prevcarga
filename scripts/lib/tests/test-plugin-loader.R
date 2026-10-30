@@ -148,6 +148,24 @@ test_that("ac-12 motor por instancia: estado isolado, funcao faltante, ordem e m
   expect_s3_class(prevcarga_plugin_load("toy-60", pc_toy_root()), "prevcarga_plugin")
 })
 
+test_that("FIX 7: weather_resample obrigatorio (hourly|raw) com 60 min, recusado so com 30 min (registry.weather_resample)", {
+  reset_all()
+  expect_identical(prevcarga_plugin_descriptor("toy-60", pc_toy_root())$weather_resample, "hourly")
+  expect_null(prevcarga_plugin_descriptor("toy-30", pc_toy_root())$weather_resample)
+  expect_identical(load_toy("toy-60", descriptor = list(weather_resample = "raw"))$load()$descriptor$weather_resample, "raw")
+  wr <- function(base, ...) expect_plugin_error(load_toy(base, descriptor = list(...))$load(),
+                                                "registry.weather_resample", "weather_resample")
+  wr("toy-60", weather_resample = NULL)                       # 60 min sem a declaracao
+  wr("toy-60", weather_resample = "half")                     # valor fora de hourly|raw
+  wr("toy-60", weather_resample = c("hourly", "raw"))
+  wr("toy-30", weather_resample = "hourly")                   # so 30 min: recusado
+  ## CONTROL: 30 e 60 suportados exige a declaracao (o toy-60 declara)
+  ok <- load_toy("toy-60", descriptor = list(granularity_supported = c(30L, 60L)))$load()
+  expect_identical(ok$descriptor$weather_resample, "hourly")
+  cat <- prevcarga_errors_load(file.path(pc_root(), "scripts", "lib", "errors"))
+  expect_identical(cat$class[cat$id == "registry.weather_resample"], "contract")
+})
+
 test_that("ac-13 defaults unicos e validacao do descriptor", {
   reset_all()
   d <- prevcarga_plugin_descriptor("toy-30", pc_toy_root())

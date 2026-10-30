@@ -241,8 +241,7 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
                train_origin = row$train_origin, last_data_day = row$last_data_day)
   sp <- plugin$spec
   read <- function(origin, hist) {
-    p <- suppressWarnings(prevcarga_read_panel(ctx, origin, unit$area, sp$horizon_days, hist))
-    if (identical(as.integer(sp$granularity_min), 60L)) to_hourly(p) else p
+    suppressWarnings(prevcarga_read_panel(ctx, origin, unit$area, sp$horizon_days, hist))   # cru: o despachante reamostra
   }
   art <- prevcarga_plugin_train(plugin, read(row$last_data_day, sp$history_days$train), cuts, sp, list())
   prevcarga_plugin_infer(plugin, art, read(unit$origin, sp$history_days$infer), cuts, list())

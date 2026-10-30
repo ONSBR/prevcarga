@@ -1,8 +1,8 @@
 ## ingestion.R -- estagio de ingestao do plugin random-forest (RF.1). SO definicoes.
-## Recebe o painel do leitor unico e os `cuts` de dates.R e devolve o `rf_frame` (carga horaria por (area, dia, hora),
-## safra de clima por origem nativa com LOCF e feriados). O plugin CONFERE os cortes (nunca corta, filtra nem preenche em
-## silencio) e nao faz aritmetica de hora do rotulo: a agregacao horaria e de to_hourly (features.R), o deslocamento de
-## modelagem e do despachante. Dias = as_date(interval_start, tz = cuts$tz). Sem relogio, sem variavel de ambiente.
+## Recebe o painel do leitor unico (carga ja horaria pelo despachante; clima cru, weather_resample: raw) e os `cuts` de
+## dates.R e devolve o `rf_frame` (carga horaria por (area, dia, hora), safra de clima por origem nativa com LOCF e feriados). O plugin CONFERE os cortes (nunca corta, filtra nem preenche em
+## silencio) e nao faz aritmetica de hora do rotulo nem reamostra: a agregacao horaria e do despachante (to_hourly,
+## features.R), o deslocamento de modelagem tambem. Dias = as_date(interval_start, tz = cuts$tz). Sem relogio, sem variavel de ambiente.
 ## Porte de prevcargadessem3/models/random-forest/R/ingestion/data_adapter.R (somente leitura).
 
 .rf_origin <- function(cuts) if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
@@ -42,26 +42,19 @@
   invisible(TRUE)
 }
 
-## Carga horaria por to_hourly (fundacao: hora = media dos intervalos H:00 e H:30; hora incompleta descartada) na janela
-## [first_day, last_day]. Buraco (area x dia sem as 24 horas) => plugin.completude; carga que comeca depois de
-## first_day => plugin.window.
-.rf_hourly_load <- function(load30, cuts, first_day, last_day) {
-  ld <- data.table::as.data.table(load30)
+## Carga JA horaria (o despachante reamostra com to_hourly da fundacao: hora = media dos intervalos H:00 e H:30; hora
+## incompleta descartada) na janela [first_day, last_day]. Buraco (area x dia sem as 24 horas) => plugin.completude;
+## carga que comeca depois de first_day => plugin.window.
+.rf_hourly_load <- function(load60, cuts, first_day, last_day) {
+  h <- data.table::copy(data.table::as.data.table(load60))
   tz <- cuts$tz
-  stub <- list(load = ld,
-    weather_observed = data.table::data.table(area_code = character(), valid_time = ld$interval_start[0L],
-                                              temperature = numeric()),
-    weather_forecast = data.table::data.table(area_code = character(),
-                                              issue_time = lubridate::with_tz(ld$interval_start[0L], "UTC"),
-                                              valid_time = ld$interval_start[0L], temperature = numeric()),
-    attrs = list(tz = tz))
-  h <- data.table::as.data.table(.rf_foundation("to_hourly")(stub)$load)
+  areas <- sort(unique(h$area_code))
   h[, `:=`(dia = lubridate::as_date(interval_start, tz = tz), hora = lubridate::hour(interval_start))]
   if (!nrow(h) || min(h$dia) > first_day)
     .rf_abort("plugin.window", details = list(primeiro_exigido = format(first_day),
       primeiro_presente = if (nrow(h)) format(min(h$dia)) else NA_character_))
   h <- h[dia >= first_day & dia <= last_day]
-  grid <- data.table::CJ(area_code = sort(unique(ld$area_code)), dia = seq(first_day, last_day, by = "day"))
+  grid <- data.table::CJ(area_code = areas, dia = seq(first_day, last_day, by = "day"))
   cnt <- h[, list(N = .N), by = list(area_code, dia)][grid, on = c("area_code", "dia")]
   gap <- cnt[is.na(N) | N != 24L]
   if (nrow(gap))

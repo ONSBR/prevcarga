@@ -78,7 +78,7 @@ test_that("[PLUGINS] corte_treino: prevcarga_honesty_gate (run_fn = treino sobre
 
 test_that("[PLUGINS] corte_treino: painel com dia > last_data_day ou rf_features com origem > train_origin => [prevcarga/contract] exit 2 (confere, nao corta)", {
   spec <- rf_tr_spec(); dir <- rf_fx_store()
-  full_ld <- rf_fx_panel(dir, rf_fx_cuts(dir = dir), phase = "infer")$load
+  full_ld <- rf_fx_panel(dir, rf_fx_cuts(dir = dir), phase = "infer", hourly = FALSE)$load
   e <- fail(rf_tr_run(dir, spec, panel_edit = function(p) { p$load <- full_ld; p }))
   expect_s3_class(e, "prevcarga_error")
   expect_identical(e$class_name, "contract"); expect_identical(e$exit_code, 2L)

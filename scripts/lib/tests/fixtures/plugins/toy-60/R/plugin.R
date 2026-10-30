@@ -19,7 +19,7 @@ toy_thaw <- function(payload) payload$model
 
 plugin_descriptor <- function() list(
   model_id = "toy-60", contract_version = 1L,
-  granularity_supported = 60L, modes_implemented = c("train", "infer", "forecast"),
+  granularity_supported = 60L, modes_implemented = c("train", "infer", "forecast"), weather_resample = "hourly",
   params_schema = list(), variant_param = NA_character_,
   native_layout = "hw_matrix_nx48", semihourly_rule = toy_semihourly_rule,
   delivery_days = 9L, model_time_offset_min = 60L,

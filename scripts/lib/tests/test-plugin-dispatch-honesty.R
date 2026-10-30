@@ -91,8 +91,7 @@ z <- function(h) lubridate::ymd_h(paste("2026-10-01", h), tz = "UTC")
     available_until = rc$available_until, weather_issue_limit = rc$weather_issue_limit,
     train_origin = row$train_origin, last_data_day = row$last_data_day)
   read <- function(m, dir, origin, hist, horizon) {
-    p <- env$prevcarga_read_panel(ctx_for(dir), origin, AREAS, horizon, hist)
-    if (plugins[[m]]$spec$granularity_min == 60L) env$to_hourly(p) else p
+    env$prevcarga_read_panel(ctx_for(dir), origin, AREAS, horizon, hist)     # cru: o despachante reamostra
   }
   prep <- function(m, dir) {
     rc <- suppressWarnings(cuts_for(m, dir))
@@ -236,7 +235,6 @@ test_that("ac-5 forecast (origin_scoped): treino corta em last_data_day, infer v
   fc <- function(dir) {
     x <- s$prep(m, dir); sp <- x$plugin$spec
     panel <- suppressWarnings(env$prevcarga_read_panel(s$ctx_for(dir), O, AREAS, sp$horizon_days, sp$history_days$train))
-    if (sp$granularity_min == 60L) panel <- env$to_hourly(panel)
     expect_true(any(lubridate::as_date(panel$load$interval_start, tz = TZ) == O))   # o dia O chega ao forecast
     env$prevcarga_plugin_forecast(x$plugin, panel, s$dcuts(x$rc, x$row), sp, list())
   }
@@ -271,7 +269,7 @@ test_that("ac-5 forecast no corte da manha (O 00:00) num store que ja tem o dia 
     panel <- suppressWarnings(env$prevcarga_read_panel(s$ctx_for(dir), O, AREAS, sp$horizon_days,
                                                        sp$history_days$train, truncate_at = t0))
     list(rc = rc, panel = panel,
-         env = env$prevcarga_plugin_forecast(p, env$to_hourly(panel), s$dcuts(rc, rc$cuts[rc$cuts$model == m, ]), sp, list()))
+         env = env$prevcarga_plugin_forecast(p, panel, s$dcuts(rc, rc$cuts[rc$cuts$model == m, ]), sp, list()))
   }
   base <- fc(s$deck)
   expect_identical(base$rc$available_until, t0)
