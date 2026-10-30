@@ -134,7 +134,7 @@ test_that("[RD.1] ids plugin.regdin_* constam em errors/dessem_regdin.tsv e carr
   expect_setequal(c("plugin.regdin_train_panel_has_origin", "plugin.regdin_history_short", "plugin.regdin_window_mismatch",
                     "plugin.regdin_arima_drift", "plugin.regdin_bad_exogena", "plugin.regdin_panel_contract",
                     "plugin.regdin_series_gap", "warning.regdin_desagrega_fallback", "plugin.regdin_artifact_tampered",
-                    "warning.regdin_rng_deviation"), tsv$id)
+                    "warning.regdin_rng_deviation", "plugin.regdin_artifact_mismatch"), tsv$id)
   cat <- rd_lib$prevcarga_errors_load(file.path(rd_root(), "scripts", "lib", "errors"))
   expect_true(all(tsv$id %in% cat$id))
   expect_false(anyDuplicated(cat$id) > 0L)
@@ -252,11 +252,12 @@ test_that("[RD.1] grep: zero hits dos padroes proibidos em models/dessem-regdin/
   }
   ## so ASCII
   for (f in files) expect_false(any(grepl("[\\x80-\\xFF]", readLines(f, warn = FALSE, encoding = "bytes"), perl = TRUE, useBytes = TRUE)), info = f)
-  ## divida interina do globalenv (mesmo padrao do dessem-linear, DL8-GAP-2): conjunto exato = rd_abort e rd_warn
+  ## divida interina do globalenv (mesmo padrao do dessem-linear, DL8-GAP-2): conjunto exato = rd_abort, rd_warn e rd_foundation (RD.3)
   g <- unlist(lapply(files, function(f) {
     ln <- sub("#.*$", "", readLines(f, warn = FALSE)); i <- which(grepl("globalenv\\(\\)", ln))
     if (length(i)) paste0(basename(f), ":", trimws(ln[i])) else character()
   }))
-  expect_length(g, 2L)
-  expect_true(all(grepl("^register.R:.*get0\\(\"prevcarga_(condition|warn)\"", g)))
+  expect_length(g, 3L)
+  expect_true(all(grepl("^register.R:.*get0\\(\"prevcarga_(condition|warn)\"", g) |
+                  grepl("^inference.R:.*get0\\(name, envir = globalenv\\(\\)", g)))   # RD.3: rd_foundation (to_semihourly)
 })

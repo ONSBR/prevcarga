@@ -7,7 +7,7 @@ test_that("[RD.2] ordem do oraculo: 1 cabeca de referencia (com mm) + 9 x 24 per
   expect_identical(lg$n, 217L)
   expect_identical(which(grepl("\\bmm\\b", lg$fml, perl = TRUE)), 1L)
   pl <- st$a09$payload
-  expect_setequal(names(pl), c("svm_perfil", "norm", "config_mdl", "day_types", "dias", "train_window", "arima_fingerprint"))
+  expect_setequal(names(pl), c("svm_perfil", "norm", "config_mdl", "day_types", "dias", "train_window", "arima_fingerprint", "seed"))
   expect_identical(names(pl$svm_perfil), format(O + 0:8))
   expect_true(all(vapply(pl$svm_perfil, length, 1L) == 24L))
   set.seed(42L); fresh <- get(".Random.seed", globalenv())
