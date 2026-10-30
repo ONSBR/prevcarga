@@ -9,10 +9,6 @@
 
 prevcarga_export_niveis <- c("sin", "subsistemas", "tudo")
 
-## Nome do manifest da ENTREGA (escrito aqui; nao e o manifest do deck, que so deck_reader.R le). Montado por partes para o
-## literal do deck nao aparecer fora do leitor unico (gates m2_single_reader_manifest e test-deck-reader).
-.export_manifest_file <- paste0("manifest", ".", "json")
-
 .export_chr <- function(x) as.character(unlist(x, use.names = FALSE))
 
 ## run.json do scratch (covered, stray, closed, sin_closed, members, khat, ...); ausente/ilegivel => nada a entregar
@@ -119,7 +115,7 @@ prevcarga_export <- function(scratch, key, niveis = "subsistemas", incluir_membr
     prevcarga_abort("integrity.copy_failed", where = final, details = list(reason = "nao criou o staging"))
   on.exit(if (dir.exists(tmp)) unlink(tmp, recursive = TRUE), add = TRUE)
   for (i in seq_len(nrow(sel))) .export_copy(sel$src[[i]], file.path(tmp, sel$rel[[i]]))
-  .export_write_json(.export_manifest(run, entries, niveis, ctx), file.path(tmp, .export_manifest_file))
+  .export_write_json(.export_manifest(run, entries, niveis, ctx), file.path(tmp, "manifest.json"))
   if (!file.rename(tmp, final)) prevcarga_abort("integrity.copy_failed", where = final, details = list(reason = "rename falhou"))
   list(saida = final, arquivos = entries)
 }

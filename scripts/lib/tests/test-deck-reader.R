@@ -194,7 +194,7 @@ test_that("leitor nao le env nem relogio e e o unico a abrir manifest/dataset", 
   others <- setdiff(list.files(file.path(pc_root(), "scripts", "lib"), pattern = "\\.R$", full.names = TRUE),
                     file.path(pc_root(), "scripts", "lib", "deck_reader.R"))
   hits <- vapply(others, function(f) {
-    l <- readLines(f, warn = FALSE); any(grepl("(^|[^_.[:alnum:]])manifest\\.json|open_dataset", l[!grepl("^\\s*#", l)]))
+    l <- readLines(f, warn = FALSE); any(grepl("open_dataset|^(?=.*(?<![[:alnum:]_.])manifest[.]json)(?:(?!.*((?<![A-Za-z])write|[.]export_write_json))|(?=.*((?<![A-Za-z])(read|fromJSON|parse_json|scan)|\\bfile\\())).*$", l[!grepl("^\\s*#", l)], perl = TRUE))
   }, NA)
   expect_false(any(hits[!grepl("/tests/", others)]))
 })

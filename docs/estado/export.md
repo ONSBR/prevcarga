@@ -16,3 +16,6 @@
   `exports/<basename(scratch)>`; a chave imutavel e o layout `forecasts/` sao do M6.7 e a gramatica final do M6.9. `gerado_em` sai do
   carimbo do `run_id` da fachada (relogio lido uma vez em config.R).
 - Erros: `scripts/lib/errors/export.tsv`. Testes: `scripts/lib/tests/test-exports.R` (scratch de fixture montado no proprio teste).
+- Nome da entrega: o manifest da entrega e `manifest.json` (fixado pelo ticket/blueprint). O guard do leitor unico (m2_single_reader*,
+  test-deck-reader) mira REFERENCIAS ao manifest do DECK: o literal em linha de codigo, exceto a linha que e so ESCRITA (write*), com
+  CONTROL de que a escrita do export nao casa e de que toda leitura/atribuicao do literal fora do deck_reader.R casa. Sem excecao por nome.
