@@ -58,11 +58,13 @@ PROD <- m2g_prod_files()
 M2_READ_CALL <- "(?<![A-Za-z])(read|fromJSON|parse_json|scan)|\\bfile\\("
 M2_WRITE_CALL <- "(?<![A-Za-z])write|[.]export_write_json"
 M2_MANIFEST_READ <- paste0("^(?=.*(?<![A-Za-z0-9_.])manifest[.]json)(?:(?!.*(", M2_WRITE_CALL, "))|(?=.*(", M2_READ_CALL, "))).*$")
+## verify_repro.R (M8.7) le o manifest.json da ENTREGA do forecast (M6.2), nao o do deck; nunca abre dataset nem parquet por conta propria
+M2_DELIVERY_READERS <- c("scripts/lib/deck_reader.R", "scripts/lib/verify_repro.R")
 GREP_GATES_M2 <- list(
   ## leitor unico: so o deck_reader.R abre o dataset / le o manifest.json do DECK (run_manifest.json e <p>.manifest.json sao de outro dono)
-  list(id = "m2_single_reader", pat = paste0("open_dataset|", M2_MANIFEST_READ), except = "scripts/lib/deck_reader.R",
+  list(id = "m2_single_reader", pat = paste0("open_dataset|", M2_MANIFEST_READ), except = M2_DELIVERY_READERS,
        bait = "x <- arrow::open_dataset(p)"),
-  list(id = "m2_single_reader_manifest", pat = M2_MANIFEST_READ, except = "scripts/lib/deck_reader.R",
+  list(id = "m2_single_reader_manifest", pat = M2_MANIFEST_READ, except = M2_DELIVERY_READERS,
        bait = "m <- jsonlite::read_json(file.path(d, 'manifest.json'))"),
   list(id = "m2_single_reader_dataset", pat = "open_dataset", except = "scripts/lib/deck_reader.R",
        bait = "x <- arrow::open_dataset(p)"),

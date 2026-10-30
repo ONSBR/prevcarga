@@ -1,0 +1,12 @@
+id	class	message	hint
+config.verify_tol_removed	config	--tol foi removido do verificar; a tolerancia vem do trilho (mesma-plataforma 1e-5 absoluto, entre-plataformas 0,1% relativo)	use --trilho, ou --alvo com --limiares assinado, para mudar o limite
+config.verify_trilho_forced	config	--trilho entre-plataformas recusado: saida e referencia tem a mesma plataforma	deixe o trilho default (mesma-plataforma) ou compare entregas de plataformas diferentes
+contract.identity_mismatch	contract	identidade da saida difere da referencia (data_hash, bundle_id ou model_versions diferente ou nulo)	compare entregas da mesma chave (origem, available_until, versao) geradas com o mesmo bundle e os mesmos dados
+contract.pairing	contract	arquivos da saida e da referencia nao pareiam por path	confira se as duas entregas tem o mesmo conjunto de arquivos (use --sem-membros para ignorar membros/)
+integrity.artifact_sha	integrity	sha256 do artefato sincronizado difere do SHA256SUMS	re-sincronize o artefato oficial (prevcarga sync) e repita
+integrity.limiares_signature	integrity	assinatura sha256 do arquivo de limiares nao confere com o conteudo	refaca o arquivo com o responsavel pelo corte; nao edite os limiares a mao
+integrity.manifest_sha	integrity	arquivo da entrega ausente, divergente do manifest.json ou nao listado	recopie a entrega inteira; a entrega nao pode ser editada depois de exportada
+repro.key_mismatch	repro	chave (area, forecast_origin, target_datetime, lead) sem par entre a saida e a referencia	as duas entregas devem cobrir exatamente as mesmas linhas; investigue o parquet citado
+repro.runtime_id_differs	repro	runtime_id da saida difere da referencia (aviso; valores seguem comparados)	confirme que os dois lados usam o mesmo bundle R se a diferenca nao era esperada
+repro.value_out_of_tol	repro	valor fora da tolerancia do trilho entre a saida e a referencia	veja result.arquivos (pior_delta, n_fora) para achar o parquet e a linha
+state.official_forecast_missing	state	inferencia oficial sincronizada nao encontrada para a chave da saida	sincronize forecasts/<data>/<AAAAMMDDTHHMM>/<versao> do bucket oficial e repita

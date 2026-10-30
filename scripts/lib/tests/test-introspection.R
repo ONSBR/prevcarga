@@ -111,7 +111,7 @@ test_that("doctor [CONTROL]: sujo nao e erro; falhas mantem o numero de linhas e
   r <- run_main(E, c("doctor", "--format=json"))
   expect_true(r$code %in% c(0L, 6L, 7L))
   j <- jsonlite::fromJSON(paste(r$out, collapse = ""), simplifyVector = FALSE)
-  expect_identical(length(j$result$checks), n)
+  expect_identical(length(j$result$checks), n + 7L)   # + 7 itens de bundle/artefatos do M8.7 (prevcarga_platform_check; N/A na dev)
 })
 
 test_that("status: sem deck, com manifest, manifest ilegivel, BLAS FAIL; exit 0 sempre (ac-9)", {

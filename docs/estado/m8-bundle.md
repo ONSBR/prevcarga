@@ -67,7 +67,7 @@ catalogo, `bundle.package_missing`, tarball). Os bracos que dependem de `dist/` 
 
 ## Pendencias
 - [DEFERRED M8.8] tiers de paridade (`--tier parity|parity-full`) e A/B completo Delta=0 contra o oraculo DENTRO do bundle: dono M8.8 ("A/B contra prevcargadessem3").
-- [DEFERRED M8.6/M8.7] gate `cross_os` (artefato Linux -> Windows) e braco Windows.
+- [DEFERRED M8.6] gate `cross_os` (artefato Linux -> Windows) e braco Windows: o verbo `verificar` (M8.7, `docs/estado/verificar.md`) ja compara entre plataformas; falta a execucao no Windows.
 - [DEFERRED M8.x] braco Windows (build, `windows-x86_64`, `bundle.platform_mismatch` no doctor): dono M8.6/M8.7; nao executavel nesta maquina.
-- `prevcarga doctor` ainda nao chama `prevcarga_bundle_require`/`prevcarga_runtime_validate` (introspect.R nao e deste ticket): dono M8.7.
+- `prevcarga doctor` agora valida o bundle instalado (`prevcarga_runtime_validate`, plataforma, R, artefatos): M8.7, `docs/estado/verificar.md`.
 - dessem-linear (max_rel 2.2e-13) segue pendente de decisao do Gabriel (m1-spike-r453.md); nao tratado aqui.

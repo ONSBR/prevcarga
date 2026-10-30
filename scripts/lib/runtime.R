@@ -242,3 +242,135 @@ prevcarga_bundle_require <- function(pkgs) {
       prevcarga_abort("bundle.package_missing", where = p, details = list(package = p))
   invisible(pkgs)
 }
+
+## --- Doctor: plataforma, bundle instalado e artefatos sincronizados (M8.7) -----------------------------------
+## prevcarga_platform_check(ctx) devolve list(rows, classes, campos): `rows` (check/status/found/effective, vocabulario
+## PASS/WARN/FAIL/N/A do doctor), `classes` (classe de erro por linha, NA nas que nao falham) e `campos` (JSON do doctor:
+## runtime_id, version, platform, install_root, state_dir, artefatos[], state_bytes). So le arquivos; sem env, sem rede.
+## Bundle instalado = RUNTIME.json em `ctx$root` ou um nivel acima (o `code/` do bundle fica sob a raiz do bundle). Na arvore de
+## dev (sem RUNTIME.json) todo item de bundle e `N/A (nao-instalado)`. `current` = arquivo-ponteiro (1 linha, a versao) ao lado
+## da raiz do bundle, sem symlink; difere da versao instalada => WARN. Classes: plataforma/R/integridade = bundle (6),
+## artefato ausente = state (13), sha divergente do SHA256SUMS = integrity (9).
+.prevcarga_pc_na <- "N/A (nao-instalado)"
+
+.prevcarga_host_platform <- function() {
+  os <- if (identical(.Platform$OS.type, "windows")) "windows" else if (grepl("linux", R.version$os)) "linux" else R.version$os
+  paste0(os, "-", R.version$arch)
+}
+
+## glibc do host (Linux): "2.39" ou NA se nao der para saber.
+.prevcarga_host_glibc <- function() {
+  if (!grepl("linux", R.version$os)) return(NA_character_)
+  out <- tryCatch(suppressWarnings(system2("getconf", "GNU_LIBC_VERSION", stdout = TRUE, stderr = FALSE)),
+                  error = function(e) character())
+  v <- sub("^glibc[[:space:]]+", "", out[grepl("^glibc", out)])
+  if (length(v)) v[[1L]] else NA_character_
+}
+
+.prevcarga_pc_row <- function(check, status, found = "-", effective = "-", class = NA_character_) {
+  data.frame(check = check, status = status, found = found, effective = effective, class = class, stringsAsFactors = FALSE)
+}
+
+## latest.txt sob <state_dir>/artifacts: v_<hash> ausente => "ausente"; SHA256SUMS ('<sha>  <arquivo>') divergente => "sha_divergente".
+.prevcarga_artifact_scan <- function(state_dir) {
+  base <- file.path(state_dir, "artifacts")
+  lat <- if (dir.exists(base)) list.files(base, pattern = "^latest\\.txt$", recursive = TRUE, all.files = TRUE) else character()
+  lat <- sort(lat, method = "radix")
+  rows <- lapply(lat, function(rel) {
+    d <- dirname(rel)
+    ver <- trimws(readLines(file.path(base, rel), n = 1L, warn = FALSE))
+    vdir <- file.path(base, d, ver)
+    st <- "ok"; arq <- NA_character_
+    if (!length(ver) || !nzchar(ver) || !dir.exists(vdir)) st <- "ausente"
+    else if (file.exists(file.path(vdir, "SHA256SUMS"))) {
+      sums <- readLines(file.path(vdir, "SHA256SUMS"), warn = FALSE)
+      sums <- sums[nzchar(trimws(sums))]
+      for (l in sums) {
+        sha <- sub("[[:space:]].*$", "", l)
+        f <- sub("^[0-9a-f]+[[:space:]]+\\*?", "", l)
+        got <- if (file.exists(file.path(vdir, f))) .prevcarga_runtime_file_sha(file.path(vdir, f)) else NA_character_
+        if (is.na(got) || !identical(got, sha)) { st <- "sha_divergente"; arq <- f; break }
+      }
+    }
+    c(list(dir = d, versao = ver, status = st), if (!is.na(arq)) list(arquivo = arq))
+  })
+  rows
+}
+
+.prevcarga_state_bytes <- function(state_dir) {
+  if (is.null(state_dir) || !dir.exists(state_dir)) return(structure(list(), names = character()))
+  subs <- sort(list.dirs(state_dir, full.names = FALSE, recursive = FALSE), method = "radix")
+  out <- lapply(subs, function(s) {
+    f <- list.files(file.path(state_dir, s), recursive = TRUE, all.files = TRUE, full.names = TRUE)
+    sum(as.numeric(file.size(f)), na.rm = TRUE)
+  })
+  stats::setNames(out, subs)
+}
+
+prevcarga_platform_check <- function(ctx, host = .prevcarga_host_platform(), glibc = .prevcarga_host_glibc(),
+                                     r_version = as.character(getRversion())) {
+  root <- ctx$root
+  cand <- c(root, dirname(root))
+  broot <- cand[file.exists(file.path(cand, "RUNTIME.json"))][1L]
+  installed <- !is.na(broot)
+  campos <- list(runtime_id = NULL, version = ctx$version, platform = host, install_root = root,
+                 state_dir = ctx$state_dir, artefatos = list(), state_bytes = .prevcarga_state_bytes(ctx$state_dir))
+  na_names <- c("bundle.plataforma", "bundle.r_version", "bundle.integridade", "bundle.versao", "bundle.current",
+                "artefatos.presenca", "artefatos.sha")
+  if (!installed) {
+    rows <- do.call(rbind, lapply(na_names, function(n) .prevcarga_pc_row(n, "N/A", .prevcarga_pc_na, "-")))
+    return(list(rows = rows, classes = rows$class, campos = campos))
+  }
+  rt <- jsonlite::read_json(file.path(broot, "RUNTIME.json"), simplifyVector = FALSE)
+  campos$runtime_id <- prevcarga_runtime_id(file.path(broot, "RUNTIME.json"))
+  campos$version <- rt$version
+  campos$install_root <- broot
+  plat_ok <- identical(as.character(rt$platform), host)
+  glibc_ok <- !grepl("^linux", host) || is.na(glibc) || utils::compareVersion(glibc, "2.35") >= 0
+  r_plat <- if (!plat_ok) .prevcarga_pc_row("bundle.plataforma", "FAIL", as.character(rt$platform), host, "bundle")
+            else if (!glibc_ok) .prevcarga_pc_row("bundle.plataforma", "FAIL", paste0("glibc ", glibc), "glibc >= 2.35", "bundle")
+            else .prevcarga_pc_row("bundle.plataforma", "PASS", as.character(rt$platform), host)
+  r_r <- .prevcarga_pc_row("bundle.r_version", if (identical(as.character(rt$r_version), r_version)) "PASS" else "FAIL",
+                           as.character(rt$r_version), r_version,
+                           if (identical(as.character(rt$r_version), r_version)) NA_character_ else "bundle")
+  v <- prevcarga_runtime_validate(broot)
+  r_int <- .prevcarga_pc_row("bundle.integridade", if (v$ok) "PASS" else "FAIL",
+                             if (v$ok) "ok" else paste(utils::head(v$divergentes, 3L), collapse = ","), "RUNTIME.json files[]",
+                             if (v$ok) NA_character_ else "bundle")
+  r_ver <- .prevcarga_pc_row("bundle.versao", "PASS", as.character(rt$version), as.character(campos$runtime_id))
+  curf <- file.path(dirname(broot), "current")
+  r_cur <- if (!file.exists(curf) || dir.exists(curf)) .prevcarga_pc_row("bundle.current", "N/A", "ausente", "-")
+           else {
+             cv <- trimws(readLines(curf, n = 1L, warn = FALSE))
+             .prevcarga_pc_row("bundle.current", if (identical(cv, as.character(rt$version))) "PASS" else "WARN", cv, as.character(rt$version))
+           }
+  art <- .prevcarga_artifact_scan(ctx$state_dir)
+  campos$artefatos <- art
+  miss <- Filter(function(a) identical(a$status, "ausente"), art)
+  bad <- Filter(function(a) identical(a$status, "sha_divergente"), art)
+  r_pre <- .prevcarga_pc_row("artefatos.presenca", if (length(miss)) "FAIL" else "PASS",
+                             if (length(miss)) paste0(miss[[1L]]$dir, "/", miss[[1L]]$versao, " ausente") else sprintf("%d latest.txt", length(art)),
+                             "v_<hash> presente", if (length(miss)) "state" else NA_character_)
+  r_sha <- .prevcarga_pc_row("artefatos.sha", if (length(bad)) "FAIL" else "PASS",
+                             if (length(bad)) paste0(bad[[1L]]$dir, "/", bad[[1L]]$arquivo) else "ok", "SHA256SUMS",
+                             if (length(bad)) "integrity" else NA_character_)
+  rows <- rbind(r_plat, r_r, r_int, r_ver, r_cur, r_pre, r_sha)
+  rownames(rows) <- NULL
+  list(rows = rows, classes = rows$class, campos = campos)
+}
+
+## Anexa as linhas do platform_check ao resultado do construtor do doctor (introspect.R) e recalcula counts/offenders/exit pela
+## precedencia do catalogo (ADR-0040): FAIL de bundle=6, integrity=9, state=13 entram junto das classes ja decididas pelo construtor.
+prevcarga_doctor_extend <- function(d, ctx, pc = prevcarga_platform_check(ctx)) {
+  checks <- rbind(d$checks, pc$rows[c("check", "status", "found", "effective")])
+  rownames(checks) <- NULL
+  counts <- lapply(stats::setNames(c("PASS", "WARN", "FAIL", "N/A"), c("PASS", "WARN", "FAIL", "N/A")),
+                   function(s) as.integer(sum(checks$status == s)))
+  code0 <- as.integer(attr(d, "exit_code"))
+  cls0 <- names(prevcarga_exit_codes)[match(code0, prevcarga_exit_codes)]
+  classes <- c(if (code0 != 0L) cls0, unique(stats::na.omit(pc$classes[pc$rows$status == "FAIL"])))
+  code <- if (length(classes)) unname(prevcarga_exit_codes[[prevcarga_exit_precedence(classes)]]) else 0L
+  res <- c(list(schema_version = d$schema_version, checks = checks, counts = counts,
+                offenders = checks$check[checks$status == "FAIL"]), pc$campos)
+  structure(res, exit_code = as.integer(code))
+}
