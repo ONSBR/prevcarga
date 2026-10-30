@@ -72,3 +72,14 @@ Desvios do plano original, por unify: (1) nao existe `prevcarga_khat_promote` (g
 - `test-reconcile-parity.R` (Linux e Windows, nunca chama oraculo/Rscript): sempre roda o lock (digest da entrada regerada = lock, com CONTROL de semente) e os bracos sinteticos (FORBIDDEN: inflar a verdade >= O da Delta = 0 em k e y_pred; CONTROL: inflar o dia O-730, `week_start = 1`, janela de 729 dias e bucket por interval_end quebram contra o ajuste base, > 1e-6). Com `.state/golden/reconcile/` presente: sha256 divergente do lock = FALHA; `khat_ratio` + `khat_fit(O, 730)` + `bottomup` + `khat_apply` = Delta=0 (tol 1e-9) em k, y_pred e BU_pred, `n_fallback = 0`, e os 3 CONTROLs quebram a paridade contra o golden. Sem `.state`: SKIP com a receita.
 - Achado de leitura do oraculo: a janela real e `seq(O - W, O - 1)` = `[O-730, O-1]` (730 dias), nao o `(O-W, O-1]` do comentario; R.1 segue o codigo. A origem do golden foi escolhida para que o dia O-730 caia num bucket coberto pelos alvos (senao o CONTROL de 729 dias nao teria dente).
 - Excecoes conscientes do A/B do M8 (insumo do R.V): glob da janela (oraculo: todo o historico, inclusive futuro); fallback silencioso removido (aviso + `n_fallback`); perfil reutilizado em O >= khat_origin no apply de producao; bucket por interval_start derivado de interval_end - 30 min na borda do LONG (mesmo Delta = 0).
+
+## R.4 -- reach-control das bordas da janela do k-hat
+- `prevcarga_reach_control(module_fn, input, arms, compare, tol)` (honesty_gate.R, generico, reusavel por M6/M7): copia profunda da ENTRADA por braco,
+  delta por SAIDA (`.prevcarga_reach_delta`: merge nas chaves; chaves diferentes ou NA = Inf). Veredito HONESTO | VAZA | INDETERMINADO
+  (forbidden > tol => VAZA; braco que nao alterou a entrada ou control <= tol => INDETERMINADO). Sem disco/subprocesso/env.
+  A comparacao da entrada ignora o `index` automatico do data.table (`.prevcarga_reach_same`, via as.data.frame).
+- `prevcarga_khat_reach_arms(origin, window_days, ss)` (reconcile.R): FORBIDDEN `futuro` (dias >= O) e `antes_da_janela` (<= O-W-1);
+  CONTROL `ultimo_dia` (O-1) e `primeiro_dia` (O-W); perturbam SS_true x1,3+1 so nas linhas do subsistema.
+- Canais comparados: k por (hour, month, dow) e y_pred de um BU fixo cobrindo um intervalo em cada dia de [O-W, O-1] (garante que todo
+  bucket da janela e atingido; o bucket do dia O nao seria, e cairia no glob). Mutacoes (59 dias, 61 dias, incluindo O) => INDETERMINADO, VAZA, VAZA.
+- Testes: `test-honesty_gate-reach_control.R`, `test-reconcile-honesty.R` (verdade de entrada O-120..O+5; ~15 s).
