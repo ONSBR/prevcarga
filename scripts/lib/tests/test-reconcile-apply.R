@@ -99,21 +99,21 @@ test_that("AC2 state.khat_missing: sem latest => exit 13, hint e nada devolvido"
   expect_false(grepl("[^ -~]", conditionMessage(cond)))
 })
 
-test_that("AC3 politica por origem: O+1 aborta; O aplica (idade 0); O-1 sem pino => state.khat_missing; pino O-1 => idade 1", {
+test_that("AC3 politica por origem: O+1 aborta; O aplica (idade 0, com e sem pino); O-1 aborta mesmo com pino", {
   s <- ra_setup(); leaves <- pc_leaves_long(s$topo, O, s$ctx)
   ra_profile(s, "SS1", origin = format(Od + 1L))
   expect_pc(apply_q(leaves, s$ctx, "SS1"), "honesty.khat_after_origin", 15L)
   s2 <- ra_setup(); v1 <- ra_profile(s2, "SS1", origin = format(Od - 1L))
   ## FORBIDDEN: nunca reusa o latest de outra origem
   expect_pc(apply_q(leaves, s2$ctx, "SS1"), "state.khat_missing", 13L)
-  r <- apply_q(leaves, s2$ctx, "SS1", khat_version = v1)          # pino explicito
-  expect_identical(r$khat$SS1$khat_origin, Od - 1L)
-  expect_identical(r$khat$SS1$khat_age_days, 1L)
+  expect_pc(apply_q(leaves, s2$ctx, "SS1", khat_version = v1), "state.khat_missing", 13L)   # pino O-1 tambem aborta
   ## CONTROL: perfil ajustado para a propria origem aplica com idade 0
   v0 <- ra_profile(s2, "SS1", origin = O, r = 1.2)
   r0 <- apply_q(leaves, s2$ctx, "SS1")
   expect_identical(r0$khat$SS1$versao, v0)
   expect_identical(r0$khat$SS1$khat_age_days, 0L)
+  rp <- apply_q(leaves, s2$ctx, "SS1", khat_version = v0)         # pino em O aplica
+  expect_identical(rp$khat$SS1$versao, v0); expect_identical(rp$khat$SS1$khat_age_days, 0L)
   expect_match(r0$khat$SS1$versao, "^v_[0-9a-f]{16}$")
   expect_identical(env$prevcarga_khat_check_policy(env$prevcarga_khat_thaw(s2$ctx, "SS1", v0), s2$ctx, Od), 0L)
 })

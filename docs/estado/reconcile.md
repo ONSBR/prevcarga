@@ -46,11 +46,11 @@ Desvios do plano original, por unify: (1) nao existe `prevcarga_khat_promote` (g
   meta (convencao `load_label`/`tz` vem dos atributos do leitor) -> `prevcarga_khat_freeze` -> `prevcarga_khat_advance_latest` (unify R.2;
   nao existe `prevcarga_khat_promote`). Devolve por ss `{versao, path, khat_origin, n_ratio, promovido, k_hat_resumo{min,max,fora_faixa}}`;
   `fora_faixa` conta celulas do perfil fora de `khat_range` (so informa, nunca clampa).
-- `prevcarga_khat_check_policy(prof, ctx, origin, pinned = FALSE)`: unico lugar da politica de uso do perfil. DECISAO (Gabriel, 2026-10-29):
-  o k-hat e REAJUSTADO POR ORIGEM, como o oraculo (Delta = 0); nunca se reusa o `latest` de outra origem. Cada origem O usa o perfil com
-  `khat_origin == O`: posterior => `honesty.khat_after_origin`; anterior sem pino => `state.khat_missing` (rode train para esta origem);
-  convencao => `contract.khat_convention` (`where` = `load_label`|`timezone`). Com versao fixada de proposito (`pinned`, `khat_version`)
-  vale `khat_origin <= O` e `khat_age_days` e informado. Devolve `khat_age_days`.
+- `prevcarga_khat_check_policy(prof, ctx, origin)`: unico lugar da politica de uso do perfil. **khat_origin == O sempre, com ou sem pino
+  (Gabriel, 2026-10-29)**: o k-hat e REAJUSTADO POR ORIGEM, como o oraculo (Delta = 0); nunca ha reuso de perfil de outra origem.
+  Posterior => `honesty.khat_after_origin`; anterior => `state.khat_missing` (rode train para esta origem); convencao =>
+  `contract.khat_convention` (`where` = `load_label`|`timezone`). O pino (`khat_version`) so escolhe entre versoes ajustadas EM O.
+  `khat_age_days` e sempre 0L (mantido por contrato de saida do `result$khat`).
   `.prevcarga_khat_resolve_for_origin` acha a versao da origem (latest se for dela; senao varre as versoes da celula, pois o backtest
   treina para tras e o `latest.txt` so anda para frente). O registry/`latest.txt` (R.2) segue so armazenando/resolvendo o perfil de uma origem.
   Convencao efetiva = `ctx$load_label`/`ctx$tz`, ou o manifest do deck quando ausentes.

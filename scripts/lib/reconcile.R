@@ -418,12 +418,11 @@ prevcarga_reconcile_train <- function(ctx, origin, subsystems = "all", window_da
   stats::setNames(out, sss)
 }
 
-## --- Politica de uso do perfil (unico lugar): cada origem usa o perfil AJUSTADO PARA ELA --------------------
-## Como o oraculo (reajusta o k-hat por origem; Delta = 0): khat_origin == O. Posterior a O => honesty.khat_after_origin;
-## anterior a O sem pino explicito => state.khat_missing (nao ha perfil ajustado para esta origem; nunca reusa o latest).
-## `pinned` = versao fixada de proposito (--khat-version): vale khat_origin <= O, relatando khat_age_days.
-## Devolve khat_age_days (inteiro).
-prevcarga_khat_check_policy <- function(prof, ctx, origin, pinned = FALSE) {
+## --- Politica de uso do perfil (unico lugar): khat_origin == O SEMPRE, com ou sem pino (Gabriel, 2026-10-29) ---
+## Como o oraculo (reajusta o k-hat por origem; Delta = 0), sem reuso de perfil de outra origem: posterior a O =>
+## honesty.khat_after_origin; anterior a O => state.khat_missing (rode train para esta origem). O pino so escolhe entre
+## versoes ajustadas EM O. Devolve khat_age_days, hoje sempre 0L (mantido por contrato de saida do result$khat).
+prevcarga_khat_check_policy <- function(prof, ctx, origin) {
   m <- prof$meta
   conv <- .prevcarga_reconcile_convention(ctx)
   if (!identical(m$load_label, conv$load_label))
@@ -437,7 +436,7 @@ prevcarga_khat_check_policy <- function(prof, ctx, origin, pinned = FALSE) {
   if (ko > origin)
     prevcarga_abort("honesty.khat_after_origin",
                     details = list(khat_origin = format(ko), origem = format(origin)))
-  if (ko < origin && !isTRUE(pinned))
+  if (ko < origin)
     prevcarga_abort("state.khat_missing", where = paste0(m$ss, "@", format(origin)),
                     details = list(khat_origin = format(ko), origem = format(origin)))
   as.integer(origin - ko)
@@ -492,7 +491,7 @@ prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat
       ver <- if (is.null(khat_version)) .prevcarga_khat_resolve_for_origin(ctx, ss, origin)
              else prevcarga_khat_resolve(ctx, ss, khat_version)
       prof <- prevcarga_khat_thaw(ctx, ss, ver)
-      age <- prevcarga_khat_check_policy(prof, ctx, origin, pinned = !is.null(khat_version))
+      age <- prevcarga_khat_check_policy(prof, ctx, origin)
       ap <- prevcarga_khat_apply(bu, list(profile = prof$profile, glob = prof$glob), ctx)
       m <- prof$meta
       khat[[ss]] <- list(versao = ver, khat_origin = lubridate::as_date(m$khat_origin), khat_age_days = age,
