@@ -17,6 +17,14 @@ testes `scripts/lib/tests/test-orchestrate.R` (+ fixture `tests/fixtures/m7/conf
   `done` <=> long.parquet + `.key` == cache_key esperada (a chave e publicada por ultimo); `*.tmp` ignorado. `run_cell(cell)` devolve a tabela LONG; o orquestrador publica.
 - **Politica de falha**: fail-fast (restantes `skipped`) ou `--keep-going`; veredito ok|partial|failed; partial/failed => `partial.backtest_delivery` (exit 14) com o resumo no `result` do envelope e linhas `falha ...` em stderr (texto).
 - **Lock**: `run.lock/` por `dir.create` exclusivo + `owner.json {pid, host}`; ocupado => `state.lock_held` (exit 13, antes de tocar plano/ledger); `--break-lock` retoma (aviso `warning.lock_broken`). Liberado no `on.exit`.
-- **Pendente (outros tickets)**: o runner de celula real (`prevcarga_backtest_cell_runner(ctx)`, M7.3: treino via `prevcarga_train` + infer); sem ele toda celula falha com `todo.not_implemented`. `--jobs > 1` (PSOCK) e do M7.6. `--report`/`--report-format`/`--dplus`/`--baseline` sao aceitos e consumidos pelo M7.3+.
+- **Pendente (outros tickets)**: o runner de celula real (`prevcarga_backtest_cell_runner(ctx)`, M7.3: treino via `prevcarga_train` + infer); sem ele toda celula falha com `todo.not_implemented`. `--report`/`--report-format`/`--dplus`/`--baseline` sao aceitos e consumidos pelo M7.3+.
 - **cli.R** (extensao minima): campo opcional `scoped` no registro do verbo (flags validas so nos verbos que as declaram; fora => config.usage, exit 8); `plan`/`backtest` saem de `prevcarga_verbs_planned`.
 - **config**: `backtest.corte_default` valida `HH:00|HH:30`, default `08:00`.
+- **`--jobs N` (M7.6, PSOCK)**: `.m7_dispatch()` e serial quando `jobs == 1` (nenhum cluster) e `.m7_dispatch_psock()` caso contrario; so `parallel::makePSOCKcluster`
+  (sem fork; Linux e Windows nativo, ADR-0038), fechado em `on.exit`. Cada worker roda `prevcarga_worker_init` (training.R: `.m7_worker_modules` do MESMO `prevcarga.lib`/`ctx$lib_dir`,
+  depois `prevcarga_runtime_enforce()` in-process, sem env). Init que falha => toda celula vira `failed` com a classe/id originais (`runtime.*`), nada roda.
+  Celula = `.m7_cell_exec()` (serial e worker, o mesmo codigo): `.m7_seed_apply(seed do run.yaml)` imediatamente antes de `run_cell`, publica so no diretorio da propria celula e devolve
+  um envelope pequeno (state/error_class/error_id/mensagem; o LONG fica em disco). Lotes do tamanho do cluster (`clusterApplyLB`); o pai recolhe na ordem de despacho, escreve
+  `failures.jsonl` (so ele) e, sem `--keep-going`, nao despacha lote novo apos a 1a falha (resto `skipped`). `status`/resumo na ordem de `plan$cells`: byte-identicos entre jobs.
+  A semente tambem e aplicada no caminho serial (e o que garante `--jobs 1 == --jobs N`). Hooks de teste: `ctx$worker_hooks` (pre/post_runtime), como no train-models.
+  Testes: `scripts/lib/tests/test-orchestrate-psock.R` (script-filho com shell sujo/limpo; CONTROL sem semente no worker).
