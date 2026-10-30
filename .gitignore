@@ -72,3 +72,4 @@ renv/staging/
 
 # Relatorio de paridade do HW (gerado por models/holt-winters/tests/run_all_gates.R; sha256 vai na PR)
 /models/holt-winters/tests/parity/parity_report.json
+/models/holt-winters/tests/parity/seed_measure.json
