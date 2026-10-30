@@ -166,6 +166,9 @@ test_that("stubs derivados da descoberta, com dono (ac-9)", {
   expect_true("validate-deck" %in% tab$verb)
   expect_false(is.null(tab$handler[[which(tab$verb == "validate-deck")]]))
   expect_true(file.exists(file.path(E$prevcarga_cli_dir(), "validate-deck.R")))
+  ## R.5: reconcile tem arquivo em cli/ e deixou de ser stub
+  expect_false("reconcile" %in% stubs)
+  expect_false(is.null(tab$handler[[which(tab$verb == "reconcile")]]))
   for (v in stubs) {
     owner <- unname(E$prevcarga_verbs_planned[[v]])
     r <- run_main(E, v, tab)

@@ -563,3 +563,88 @@ prevcarga_khat_reach_arms <- function(origin, window_days, ss, factor = 1.3, shi
        control = list(ultimo_dia = bump(function(d) d == origin - 1L),
                       primeiro_dia = bump(function(d) d == first)))
 }
+
+## =====================================================================================================
+## R.5 -- borda de I/O do verbo `reconcile` (cli/reconcile.R so compoe): ler o --leaves-dir, run_id, escrever no scratch.
+## Requer tambem provenance.R (.prevcarga_canon_json/.prevcarga_sha256) e arrow/digest.
+## =====================================================================================================
+
+## --subsistema contra topology$order, antes de qualquer leitura de verdade ou perfil (topology.area_undeclared, exit 4)
+prevcarga_reconcile_check_subsystem <- function(subsystem, topology) {
+  if (is.null(subsystem) || identical(subsystem, "all")) return(invisible(topology$order))
+  bad <- setdiff(subsystem, topology$order)
+  if (length(bad)) prevcarga_abort("topology.area_undeclared", where = bad[[1L]])
+  invisible(topology$order[topology$order %in% subsystem])
+}
+
+## Um parquet LONG por area em `dir` (ordem estavel radix); leitor unico do LONG (prevcarga_read_long). Area fora da
+## topologia => topology.area_undeclared; arquivo com mais de uma area => contract.reconcile_input.
+## Devolve list(leaves = list de data.frame nomeada pelo arquivo, sha256 = c(arquivo = sha256)).
+prevcarga_reconcile_read_from <- function(dir, ctx, topology) {
+  if (!is.character(dir) || length(dir) != 1L || !dir.exists(dir))
+    prevcarga_abort("config.usage", where = paste0("--leaves-dir=", paste(dir, collapse = "")))
+  fs <- list.files(dir, pattern = "\\.parquet$", full.names = FALSE)
+  fs <- fs[order(fs, method = "radix")]
+  if (!length(fs)) prevcarga_abort("contract.reconcile_input", where = dir,
+                                   details = list(reason = "nenhum parquet no --leaves-dir"))
+  leaves <- lapply(fs, function(f) {
+    long <- prevcarga_read_long(file.path(dir, f), ctx)
+    areas <- unique(long$area)
+    if (length(areas) != 1L)
+      prevcarga_abort("contract.reconcile_input", where = f, details = list(reason = "uma area por arquivo"))
+    if (!areas %in% c(topology$leaves, topology$order))
+      prevcarga_abort("topology.area_undeclared", where = areas)
+    long
+  })
+  names(leaves) <- fs
+  sha <- vapply(fs, function(f) digest::digest(file = file.path(dir, f), algo = "sha256"), "")
+  list(leaves = leaves, sha256 = sha)
+}
+
+## run_id = 16 hex do sha256 do JSON canonico da chave; nunca PID nem relogio.
+prevcarga_reconcile_run_id <- function(key) substr(.prevcarga_sha256(.prevcarga_canon_json(key)), 1L, 16L)
+
+.reconcile_write_parquet <- function(long, path) {
+  df <- as.data.frame(long)
+  df <- df[order(df$target_datetime, df$lead, df$forecast_origin, method = "radix"), , drop = FALSE]
+  rownames(df) <- NULL
+  arrow::write_parquet(df, path, compression = "snappy", version = "2.6", use_dictionary = FALSE)
+  nrow(df)
+}
+
+.reconcile_scratch_layout <- function(out) {
+  fs <- list.files(out, recursive = TRUE, all.files = TRUE, no.. = TRUE)
+  all(grepl("^(SIN\\.parquet|subsistemas/[^/]+\\.parquet)$", fs))
+}
+
+## Escreve o scratch (`<out>/subsistemas/<ss>.parquet` + `<out>/SIN.parquet`) por diretorio `.tmp-<run_id>` irmao e
+## file.rename so depois de todos os arquivos prontos; erro antes disso deixa `out` intocado e remove o `.tmp-*`.
+## Devolve arquivos[] = list(path, area, linhas, sha256).
+prevcarga_reconcile_write <- function(res, out, run_id) {
+  parent <- dirname(out)
+  if (!dir.exists(parent))
+    prevcarga_abort("io.out_unwritable", where = out, details = list(reason = "diretorio ausente"))
+  if (dir.exists(out) && length(list.files(out, all.files = TRUE, no.. = TRUE)) && !.reconcile_scratch_layout(out))
+    prevcarga_abort("io.out_unwritable", where = out, details = list(reason = "diretorio nao vazio"))
+  if (file.exists(out) && !dir.exists(out))
+    prevcarga_abort("io.out_unwritable", where = out, details = list(reason = "ja existe como arquivo"))
+  tmp <- file.path(parent, paste0(".tmp-", run_id))
+  unlink(tmp, recursive = TRUE)
+  if (!dir.create(file.path(tmp, "subsistemas"), recursive = TRUE, showWarnings = FALSE))
+    prevcarga_abort("io.out_unwritable", where = out, details = list(reason = "nao criou o diretorio temporario"))
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+  rows <- list()
+  put <- function(long, rel, area) {
+    p <- file.path(tmp, rel)
+    n <- .reconcile_write_parquet(long, p)
+    rows[[length(rows) + 1L]] <<- list(path = rel, area = area, linhas = as.integer(n),
+                                       sha256 = digest::digest(file = p, algo = "sha256"))
+  }
+  for (ss in setdiff(names(res$long), "SIN"))
+    if (!is.null(res$long[[ss]])) put(res$long[[ss]], file.path("subsistemas", paste0(ss, ".parquet")), ss)
+  if (!is.null(res$long$SIN)) put(res$long$SIN, "SIN.parquet", "SIN")
+  if (dir.exists(out)) unlink(out, recursive = TRUE)
+  if (!file.rename(tmp, out))
+    prevcarga_abort("io.out_unwritable", where = out, details = list(reason = "rename falhou"))
+  rows
+}
