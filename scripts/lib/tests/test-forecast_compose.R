@@ -286,3 +286,25 @@ test_that("[AC8] buraco no dia O: gate-0 exit 3 antes do infer e sem scratch; sk
   expect_gt(n_val, 0L)
   expect_length(log3$infer, 0L)
 })
+
+test_that("[00h] rodada das 00h (deck ate O-1 23:30, origem O): entrega de O 00:30, sem carga do dia O; CONTROL dia O completo => recusa", {
+  deck0 <- m6f_deck(env, file.path(base, "deck00"), origin = O - 1L, until = "24:00")
+  ctx <- fx_copy(deck = deck0)
+  m6f_prepare_origin(env, ctx, O)
+  log <- new_log(); spies(log)
+  r <- run(ctx, origin = O, niveis = "tudo")
+  expect_identical(r$result$available_until, "2026-01-15T00:00")
+  expect_match(r$result$saida, "/forecasts/2026-01-15/20260115T0000/")
+  expect_length(log$infer, 9L)
+  f <- arrow::read_parquet(file.path(r$result$saida, "folhas", "A1.parquet"))
+  expect_identical(format(min(f$target_datetime), "%Y-%m-%d %H:%M", tz = M6_TZ), "2026-01-15 00:30")
+  ## nenhuma carga do dia O no deck: o leitor so entrega o dia anterior
+  ld <- env$prevcarga_read_load(ctx, areas = "A1", origin = O)
+  expect_true(all(lubridate::as_date(ld$interval_start, tz = M6_TZ) < O))
+  ## CONTROL: dia O completo (dia O inteiro => available_until = O+1 00:00) e recusado antes do infer, sem diretorios
+  deckc <- m6f_deck(env, file.path(base, "deckc"), origin = O, until = "24:00")
+  ctxc <- fx_copy(deck = deckc); logc <- new_log(); spies(logc)
+  cond <- expect_pc(run(ctxc, origin = O), "completude.forecast_origin_day_complete", 3L)
+  expect_length(logc$infer, 0L)
+  no_delivery_dirs(ctxc)
+})

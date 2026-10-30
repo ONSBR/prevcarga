@@ -61,7 +61,8 @@ m6f_topology_file <- function(dir, move_a2 = FALSE) {
 ## Deck de 40 dias ate O, carga ate O `until` (fuso M6_TZ); as 5 areas (folhas + subsistemas) carregam carga.
 m6f_deck <- function(env, dir, until = "09:00", origin = M6F_ORIGIN, days = 40L, seed = 11) {
   env$prevcarga_fixture_deck(dir, seed = seed, areas = c(M6F_LEAVES, M6F_SS), days = seq(origin - (days - 1L), origin, by = "day"),
-                             load_until = lubridate::ymd_hm(paste(origin, until), tz = M6_TZ), tz = M6_TZ)
+                             load_until = if (identical(until, "24:00")) lubridate::ymd_hm(paste(origin + 1L, "00:00"), tz = M6_TZ)
+                                else lubridate::ymd_hm(paste(origin, until), tz = M6_TZ), tz = M6_TZ)
   dir
 }
 
@@ -193,21 +194,34 @@ m6e_child_main <- function(root, work, out, phase) {
   tz <- PCC_TZ; O <- M6E_O
   deckdir <- file.path(work, "deck")
   topo <- file.path(work, "topology.yaml")
-  if (identical(phase, "train")) {
+  mkdeck <- function(load_until) {
     d <- tempfile("m6e-deck-")
-    au <- lubridate::ymd_hm("2024-10-15 09:30", tz = tz)
     prevcarga_fixture_deck(d, seed = PCC_SEED, areas = c("SP", "XX"), days = seq(O - (PCC_DECK_DAYS - 1L), O, by = "day"),
-                           load_until = au, tz = tz)
+                           load_until = load_until, tz = tz)
     d <- pcc_day_effects(d)
     for (a in c("SP", "XX"))
       d <- prevcarga_fixture_set_holiday(d, a, O + 3L, c(holiday_type_id = 12L, prevcarga_code = 12L, simplified_code = 1L))
+    d
+  }
+  is00 <- grepl("00$", phase)                  # rodada das 00h: deck ate O-1 23:30 (nenhuma informacao do dia O), estado copiado
+  phase0 <- sub("00$", "", phase)
+  state_dir <- file.path(work, if (is00) "state00" else "state")
+  if (identical(phase, "train")) {
+    d <- mkdeck(lubridate::ymd_hm("2024-10-15 09:30", tz = tz))
     file.copy(d, work, recursive = TRUE); file.rename(file.path(work, basename(d)), deckdir)
     real <- readLines(file.path(root, "config", "topology.yaml"), warn = FALSE)
     mem <- real[seq(grep("^members:", real), length(real))]
     writeLines(c("schema_version: 1", "khat_range: [0.1, 5.0]", "subsystems:", "  XX: {areas: [SP], loss: PX}", "order: [XX]", mem), topo)
   }
+  if (is00) deckdir <- file.path(work, "deck00")
+  if (identical(phase, "weights00")) {
+    d <- mkdeck(lubridate::ymd_hm("2024-10-15 00:00", tz = tz))
+    file.copy(d, work, recursive = TRUE); file.rename(file.path(work, basename(d)), deckdir)
+    dir.create(state_dir, recursive = TRUE, showWarnings = FALSE)
+    file.copy(list.files(file.path(work, "state"), full.names = TRUE), state_dir, recursive = TRUE)
+  }
   ctx <- list(root = root, data_dir = deckdir, topology_path = topo, weather_issue_cutoff = PCC_CUTOFF,
-              state_dir = file.path(work, "state"), code_commit = "c0ffee", renv_lock_hash = "ab12", version = "0.0.1",
+              state_dir = state_dir, code_commit = "c0ffee", renv_lock_hash = "ab12", version = "0.0.1",
               generated_at = "2024-10-15T12:00:00Z",
               spec_overrides = list("history_days.train" = 400L, "history_days.infer" = 400L))
   dir.create(ctx$state_dir, recursive = TRUE, showWarnings = FALSE)
@@ -230,12 +244,18 @@ m6e_child_main <- function(root, work, out, phase) {
     res$trained_in_forecast <- counts$train
   }
 
-  if (identical(phase, "weights")) {
+  if (identical(phase0, "weights")) {
     ## pesos da combina treinados no setup sobre as entregas reais (2 origens em meses distintos => celulas EQW por fallback)
     lags <- prevcarga_plugin_data_lags(unique(mem$mdir), root)
     gg <- list(origin = O, cuts = prevcarga_resolve_cuts(ctx, origin = O, data_lag_days = lags))
     plan <- .forecast_plan(ctx, NULL)
-    members <- suppressWarnings(suppressMessages(.forecast_members(ctx, plan, gg, mem)))
+    members <- tryCatch(suppressWarnings(suppressMessages(.forecast_members(ctx, plan, gg, mem))),
+                        prevcarga_error = function(e) e)
+    if (inherits(members, "prevcarga_error")) {           # plugin recusa (ex.: cabeca mm do DESSEM sem o dia O): registra e para a fase
+      res$error <- list(id = members$id, exit = members$exit_code, where = members$where)
+      jsonlite::write_json(res, out, auto_unbox = TRUE, null = "null", digits = NA)
+      return(invisible(res))
+    }
     rctx <- ctx; rctx$tz <- gg$cuts$tz; rctx$load_label <- gg$cuts$load_label
     panel <- .forecast_leaf_panel(rctx, members[["SP"]], "SP", gg, mem)$panel
     prior <- data.table::copy(panel)
@@ -250,23 +270,27 @@ m6e_child_main <- function(root, work, out, phase) {
     res$trained_in_weights <- counts$train
   }
 
-  if (phase %in% c("run", "rerun")) {
+  if (phase0 %in% c("run", "rerun")) {
     tree <- function(d) {
       f <- sort(list.files(d, recursive = TRUE, all.files = TRUE), method = "radix")
       stats::setNames(as.list(vapply(f, function(x) digest::digest(file = file.path(d, x), algo = "sha256"), "")), f)
     }
     go <- function(skip) tryCatch(
-      prevcarga_forecast(ctx, niveis = "tudo", incluir_membros = TRUE, skip_validate = skip),
+      prevcarga_forecast(ctx, origin = O, niveis = "tudo", incluir_membros = TRUE, skip_validate = skip),
       prevcarga_error = function(e) list(error = list(id = e$id, exit = e$exit_code, where = e$where)))
     ## o deck sintetico (460 dias) e mais curto que a janela de producao dos run.yaml: o gate-0 real RECUSA (janela de
     ## historico, exit 5) -- a validacao roda e reprova; a rodada segue com skip_validate (o corte continua vindo do leitor)
     gate0 <- go(FALSE)
     skipped <- !is.null(gate0$error)
     r1 <- if (skipped) go(TRUE) else gate0
+    if (is00) {
+      ld <- prevcarga_read_load(ctx, areas = "SP", origin = O)
+      res$no_day_o_load <- all(lubridate::as_date(ld$interval_start, tz = tz) < O)
+    }
     res <- c(res, list(gate0_error = if (skipped) gate0$error else NULL, skip_validate_used = skipped, train_calls_run1 = counts$train))
     if (is.null(r1$error)) {
       res$run1 <- list(result = r1$result, warnings = r1$warnings, tree = tree(r1$result$saida))
-      if (identical(phase, "run")) {
+      if (phase0 == "run") {
         counts$train <- 0L
         r2 <- go(skipped)
         res$run2 <- list(ja_publicado = r2$result$ja_publicado, versao = r2$result$versao, tree = tree(r2$result$saida),

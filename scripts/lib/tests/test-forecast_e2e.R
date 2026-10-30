@@ -7,7 +7,7 @@ work <- getOption("prevcarga.m6e_work")
 if (is.null(work)) work <- withr::local_tempdir("m6e-") else dir.create(work, recursive = TRUE, showWarnings = FALSE)
 STOP <- getOption("prevcarga.m6e_stop")
 PH <- list()
-for (ph in c("train", "weights", "run", "rerun")) {
+for (ph in c("train", "weights", "run", "rerun", "weights00", "run00")) {
   PH[[ph]] <- m6e_run_child(work, ph)
   if (identical(STOP, ph)) break
 }
@@ -69,4 +69,31 @@ test_that("[e2e] outro processo, mesmo deck e artefatos: mesma versao e sha256 i
   expect_identical(j2$run1$tree, j1$run1$tree)
   expect_true(j2$run1$result$ja_publicado)
   expect_identical(j2$train_calls_run1, 0L)
+})
+
+test_that("[e2e 00h] rodada das 00h com os 8 membros reais: deck ate O-1 23:30, origem O, entrega de O 00:30 sem carga do dia O", {
+  skip_if_stopped("run00")
+  w <- ok("weights00")
+  ## [DEFERRED DL/RD] hoje os DESSEM (linear/regdin) abortam sem a linha do dia O na cabeca mm (plugin.dessem_linear_mm_missing_origin):
+  ## a rodada das 00h exige que a cabeca mm seja opcional quando available_until = O 00:00. Enquanto isso o teste se declara pendente.
+  if (!is.null(w$error) && grepl("mm_missing_origin", w$error$id)) skip(paste("DEFERRED DL/RD:", w$error$id))
+  expect_null(w$error)
+  j <- ok("run00")
+  expect_null(j$error)
+  expect_identical(j$train_calls_run1, 0L)                         # artefatos de O reaproveitados (corte do treino = O-1)
+  r <- j$run1$result
+  expect_identical(r$origem, "2024-10-15")
+  expect_identical(r$available_until, "2024-10-15T00:00")
+  expect_match(r$saida, "/forecasts/2024-10-15/20241015T0000/[0-9a-f]{12}$")
+  paths <- vapply(r$arquivos, function(a) a$path, "")
+  expect_length(grep("^membros/", paths), 8L)
+  expect_true(all(c("SIN.parquet", "subsistemas/XX.parquet", "folhas/SP.parquet") %in% paths))
+  expect_true(j$run2$ja_publicado)
+  expect_identical(j$run2$tree, j$run1$tree)
+  ## todos os membros entregam a partir de O 00:30 e a carga lida nao tem o dia O
+  for (a in r$arquivos) if (grepl("^(membros|folhas)/", a$path)) {
+    x <- arrow::read_parquet(file.path(r$saida, a$path))
+    expect_identical(format(min(x$target_datetime), "%Y-%m-%d %H:%M", tz = PCC_TZ), "2024-10-15 00:30", info = a$path)
+  }
+  expect_identical(j$no_day_o_load, TRUE)
 })

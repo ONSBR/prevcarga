@@ -58,6 +58,12 @@
     for (w in unique(f$what[f$level == "warning"])) sink$add(paste0("warning.", w))
   }
   cuts <- prevcarga_resolve_cuts(ctx, origin = origin, data_lag_days = lags)
+  ## Cortes entregaveis: O 00:00 (rodada das 00h, sem nenhuma informacao do dia O) e qualquer corte intradiario de O. Dia O completo
+  ## (available_until >= O+1 00:00) nao tem representacao no corte da combina (HHMM dentro de O): recusa antes de qualquer infer.
+  next_day <- lubridate::force_tz(lubridate::as_datetime(origin + 1L), cuts$tz)
+  if (cuts$available_until >= next_day)
+    prevcarga_abort("completude.forecast_origin_day_complete", where = format(origin),
+                    details = list(available_until = .forecast_iso_min(cuts$available_until, cuts$tz)))
   list(origin = origin, cuts = cuts, verdict = verdict)
 }
 
