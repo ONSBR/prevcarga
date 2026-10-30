@@ -122,5 +122,7 @@ test_that("[PLUGINS] aditividade: manifesto de models/ exceto holt-winters estav
   skip_if(!dir.exists(file.path(orc, ".git")), "oraculo ausente nesta maquina")
   ## os 3 arquivos/pasta nao rastreados de docs/roadmap/ ja existiam la (notas do plano, nao do HW): so eles sao toleraveis
   st <- hd_git(c("status", "--porcelain"), orc)$out
-  expect_length(st[!grepl("^\\?\\? docs/roadmap/", st)], 0L)
+  tolerado <- paste("??", c("docs/roadmap/CLI-MODULAR-OBJETIVO.md", "docs/roadmap/CLI-MODULAR-ONDE-ESTAMOS.md",
+                            "docs/roadmap/MIGRACAO-COMBINA-R.md", "docs/roadmap/verify-log/"))
+  expect_length(setdiff(st, tolerado), 0L)
 })
