@@ -1,6 +1,6 @@
 ## test-dl-ingest.R -- DL.5 AC2 (contrato de exogena) e AC3 (deck do motor sem aritmetica de hora).
 
-test_that("ac-2 exogena ausente, 'XYZ' ou 'med' aborta [prevcarga/contract] antes de treinar; nenhum SVM e ajustado", {
+test_that("[PLUGINS] ingestao: ac-2 exogena ausente, 'XYZ' ou 'med' aborta [prevcarga/contract] antes de treinar; nenhum SVM e ajustado", {
   p <- dl_load()
   eng <- parent.env(p$env)
   calls <- new.env(); calls$n <- 0L
@@ -24,7 +24,7 @@ test_that("ac-2 exogena ausente, 'XYZ' ou 'med' aborta [prevcarga/contract] ante
     expect_identical(dl_with_cli(suppressMessages(p$env$plugin_ingest(m$panel, m$cuts, dl_spec(ex, 40L))))$model_key, unname(p$env$plugin_constants()$model_key[[ex]]))
 })
 
-test_that("ac-3 deck: DataHora como recebido, 24 linhas/dia, O..O+8, flag-12 -> 0, origin_load, tzone de cuts", {
+test_that("[PLUGINS] ingestao: ac-3 deck: DataHora como recebido, 24 linhas/dia, O..O+8, flag-12 -> 0, origin_load, tzone de cuts", {
   p <- dl_load()
   cuts <- dl_cuts(); O <- cuts$origin_day
   until <- lubridate::force_tz(lubridate::as_datetime(O), DL_TZ) + lubridate::hours(9L)
@@ -64,7 +64,7 @@ test_that("ac-3 deck: DataHora como recebido, 24 linhas/dia, O..O+8, flag-12 -> 
   expect_identical(nrow(deck$hourly_load), 401L * 24L + 9L)
 })
 
-test_that("ac-3 treino: painel sem o dia O => origin_load vazio; mesmas series", {
+test_that("[PLUGINS] ingestao: ac-3 treino: painel sem o dia O => origin_load vazio; mesmas series", {
   p <- dl_load()
   panel <- dl_panel(days = 60L); cuts <- dl_cuts(); m <- dl_model_panel(panel, cuts)
   deck <- dl_with_cli(suppressMessages(p$env$plugin_ingest(m$panel, m$cuts, dl_spec("MED", 40L))))
@@ -76,7 +76,7 @@ test_that("ac-3 treino: painel sem o dia O => origin_load vazio; mesmas series",
   expect_identical(nrow(d2$CARGAHIST), 60L * 24L)
 })
 
-test_that("ac-3 CONTROL: hora faltante em O-10 => [prevcarga/completude] CARGAHIST <dia> com 23/24 horas", {
+test_that("[PLUGINS] ingestao: ac-3 CONTROL: hora faltante em O-10 => [prevcarga/completude] CARGAHIST <dia> com 23/24 horas", {
   p <- dl_load()
   cuts <- dl_cuts(); O <- cuts$origin_day
   hole <- lubridate::force_tz(lubridate::as_datetime(O - 10L), DL_TZ) + lubridate::hours(10L) + lubridate::minutes(30)
@@ -87,7 +87,7 @@ test_that("ac-3 CONTROL: hora faltante em O-10 => [prevcarga/completude] CARGAHI
   expect_match(conditionMessage(cond), "[prevcarga/completude]", fixed = TRUE)
 })
 
-test_that("ac-3 CONTROL: EXOGENAPREV com 3 dias curtos => completude; 2 dias curtos sao persistidos (cauda)", {
+test_that("[PLUGINS] ingestao: ac-3 CONTROL: EXOGENAPREV com 3 dias curtos => completude; 2 dias curtos sao persistidos (cauda)", {
   p <- dl_load()
   cuts <- dl_cuts()
   m3 <- dl_model_panel(dl_panel(days = 60L, fc_short = c(4L, 6L, 8L)), cuts)
@@ -99,7 +99,7 @@ test_that("ac-3 CONTROL: EXOGENAPREV com 3 dias curtos => completude; 2 dias cur
   expect_identical(nrow(deck$EXOGENAPREV), 216L)
 })
 
-test_that("ac-3 janela menor que history_days.train => [prevcarga/window] (exit 5); FERIADOS vazio => completude", {
+test_that("[PLUGINS] ingestao: ac-3 janela menor que history_days.train => [prevcarga/window] (exit 5); FERIADOS vazio => completude", {
   p <- dl_load()
   cuts <- dl_cuts()
   m <- dl_model_panel(dl_panel(days = 60L), cuts)
@@ -110,7 +110,7 @@ test_that("ac-3 janela menor que history_days.train => [prevcarga/window] (exit 
   expect_identical(cond2$exit_code, 3L)
 })
 
-test_that("ac-3 sem aritmetica de hora na ingestao e demais fontes do plugin (grep de fonte)", {
+test_that("[PLUGINS] ingestao: ac-3 sem aritmetica de hora na ingestao e demais fontes do plugin (grep de fonte)", {
   files <- list.files(file.path(dl_models(), "dessem-linear", "R"), pattern = "[.]R$", full.names = TRUE)
   strip <- function(l) sub("#.*$", "", l)
   pat <- paste0("[+-]\\s*3600|(?<![A-Za-z0-9_.])(hours|minutes|seconds|days|dhours|dminutes)\\(|difftime|with_tz|",
@@ -124,7 +124,7 @@ test_that("ac-3 sem aritmetica de hora na ingestao e demais fontes do plugin (gr
   expect_true(all(basename(files) %in% c("feature_engineering.R", "freeze.R", "helpers_nowcast.R", "inference.R", "inference_features.R", "ingestion.R", "register.R", "training.R")))
 })
 
-test_that("despachante de treino alcanca ingestao, feature_engineering e o estagio de treino de DL.6 (erro de variante antes do motor)", {
+test_that("[PLUGINS] ingestao: despachante de treino alcanca ingestao, feature_engineering e o estagio de treino de DL.6 (erro de variante antes do motor)", {
   p <- dl_load()
   panel <- dl_panel(days = 60L); cuts <- dl_cuts()                  # cru: o despachante reamostra (weather_resample hourly)
   spec <- dl_spec("XYZ", 40L)

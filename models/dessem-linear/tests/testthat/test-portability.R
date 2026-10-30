@@ -45,6 +45,6 @@ test_that("[PLUGINS] portabilidade: thaw do arquivo == memoria (mesmo artefato e
   expect_dl_class(e2, "integrity", 9L, id = "engine.dessem_svm_thaw_failed")
 })
 
-test_that("[DEFERRED M8] portabilidade: sha256 do artefato identico entre Windows nativo e Linux (bundle)", {
+test_that("[DEFERRED M8] cross_os: sha256 do artefato identico entre Windows nativo e Linux (bundle)", {
   testthat::skip("[DEFERRED M8] braco Windows x Linux: precisa do bundle e do runner Windows do M8 (dono: M8 portabilidade)")
 })

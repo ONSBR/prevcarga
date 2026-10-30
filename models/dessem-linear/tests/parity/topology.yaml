@@ -1,0 +1,10 @@
+# Topologia da paridade do dessem-linear (DL.9): o oraculo roda o dessem-linear por area do store, inclusive SECO (area de subsistema,
+# nao folha na topologia de producao) e as folhas SP, GO e AC. Aqui as quatro sao folhas para o leitor do clean-room as aceitar;
+# so o LIN_MED e membro (nenhuma unidade MAX/MXMN nesta fatia). Mesmo esquema de config/topology.yaml. Nao e a topologia do produto. ASCII.
+schema_version: 1
+khat_range: [1.00, 1.15]
+subsystems:
+  SECO: {areas: [SECO, SP, GO, AC], loss: PESE}
+order: [SECO]
+members:
+  - {sigla: LIN_MED, mdir: dessem-linear, exogena: MED}

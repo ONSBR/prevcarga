@@ -68,7 +68,7 @@ dt_state <- local({
   }
 })
 
-test_that("ac-3 ordem do oraculo: 9 x (1 DM + 24 perfis) = 225 ajustes; DM(O) com mm e descartada; artefato O+1..O+8 / O..O+8", {
+test_that("[PLUGINS] treino_freeze: ac-3 ordem do oraculo: 9 x (1 DM + 24 perfis) = 225 ajustes; DM(O) com mm e descartada; artefato O+1..O+8 / O..O+8", {
   st <- dt_state(); lg <- st$log; O <- lubridate::ymd("2024-12-23")
   expect_identical(lg$n, 225L)
   has_mm <- grepl("+ mm", lg$fml, fixed = TRUE)
@@ -100,7 +100,7 @@ test_that("ac-3 ordem do oraculo: 9 x (1 DM + 24 perfis) = 225 ajustes; DM(O) co
   expect_false(identical(spy$log$seed0[[1L]], lg$seed0[[2L]]))
 })
 
-test_that("ac-2 sha256 invariante ao corte (09:00 x 12:00); FORBIDDEN dia O; CONTROL perturbar O-1 muda", {
+test_that("[PLUGINS] treino_freeze: ac-2 sha256 invariante ao corte (09:00 x 12:00); FORBIDDEN dia O; CONTROL perturbar O-1 muda", {
   st <- dt_state(); p <- st$p
   a12 <- dt_train(p, 12L)
   expect_identical(dt_sha(a12), dt_sha(st$a09))
@@ -116,7 +116,7 @@ test_that("ac-2 sha256 invariante ao corte (09:00 x 12:00); FORBIDDEN dia O; CON
   expect_false(identical(dt_sha(apert), dt_sha(st$a09)))
 })
 
-test_that("ac-1 painel com linha do dia O: aborta train_sees_day_o (contract, exit 2) sem ajustar SVM; CONTROL treina", {
+test_that("[PLUGINS] treino_freeze: ac-1 painel com linha do dia O: aborta train_sees_day_o (contract, exit 2) sem ajustar SVM; CONTROL treina", {
   st <- dt_state(); p <- st$p; O <- lubridate::ymd("2024-12-23")
   cuts <- dl_cuts(); m <- dl_model_panel(dt_panel(), cuts)
   frame <- dl_with_cli(suppressMessages(p$descriptor$stages$ingestion$fn(m$panel, m$cuts)))
@@ -143,7 +143,7 @@ test_that("ac-1 painel com linha do dia O: aborta train_sees_day_o (contract, ex
   expect_identical(st$log$n, 225L)
 })
 
-test_that("ac-4 plano B (rng_deviation): reseed antes do perfil de O, sem cabeca, aviso, rng_mode reseed; CONTROL preserve", {
+test_that("[PLUGINS] treino_freeze: ac-4 plano B (rng_deviation): reseed antes do perfil de O, sem cabeca, aviso, rng_mode reseed; CONTROL preserve", {
   st <- dt_state(); p <- st$p
   ## descriptor-fixture com desvio
   expect_identical(p$env$dl_rng_mode(deviation = NULL), "preserve")
@@ -175,7 +175,7 @@ test_that("ac-4 plano B (rng_deviation): reseed antes do perfil de O, sem cabeca
   expect_identical(st$a09$payload$rng_mode, "preserve")
 })
 
-test_that("ac-5 freeze puro e deterministico; thaw prediz identico; carimbos; RNG do chamador intacto; CONTROL adulterado", {
+test_that("[PLUGINS] treino_freeze: ac-5 freeze puro e deterministico; thaw prediz identico; carimbos; RNG do chamador intacto; CONTROL adulterado", {
   st <- dt_state(); p <- st$p; O <- lubridate::ymd("2024-12-23")
   a <- st$a09
   expect_true(st$caller_same)
@@ -214,7 +214,7 @@ test_that("ac-5 freeze puro e deterministico; thaw prediz identico; carimbos; RN
   expect_identical(cond$exit_code, 9L); expect_identical(cond$class_name, "integrity")
 })
 
-test_that("F5 membro nao-MED: a variante do membro (LIN_* => MAX) chega a engenharia de features e ao treino, nao o MED do run.yaml", {
+test_that("[PLUGINS] treino_freeze: F5 membro nao-MED: a variante do membro (LIN_* => MAX) chega a engenharia de features e ao treino, nao o MED do run.yaml", {
   st <- dt_state(); p <- st$p
   expect_identical(p$spec$params$exogena, "MED")                   # placeholder do run.yaml
   amax <- dt_train(p, 9L, exogena = "MAX")
@@ -230,7 +230,7 @@ test_that("F5 membro nao-MED: a variante do membro (LIN_* => MAX) chega a engenh
   expect_identical(cond$id, "plugin.dessem_linear_bad_exogena")
 })
 
-test_that("fontes de DL.6: so definicoes, sem relogio nem aritmetica de hora (grep de fonte)", {
+test_that("[PLUGINS] treino_freeze: fontes de DL.6: so definicoes, sem relogio nem aritmetica de hora (grep de fonte)", {
   for (f in c("training.R", "freeze.R")) {
     src <- sub("#.*$", "", readLines(file.path(dl_models(), "dessem-linear", "R", f), warn = FALSE))
     expect_false(any(grepl("Sys\\.time|Sys\\.getenv|[+-]\\s*3600|difftime|with_tz|as\\.POSIX|<<-", src, perl = TRUE)))

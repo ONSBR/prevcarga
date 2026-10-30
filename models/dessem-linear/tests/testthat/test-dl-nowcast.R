@@ -11,7 +11,7 @@ mm_for <- function(panel, au_display) {
   list(mm = p$env$dl_morning_means(deck$hourly_load, deck$available_until, deck$dataPrev), deck = deck)
 }
 
-test_that("ac-4 mm: meia hora isolada nao forma hora completa (09:00 x 09:30 identical) e mm[d] = media das horas completas", {
+test_that("[PLUGINS] nowcast_mm: ac-4 mm: meia hora isolada nao forma hora completa (09:00 x 09:30 identical) e mm[d] = media das horas completas", {
   a <- mm_for(dl_panel(days = 60L, until = au_at(9L)), au_at(9L))
   b <- mm_for(dl_panel(days = 60L, until = au_at(9L, 30L)), au_at(9L, 30L))
   expect_identical(a$mm, b$mm)
@@ -31,7 +31,7 @@ test_that("ac-4 mm: meia hora isolada nao forma hora completa (09:00 x 09:30 ide
   expect_identical(a$mm$Data[[42L]], O_)
 })
 
-test_that("ac-4 FORBIDDEN: carga com interval_end > 09:00 nao muda mm; CONTROL: perturbar 08:00-09:00 de O muda mm[O]", {
+test_that("[PLUGINS] nowcast_mm: ac-4 FORBIDDEN: carga com interval_end > 09:00 nao muda mm; CONTROL: perturbar 08:00-09:00 de O muda mm[O]", {
   base <- mm_for(dl_panel(days = 60L, until = au_at(9L)), au_at(9L))$mm
   pan <- dl_panel(days = 60L, until = au_at(9L))
   ## interval_end > 09:00 do relogio do dia (tarde/noite) e 00:00 do dia seguinte e fim do dia anterior => fora do corte
@@ -52,7 +52,7 @@ test_that("ac-4 FORBIDDEN: carga com interval_end > 09:00 nao muda mm; CONTROL: 
   expect_identical(pert2$mm[pert2$Data != O_], base$mm[base$Data != O_])
 })
 
-test_that("ac-4 corte antes do dia O no frame de modelagem (available_until 00:30): nenhuma hora entra", {
+test_that("[PLUGINS] nowcast_mm: ac-4 corte antes do dia O no frame de modelagem (available_until 00:30): nenhuma hora entra", {
   p <- dl_load()
   h <- data.table::data.table(interval_end = lubridate::force_tz(lubridate::as_datetime(O_ - 1L), DL_TZ) + lubridate::hours(0:23),
                               Carga = 1:24 + 0)
@@ -76,7 +76,7 @@ dm_fixture <- local({
   }
 })
 
-test_that("plugin_build_features devolve as series do motor, 9 dias de previsao, mensagens esperadas silenciadas", {
+test_that("[PLUGINS] nowcast_mm: plugin_build_features devolve as series do motor, 9 dias de previsao, mensagens esperadas silenciadas", {
   fx <- dm_fixture()
   f <- fx$feats
   expect_identical(names(f)[1:5], c("processado", "serieDM", "seriePF", "config_mdl", "norm"))
@@ -93,7 +93,7 @@ test_that("plugin_build_features devolve as series do motor, 9 dias de previsao,
   expect_false(any(grepl("Exogena prevista nao disponivel|Ajustanto horizonte", msgs)))
 })
 
-test_that("ac-5 dl_dm_head: mm so em DM(O), tune_wsvm do env do motor, sem estado, determinismo", {
+test_that("[PLUGINS] nowcast_mm: ac-5 dl_dm_head: mm so em DM(O), tune_wsvm do env do motor, sem estado, determinismo", {
   fx <- dm_fixture()
   p <- fx$p; eng <- fx$eng; f <- fx$feats; deck <- fx$deck
   mm <- p$env$dl_morning_means(deck$hourly_load, deck$available_until, deck$dataPrev)

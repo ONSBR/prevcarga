@@ -53,7 +53,7 @@ test_that("[PLUGINS] corte_treino: FORBIDDEN dia O (carga e clima observado) => 
   expect_gt(g$arms$forbidden$n_perturbed, 0L); expect_gt(g$arms$control$n_perturbed, 0L)
 })
 
-test_that("[PLUGINS] corte_treino: painel de treino com o dia O => contract (despachante) e train_sees_day_o (estagio), sem ajuste de SVM", {
+test_that("[PLUGINS] gate18_sem_treino_circular: painel de treino com o dia O => contract (despachante) e train_sees_day_o (estagio), sem ajuste de SVM", {
   st <- DL_TH_STORE_09(); cuts <- dl_fx_cuts(st); O <- cuts$origin_day
   spy <- dl_spy_tune(); on.exit(spy$restore(), add = TRUE)
   ## despachante: o painel do infer (com a carga de O ate 09:00) no treino e recusado (confere, nao corta)

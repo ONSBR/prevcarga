@@ -25,7 +25,7 @@ dl_wx_run <- function(w, st, cuts, art = dl_wx_art(st, cuts), ipan = dl_fx_panel
 }
 
 for (rule in DL_WX_RULES) {
-  test_that(sprintf("[PLUGINS] clima_honesto: regra %s: FORBIDDEN emissao > limite Delta <= 1e-5; CONTROL ultima emissao permitida Delta > 1e-5; molde HONESTO", rule), {
+  test_that(sprintf("[PLUGINS] gate05_clima_honesto: regra %s: FORBIDDEN emissao > limite Delta <= 1e-5; CONTROL ultima emissao permitida Delta > 1e-5; molde HONESTO", rule), {
     st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st, rule); lim <- cuts$weather_issue_limit; O <- cuts$origin_day
     expect_identical(cuts$weather_issue_cutoff, rule)
     expect_identical(lim, if (rule == "available_until") cuts$available_until else
@@ -55,7 +55,7 @@ for (rule in DL_WX_RULES) {
   })
 }
 
-test_that("[PLUGINS] clima_honesto: 06Z cruza as regras (CONTROL sob available_until, FORBIDDEN sob origin_midnight_utc)", {
+test_that("[PLUGINS] gate05_clima_honesto: 06Z cruza as regras (CONTROL sob available_until, FORBIDDEN sob origin_midnight_utc)", {
   st <- dl_fx_store("09:00"); O <- st$O
   z06 <- lubridate::force_tz(lubridate::as_datetime(O), "UTC") + lubridate::hours(6L)
   d <- vapply(DL_WX_RULES, function(rule) {
@@ -68,7 +68,7 @@ test_that("[PLUGINS] clima_honesto: 06Z cruza as regras (CONTROL sob available_u
   expect_lte(d[["origin_midnight_utc"]], DL8_TOL)       # 06Z > 00:00 UTC de O: proibida
 })
 
-test_that("[PLUGINS] clima_honesto: emissao alem do limite no painel => contract (confere, nao corta); via store a perturbacao nao chega", {
+test_that("[PLUGINS] gate05_clima_honesto: emissao alem do limite no painel => contract (confere, nao corta); via store a perturbacao nao chega", {
   st <- dl_fx_store("09:00")
   for (rule in DL_WX_RULES) {
     cuts <- dl_fx_cuts(st, rule); art <- dl_wx_art(st, cuts)

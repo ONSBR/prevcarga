@@ -1,6 +1,6 @@
 ## test-dl-descriptor.R -- DL.5 AC1: run.yaml completo + descriptor via prevcarga_plugin_load; CONTROL: history_days.infer.
 
-test_that("ac-1 run.yaml e descriptor batem e o loader aceita o plugin", {
+test_that("[PLUGINS] descritor: ac-1 run.yaml e descriptor batem e o loader aceita o plugin", {
   p <- dl_load()
   d <- p$descriptor; s <- p$spec
   expect_identical(s$split, "origin_scoped")
@@ -28,7 +28,7 @@ test_that("ac-1 run.yaml e descriptor batem e o loader aceita o plugin", {
   }
 })
 
-test_that("ac-1 plugin_constants: mapa exogena -> model_key do motor e as chaves existem no model_parameters.json", {
+test_that("[PLUGINS] descritor: ac-1 plugin_constants: mapa exogena -> model_key do motor e as chaves existem no model_parameters.json", {
   p <- dl_load()
   k <- p$env$plugin_constants()
   expect_identical(unname(k$model_key[c("MED", "MAX", "MXMN")]), c("Linear.TmpMedia", "Linear.TmpMaxima", "Linear.TmpMaxMin"))
@@ -37,7 +37,7 @@ test_that("ac-1 plugin_constants: mapa exogena -> model_key do motor e as chaves
   expect_identical(k$hours_per_day, 24L); expect_identical(k$mm_ref_hour, 12L); expect_identical(k$max_tail_fill_days, 2L)
 })
 
-test_that("ac-1 semihourly_rule chama desagregaModeloSH do motor (2 valores por hora) e cai na duplicacao com aviso", {
+test_that("[PLUGINS] descritor: ac-1 semihourly_rule chama desagregaModeloSH do motor (2 valores por hora) e cai na duplicacao com aviso", {
   p <- dl_load()
   rule <- p$descriptor$semihourly_rule
   t0 <- lubridate::force_tz(lubridate::ymd_hms("2024-12-23 01:00:00"), DL_TZ)
@@ -56,7 +56,7 @@ test_that("ac-1 semihourly_rule chama desagregaModeloSH do motor (2 valores por 
   expect_identical(w$id, "warning.dessem_linear_desagrega_fallback")
 })
 
-test_that("ac-1 CONTROL: run.yaml com history_days.infer 365 => [prevcarga/contract] nomeando history_days", {
+test_that("[PLUGINS] descritor: ac-1 CONTROL: run.yaml com history_days.infer 365 => [prevcarga/contract] nomeando history_days", {
   root <- tempfile("dlroot-"); dir.create(root)
   file.copy(file.path(dl_models(), c("_dessem-engine", "dessem-linear")), root, recursive = TRUE)
   ry <- file.path(root, "dessem-linear", "run.yaml")
@@ -66,7 +66,7 @@ test_that("ac-1 CONTROL: run.yaml com history_days.infer 365 => [prevcarga/contr
   expect_identical(cond$class_name, "contract")
 })
 
-test_that("estagios de DL.6/DL.7 sao as funcoes reais (nenhum stub): training, freeze/thaw, inference_features, inference, forecast", {
+test_that("[PLUGINS] descritor: estagios de DL.6/DL.7 sao as funcoes reais (nenhum stub): training, freeze/thaw, inference_features, inference, forecast", {
   p <- dl_load()
   expect_identical(p$descriptor$stages$training$fn, p$env$dl_training)
   expect_identical(p$descriptor$freeze, p$env$dl_freeze)
@@ -76,7 +76,7 @@ test_that("estagios de DL.6/DL.7 sao as funcoes reais (nenhum stub): training, f
   expect_identical(p$descriptor$stages$forecast$fn, p$env$dl_forecast)
 })
 
-test_that("catalogo de erros do plugin: ids unicos na uniao, ASCII, classes da tabela de exit-codes", {
+test_that("[PLUGINS] descritor: catalogo de erros do plugin: ids unicos na uniao, ASCII, classes da tabela de exit-codes", {
   cat <- dl_lib$prevcarga_errors_load()
   ids <- c("bad_exogena", "mm_missing_origin", "train_sees_day_o", "rng_deviation", "artifact_mismatch",
            "series_gap", "window_short")

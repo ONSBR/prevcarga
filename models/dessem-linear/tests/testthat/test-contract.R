@@ -13,7 +13,7 @@ dl_root_mut <- function(mutate = identity) {
   root
 }
 
-test_that("[PLUGINS] contract: exogena ausente ou 'XYZ' => contract exit 2 antes de treinar (0 ajustes de SVM)", {
+test_that("[PLUGINS] gate08_contrato: exogena ausente ou 'XYZ' => contract exit 2 antes de treinar (0 ajustes de SVM)", {
   st <- dl_fx_store(); cuts <- dl_fx_cuts(st)
   spy <- dl_spy_tune(); on.exit(spy$restore(), add = TRUE)
   for (bad in list(NULL, "XYZ", "med", c("MED", "MAX"), NA_character_)) {
@@ -37,7 +37,7 @@ test_that("[PLUGINS] contract: exogena ausente ou 'XYZ' => contract exit 2 antes
   }
 })
 
-test_that("[PLUGINS] contract: history_days.infer != train => contract exit 2 no loader; CONTROL infer == train carrega", {
+test_that("[PLUGINS] gate08_contrato: history_days.infer != train => contract exit 2 no loader; CONTROL infer == train carrega", {
   root <- dl_root_mut(function(y) { y$history_days$infer <- y$history_days$train + 1L; y })
   e <- dl_err(dl_lib$prevcarga_plugin_load("dessem-linear", root))
   expect_dl_class(e, "contract", 2L, id = "plugin.history_window")
@@ -48,7 +48,7 @@ test_that("[PLUGINS] contract: history_days.infer != train => contract exit 2 no
   expect_identical(p$spec$history_days$infer, p$spec$history_days$train)
 })
 
-test_that("[PLUGINS] contract: hora faltando no historico => completude exit 3 antes do 1o ajuste; CONTROL deck completo segue", {
+test_that("[PLUGINS] gate09_dado_faltante: hora faltando no historico => completude exit 3 antes do 1o ajuste; CONTROL deck completo segue", {
   st <- dl_fx_store(); cuts <- dl_fx_cuts(st)
   dir <- dl_lib$prevcarga_fixture_drop_slots(st$dir, DL8_AREA, DL8_O - 8L, "10:00", 2L)    # a hora 10:00-11:00 inteira
   gap <- dl_fx_with_dir(st, dir)
@@ -69,7 +69,7 @@ test_that("[PLUGINS] contract: hora faltando no historico => completude exit 3 a
   expect_identical(nrow(deck$CARGAHIST) %% 24L, 0L)
 })
 
-test_that("[PLUGINS] contract CONTROL: os 3 membros resolvem a variante e MED x MAX dao y_pred diferente (> 1e-5)", {
+test_that("[PLUGINS] gate04_exogena_params: os 3 membros resolvem a variante e MED x MAX dao y_pred diferente (> 1e-5)", {
   p <- dl_plugin(); env <- p$env
   keys <- env$plugin_constants()$model_key
   expect_identical(names(keys), c("MED", "MAX", "MXMN"))

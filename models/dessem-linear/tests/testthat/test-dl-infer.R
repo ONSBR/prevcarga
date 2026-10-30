@@ -60,7 +60,7 @@ di_state <- local({
   }
 })
 
-test_that("ac-2/ac-3 envelope: 9x48 finito, entrega = grade da fundacao, 1 chamada a tune_wsvm, RNG do chamador intacto", {
+test_that("[PLUGINS] inferencia: ac-2/ac-3 envelope: 9x48 finito, entrega = grade da fundacao, 1 chamada a tune_wsvm, RNG do chamador intacto", {
   st <- di_state(); e <- st$e09; O <- di_O()
   expect_identical(st$tune_calls, 1L)                                  # so a DM(O)
   expect_true(st$rng_same)
@@ -80,7 +80,7 @@ test_that("ac-2/ac-3 envelope: 9x48 finito, entrega = grade da fundacao, 1 chama
   expect_identical(e$variant, "MED"); expect_identical(e$origin_day, O)
 })
 
-test_that("ac-1 FORBIDDEN carga > corte nao muda nada; CONTROL manha muda O e O+1 (LAG_1 da media prevista)", {
+test_that("[PLUGINS] inferencia: ac-1 FORBIDDEN carga > corte nao muda nada; CONTROL manha muda O e O+1 (LAG_1 da media prevista)", {
   st <- di_state(); p <- st$p; O <- di_O()
   cuts <- di_cuts(available_until = di_au(12L))
   m <- dl_model_panel(di_panel(until = di_au(12L)), cuts)
@@ -109,7 +109,7 @@ test_that("ac-1 FORBIDDEN carga > corte nao muda nada; CONTROL manha muda O e O+
   expect_gt(max(abs(ctl$values[2L, ] - base$values[2L, ])), 1e-5)
 })
 
-test_that("ac-2 available_until 09:00 x 09:30: saidas iguais de 10:00 em diante; entrega comeca em 09:30 e 10:00; CONTROL manha", {
+test_that("[PLUGINS] inferencia: ac-2 available_until 09:00 x 09:30: saidas iguais de 10:00 em diante; entrega comeca em 09:30 e 10:00; CONTROL manha", {
   st <- di_state(); p <- st$p
   e30 <- di_infer(p, st$art, 9L, 30L)
   e09 <- st$e09
@@ -122,7 +122,7 @@ test_that("ac-2 available_until 09:00 x 09:30: saidas iguais de 10:00 em diante;
   expect_gt(max(abs(ctl$values - e09$values)), 1e-5)
 })
 
-test_that("ac-3 sentinela: cada valor cai no intervalo da sua hora (interval_start); CONTROL agrupar por interval_end reprova", {
+test_that("[PLUGINS] inferencia: ac-3 sentinela: cada valor cai no intervalo da sua hora (interval_start); CONTROL agrupar por interval_end reprova", {
   st <- di_state(); p <- st$p; eng <- st$eng; di_prep()
   fb <- get("desagregaModeloSH", envir = eng, inherits = FALSE)
   unlock <- bindingIsLocked("desagregaModeloSH", eng)
@@ -148,7 +148,7 @@ test_that("ac-3 sentinela: cada valor cai no intervalo da sua hora (interval_sta
   expect_identical(dim(e$values), c(9L, 48L))
 })
 
-test_that("ac-4 artefato de outra origem/variante/modelo: aborta antes de qualquer ajuste; CONTROL segue", {
+test_that("[PLUGINS] inferencia: ac-4 artefato de outra origem/variante/modelo: aborta antes de qualquer ajuste; CONTROL segue", {
   st <- di_state(); p <- st$p; eng <- st$eng
   spy <- di_spy(eng); on.exit(spy$restore(), add = TRUE)
   ## outra origem: o despachante recusa (carimbo); o estagio recusa pelo proprio artefato
@@ -178,7 +178,7 @@ test_that("ac-4 artefato de outra origem/variante/modelo: aborta antes de qualqu
   expect_true(da <- nrow(ok$mm) > 0L)
 })
 
-test_that("ac-5 infer separado == forecast acoplado no dia D; WMAPE da cauda; CONTROL seed 43", {
+test_that("[PLUGINS] inferencia: ac-5 infer separado == forecast acoplado no dia D; WMAPE da cauda; CONTROL seed 43", {
   st <- di_state(); p <- st$p
   di_prep()
   O <- di_O(); au <- di_au(9L)
@@ -207,7 +207,7 @@ test_that("ac-5 infer separado == forecast acoplado no dia D; WMAPE da cauda; CO
   cat(sprintf("DL.7 ac-5 CONTROL seed 43: max|d| dia D = %.3g", max(abs(fc43$values[1L, ] - sep$values[1L, ]))), "\n")
 })
 
-test_that("ac-6 ENV ignorado, formals sem params, cauda de EXOGENAPREV curta completa 9x48", {
+test_that("[PLUGINS] inferencia: ac-6 ENV ignorado, formals sem params, cauda de EXOGENAPREV curta completa 9x48", {
   st <- di_state(); p <- st$p
   expect_false("params" %in% names(formals(p$env$plugin_infer)))
   expect_false("params" %in% names(formals(p$env$dl_inference_features)))

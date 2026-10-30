@@ -1,0 +1,35 @@
+# Unidades de paridade do plugin dessem-linear (DL.9): clean-room x oraculo, Delta = 0 (limiar 1e-5 MW absoluto, mesma plataforma).
+# Contrato do plugin_golden.R (P.0f) / plugin_parity.R (P.0g). Caminho de INFER do oraculo (jobs/run_job.sh, dessem-*): `run_train`
+# (ingestao com require_origin_mm = FALSE) + `run_infer`, ambos com `available_until` do oraculo e a MESMA janela
+# (`history_days: 1825` = O - 1825 = history_days.train == infer do run.yaml; o predict reconstroi as mesmas features do fit).
+# `oracle_cut: start_label`: o golden passa ao oraculo `--available-until = available_until - 30 min` (O 08:30 = rotulo de INICIO do
+# ultimo slot real; o clean-room corta em O 09:00 = interval_end). Corte intradiario => o oraculo ancora em O (dataPrev = O,
+# previsao15 10 x 48 = O..O+9; o O+9 sai como `fora_da_faixa` na comparacao). `day0_source: native`: o dia O da entrega e a linha 1
+# de native.rds. `weather_issue_cutoff: origin_midnight_utc`. A variante entra por `oracle_env: {EXOGENA: <v>}` (so no filho do
+# oraculo; o pai nunca a ve) e, no clean-room, por `params.exogena` do membro (o run.yaml e so placeholder). Todo valor entre aspas (YAML 1.1).
+# Runtime do oraculo: R 4.4.3 + biblioteca com WeightSVM/rlist (`--rscript` e `R_LIBS_USER` no oracle_env), como o DL.1/DL.4.
+# Grupos: smoke (tier parity) = 3 origens da fundacao + as unidades reais de ROBUSTEZ (flag-12, feriado, modelo-vazio, area AC);
+# foundation (tier parity-full) = SECO x outubro/2024 (semanal, 1o do mes incluso; uma unidade por semana: cada unidade custa ~2 min de
+# oraculo x2 geracoes + treino/infer do clean-room); fanout (DL.10) fica fora desta fatia. Nenhuma unidade MAX/MXMN nesta fatia: o
+# CONTROL `exogena` MED->MAX re-roda a unidade com a variante trocada (sem unidade propria).
+packages: [WeightSVM, e1071, data.table, lubridate, rlist, jsonlite, arrow]
+rules:
+  forbid: [cuts]
+  day0_source: [native]
+  full_hour: true
+  equals: { history_days: 1825, oracle_cut: start_label, weather_issue_cutoff: origin_midnight_utc, variant: MED }
+groups:
+  smoke: [seco-2024-10-01, seco-2024-10-15, seco-2024-10-29, sp-2024-12-22, sp-2024-11-15, go-2024-10-05, ac-2025-06-30]
+  foundation: [seco-2024-10-01, seco-2024-10-08, seco-2024-10-15, seco-2024-10-22, seco-2024-10-29]
+units:
+  # fundacao: SECO x outubro/2024 (semanal)
+  - {id: seco-2024-10-01, area: "SECO", origin: "2024-10-01", available_until: "2024-10-01T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: seco-2024-10-08, area: "SECO", origin: "2024-10-08", available_until: "2024-10-08T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: seco-2024-10-15, area: "SECO", origin: "2024-10-15", available_until: "2024-10-15T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: seco-2024-10-22, area: "SECO", origin: "2024-10-22", available_until: "2024-10-22T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: seco-2024-10-29, area: "SECO", origin: "2024-10-29", available_until: "2024-10-29T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  # robustez (dado real, todas MED): flag-12 (codigo 12 no horizonte), feriado 15/11 no historico recente, modelo-vazio (dummy rara GO), area AC
+  - {id: sp-2024-12-22, area: "SP", origin: "2024-12-22", available_until: "2024-12-22T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: sp-2024-11-15, area: "SP", origin: "2024-11-15", available_until: "2024-11-15T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: go-2024-10-05, area: "GO", origin: "2024-10-05", available_until: "2024-10-05T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
+  - {id: ac-2025-06-30, area: "AC", origin: "2025-06-30", available_until: "2025-06-30T09:00", weather_issue_cutoff: origin_midnight_utc, day0_source: native, variant: "MED", history_days: 1825, oracle_cut: start_label, oracle_env: {EXOGENA: "MED", R_LIBS_USER: "/home/gabri/R/library"}}
