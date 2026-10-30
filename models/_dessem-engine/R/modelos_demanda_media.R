@@ -1,7 +1,6 @@
 SVM_DemandaMedia <- function(dataPrev,serie,param_entrada){
    input <- obterEntradaFormulaDM(dataPrev,serie,param_entrada)
    dadosTreinamento <- filtraDadosTreinamento(input$dadosEntrada)
-   #message(paste(param_entrada$nomModelo,format(Sys.time(),'- %F %T'),"-",nrow(dadosTreinamento),"amostras no conjunto de treinamento de demanda media"))
    modeloSVM <- tune_wsvm(input$formulaMDL,iter.max=500,
                           weight=getSVMWeights(param_entrada$alfa,nrow(dadosTreinamento)),
                           data=dadosTreinamento,

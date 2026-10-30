@@ -48,7 +48,7 @@ plugin_build_features <- function(deck, spec) {
   eng_deck <- list(CARGAHIST = data.table::copy(deck$CARGAHIST), EXOGENAHIST = data.table::copy(deck$EXOGENAHIST),
                    EXOGENAPREV = data.table::copy(deck$EXOGENAPREV), FERIADOS = data.table::copy(deck$FERIADOS))
   processado <- dl_muffle(c("Exogena prevista nao disponivel", "Ajustanto horizonte"),
-    eng$TransformaDeck(deck = eng_deck, dataInicioPrev = deck$dataPrev, horizonteprevisao = "10DIAS"))
+    eng$TransformaDeck(deck = eng_deck, dataInicioPrev = deck$dataPrev, horizonteprevisao = "10DIAS", tz = deck$tz))
   if (length(processado$DIASPREV) > deck$horizon) {
     processado$DIASPREV <- processado$DIASPREV[seq_len(deck$horizon)]
     processado$NDIASPREV <- deck$horizon

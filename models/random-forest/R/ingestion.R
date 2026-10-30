@@ -1,8 +1,9 @@
 ## ingestion.R -- estagio de ingestao do plugin random-forest (RF.1). SO definicoes.
 ## Recebe o painel do leitor unico (carga ja horaria pelo despachante; clima cru, weather_resample: raw) e os `cuts` de
-## dates.R e devolve o `rf_frame` (carga horaria por (area, dia, hora), safra de clima por origem nativa com LOCF e feriados). O plugin CONFERE os cortes (nunca corta, filtra nem preenche em
-## silencio) e nao faz aritmetica de hora do rotulo nem reamostra: a agregacao horaria e do despachante (to_hourly,
-## features.R), o deslocamento de modelagem tambem. Dias = as_date(interval_start, tz = cuts$tz). Sem relogio, sem variavel de ambiente.
+## dates.R e devolve o `rf_frame` (carga horaria por (area, dia, hora), safra de clima por origem nativa com LOCF e
+## feriados). O plugin CONFERE os cortes (nunca corta, filtra nem preenche em silencio) e nao faz aritmetica de hora do
+## rotulo nem reamostra: a agregacao horaria e do despachante (to_hourly, features.R), o deslocamento de modelagem
+## tambem. Dias = as_date(interval_start, tz = cuts$tz). Sem relogio, sem variavel de ambiente.
 ## Porte de prevcargadessem3/models/random-forest/R/ingestion/data_adapter.R (somente leitura).
 
 .rf_origin <- function(cuts) if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin

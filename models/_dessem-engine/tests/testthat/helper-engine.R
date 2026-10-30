@@ -90,3 +90,18 @@ eng_deck <- function(origin = "2019-02-28", from = "2016-03-01", prev_days = 3L,
   ep <- data.table::data.table(DataHora = pstart, Exo_Temperatura = temp(dp, lubridate::hour(pstart)) + 0.4)
   list(CARGAHIST = ch, EXOGENAHIST = eh, EXOGENAPREV = ep, FERIADOS = fer)
 }
+
+## Deck no frame de modelagem: o que o despachante entrega ao motor (to_model_frame da carga, 60 min; o clima
+## nao e deslocado). `offset_min = 0L` e o CONTROL: motor alimentado sem o deslocamento do despachante.
+eng_model_deck <- function(deck, offset_min = 60L) {
+  d <- deck
+  d$CARGAHIST <- eng_lib$to_model_frame(deck$CARGAHIST, offset_min, "DataHora")
+  d
+}
+
+## Semi-horario como o despachante entrega: to_display_frame do DataHora (ancora) + carimbo de 30 min do
+## to_semihourly (meia hora anterior a ancora nos Passos impares). `semi` = saida de desagregaModeloSH.
+eng_semi_stamp <- function(semi, offset_min = 60L) {
+  anchor <- eng_lib$to_display_frame(data.table::data.table(DataHora = semi$DataHora), offset_min, "DataHora")$DataHora
+  anchor - lubridate::minutes(ifelse(semi$Passo %% 2L == 1L, 30L, 0L))
+}

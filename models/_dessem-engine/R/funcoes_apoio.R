@@ -37,8 +37,36 @@ obtemLagsExogenas <- function(lags,exogenas,seriediaria){
 }
 
 
+## Dia (Date) de um valor de data: character 'YYYY-MM-DD' -> ymd; Date -> ele mesmo; POSIXct -> dia no seu tzone
+.as_day <- function(x){
+   if(inherits(x,"POSIXct")) return(as_date(x))
+   if(is.Date(x)) return(x)
+   if(is.character(x)) return(ymd(x))
+   engine_abort("engine.dessem_bad_day",where = "_dessem-engine/.as_day",details = list(class = class(x)))
+}
+
+## Lag de feature por INDICE na grade regular (sem aritmetica de hora): exige a serie ordenada, sem repeticao e sem
+## slot faltante na grade `passo` ("hour" ou "30 min"); senao aborta engine.dessem_lag_grid_gap. Nunca pega vizinho.
+.engine_assert_grid <- function(seriehist,passo,where){
+   x <- seriehist$DataHora
+   n <- length(x)
+   if(n > 1L){
+      grade <- seq(x[[1L]],by = passo,length.out = n)
+      if(!identical(as.numeric(x),as.numeric(grade))){
+         ruim <- which(as.numeric(x) != as.numeric(grade))[[1L]]
+         engine_abort("engine.dessem_lag_grid_gap",where = paste0("_dessem-engine/",where),
+                      details = list(step = passo,row = ruim,found = format(x[[ruim]],"%F %T"),
+                                     expected = format(grade[[ruim]],"%F %T")))
+      }
+   }
+   invisible(TRUE)
+}
+
 obtemLagHora <- function(lagh,seriehist,dia = 1:7,hora = 0:23,diaAno = 1:366,hv = 0:1,diaEsp = F,diaEspLag = F){
-   seriehistD <- seriehist[DataHora > (min(DataHora) %m+% hours(lagh))]
+   .engine_assert_grid(seriehist,"hour","obtemLagHora")
+   # oraculo: DataHora > min(DataHora) + lagh (estrito) == linhas de indice > lagh + 1 na grade horaria
+   seriehistD <- seriehist[seq_len(nrow(seriehist)) > lagh + 1L]
+   seriehistD[,.IDX := seq_len(nrow(seriehist))[seq_len(nrow(seriehist)) > lagh + 1L]]
    seriehistD <- seriehistD[hour(DataHora) %in% hora & yday(DataHora) %in% diaAno & wday(DataHora) %in% dia & HV %in% hv]
    if(!diaEsp){
       seriehistD <- seriehistD[DiaEspecial == 0]
@@ -48,10 +76,11 @@ obtemLagHora <- function(lagh,seriehist,dia = 1:7,hora = 0:23,diaAno = 1:366,hv 
       seriehistD[,HV := NULL]
    }
    seriehistD[,LAG := paste0("LAG_",lagh)]
-   seriehistD[,VALLAG := seriehist[DataHora %in% (seriehistD$DataHora %m-% hours(lagh))]$Carga]
+   seriehistD[,VALLAG := seriehist$Carga[.IDX - lagh]]
    if(diaEspLag){
       seriefer <- unique(seriehist[,.(DatFer = Data,FERLAG = as.numeric(DiaEspecial))])
-      seriehistD[,DatFer := as.Date(format(DataHora %m-% hours(lagh),'%F'))]
+      seriehistD[,DatFer := as_date(seriehist$DataHora[.IDX - lagh])]
+      seriehistD[,.IDX := NULL]
       seriehistD <- seriehistD[seriefer, on = "DatFer",nomatch=0]
       seriehistD <- melt(seriehistD,id.vars = names(seriehistD[,-c("VALLAG","FERLAG")]),
                          measure.vars = c("VALLAG","FERLAG"),
@@ -59,6 +88,7 @@ obtemLagHora <- function(lagh,seriehist,dia = 1:7,hora = 0:23,diaAno = 1:366,hv 
       seriehistD[,LAG:=ifelse(LAG2=="VALLAG",LAG,sub('_','_FER_',LAG))]
       seriehistD[,LAG2 :=NULL]
    }
+   if(".IDX" %in% names(seriehistD)) seriehistD[,.IDX := NULL]
    return(seriehistD)
 }
 
@@ -231,7 +261,9 @@ getNormalizaExogena <- function(normConfig,serie){
 }
 
 obtemLagSemiHora <- function(lagsh,seriehist,dia = NULL,semihora = NULL,diaEsp = F){
+   .engine_assert_grid(seriehist,"30 min","obtemLagSemiHora")
    seriehistD <- seriehist[Data > (min(Data) + lagsh)]
+   seriehistD[,.IDX := which(seriehist$Data > (min(seriehist$Data) + lagsh))]
    if(!is.null(dia)){
       seriehistD <- seriehistD[wday(Data) == dia]
    }
@@ -239,10 +271,10 @@ obtemLagSemiHora <- function(lagsh,seriehist,dia = NULL,semihora = NULL,diaEsp =
       seriehistD <- seriehistD[format(DataHora,'%H:%M') %in% semihora]
    }
    seriehistD[,LAG := paste0("LAG_",lagsh)]
-   seriehistD[,VALLAG := seriehist[DataHora %in% (seriehistD$DataHora %m-% minutes(30*lagsh))]$Carga]
+   seriehistD[,VALLAG := seriehist$Carga[.IDX - lagsh]]
    if(diaEsp){
       seriefer <- unique(seriehist[,.(Data,FERLAG = as.numeric(DiaEspecial))])
-      seriehistD[,DatFer := as.Date(format(DataHora %m-% minutes(30*lagsh),'%F'))]
+      seriehistD[,DatFer := as_date(seriehist$DataHora[.IDX - lagsh])]
       seriehistD <- seriehistD[seriefer, on = "Data",nomatch=0]
       seriehistD <- melt(seriehistD,id.vars = c("DataHora","Data","Carga","LAG"),
                          measure.vars = c("VALLAG","FERLAG"),
@@ -255,7 +287,7 @@ obtemLagSemiHora <- function(lagsh,seriehist,dia = NULL,semihora = NULL,diaEsp =
 
 
 obtemJanelaDiaria <- function(dataPrev,janela = c(45,45)){
-   if(is.character(dataPrev)) dataPrev <- as.Date(dataPrev)
+   dataPrev <- .as_day(dataPrev)
    dini <- dataPrev - janela[1]
    dfim <- dataPrev + janela[2]
    return(unique(yday(seq.Date(dini,dfim,"days"))))
@@ -273,7 +305,7 @@ obterDiaEspDMConfig <- function(dataPrev,serie,param_entrada){
       return(list(
          tpEntrada = param_entrada$tipoEntradaDM,
          diasAno = obtemJanelaDiaria(dataPrev,param_entrada$janelaDados),
-         ds = wday(as.Date(dataPrev))
+         ds = wday(.as_day(dataPrev))
       ))
    }
 }
@@ -297,7 +329,7 @@ obterDiaEspPerfilConfig <- function(dataPrev,serie,param_entrada){
          diaEsp = NULL,
          lagds = NULL,
          hrlag = param_entrada$lagsPerfil,
-         ds = wday(as.Date(dataPrev))
+         ds = wday(.as_day(dataPrev))
       ))
    }
 }
@@ -380,7 +412,6 @@ addValueDMRef <- function(dat,serie,infer,var){
 
 desagregaModeloSH <- function(modelo,dadosMdl){
    dadosMdlFlt <- copy(dadosMdl[Modelo == modelo])
-   dadosMdlFlt[,DataHora := DataHora %m+% hours()]
 
    y <- dadosMdlFlt[order(DataHora)]$Carga
    x1 <- seq(1,nrow(dadosMdlFlt)*2-1,2)
@@ -393,10 +424,9 @@ desagregaModeloSH <- function(modelo,dadosMdl){
                        Vin = rep(y,2)[order(rep(1:nrow(dadosMdlFlt),2))],Vout = yout)
    dt_aj[,Vm := mean(Vout),.(Hora)]
    dt_aj[,VoutAj := Vout*Vin/Vm]
-   dt_a <- copy(dadosMdlFlt)
-   dt_a[,DataHora := DataHora %m-% minutes(30)]
-   dt <- funion(dadosMdlFlt,dt_a)
-   dt <- dt[order(DataHora)]
+   # 2 linhas por ancora horaria, na ordem de Passo (impar = meia hora anterior a ancora, par = a ancora);
+   # o carimbo de 30 min e do to_semihourly central e o frame de exibicao e do despachante.
+   dt <- dadosMdlFlt[order(DataHora)][rep(seq_len(nrow(dadosMdlFlt)),each = 2L)]
    dt[,Carga := dt_aj$VoutAj]
    dt[,Passo := 1:(nrow(dadosMdlFlt)*2)]
    return(dt)

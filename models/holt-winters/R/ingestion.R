@@ -64,8 +64,7 @@
 
 ## slot 1..48 do dia civil: H01 = 00:00-00:30 (por interval_start / valid_time, nunca por interval_end)
 .hw_slot <- function(t, tz) {
-  t <- lubridate::with_tz(t, tz)
-  lubridate::hour(t) * 2L + lubridate::minute(t) %/% 30L + 1L
+  as.integer(format(t, "%H", tz = tz)) * 2L + as.integer(format(t, "%M", tz = tz)) %/% 30L + 1L
 }
 
 ## dia x 48 slots; `x` tem Data, slot, v. Media por (Data, slot); slot ausente = NA (nunca 0).
@@ -102,8 +101,9 @@
 ## "-02"; no fuso de Sao Paulo "-02" e exatamente o horario de verao.
 .hw_compute_hv <- function(dias) {
   k <- plugin_constants()
-  base <- lubridate::force_tz(lubridate::as_datetime(dias), "UTC") + lubridate::hours(k$hv_shift_hours)
-  as.integer(lubridate::dst(lubridate::with_tz(base, k$hv_tz)))
+  base <- lubridate::make_datetime(lubridate::year(dias), lubridate::month(dias), lubridate::day(dias),
+                                   k$hv_utc_hour, tz = "UTC")
+  as.integer(format(base, "%z", tz = k$hv_tz) == "-0200")
 }
 
 .hw_lookup <- function(dias, hol, col) {

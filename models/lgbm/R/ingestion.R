@@ -63,8 +63,9 @@ lgbm_check_panel <- function(panel, cuts, mode = c("train", "infer")) {
 }
 
 ## Grade de 48 slots por dia; a carga entra por merge no mesmo DataHora (= interval_start). Dia de historia sem os 48
-## intervalos => lgbm.completude nomeando o dia (nunca preenche). Infer: intervalo com interval_end > available_until
-## e sintetico (CargaGlobal = NA); a auto-deteccao do oraculo (data_adapter.R:653-667) NAO e portada.
+## intervalos => lgbm.completude nomeando o dia (nunca preenche). Infer: slot com interval_end > available_until e sintetico
+## (CargaGlobal = NA); slot ausente ANTES do corte e furo => lgbm.completude. A auto-deteccao do oraculo
+## (data_adapter.R:653-667) NAO e portada.
 lgbm_load_grid <- function(load, days, cuts, mode = c("train", "infer")) {
   mode <- match.arg(mode)
   tz <- cuts$tz
@@ -89,7 +90,10 @@ lgbm_load_grid <- function(load, days, cuts, mode = c("train", "infer")) {
     lgbm_abort("lgbm.completude", sprintf("dia %s com %d intervalos de 48", format(inc$Data[[1L]]), inc$n[[1L]]))
   dt[, is_synthetic := FALSE]
   if (mode == "infer") {
-    dt[, is_synthetic := is.na(interval_end) | interval_end > cuts$available_until]
+    ## interval_end do slot k = DataHora do slot k+1 (o ultimo e a meia-noite civil seguinte): um intervalo AUSENTE antes do
+    ## corte nao vira sintetico (vira furo e aborta abaixo); sem aritmetica de hora
+    slot_end <- c(dt$DataHora[-1L], lubridate::force_tz(lubridate::as_datetime(max(days) + 1L), tz))
+    dt[, is_synthetic := slot_end > cuts$available_until]
     holes <- dt[Data == O & !is_synthetic & is.na(CargaGlobal)]
     if (nrow(holes))
       lgbm_abort("lgbm.completude", sprintf("dia %s sem carga no intervalo %s (antes de available_until)",

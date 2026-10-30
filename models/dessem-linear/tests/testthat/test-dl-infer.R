@@ -44,28 +44,11 @@ di_infer <- function(p, art, au_h, au_m = 0L, perturb = NULL, panel = NULL) {
   dl_with_cli(suppressMessages(dl_lib$prevcarga_plugin_infer(p, art, pan, di_cuts(available_until = au))))
 }
 
-## EMULACAO DO DL.3 (so no teste): o motor ainda faz `%m-% hours(1)` em TransformaDeck e, sem isso, a ultima hora de O-1
-## some e o LAG_1 da hora 0 de O fica NA (predict impossivel). Enquanto o DL.3 nao remove a linha do motor, o env do
-## motor deste teste recebe um TransformaDeck que devolve +1 h aos rotulos de CARGAHIST: o -1 h do motor os restaura,
-## que e o estado pos-DL.3. O env e proprio deste teste (dl_load recarrega o motor).
-di_emulate_dl3 <- function(eng) {
-  orig <- get("TransformaDeck", envir = eng, inherits = FALSE)
-  unlock <- bindingIsLocked("TransformaDeck", eng)
-  if (unlock) unlockBinding("TransformaDeck", eng)
-  assign("TransformaDeck", function(deck, ...) {
-    deck$CARGAHIST <- data.table::copy(deck$CARGAHIST)[, DataHora := DataHora + lubridate::hours(1L)]
-    orig(deck = deck, ...)
-  }, envir = eng)
-  if (unlock) lockBinding("TransformaDeck", eng)
-  invisible(NULL)
-}
-
 di_state <- local({
   s <- NULL
   function() {
     if (!is.null(s)) return(s)
     p <- dl_load(); eng <- parent.env(p$env)
-    di_emulate_dl3(eng)
     art <- di_train(p)
     spy <- di_spy(eng)
     set.seed(11); r0 <- get(".Random.seed", globalenv())
