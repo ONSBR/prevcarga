@@ -173,7 +173,9 @@ test_that("AC1: texto == JSON no exit, stdout ASCII, avisos do catalogo viram wa
 
 test_that("AC2: exits 7 (stdout vazio) da matriz com o runtime quebrado; classe runtime", {
   bad <- pc_install_copy(broken_tz = TRUE, mutate = function(r) { with_topology(r); stub_forecast(r) })
-  r <- cli(bad, c("forecast"), fmt = NULL)
+  ## o setter quebrado so devolve o fuso observado: com o shell ja em UTC ele "acerta" sem querer; o shell sujo (como em
+  ## test-cli-process.R) e o que torna a quebra observavel
+  r <- pc_with_env(list(TZ = "America/Sao_Paulo"), cli(bad, c("forecast"), fmt = NULL))
   expect_identical(r$status, 7L)
   expect_length(r$stdout, 0L)
   expect_true("prevcarga: erro [runtime] (exit 7)" %in% r$stderr)
