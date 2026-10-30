@@ -19,10 +19,10 @@ test_that("[PLUGINS] mm_head: trocar os valores do mm de referencia nao muda o s
   expect_null(env$plugin_descriptor()$rng_deviation)
   spy <- dl_spy_tune(); on.exit(spy$restore(), add = TRUE)
 
-  ## treino de referencia sob espiao: 225 ajustes (cabeca DM(O) + 8 DM + 9 x 24 perfis); a posicao do RNG em cada um
+  ## treino de referencia sob espiao: 250 ajustes (cabeca DM(O) + 9 DM + 10 x 24 perfis); a posicao do RNG em cada um
   a_spy <- dl_train(st, cuts)
   st_a <- spy$log$state
-  expect_identical(spy$log$n, 225L)
+  expect_identical(spy$log$n, 250L)
   expect_identical(grep("+ mm", spy$log$fml, fixed = TRUE), 1L)      # so o 1o ajuste (a cabeca) leva o mm
   expect_identical(dl_sha(a_spy), sha_a)                              # o treino sob espiao e o do cache (determinismo)
 
@@ -35,7 +35,7 @@ test_that("[PLUGINS] mm_head: trocar os valores do mm de referencia nao muda o s
     m[]
   }, dl_train(st, cuts))
   expect_gt(n_ref, 0L)                                                # a troca valeu: o treino leu o mm de referencia
-  expect_identical(spy$log$state, st_a)                               # o gerador chega igual a cada um dos 225 ajustes
+  expect_identical(spy$log$state, st_a)                               # o gerador chega igual a cada um dos 250 ajustes
   same <- identical(dl_sha(b), sha_a)
   if (!same) {
     ## FORBIDDEN caiu: o consumo de RNG depende dos valores. So passa com o plano B ativo e declarado.
@@ -51,7 +51,7 @@ test_that("[PLUGINS] mm_head: trocar os valores do mm de referencia nao muda o s
   spy$reset()
   c0 <- dl_with_plugin_fn("dl_dm_head", function(real) function(...) NULL, dl_train(st, cuts))
   st_c <- spy$log$state
-  expect_identical(spy$log$n, 224L)                                   # 8 DM + 9 x 24 perfis: so a cabeca falta
+  expect_identical(spy$log$n, 249L)                                   # 9 DM + 10 x 24 perfis: so a cabeca falta
   expect_false(any(grepl("+ mm", spy$log$fml, fixed = TRUE)))
   expect_identical(st_c[[1L]], st_a[[1L]])                            # ambos partem de set.seed(seed)
   expect_false(any(st_c == st_a[-1L]))                                # nenhum ajuste de O+1.. enxerga a mesma posicao
@@ -61,8 +61,8 @@ test_that("[PLUGINS] mm_head: trocar os valores do mm de referencia nao muda o s
 test_that("[PLUGINS] mm_head: a cabeca de referencia so consome o gerador: nao entra no artefato; plano B reseed e declarado", {
   env <- dl_plugin()$env; a <- dl_base_art()
   expect_false("mm" %in% names(a$payload))
-  expect_setequal(names(a$payload$svm_dm), format(DL8_O + 1:8))      # DM(O) nao e guardada: o infer a refaz com o mm real
-  expect_setequal(names(a$payload$svm_perfil), format(DL8_O + 0:8))
+  expect_setequal(names(a$payload$svm_dm), format(DL8_O + 1:9))      # DM(O) nao e guardada: o infer a refaz com o mm real
+  expect_setequal(names(a$payload$svm_perfil), format(DL8_O + 0:9))
   ## sem rng_deviation o modo e preserve e silencioso; com ele (plano B) e reseed com aviso classificado
   expect_identical(env$dl_rng_mode(deviation = NULL), "preserve")
   w <- NULL

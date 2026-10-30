@@ -4,7 +4,7 @@
 ##  - CONTROL: carga da manha (08:00-09:00) de O muda a entrega de O e de O+1 (mm[O] e a media prevista de O como LAG_1);
 ##  - available_until 09:00 x 09:30 => saidas iguais em interval_end >= 10:00 (meia hora isolada nao forma hora completa).
 
-test_that("[PLUGINS] corte_intradiario: FORBIDDEN carga com interval_end > 12:00 => Delta <= 1e-5; CONTROL; molde HONESTO", {
+test_that("[PLUGINS] gate14_corte_intradiario: FORBIDDEN carga com interval_end > 12:00 => Delta <= 1e-5; CONTROL; molde HONESTO", {
   rg <- dl_fx_store(ragged = "12:00"); cuts <- dl_fx_cuts(rg); O <- cuts$origin_day
   au <- cuts$available_until
   expect_identical(au, dl_au("12:00"))
@@ -54,7 +54,7 @@ test_that("[PLUGINS] corte_intradiario: FORBIDDEN carga com interval_end > 12:00
   expect_dl_class(e, "contract", 2L, id = "plugin.infer_beyond_cut")
 })
 
-test_that("[PLUGINS] corte_intradiario: manha de O (08:00-09:00) muda O e O+1; CONTROL do LAG_1 da media prevista", {
+test_that("[PLUGINS] gate14_corte_intradiario: manha de O (08:00-09:00) muda O e O+1; CONTROL do LAG_1 da media prevista", {
   st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st); art <- dl_base_art()
   base <- dl_infer(art, st, cuts)
   man <- dl_fx_perturb(st, "load", after = dl_au("07:59"), at_or_before = dl_au("08:30"))
@@ -66,7 +66,7 @@ test_that("[PLUGINS] corte_intradiario: manha de O (08:00-09:00) muda O e O+1; C
   expect_gt(dl_delta(base$delivery, dl_infer(art, ant, cuts)$delivery), DL8_TOL)
 })
 
-test_that("[PLUGINS] corte_intradiario: available_until 09:00 x 09:30 => saidas iguais em interval_end >= 10:00; grade sem buraco", {
+test_that("[PLUGINS] gate14_corte_intradiario: available_until 09:00 x 09:30 => saidas iguais em interval_end >= 10:00; grade sem buraco", {
   s09 <- dl_fx_store("09:00"); s0930 <- dl_fx_store("09:30")
   c09 <- dl_fx_cuts(s09); c0930 <- dl_fx_cuts(s0930)
   expect_identical(c09$available_until, dl_au("09:00")); expect_identical(c0930$available_until, dl_au("09:30"))

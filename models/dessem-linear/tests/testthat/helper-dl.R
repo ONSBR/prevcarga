@@ -49,11 +49,15 @@ expect_dl_error <- function(expr, id, fragment = NULL) {
 
 DL_TZ <- "Etc/GMT+3"
 
+## Fora do runner (test_dir direto) os ajudantes de gate da fundacao nao existem: o tier e `fast` e DEFERRED vira skip.
+if (!exists("pc_gate_deferred", mode = "function"))
+  pc_gate_deferred <- function(owner, reason) testthat::skip(sprintf("[DEFERRED %s] %s", owner, reason))
+
 ## Painel de exibicao (meia hora, rotulo ja convertido pelo leitor: interval_start/interval_end) que o leitor entrega,
 ## determinístico. `days` dias terminando em O (incl.), dia O parcial ate `until` (POSIXct) quando dado.
 ## `drop`: interval_start (display) a remover da carga. area unica.
 dl_panel <- function(origin = "2024-12-23", days = 420L, until = NULL, drop = NULL, area = "SE", tz = DL_TZ,
-                     fc_days = 9L, fc_short = integer()) {
+                     fc_days = 10L, fc_short = integer()) {
   O <- lubridate::ymd(origin)
   t0 <- lubridate::force_tz(lubridate::as_datetime(O - days), tz)
   n_hist <- as.integer(days) * 48L

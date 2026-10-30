@@ -4,7 +4,7 @@
 
 dl_day_d <- function(delivery, O = DL8_O) lubridate::as_date(delivery$interval_end - lubridate::minutes(1L), tz = DL_TZ) == O
 
-test_that("[PLUGINS] split: infer == forecast acoplado no dia D (<= 1e-5), cauda WMAPE <= 1%, 1 ajuste de SVM no infer", {
+test_that("[PLUGINS] gate17_split: infer == forecast acoplado no dia D (<= 1e-5), cauda WMAPE <= 1%, 1 ajuste de SVM no infer", {
   st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st); art <- dl_base_art()
   spy <- dl_spy_tune(); on.exit(spy$restore(), add = TRUE)
   split <- dl_infer(art, st, cuts)
@@ -12,7 +12,7 @@ test_that("[PLUGINS] split: infer == forecast acoplado no dia D (<= 1e-5), cauda
   expect_match(spy$log$fml[[1L]], "+ mm", fixed = TRUE)
   spy$reset()
   coup <- dl_forecast(st, cuts)
-  expect_identical(spy$log$n, 226L)                                   # o acoplado treina (225: cabeca de referencia + 224) e refaz a DM(O) (1)
+  expect_identical(spy$log$n, 251L)                                   # o acoplado treina (250: cabeca de referencia + 249) e refaz a DM(O) (1)
   spy$restore()
   expect_identical(split$delivery$interval_end, coup$delivery$interval_end)
   d0 <- dl_day_d(split$delivery)
@@ -23,7 +23,7 @@ test_that("[PLUGINS] split: infer == forecast acoplado no dia D (<= 1e-5), cauda
   dl_cached("coupled-42", coup)
 })
 
-test_that("[PLUGINS] split: artefato de outra origem, variante ou modelo => contract antes de qualquer ajuste", {
+test_that("[PLUGINS] gate17_split: artefato de outra origem, variante ou modelo => contract antes de qualquer ajuste", {
   st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st); art <- dl_base_art(); p <- dl_plugin(); env <- p$env
   spy <- dl_spy_tune(); on.exit(spy$restore(), add = TRUE)
   ipan <- dl_fx_panel(st, cuts, "infer")
@@ -55,7 +55,7 @@ test_that("[PLUGINS] split: artefato de outra origem, variante ou modelo => cont
   expect_null(dl_err(feat(frame, pl)))
 })
 
-test_that("[PLUGINS] split: CONTROL seed 43 no acoplado => y_pred do dia D difere (> 1e-5) do infer do artefato de seed 42 (deck sensivel ao CV)", {
+test_that("[PLUGINS] gate17_split: CONTROL seed 43 no acoplado => y_pred do dia D difere (> 1e-5) do infer do artefato de seed 42 (deck sensivel ao CV)", {
   st <- dl_fx_cv_store(); cuts <- dl_fx_cuts(st)
   art <- dl_train_memo(st, cuts)
   split <- dl_infer(art, st, cuts)

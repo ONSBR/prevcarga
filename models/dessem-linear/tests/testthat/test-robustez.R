@@ -28,10 +28,10 @@ dl_rb_complete <- function(e, cuts) {
   expect_true(all(is.finite(e$delivery$y_pred)))
 }
 
-test_that("[PLUGINS] robustez: cauda de EXOGENAPREV curta de 2 dias completa 9x48; 3 dias => completude exit 3", {
+test_that("[PLUGINS] gate16_cauda_curta: cauda de EXOGENAPREV curta de 2 dias completa 9x48; 3 dias => completude exit 3", {
   st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st); art <- dl_base_art(); O <- cuts$origin_day
   ipan <- dl_fx_panel(st, cuts, "infer")
-  short <- function(k) { p <- ipan; p$weather_forecast <- ipan$weather_forecast[lubridate::as_date(valid_time, tz = DL_TZ) < O + 9L - k]; p }
+  short <- function(k) { p <- ipan; p$weather_forecast <- ipan$weather_forecast[lubridate::as_date(valid_time, tz = DL_TZ) < O + 10L - k]; p }
   base <- dl_infer(art, st, cuts)
   for (k in 1:2) {
     e <- dl_infer(art, st, cuts, panel = short(k))
@@ -45,7 +45,7 @@ test_that("[PLUGINS] robustez: cauda de EXOGENAPREV curta de 2 dias completa 9x4
   expect_match(conditionMessage(e3), "EXOGENAPREV", fixed = TRUE)
 })
 
-test_that("[PLUGINS] robustez: fixture cross (amostra pequena do dia especial) completa o envelope; guarda do motor visivel; DL8-GAP-1", {
+test_that("[PLUGINS] gate11_clamp_cross: fixture cross (amostra pequena do dia especial) completa o envelope; guarda do motor visivel; DL8-GAP-1", {
   st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st); art <- dl_base_art()
   r <- dl_rb_infer(art, st, cuts)
   dl_rb_complete(r$value, cuts)
@@ -53,7 +53,7 @@ test_that("[PLUGINS] robustez: fixture cross (amostra pequena do dia especial) c
   expect_identical(r$value$meta$warnings, character())                  # DL8-GAP-1: a guarda nao chega a meta$warnings
 })
 
-test_that("[PLUGINS] robustez: fixture modelo-vazio (erro 'Model is empty' do libsvm no 1o ajuste) completa o envelope com a guarda do motor; DL8-GAP-1", {
+test_that("[PLUGINS] gate10_modelo_vazio: fixture modelo-vazio (erro 'Model is empty' do libsvm no 1o ajuste) completa o envelope com a guarda do motor; DL8-GAP-1", {
   st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st); art <- dl_base_art(); eng <- dl_engine_env()
   real <- get(".tune_wsvm_real", envir = eng, inherits = FALSE)
   unlock <- bindingIsLocked(".tune_wsvm_real", eng)
@@ -74,7 +74,7 @@ test_that("[PLUGINS] robustez: fixture modelo-vazio (erro 'Model is empty' do li
   expect_identical(r$value$meta$warnings, character())                  # DL8-GAP-1
 })
 
-test_that("[PLUGINS] robustez: fixture flag-12 (codigo 12 de feriado) completa o envelope; aviso do motor na ingestao; CONTROL sem flag-12 sem aviso; DL8-GAP-1", {
+test_that("[PLUGINS] gate13_flag12: fixture flag-12 (codigo 12 de feriado) completa o envelope; aviso do motor na ingestao; CONTROL sem flag-12 sem aviso; DL8-GAP-1", {
   st <- dl_fx_store("09:00"); cuts <- dl_fx_cuts(st); art <- dl_base_art(); O <- cuts$origin_day
   ipan <- dl_fx_panel(st, cuts, "infer")
   expect_true(12L %in% ipan$holidays$prevcarga_code)                    # o deck sintetico traz codigo 12 em O-5
