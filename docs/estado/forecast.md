@@ -1,0 +1,44 @@
+# Estado: forecast (M6.4) -- rodada operacional diaria
+
+- `scripts/lib/forecast.R`: `prevcarga_forecast(ctx, origin = NULL, areas = NULL, niveis = "subsistemas", report = FALSE,
+  report_format = "html", skip_validate = FALSE, incluir_membros = FALSE)` -> `list(result, warnings)`. So COMPOE: nenhum calculo de
+  k-hat/BU/SIN, de pesos, de corte de treino nem de hora (greps: sem `khat_fit`, `reconcile_train`, `combina_fit`, `registry_promote`,
+  `artifacts/reconcile`, `Sys.time`, `Sys.Date`, `now(`, `Sys.getenv`). A rodada diaria e UMA origem O.
+- Ordem invariante: (0) `niveis` valido (exit 8 `config.usage`, antes de qualquer trabalho) -> (1) gate-0 -> (2) plano -> (3) membros ->
+  (4) LONG por membro + combina por folha -> (5) reconcile UMA vez, em memoria -> (6) versao/chave imutavel -> scratch + `run.json` -> export.
+  Reconcile (exit 15/13/2) acontece ANTES de qualquer scratch ou diretorio de entrega: nada de `forecasts/` nem `scratch/` quando falha.
+- Gate-0 (`.forecast_gate0`): origem = argumento > `ctx$origin` (flag) > dia do ultimo intervalo de carga do deck (`prevcarga_resolve_origin`, dates.R;
+  nenhum relogio). `prevcarga_validate_deck` reprovado vira o abort `<classe>.<what>` do 1o erro da classe dominante (a mesma regra do verbo
+  validate-deck; exit 3 no buraco do dia O). `skip_validate` so pula a validacao: os cortes (`available_until` minimo entre areas, regra de clima,
+  fuso, load_label) vem SEMPRE de `prevcarga_resolve_cuts` (leitor): um buraco no dia O continua abortando exit 3 (`completude.origin_day_gap`).
+- Plano (`.forecast_plan`): folhas pedidas (NULL = todas; fora da topologia => `topology.area_undeclared`, exit 4, antes do infer). `closed/stray/sin_closed`
+  vem do `prevcarga_reconcile_plan`; `covered` = folhas pedidas que fecham algum subsistema (o plano atual nao o devolve: derivado em forecast.R).
+- Membros (`.forecast_members`): por folha x linha de `prevcarga_members()` (sigla/mdir/exogena). origin_agnostic so le o artefato (`prevcarga_infer_cell`;
+  ausente => `state.artifact_missing`, exit 13, nunca treina). origin_scoped: `.forecast_scoped_version` acha o artefato da origem O pelo `origin` do
+  `run_manifest.json` de cada versao do registry (proprio ou oficial sincronizado: mesmo layout; `latest` se for dele, senao a ultima em ordem radix);
+  sem artefato de O => `prevcarga_train(member, area, O, ctx)` UMA vez (a fachada deriva `train_origin = O` e `last_data_day = O-1` pelo dates.R);
+  deck novo do mesmo O (available_until maior) reutiliza o artefato (mesmo `v_<hash>`) e so o infer muda. O infer recebe `version =` explicita.
+- LONG e combina (`.forecast_leaf_panel`/`.forecast_leaves`): `prevcarga_build_long` por membro (faixa por `delivery_days` do descriptor) -> proveniencia em
+  memoria no formato do run-manifest da combina -> `prevcarga_assert_members_aligned` -> `prevcarga_build_panel` -> `prevcarga_combina_apply(detail = TRUE)`
+  com os pesos congelados de `<state_dir>/artifacts/combina/<area>/` (ausente => `state.combina_not_trained`, exit 13; sem corte da combina para o HHMM de
+  `available_until` => `contract.combina_input`). Por lead so combinam os membros que cobrem o lead (M4.2c).
+- Reconcile: `prevcarga_reconcile_apply(long_leaves[covered], ctx, subsystems = closed, khat_version = NULL, eval = FALSE)` uma vez; folhas soltas nunca passam por ele.
+  `result$khat` = `[{ss, versao, khat_origin (texto), khat_age_days}]` (do reconcile) e `result$cobertura_descartada` identical ao do reconcile.
+- Versao e chave: `prevcarga_forecast_versao` com `package = ctx$version` (como o M6.7 fixa; o `ctx$code_commit` so entra no run.json), `members` = por sigla x folha
+  `<v_hash do artefato>:<sha256 do y_pred entregue>`, `combina_weights` = versao dos pesos por folha, `khat` = versao do perfil por subsistema,
+  hash canonico da topologia efetiva, load_label e regra de clima. O hash do y_pred faz o mesmo artefato com deck/clima novo (mesmo `available_until`) virar OUTRA
+  chave em vez de `export.key_conflict`. `run_id` = hash da chave (M6.7).
+- Scratch `<state_dir>/scratch/<run_id>/` recriado SEMPRE: subsistemas/SIN pelo escritor do reconcile (`prevcarga_reconcile_write`), folhas (soltas sempre; cobertas so
+  com `niveis = tudo`) e membros (so com `incluir_membros`) pelo mesmo escritor deterministico do LONG (`.reconcile_write_parquet`); o `run.json` registra EM `arquivos[]`
+  {path, area, linhas, sha256} TODO arquivo entregue (folhas, membros, subsistemas e SIN), senao o export os omitiria com `completude.export_file_missing`.
+  `runtime_id` = R + plataforma (deterministico); `generated_at` vem do ctx (unico campo nao deterministico do manifest).
+- Avisos: `warnings` = avisos do catalogo capturados (gate-0 `warning.<what>`, `reconcile.*`, `completude.export_file_missing`) como `list(id, message)`; o verbo (M6.9) os emite.
+- Report: `report = list(status = "skipped", path = NULL)` ate o M6.5 liga-lo.
+- Alteracoes fora do forecast.R: (a) `exports.R` `prevcarga_forecast_versao`: `sorted()` aceita lista vazia (entrega so de folhas soltas tem `khat` vazio; antes `order(NULL)` abortava);
+  (b) `inference.R` `.prevcarga_inf_cuts`: `deck_areas` = areas do deck INTERSECAO folhas da topologia. Sem isso o infer de um deck que tem serie de subsistema (necessaria ao k-hat)
+  abortava `topology.area_undeclared` no leitor de painel (o deck real tem SECO/S/N/NE).
+- Testes: `test-forecast_compose.R` (espioes em `prevcarga_infer_cell`/`prevcarga_train`/reconcile; fixtures `m6f_*` em `helper-m6-fixtures.R`; 3 membros reais: RF, LGBM origin_agnostic + HW
+  origin_scoped; k-hat e pesos treinados no setup) cobre AC1..AC8; `test-forecast_e2e.R` roda os 8 membros REAIS num `Rscript --vanilla` filho (lento, ~10-15 min).
+- Limitacoes conhecidas (nao tratadas aqui): (1) o verbo `forecast` e a gramatica docopt sao do M6.9 (hoje stub): o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
+  HHMM de `available_until` DENTRO do dia da origem (`cut`): um `available_until` em 00:00 do dia seguinte (dia O completo, ou `--origin` anterior ao ultimo dia do deck) nao tem
+  representacao e a rodada aborta `contract.member_misaligned`; (3) `niveis`/`incluir_membros` nao entram na `versao` (M6.7): a mesma chave com outro conjunto de arquivos e `export.key_conflict`.
