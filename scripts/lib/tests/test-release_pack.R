@@ -251,6 +251,20 @@ test_that("forecasts: copia byte a byte da entrega local na chave forecasts/<O>/
   expect_true(file.exists(file.path(k, "SHA256SUMS")))                          # prefixo conferivel sem listar o bucket
 })
 
+test_that("forecasts: --latest escreve o indice forecasts/<O>/latest.txt (uma <AAAAMMDDTHHMM>/<versao> por linha) que o sync le; sem a flag nao", {
+  ctx <- new_ctx(); mk_delivery(ctx)
+  o1 <- file.path(tmp_dir("o"), "sem"); rp("forecasts", o1, ctx, origin = "2026-01-15")
+  expect_false(file.exists(file.path(o1, "forecasts/2026-01-15/latest.txt")))
+  o2 <- file.path(tmp_dir("o"), "com"); rp("forecasts", o2, ctx, origin = "2026-01-15", latest = TRUE)
+  idx <- readLines(file.path(o2, "forecasts/2026-01-15/latest.txt"), warn = FALSE)
+  expect_identical(idx, paste0("20260115T0900/", VERSAO))
+  ## cada linha aponta para um prefixo que existe no pacote (o mesmo formato que install/prevcarga-sync.sh aceita)
+  for (k in idx) {
+    expect_true(grepl("^[0-9]{8}T[0-9]{4}/[^/]+$", k))
+    expect_true(dir.exists(file.path(o2, "forecasts/2026-01-15", k)))
+  }
+})
+
 test_that("[CONTROL] forecasts: a mesma chave em --published -> integrity.release_key_published (exit 9) e nada escrito", {
   ctx <- new_ctx(); mk_delivery(ctx)
   out <- file.path(tmp_dir("o"), "pack")

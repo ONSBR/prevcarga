@@ -28,7 +28,8 @@
               "^releases/latest\\.txt$", "^SHA256SUMS$"),
   artifacts = c(paste0("^artifacts/", .pc_rp_cell_rx, "/v_[0-9a-f]{12,64}/.+$"),
                 paste0("^artifacts/", .pc_rp_cell_rx, "/latest\\.txt$"), "^SHA256SUMS$"),
-  forecasts = c("^forecasts/[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{8}T[0-9]{4}/[^/]+/.+$", "^SHA256SUMS$"))
+  forecasts = c("^forecasts/[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{8}T[0-9]{4}/[^/]+/.+$",
+                "^forecasts/[0-9]{4}-[0-9]{2}-[0-9]{2}/latest\\.txt$", "^SHA256SUMS$"))
 
 .pc_rp_forbidden <- c("(^|/)config\\.yaml$", "(^|/)(load|weather_observed|weather_forecast)[^/]*\\.parquet$",
                       "(^|/)auxiliary/", "\\.(pem|key)$", "(^|/)credentials$", "(^|/)\\.aws/", "(^|/)\\.env$")
@@ -300,6 +301,11 @@ pc_rp_forecasts <- function(stage, pub, ctx, origin = NULL, latest = FALSE) {
   if (nrow(rec)) return(list(id = NULL, recusados = rec, chaves = character()))
   for (i in seq_len(nrow(items))) .pc_rp_copy_or_die(items$src[[i]], file.path(stage, items$rel[[i]]))
   for (k in keys) pc_rp_sha256sums(file.path(stage, k), keep_existing = TRUE)
+  ## indice da origem (ponteiro mutavel, ADR-0039): uma `<AAAAMMDDTHHMM>/<versao>` por linha, lido pelo prevcarga-sync
+  ## (ele nunca lista o bucket). So com latest = TRUE, como releases/latest.txt e artifacts/<celula>/latest.txt.
+  if (isTRUE(latest))
+    pc_rp_latest(stage, "forecasts", list(list(path = paste("forecasts", day, "latest.txt", sep = "/"),
+                                               value = paste(sub(paste0("^forecasts/", day, "/"), "", keys), collapse = "\n"))))
   list(id = NULL, recusados = .pc_rp_empty(), chaves = paste0(keys, "/"))
 }
 
