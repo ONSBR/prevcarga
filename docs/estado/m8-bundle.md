@@ -73,3 +73,40 @@ catalogo, `bundle.package_missing`, tarball). Os bracos que dependem de `dist/` 
 - dessem-linear (max_rel 2.2e-13) segue pendente de decisao do Gabriel (m1-spike-r453.md); nao tratado aqui.
 
 - **Gate Windows (M8.11)**: os itens Windows deste modulo (braco Windows, cross_os) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W02, W14). Pendente: Gabriel.
+
+## Fechamento do M8 (M8.12; AC 23 e 3 do epico)
+
+### O que o M8 entrega (resumo duravel; detalhe nos estados citados)
+- **Bundles R 4.5.3**: `linux-x86_64` (`.tar.zst`, build em container jammy, este arquivo) e `windows-x86_64` (`.zip`, `docs/estado/m8-bundle-windows.md`); `RUNTIME.json` com `runtime_id`.
+- **Instaladores** `install.sh` e `install.ps1` (layout `<R>/versions/<v>` + ponteiro `current`, rollback, uninstall; `docs/estado/install.md`); WSL2 nao e requisito.
+- **Distribuicao**: `prevcarga release-pack` (monta o layout das tres arvores do bucket publico: `releases/`, `artifacts/`, `forecasts/`; `docs/estado/release-pack.md`) e
+  `scripts/tools/upload` (o unico que envia); `prevcarga-sync` (.sh/.ps1/.cmd) leitura do bucket (`docs/estado/sync.md`).
+- **Rodada operacional**: `forecast` (uma origem; `--origin` unico flag de data) e `verificar` em dois trilhos + `--oficial` (`docs/estado/verificar.md`).
+- **Classes de erro 6/8/9/10/12/13** dos utilitarios e dos verbos: 6 (bundle), 8 (config), 9 (integrity), 10 (network), 12 (repro), 13 (state); catalogo gerado `install/error-catalog.tsv`.
+- **NFR de 30 min**: mecanismo e CONTROL no Linux; numeros reais pendentes (`docs/estado/nfr-performance.md`).
+- **Oraculo**: `prevcargadessem3` e validado uma vez no A/B do corte e descartado depois (`docs/estado/ab.md`).
+
+### Excecoes conscientes do A/B (lista fechada `tests/ab/ab_excecoes.yaml`, dono Gabriel; ADR-0034 D23)
+`regdin.versao_pacotes` (ADR-0036), `dessem_linear.hora_incompleta_clima_previsto` (ADR-0035) e `dessem_linear.sp_2024_11_15_residuo_numerico` (ADR-0035).
+Nenhuma entrada nova entra por quem implementa.
+
+### Gates do fechamento (tests/)
+- `tests/bundle/test-emendas.R` + `tests/bundle/emendas_m8.txt`: tag git `m8-base` (commit 4989a34, em que a branch do M8 nasceu; tag LOCAL, o merger/Gabriel a publica);
+  `git diff --name-status m8-base` sobre `scripts/lib/tests`, `models/*/tests` e `tests` sem D/R e com todo M listado (23 emendas conscientes de testes de outros epicos,
+  cada uma com motivo); CONTROL num clone temporario (M fora da lista, D e R acusam o caminho; sem a tag o gate FALHA com motivo).
+- `tests/bundle/test-python-free-release.R`: extrai o bundle `linux-x86_64` de `dist/` e roda `pc_bundle_python_free`, `pc_bundle_net_grep`, `pc_bundle_portability_grep`,
+  valida o `RUNTIME.json` (`r_version` 4.5.3); CONTROL de injecao (`x.py` e `download.file(`) num stage copiado. Braco `windows-x86_64` = SKIP `nao-windows` com dono (abaixo).
+- `tests/bundle/test-docs-writethrough.R`: este arquivo, `README.md` e `docs/reference/MANUAL-USUARIO.md` (verbos citados na lista descoberta de `scripts/lib/cli/*.R`,
+  so `--origin` como flag de data, zero variavel de ambiente do produto, WSL2 nunca requisito, todo `id` de `ab_excecoes.yaml`, topicos obrigatorios); CONTROLs plantados.
+- `tests/run_suite.R`: a suite inteira pelo `Rscript` do bundle instalado (`scripts/lib/tests`, `tests/bundle`, `tests/install`, `tests/ab`, `models/*/tests/run_all_gates.R --tier fast`
+  por membro de `prevcarga_members()`), sai != 0 com falha ou skip fora da lista permitida.
+
+### Pendencias do fechamento (honestas; nada foi simulado)
+- **[PENDENTE, dono: Gabriel] Windows nativo**: a suite inteira no Windows com o R do bundle instalado (item W16) e o Python-free/net/portabilidade/RUNTIME.json sobre o
+  bundle `windows-x86_64` (item W17) estao PREPARADOS no gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; `docs/reference/windows-gate.md`; `docs/estado/windows-gate.md`),
+  nao executados: nao ha host Windows nem `pwsh` aqui (decisao de 2026-10-31).
+- **[PENDENTE, dono: Gabriel] Corte do A/B**: o veredito e `CORTE-BLOQUEADO` (matriz completa nao rodada, estagios B-D sem dado real, recibos `ab-corte` ausentes). Sem `CORTE-OK`
+  assinado pelo Gabriel nos dois bundles, o roadmap `M8-BUNDLE.md` NAO e removido (AC 3): a copia vive em `docs/_archive/roadmap/M8-BUNDLE.md` (o `docs/roadmap/` ja foi arquivado
+  no M1.V); o teste de write-through exige que ela exista enquanto nao houver recibos `ab-corte` `CORTE-OK` de `linux-x86_64` e `windows-x86_64`.
+- **[PENDENTE, dono: Gabriel] NFR de 30 min** (numero real Linux e Windows) e o deck real: `docs/estado/nfr-performance.md`.
+- Os bracos que dependem de `dist/` (tarball candidato) fazem SKIP com motivo sem ele; `dist/` nunca e versionado.
