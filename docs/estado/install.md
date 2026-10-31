@@ -107,3 +107,5 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
 
 ## prevcarga-sync (M8.6)
 O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO para `<R>/bin/`; o uninstall remove `bin/`. Detalhe e protocolo: `docs/estado/sync.md`.
+
+- Decisao (Gabriel, 2026-10-31): os [DEFERRED M8.6] acima ficam para o gate windows-vm do M8 (dono Gabriel); ver `docs/estado/sync.md`.

@@ -61,3 +61,7 @@ Pacote instalado so para os testes (R 4.5.3, P3M binario): `httpuv` 1.6.17 (e de
   candidato em `dist/` que traga `sync.tsv` e `prevcarga-sync.sh` (o build jammy nao roda aqui).
 - **Indice de forecasts**: o `release-pack --what forecasts` ainda nao publica o ponteiro `forecasts/<O>/latest.txt`; o sync o exige (sem listar o bucket nao ha como descobrir
   `available_until`/`versao`). Ver discovery do M8.6. O fixture do teste o escreve a mao.
+
+## Decisoes de fechamento (Gabriel, 2026-10-31)
+- Tudo que executa os `.ps1`/`.cmd` (Pester, equivalencia sh x ps1, matriz dos .ps1, e2e do instalador, catalogo do bundle) fica DEFERIDO para o gate **windows-vm do M8** (dono: Gabriel). Os SKIPs explicitos permanecem; nada foi instalado nesta maquina.
+- Indice de forecasts: o `release-pack` passara a escrever `forecasts/<O>/latest.txt` como fix de integracao apos o merge do M8.6; o lado do sync ja le esse arquivo.
