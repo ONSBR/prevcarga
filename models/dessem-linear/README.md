@@ -154,3 +154,9 @@ sha256 dos arquivos em `tests/parity/` (o teste de documentacao os recalcula):
 | `fanout_report.json` | `3ffd718964eab52b84716f4f0549973abd887b6cef5fd070134557ff58ec4a50` | `81667f1123fa6c7a7fe145e331bbc5c999f71458ec480c5c9fe64a3aaa9c3af8` |
 
 Regerar um relatorio muda o sha256 do arquivo e exige atualizar esta tabela e `docs/estado/dessem_linear.md`.
+
+## Contrato `requires` / `provides` (fechamento do porte; `R/register.R`, `stages`)
+
+- `ingestion`: `requires` = `data.load.load_mwh`, `data.weather_observed.temperature`, `data.weather_forecast.temperature`, `data.holidays.prevcarga_code`; `provides` = `frame.deck`.
+- `feature_engineering`: `frame.deck` -> `feat.series`. `training`: `feat.series` -> `artifact.svm`.
+- `inference_features`: `frame.deck`, `artifact.svm` -> `inf.feat`. `inference` e `forecast`: `artifact.svm`, `inf.feat` -> `forecast.y` / `forecast.f`.

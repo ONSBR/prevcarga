@@ -27,6 +27,12 @@ O estado duravel (decisoes, paridade, ids de erro) mora em `docs/estado/holt_win
   `params`, `train_origin`, `origin_day` (despachante P.0c/P.0d) e nao tem relogio, caminho, objeto `forecast`/`ets`, `call`, closure nem environment.
 - **Layout `hw_matrix_nx48`**: linhas = dias, 48 colunas = H01..H48 (H01 = 00:00-00:30, por `interval_start`). O `mean_interval` do artefato e 9 x 48.
 
+## Contrato `requires` / `provides` (M5.12; `R/register.R`, `stages`)
+
+- `ingestion`: `requires` = `hw_data_tokens()`; `provides` = `hw_deck_tokens()`.
+- `feature_engineering`: `hw_deck_tokens()` -> `hw_feature_tokens()`. `training`: `hw_feature_tokens()` -> `model`.
+- `inference_features`: `model`, `hw_deck_tokens()` -> `inf_feat`. `inference` e `forecast`: `model`, `inf_feat` -> `envelope`.
+
 ## Layout nativo e hora
 
 O plugin nao faz aritmetica de hora (princ. 7), sem excecoes: o flag historico de horario de verao monta o instante 06:00 UTC com

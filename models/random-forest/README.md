@@ -32,6 +32,13 @@ Caminhos relativos a `prevcargadessem3/models/random-forest/`.
   Confere o painel (`plugin.train_beyond_cut`, `plugin.infer_beyond_cut`, `plugin.weather_beyond_limit`, `plugin.raw_timestamp`) e nunca filtra.
 - **Hora**: nenhuma aritmetica de hora no plugin (principio 7, sem excecoes). A carga horaria e de `to_hourly`, o carimbo de 30 min de `to_semihourly`.
 
+## Contrato `requires` / `provides` (M5.12; `R/register.R`, `stages`)
+
+Cada estagio declara os tokens que consome e produz (a fundacao encadeia e valida por eles):
+- `ingestion`: `requires` = `data.load.load_mwh`, `data.weather_forecast.{issue_time,valid_time,temperature}`, `data.holidays.date`; `provides` = `rf_frame`.
+- `feature_engineering`: `rf_frame` -> `rf_features`. `training`: `rf_features` -> `rf_artifact`.
+- `inference_features`: `rf_frame`, `rf_artifact` -> `rf_inf_features`. `inference`: `rf_artifact`, `rf_inf_features` -> `member_envelope`.
+
 ## Layout `rf_wide_hourly_216`
 
 `values` e uma matriz 2 x 216 (linhas = origens nativas O-1 e O, colunas `y_h001..y_h216`; `y_h001` = primeira hora do dia seguinte a origem).

@@ -115,3 +115,9 @@ Rscript --vanilla models/dessem-regdin/tests/run_all_gates.R --tier parity-full
 
 A divergencia de versao de pacote (fable 0.5.0 contra 0.3.3 do `renv.lock` do oraculo) e da ADR-0036 (max_rel 1,3e-5 / max_abs 0,416 MW)
 e e medida no A/B do M8, nao aqui.
+
+## Contrato `requires` / `provides` (fechamento do porte; `R/register.R`, `stages`)
+
+- `ingestion`: `requires` = `data.load.load_mwh`, `data.weather_observed.temperature`, `data.weather_forecast.temperature`, `data.holidays.prevcarga_code`; `provides` = `frame.deck`.
+- `feature_engineering`: `frame.deck` -> `feat.series`. `training`: `feat.series` -> `artifact.regdin`.
+- `inference_features`: `frame.deck`, `artifact.regdin` -> `inf.feat`. `inference` e `forecast`: `artifact.regdin`, `inf.feat` -> `forecast.y` / `forecast.f`.
