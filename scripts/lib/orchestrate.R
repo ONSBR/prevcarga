@@ -57,11 +57,12 @@
 }
 
 ## Janela --origin A..B (ou uma data) => vetor de Datas diarias; ausente => config.origin_range_required.
+## seq(by = "day") devolve Date de typeof integer; os plugins comparam datas com identical(), entao toda origem sai double.
 .m7_origins <- function(ctx) {
   o <- ctx$origin
   if (is.null(o)) prevcarga_abort("config.origin_range_required", where = "--origin")
-  if (inherits(o, "Date")) return(o)
-  seq(o$from, o$to, by = "day")
+  v <- if (inherits(o, "Date")) o else seq(o$from, o$to, by = "day")
+  lubridate::as_date(as.double(unclass(v)))
 }
 
 .m7_identity_inputs <- function(ctx) {

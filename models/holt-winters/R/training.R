@@ -13,12 +13,12 @@
   if (NROW(features$load_day_o) > 0L)
     hw_abort("hw.train_day_o", sprintf("%d intervalo(s) do dia O no treino", NROW(features$load_day_o)),
              list(n = NROW(features$load_day_o)), where = at)
-  if (!identical(cuts$train_origin, cuts$origin_day))
+  if (!isTRUE(as.double(cuts$train_origin) == as.double(cuts$origin_day)))
     hw_abort("hw.bad_cut", "train_origin diferente de origin_day (origin_scoped: train_origin = O, sem shift)",
              list(field = "train_origin"), where = at)
   ctv <- features$CargaTempVer
   fim <- max(ctv$Data)
-  if (!identical(fim, cuts$last_data_day))
+  if (!isTRUE(as.double(fim) == as.double(cuts$last_data_day)))   # por valor: Date integer x double (seq(by = "day"))
     hw_abort("hw.last_day_incomplete", sprintf("datafimver %s != last_data_day %s", format(fim), format(cuts$last_data_day)),
              list(datafimver = format(fim), last_data_day = format(cuts$last_data_day)), where = at)
   need <- spec$history_days$train

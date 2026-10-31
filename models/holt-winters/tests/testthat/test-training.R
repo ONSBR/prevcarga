@@ -76,6 +76,17 @@ test_that("[PLUGINS] ts_start: identical a expressao do oraculo em 2019..2024 (2
   expect_length(hw_grep_code(file.path(hw_root(), "models", "holt-winters", "R"), "format\\(\\w+, *[\"']%[Yj]"), 0L)
 })
 
+test_that("[PLUGINS] train_contract: cortes como Date de typeof integer (seq(by = 'day') do backtest) passam; comparacao por valor", {
+  b <- tr_base(); env <- hw_env(); spec <- tr_spec()
+  as_int_date <- function(d) structure(as.integer(unclass(d)), class = "Date")
+  f <- b$feats
+  for (k in c("origin_day", "train_origin", "last_data_day")) f$meta[[k]] <- as_int_date(f$meta[[k]])
+  expect_identical(typeof(f$meta$last_data_day), "integer")
+  expect_false(identical(f$meta$last_data_day, b$feats$meta$last_data_day))   # CONTROL: identical() reprovaria
+  m <- env$.hw_check_series(f, spec)
+  expect_identical(as.double(m$datafimver), as.double(b$feats$meta$last_data_day))
+})
+
 test_that("[PLUGINS] train_contract: O-1 ausente => completude, dia O => contract, train_origin != O => contract, historico curto => window; sem hw()", {
   b <- tr_base(); env <- hw_env(); spec <- tr_spec()
   run <- function(feats, sp = spec) {
