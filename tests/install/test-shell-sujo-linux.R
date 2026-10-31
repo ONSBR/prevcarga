@@ -1,7 +1,7 @@
 ## test-shell-sujo-linux.R -- shell sujo x shell limpo pelo lancador INSTALADO (M8.3, AC 5): TZ/LC_ALL/OPENBLAS/~/.Rprofile do usuario
 ## nao mudam NENHUM byte da saida (runtime.R fixa TZ, locale e BLAS in-process e sobrescreve o shell). Usa o bundle COMPLETO.
-## [DEFERRED M6.9] o verbo `forecast` ainda nao existe na CLI (forecast.R so tem a funcao): os verbos que leem o deck e dependem de
-## data/hora/locale -- describe e validate-deck (texto e JSON) -- ocupam o lugar do `forecast --origin`; trocar quando o M6.9 pousar.
+## M8.9: alem dos verbos de leitura abaixo, o braco [FORECAST] roda `forecast --origin <O>` (o verbo existe desde o M6.9) pelo lancador INSTALADO do mundo do e2e.
+## Os verbos describe/validate-deck (texto e JSON) seguem como braco barato, sem treino.
 ## FORBIDDEN: stdout, stderr, exit e arvores (deck e state) byte-identicos entre os dois shells; `grep -c export` no lancador = 0.
 ## CONTROL 1: a sonda de hora (sem o guard do runtime) DIFERE entre os shells. CONTROL 2: setter de TZ que nao fixa => exit 7, stdout vazio.
 library(testthat)
@@ -137,3 +137,30 @@ test_that("[M8.9] FORBIDDEN: com R_LIBS_USER/R_LIBS/R_LIBS_SITE apontando uma li
   expect_false(identical(antigo$status, 0L))
   expect_match(rawToChar(c(antigo$stdout, antigo$stderr)), "SHADOW LIB LOADED", fixed = TRUE)
 })
+
+## --- M8.9: `forecast` ponta a ponta, shell sujo x `env -i` -------------------------------------------------------------------------
+## Mundo do e2e (helper-e2e.R): bundle instalado, artefatos oficiais sincronizados. Cada shell parte de uma COPIA do mesmo estado (o export e imutavel).
+test_that("[M8.9][AC5] FORBIDDEN: `forecast --origin O` pelo lancador instalado, shell sujo x `env -i`: entrega identica byte a byte; CONTROL: outro deck => outra entrega", {
+  skip_if(is.na(pci_candidate()))
+  w <- pc_e2e_world()
+  base <- pci_work_dir(); n <- 0L                              # no frame do teste: as entregas vivem ate o fim dele
+  fc <- function(shell, deck = w$deck) {
+    n <<- n + 1L; st <- file.path(base, paste0("st", n)); dir.create(st)
+    stopifnot(all(file.copy(list.files(pc_e2e_synced(w)$local, full.names = TRUE, all.files = TRUE, no.. = TRUE), st, recursive = TRUE)))
+    r <- run_in(shell, "/bin/sh", c(file.path(w$root, "bin", "prevcarga"), "forecast", paste0("--data=", deck), paste0("--state=", st),
+                                    "--origin", w$origin, "--skip-validate", "--format", "json"))
+    j <- jsonlite::fromJSON(rawToChar(r$stdout), simplifyVector = FALSE)
+    list(status = r$status, stderr = r$stderr, saida = j$result$saida, norm = gsub(st, "STATE", rawToChar(norm_run_id(r$stdout)), fixed = TRUE))
+  }
+  sem_relogio <- function(d) { m <- jsonlite::read_json(file.path(d, "manifest.json")); m$gerado_em <- NULL; m }
+  a <- fc("sujo"); b <- fc("limpo")
+  expect_identical(a$status, 0L); expect_identical(b$status, 0L)
+  expect_identical(a$stderr, b$stderr)
+  expect_identical(pc_e2e_delivery_shas(a$saida, skip = "manifest.json"), pc_e2e_delivery_shas(b$saida, skip = "manifest.json"))
+  expect_identical(sem_relogio(a$saida), sem_relogio(b$saida))
+  expect_identical(sub('"generated_at":"[^"]*"', "", sub('"gerado_em":"[^"]*"', "", a$norm)), sub('"generated_at":"[^"]*"', "", sub('"gerado_em":"[^"]*"', "", b$norm)))
+  ## CONTROL: um deck de outra semente muda a entrega (a comparacao acima tem dentes)
+  c2 <- fc("limpo", pc_e2e_deck(file.path(base, "deck-seed"), w$origin, seed = 12))
+  expect_false(identical(pc_e2e_delivery_shas(c2$saida, skip = "manifest.json"), pc_e2e_delivery_shas(b$saida, skip = "manifest.json")))
+})
+

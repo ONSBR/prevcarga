@@ -64,7 +64,7 @@ so no layout `.../versions/<v>/code`; arvore de dev nao muda). `ctx$install_root
 `test-shell-sujo-linux.R` (AC 5, bundle COMPLETO). Helper: `helper-install.R` (bundles reempacotados a partir do candidato com o `code/` do worktree
 sobreposto; variante `slim` sem as libs pesadas; `pc_tree_sha`; variante de teste do instalador que troca `current` antes de validar = CONTROL do AC 2).
 - Raizes e bundles em `sandbox/` (mesmo disco; ~500 MB por bundle completo), apagados ao fim. Nunca `~/.local`, `~/.profile`, rede ou upload.
-- [DEFERRED M6.9] o verbo `forecast` ainda nao existe na CLI: o teste do shell sujo usa `describe` e `validate-deck` (texto e JSON) + `--version`.
+- (fechado no M8.9) `forecast --origin O` roda no teste do shell sujo pelo lancador instalado do mundo do e2e (`docs/estado/m8-e2e-bundle.md`): entrega identica byte a byte entre o shell sujo e `env -i` (so o `gerado_em` do manifest, relogio da rodada, difere), CONTROL com outro deck. `describe`/`validate-deck`/`--version` ficam como braco barato.
   Unica diferenca permitida entre execucoes: `run_id` (relogio UTC + pid) do envelope JSON. Se o host nao tem `pt_BR.UTF-8`, o shell sujo usa o 1o
   locale UTF-8 instalado (o bash do `bin/R` avisa por conta propria); se o fuso do host ja e `America/Sao_Paulo`, o TZ sujo vira `Asia/Tokyo` (a sonda do CONTROL precisa distinguir).
 - [DEFERRED M8.7] `doctor` validando o RUNTIME.json: outro ticket. O braco Windows e a secao abaixo (M8.4).
