@@ -57,7 +57,7 @@ test_that("[PLUGINS] determinismo: 2 treinos = mesmo sha256 e .Random.seed do ch
   expect_identical(hx_get_seed(), caller)
 })
 
-test_that("[PLUGINS] seed_medicao: seed 1234 -> 1235 medido e gravado em tests/parity/seed_measure.json, sem asserção de Delta", {
+test_that("[PLUGINS] seed_medicao: seed 1234 -> 1235 medido e gravado em .state/parity/holt-winters/seed_measure.json, sem asserção de Delta", {
   b <- hx_base()
   a0 <- hv_train(b$train, b$cuts)
   s1 <- hv_spec(); s1$seed <- 1235L
@@ -67,8 +67,9 @@ test_that("[PLUGINS] seed_medicao: seed 1234 -> 1235 medido e gravado em tests/p
   expect_identical(dim(v0), dim(v1))
   d <- max(abs(as.matrix(v0) - as.matrix(v1)))
   expect_true(is.finite(d))                                                # medida, nao limite: hw() e MLE e o kmeans re-semeia
-  dir <- file.path(hw_root(), "models", "holt-winters", "tests", "parity")
-  if (dir.exists(dir)) {
+  dir <- file.path(hw_root(), ".state", "parity", "holt-winters")             # fora de models/ (aditividade)
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  {
     jsonlite::write_json(list(seed_from = 1234L, seed_to = 1235L, max_abs_delta_values = d, n_values = length(v0)),
                          file.path(dir, "seed_measure.json"), auto_unbox = TRUE, digits = NA)
     expect_true(file.exists(file.path(dir, "seed_measure.json")))

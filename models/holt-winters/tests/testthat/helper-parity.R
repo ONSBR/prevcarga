@@ -22,7 +22,8 @@ HP_CRASH <- "seco-2024-07-01"
 
 hp_units_path <- function() file.path(hw_root(), "models", HP_MODEL, "tests", "parity", "units.yaml")
 hp_lock_path <- function() file.path(hw_root(), "models", HP_MODEL, "tests", "parity", "golden.lock")
-hp_report_path <- function() file.path(hw_root(), "models", HP_MODEL, "tests", "parity", "parity_report.json")
+## relatorio fora de models/ (gitignorado em .state/, como dessem-regdin): o runner nunca escreve sob models/ (aditividade)
+hp_report_path <- function() file.path(hw_root(), ".state", "parity", HP_MODEL, "parity_report.json")
 hp_golden_root <- function() file.path(hw_root(), ".state", "golden")
 hp_data_dir <- function() file.path(hw_root(), "data")
 hp_rscript <- function() file.path(R.home("bin"), "Rscript")

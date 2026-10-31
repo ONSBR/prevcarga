@@ -35,7 +35,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MED"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-seco-20241007-1200
     variant: "MED"
     area: "SECO"
@@ -46,7 +46,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MED"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-seco-20241015-0900
     variant: "MED"
     area: "SECO"
@@ -57,7 +57,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MED"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-seco-20241022-1200
     variant: "MED"
     area: "SECO"
@@ -68,7 +68,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MED"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-seco-20241029-0900
     variant: "MED"
     area: "SECO"
@@ -79,7 +79,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MED"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-seco-20241007-1200
     variant: "MAX"
     area: "SECO"
@@ -90,7 +90,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MAX"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-seco-20241015-0900
     variant: "MAX"
     area: "SECO"
@@ -101,7 +101,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MAX"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-s-20241015-0900
     variant: "MED"
     area: "S"
@@ -112,7 +112,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MED"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-ne-20241015-0900
     variant: "MED"
     area: "NE"
@@ -123,7 +123,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MED"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-n-20241015-0900
     variant: "MED"
     area: "N"
@@ -134,7 +134,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MED"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-s-20241015-0900
     variant: "MAX"
     area: "S"
@@ -145,7 +145,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MAX"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-ne-20241015-0900
     variant: "MAX"
     area: "NE"
@@ -156,7 +156,7 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MAX"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-n-20241015-0900
     variant: "MAX"
     area: "N"
@@ -167,4 +167,4 @@ units:
     history_days: 1825
     oracle_cut: start_label
     oracle_env: {EXOGENA: "MAX"}
-    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "eaedc8ada30a3cb790e88a4ad35cf3b1ad3519872515bf25511ae9c631e018b5"}
+    requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
