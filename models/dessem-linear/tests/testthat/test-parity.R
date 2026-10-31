@@ -57,12 +57,13 @@ dlp_spec <- function(path = DLP_UNITS()) dlp_tools()$pc_golden_units(path)
 dlp_group_units <- function(g) dlp_tools()$pc_golden_group_units(dlp_spec(), g)
 dlp_unit <- function(id) { us <- dlp_spec()$units; us[[which(vapply(us, `[[`, "", "id") == id)]] }
 
-## grupos do tier: parity => smoke; parity-full => smoke + foundation (+ fanout se declarado, DL.10); `--units <grupo>` vence
+## grupos do tier: parity => smoke; parity-full => smoke + foundation; `--units <grupo>` vence. O grupo `fanout` (DL.10) e de test-fanout.R:
+## aqui `--units fanout` nao roda nenhuma unidade (o teste `paridade` fica vazio e so confere isso).
 dlp_groups <- function() {
   g <- if (exists("pc_gate_units", mode = "function")) pc_gate_units(NULL) else NULL
-  if (!is.null(g)) return(g)
+  if (!is.null(g)) return(setdiff(g, "fanout"))
   have <- names(dlp_spec()$groups)
-  if (identical(dlp_tier(), "parity-full")) intersect(c("smoke", "foundation", "fanout"), have) else "smoke"
+  if (identical(dlp_tier(), "parity-full")) intersect(c("smoke", "foundation"), have) else "smoke"
 }
 
 dlp_units <- function(groups) {
@@ -339,24 +340,37 @@ test_that("[PLUGINS] units_yaml: esquema P.0f, grupos smoke/foundation, oracle_c
   expect_setequal(setdiff(spec$groups$smoke, spec$groups$foundation),
                   c("sp-2024-12-22", "sp-2024-11-15", "go-2024-10-05", "ac-2025-06-30"))   # robustez real
   expect_true(all(c(spec$groups$smoke, spec$groups$foundation) %in% ids))
+  ## fan-out (DL.10): MAX/MXMN x SECO nas origens da fundacao + MED/MAX/MXMN x RS, CE, PA (2024-10-15); requires_report em cada uma
+  fo <- spec$groups$fanout
+  expect_length(fo, 19L)
+  expect_setequal(fo, c(sprintf("%s-seco-2024-10-%02d", rep(c("max", "mxmn"), each = 5L), c(1L, 8L, 15L, 22L, 29L)),
+                        sprintf("%s-%s-2024-10-15", rep(c("med", "max", "mxmn"), 3L), rep(c("rs", "ce", "pa"), each = 3L))))
+  expect_length(intersect(fo, c(spec$groups$smoke, spec$groups$foundation)), 0L)
   for (u in us) {
     O <- u$origin
-    expect_identical(u$variant, "MED")                                              # nenhuma unidade MAX/MXMN nesta fatia
+    if (u$id %in% fo) {
+      expect_true(u$variant %in% c("MED", "MAX", "MXMN"))
+      expect_identical(u$requires_report$path, "models/dessem-linear/tests/parity/foundation_report.json")
+      expect_match(u$requires_report$sha256, "^[0-9a-f]{64}$")
+      expect_identical(u$id, sprintf("%s-%s-%s", tolower(u$variant), tolower(u$area), format(O)))
+    } else {
+      expect_identical(u$variant, "MED"); expect_null(u$requires_report)                # fundacao e smoke: so MED
+    }
     expect_identical(u$oracle_cut, "start_label"); expect_identical(u$day0_source, "native")
     expect_identical(u$weather_issue_cutoff, "origin_midnight_utc")
     expect_identical(u$history_days, 1825L)                                        # history_start = O - 1825 (train == infer)
     expect_identical(format(u$available_until, "%H:%M"), "09:00")                   # hora cheia
     expect_identical(dlp_tools()$.pc_golden_cut_arg(u), paste0(format(O), "T08:30"))   # o oraculo recebe available_until - 30 min
-    expect_identical(u$oracle_env$EXOGENA, "MED")
+    expect_identical(u$oracle_env$EXOGENA, u$variant)                              # a variante entra so pelo oracle_env do filho do oraculo
     expect_null(u$cuts)                                                            # janela unica: history_days
   }
-  ## so os 5 outubros de SECO na fundacao; cada unidade tem o proprio diretorio de golden (area x origem x variante)
+  ## cada unidade tem o proprio diretorio de golden (area x origem x variante)
   dirs <- vapply(us, function(u) dlp_tools()$.pc_golden_unit_dir("g", DLP_MODEL, u), "")
   expect_false(anyDuplicated(dirs) > 0L)
   ## o env do oracle_env existe so no filho do oraculo: o pai nunca o ve
   expect_identical(Sys.getenv("EXOGENA"), "")
-  ## unidade fora do contrato e recusada nomeando o campo (regras de topo): corte 09:30, variante MAX, history 730
-  for (mut in list(function(x) { x$available_until <- "2024-10-01T09:30"; x }, function(x) { x$variant <- "MAX"; x },
+  ## unidade fora do contrato e recusada nomeando o campo (regras de topo): corte 09:30, history 730, cuts
+  for (mut in list(function(x) { x$available_until <- "2024-10-01T09:30"; x },
                    function(x) { x$history_days <- 730L; x }, function(x) { x$cuts <- list(train = list(train_origin = "2024-09-30")); x })) {
     bad <- yaml::read_yaml(DLP_UNITS()); bad$units <- bad$units[1L]; bad$groups <- list(smoke = bad$units[[1L]]$id)
     bad$units[[1L]] <- mut(bad$units[[1L]])
@@ -369,6 +383,7 @@ test_that("[PLUGINS] units_yaml: esquema P.0f, grupos smoke/foundation, oracle_c
 test_that("[PLUGINS] paridade: values O..O+8 e delivery vs oraculo, max|d| <= 1e-5 MW (Delta=0); O+9 do oraculo fora_da_faixa; regua split x acoplado", {
   dlp_gate_tier("parity")
   groups <- dlp_groups()
+  if (!length(groups)) { expect_identical(pc_gate_units(NULL), "fanout"); return(invisible(NULL)) }     # --units fanout: test-fanout.R
   us <- dlp_units(groups)
   expect_gt(length(us), 0L)
   lock <- jsonlite::read_json(DLP_LOCK(), simplifyVector = FALSE)

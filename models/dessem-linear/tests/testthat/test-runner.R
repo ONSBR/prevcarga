@@ -37,7 +37,9 @@ dlr_fixture_repo <- function(failing = NULL, report = NULL) {
   }, "")
   writeLines(tests, file.path(tdir, "testthat", "test-fixture.R"))
   if (!is.null(report)) {
-    writeLines(c("lock-fixture"), file.path(tdir, "parity", "golden.lock"))
+    writeLines(jsonlite::toJSON(list(units = list(`seco-2024-10-01` = list(files = list(native.rds = strrep("a", 64L))),
+                                                   `seco-2024-10-08` = list(files = list(native.rds = strrep("b", 64L))))), auto_unbox = TRUE),
+               file.path(tdir, "parity", "golden.lock"))
     writeLines(jsonlite::toJSON(report(file.path(tdir, "parity", "golden.lock")), auto_unbox = TRUE, null = "null", digits = 15, pretty = TRUE),
                file.path(tdir, "parity", "foundation_report.json"))
   }
@@ -54,8 +56,9 @@ dlr_run <- function(runner, ...) {
 dlr_report <- function(ok = TRUE, bad_sha = FALSE, other_lock = FALSE) {
   rn <- dlr_runner_env()
   function(lock) {
-    units <- list(list(unit = "seco-2024-10-01", ok = ok, max_abs_delta = 0), list(unit = "seco-2024-10-08", ok = TRUE, max_abs_delta = 0))
-    list(model = "dessem-linear", all_ok = ok, golden_lock_sha256 = if (other_lock) strrep("0", 64L) else rn$.dl_sha(readBin(lock, "raw", file.size(lock))),
+    units <- list(list(unit = "seco-2024-10-01", ok = ok, max_abs_delta = 0, golden_native_sha256 = if (other_lock) strrep("0", 64L) else strrep("a", 64L)),
+                  list(unit = "seco-2024-10-08", ok = TRUE, max_abs_delta = 0, golden_native_sha256 = strrep("b", 64L)))
+    list(model = "dessem-linear", all_ok = ok,
          units = units, sha256 = if (bad_sha) strrep("0", 64L) else rn$.dl_report_units_sha(units))
   }
 }
@@ -112,7 +115,7 @@ test_that("[PLUGINS] runner_controle: tabela verde => exit 0, ASCII, DEFERRED M6
 
 test_that("[PLUGINS] runner_controle: --units fanout recusa sem relatorio verde e integro (exit 1, mensagem ASCII); com relatorio verde segue", {
   rn <- dlr_runner_env()
-  ## sem relatorio, vermelho, sha adulterado e golden.lock de outra geracao: exit 1 apontando o relatorio
+  ## sem relatorio, vermelho, sha adulterado e golden (por unidade) de outra geracao do golden.lock: exit 1 apontando o relatorio
   cases <- list(ausente = NULL, vermelho = dlr_report(ok = FALSE), sha = dlr_report(bad_sha = TRUE), lock = dlr_report(other_lock = TRUE))
   for (nm in names(cases)) {
     r <- dlr_run(dlr_fixture_repo(report = cases[[nm]]), "--tier", "parity-full", "--units", "fanout")
