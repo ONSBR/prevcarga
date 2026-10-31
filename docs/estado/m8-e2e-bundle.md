@@ -51,3 +51,5 @@ Tudo roda em `sandbox/` (gitignored). Sem bundle em `dist/` os bracos fazem skip
 - `test-shell-sujo-linux.R` roda `forecast --origin O` pelo lancador instalado (shell sujo x `env -i`, entrega byte-identica) e fecha o DEFERRED M6.9; `docs/estado/sync.md` fecha o catalogo == bundle e o e2e install.sh+sync.
 - ACs reescritos para o contrato real (discovery resolvido): dado alterado => exit 13/2; valor alterado => exit 12; `--jobs` provado no `train-models`.
 
+
+- **Gate Windows (M8.11)**: os itens Windows deste modulo (Windows x Linux, `--jobs`, CONTROL +0,2%, recibos) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W14). Pendente: Gabriel.

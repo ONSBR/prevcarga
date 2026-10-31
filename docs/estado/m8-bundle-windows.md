@@ -43,3 +43,5 @@ Validacao unica fora do repo (nao versionada): stage montado no Linux com os 75 
 - O AC6 cita `bundle.package_missing` por motor removido: `prevcarga_bundle_require` nao e chamado pelo verbo `forecast` hoje; o PDF e `grDevices::pdf` (base R), sem pacote de motor separado.
 - `export_error_catalog.R` aceita `--out <arq>` (o texto do ticket o passava posicional).
 - Comparacao de `runtime_id` entre dois builds exige o mesmo host, instalador e snapshot; um build real ainda nao foi comparado.
+
+- **Gate Windows (M8.11)**: os itens Windows deste modulo (build x2/runtime_id, `.ps1` no host Windows, doctor) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W02-W04). Pendente: Gabriel.

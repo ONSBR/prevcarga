@@ -71,3 +71,5 @@ catalogo, `bundle.package_missing`, tarball). Os bracos que dependem de `dist/` 
 - [DEFERRED M8.x] braco Windows (build, `windows-x86_64`, `bundle.platform_mismatch` no doctor): dono M8.6/M8.7; nao executavel nesta maquina.
 - `prevcarga doctor` agora valida o bundle instalado (`prevcarga_runtime_validate`, plataforma, R, artefatos): M8.7, `docs/estado/verificar.md`.
 - dessem-linear (max_rel 2.2e-13) segue pendente de decisao do Gabriel (m1-spike-r453.md); nao tratado aqui.
+
+- **Gate Windows (M8.11)**: os itens Windows deste modulo (braco Windows, cross_os) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W02, W14). Pendente: Gabriel.
