@@ -36,6 +36,9 @@ M7H_PLAN <- list(
                          overrides = list("history_days.train" = 40L, "history_days.infer" = 40L), gates = "gate03_sem_crash"),
   "dessem-regdin" = list(last = "2025-03-05", n_origins = 2L, models = "dessem-regdin/MED", protocol = NULL, deck_days = 460L,
                          overrides = list("history_days.train" = 400L, "history_days.infer" = 400L), gates = "sem_crash_harness"))
+## slot [DEFERRED M7] da tabela do runner (<modelo>:<gate>) -> gate do pack que o substitui (nada some em silencio)
+M7H_SLOT_MAP <- c("random-forest:gate12" = "gate12_harness_long", "holt-winters:harness_parity" = "gate10_harness_parity",
+                  "dessem-linear:gate03_sem_crash" = "gate03_sem_crash", "dessem-regdin:sem_crash_harness" = "sem_crash_harness")
 M7H_AREA <- "SP"
 M7H_CORTE <- "09:00"
 
