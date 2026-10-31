@@ -68,11 +68,11 @@ Medicao, nao correcao (2026-10-29): R 4.5.3 (clean-room) x R 4.2.3 (oraculo, pro
 - ADR-0019 s3 LGBM: confirma. Caminho: leitor unico -> despachante (offset 0) -> ingestao -> `prevcarga_build_features(stage = "train")`, `disable_loess: true`.
   Clean-room (end e start): temperatura - carga = 0 em todas as linhas, `offset_min` = 0 em todas (2736 linhas / 2561 de features). Oraculo: com store `start`
   alinhado (0), com store `end` +30 min em todas (2831 linhas), porque o oraculo nao le o rotulo. Delta=0 preservado no store `start` (o do oraculo e da producao);
-  deck sha256 (SP, 60 dias, O=2026-10-01): end d7cbfc51...28b7, start a5c41fe7...479e4.
+  deck sha256 (SP, 60 dias, O=2026-10-01): end d7cbfc517540d058022d3abec35753072db85ff233c9bf7446272c433dec28b7, start a5c41fe79010806be1f8e823fdab6e01df9deb16130f66bf7b0e3ee1b02479e4.
 - ADR-0019 s4 RF: confirma. Ingestao RF (`to_hourly` por `interval_start`): 0 de 2400 intervalos com dia diferente do de `interval_start` (100 nas bordas 23:30/00:00), media
   diaria RF - ref = 0 em 50 dias completos, para end e start. Oraculo com store `end`: 60 intervalos (1 por dia, 23:30-00:00) caem em D+1, hora -30 em 1440 horas; com `start`: 0.
-  deck sha256 (ZZ1, 80 dias): end b7ec17e9...159f9, start 94498 0ac...0c (ver journal ate o /consolidate).
-- Nao-interferencia: sha256 de `models/` antes == depois (52d0fd42...109b); oraculo com as mesmas 4 entradas `??` pre-existentes.
+  deck sha256 (ZZ1, 80 dias): end b7ec17e963b3ee452397e993436c9ab54165d291c57eaf7e79fbf92dc71159f9, start 944980db17bf799f30db0c0b9653110b8afa8121f12e0f56523d78f5c8f3900c.
+- Nao-interferencia: sha256 de `models/` antes == depois (52d0fd4265f92071cce9d22a6806b3194045a78c9da9bd3f57ebd358dbb9109f); oraculo com as mesmas 4 entradas `??` pre-existentes.
 - Achados laterais (sem dono ainda): `prevcarga_assert_stage_requires` trata `requires = "frame"` do LGBM como coluna do frame (o spike usou `frame.raw`);
   plugins acham a fundacao via `.GlobalEnv` fora da CLI. Nenhum vies confirmado => nao ha correcao pos-M5 a nomear para s3/s4.
 
