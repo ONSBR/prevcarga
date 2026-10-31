@@ -322,18 +322,16 @@ test_that("[CONTROL ac-43] golden.lock com fingerprint alterado numa copia: o ru
   skip_on_os("windows")
   s <- .pcg$get()
   skip_if_not(dir.exists(file.path(s$root, ".state", "golden", "plugins", "random-forest")), "golden ausente")
-  skip_if_not(dir.exists(file.path(s$root, "data")) && file.exists(file.path(s$root, ".state", "deck-store", "manifest.json")),
-              "store de dados ausente")
+  skip_if_not(file.exists(file.path(s$root, ".state", "deck-store", "manifest.json")), "overlay do store ausente")
   skip_if_not(nzchar(Sys.which("git")), "git indisponivel")
   m <- "random-forest"
-  ## copia = clone do repositorio (so o versionado) + golden REAL copiado (sem o modo somente-leitura, para poder apagar) + data/
+  ## copia = clone do repositorio (so o versionado) + golden REAL copiado (sem o modo somente-leitura, para poder apagar); sem store na copia
   cp <- file.path(withr::local_tempdir(pattern = "pcg-clone-"), "prevcarga")
   system2("git", c("clone", "-q", "--local", "--no-hardlinks", shQuote(s$root), shQuote(cp)), stdout = FALSE, stderr = FALSE)
   skip_if_not(dir.exists(cp), "clone falhou")
   dir.create(file.path(cp, ".state", "golden", "plugins"), recursive = TRUE)
   file.copy(file.path(s$root, ".state", "golden", "plugins", m), file.path(cp, ".state", "golden", "plugins"), recursive = TRUE,
             copy.mode = FALSE)
-  file.symlink(file.path(s$root, "data"), file.path(cp, "data"))        # so leitura; a copia nunca escreve em data/
   lock <- file.path(cp, "models", m, "tests", "parity", "golden.lock")
   txt <- readLines(lock, warn = FALSE)
   i <- grep('"randomForest": "', txt, fixed = TRUE)
@@ -351,7 +349,7 @@ test_that("[CONTROL ac-43] golden.lock com fingerprint alterado numa copia: o ru
   expect_false(identical(as.integer(st), 0L))
   expect_true(any(grepl("regere o golden", e, fixed = TRUE)), info = paste(e, collapse = "\n"))
   expect_true(any(grepl("tools.golden_stale", e, fixed = TRUE)))
-  ## o runner do plugin, no tier parity, reprova `paridade` e sai != 0
+  ## o runner do plugin na copia (sem store, e com o lock adulterado), no tier parity, reprova `paridade` e sai != 0 (a causa precisa e a da ferramenta, acima)
   r <- pcg_run_runner(file.path(cp, "models", m, "tests", "run_all_gates.R"), "parity")
   expect_false(identical(r$exit, 0L))
   expect_identical(r$table$status[r$table$id == "paridade"], "FAIL", info = paste(utils::tail(r$stdout, 15L), collapse = "\n"))
