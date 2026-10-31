@@ -1,14 +1,14 @@
 ## test-rd2-train.R -- RD.2: treino ate O-1 (ADR-0023), RNG na posicao do oraculo, freeze sem mable. Loader real, motor real,
-## painel sintetico. O treino completo (216 SVMs) e feito uma vez por corte e reaproveitado; os controles usam so os 2
+## painel sintetico. O treino completo (240 SVMs de perfil: 10 dias do motor) e feito uma vez por corte e reaproveitado; os controles usam so os 2
 ## primeiros dias-alvo (a ordem do RNG e sequencial, logo a posicao do gerador nesses dias e a do treino completo).
 
-test_that("[RD.2] ordem do oraculo: 1 cabeca de referencia (com mm) + 9 x 24 perfis = 217 ajustes; RNG parte de set.seed(seed); sem DM no artefato", {
+test_that("[PLUGINS] treino_freeze: ordem do oraculo: 1 cabeca de referencia (com mm) + 10 x 24 perfis = 241 ajustes; RNG parte de set.seed(seed); sem DM no artefato", {
   st <- rd2_state(); lg <- st$log; O <- RD2_O
-  expect_identical(lg$n, 217L)
+  expect_identical(lg$n, 241L)
   expect_identical(which(grepl("\\bmm\\b", lg$fml, perl = TRUE)), 1L)
   pl <- st$a09$payload
   expect_setequal(names(pl), c("svm_perfil", "norm", "config_mdl", "day_types", "dias", "train_window", "arima_fingerprint", "seed"))
-  expect_identical(names(pl$svm_perfil), format(O + 0:8))
+  expect_identical(names(pl$svm_perfil), format(O + 0:9))
   expect_true(all(vapply(pl$svm_perfil, length, 1L) == 24L))
   set.seed(42L); fresh <- get(".Random.seed", globalenv())
   expect_identical(lg$state[[1L]], fresh)                    # a cabeca parte de set.seed(42), como o oraculo
@@ -18,7 +18,7 @@ test_that("[RD.2] ordem do oraculo: 1 cabeca de referencia (com mm) + 9 x 24 per
   expect_identical(pl$train_window$start, lubridate::ymd("2023-11-01"))
 })
 
-test_that("[RD.2] AC4: sha256 invariante ao corte (09:00 x 12:00); dia O no painel aborta; CONTROL perturbar O-1 muda", {
+test_that("[PLUGINS] treino_freeze: AC4: sha256 invariante ao corte (09:00 x 12:00); dia O no painel aborta; CONTROL perturbar O-1 muda", {
   st <- rd2_state(); p <- st$p
   a12 <- rd2_train(p, 12L)
   expect_identical(rd2_sha(a12), rd2_sha(st$a09))
@@ -45,7 +45,7 @@ test_that("[RD.2] AC4: sha256 invariante ao corte (09:00 x 12:00); dia O no pain
   expect_false(identical(rd2_sha2(p, rd2_fit2(p, pc)), base))
 })
 
-test_that("[RD.2] AC3: mm de referencia com valores trocados => mesmo sha256 e mesma posicao de RNG; CONTROL sem a cabeca desloca o RNG", {
+test_that("[PLUGINS] treino_freeze: AC3: mm de referencia com valores trocados => mesmo sha256 e mesma posicao de RNG; CONTROL sem a cabeca desloca o RNG", {
   st <- rd2_state(); p <- st$p; env <- p$env
   expect_null(env$plugin_descriptor()$rng_deviation)
   spy <- rd2_spy(st$eng)
@@ -78,7 +78,7 @@ test_that("[RD.2] AC3: mm de referencia com valores trocados => mesmo sha256 e m
   expect_true(is.list(c0$svm_perfil))
 })
 
-test_that("[RD.2] AC3: SVMs de perfil de O e O+1 batem o .rd_fit_pass do oraculo (mm real, corte 12:00) com max|Delta| <= 1e-5", {
+test_that("[PLUGINS] treino_freeze: AC3: SVMs de perfil de O e O+1 batem o .rd_fit_pass do oraculo (mm real, corte 12:00) com max|Delta| <= 1e-5", {
   skip_if_not(file.exists(RD2_ORACLE_FIT) && file.exists(RD2_ORACLE_ENG), "oraculo ausente")
   st <- rd2_state(); p <- st$p; eng <- st$eng; O <- RD2_O
   pan12 <- rd2_panel(until = rd2_au(12L))
@@ -115,7 +115,7 @@ test_that("[RD.2] AC3: SVMs de perfil de O e O+1 batem o .rd_fit_pass do oraculo
   expect_gt(max(dc), 1e-5)
 })
 
-test_that("[RD.2] plano B: com rng_deviation o modo e reseed (aviso), set.seed re-fixado antes do perfil e sem cabeca; CONTROL preserve", {
+test_that("[PLUGINS] treino_freeze: plano B: com rng_deviation o modo e reseed (aviso), set.seed re-fixado antes do perfil e sem cabeca; CONTROL preserve", {
   st <- rd2_state(); p <- st$p; env <- p$env
   expect_identical(env$rd_rng_mode(deviation = NULL), "preserve")
   w <- NULL
@@ -140,7 +140,7 @@ test_that("[RD.2] plano B: com rng_deviation o modo e reseed (aviso), set.seed r
   expect_false(identical(spy$log$state[[2L]], st$log$state[[2L]]))
 })
 
-test_that("[RD.2] AC5: freeze puro e deterministico; thaw prediz identico; carimbos; CONTROL relogio e adulteracao", {
+test_that("[PLUGINS] treino_freeze: AC5: freeze puro e deterministico; thaw prediz identico; carimbos; CONTROL relogio e adulteracao", {
   st <- rd2_state(); p <- st$p; O <- RD2_O; a <- st$a09
   expect_true(rd_lib$prevcarga_plugin_scan_pure(a))
   s <- a$stamp
@@ -184,7 +184,7 @@ test_that("[RD.2] AC5: freeze puro e deterministico; thaw prediz identico; carim
   expect_identical(tryCatch(rd_with_cli(p$env$rd_thaw(tam3)), prevcarga_error = function(e) e)$id, "plugin.regdin_artifact_tampered")
 })
 
-test_that("[RD.2] AC6: .rd_arima_fingerprint = ordem + coeficientes nomeados + sha256 da serie DM; repetivel; CONTROL perturbar O-1", {
+test_that("[PLUGINS] treino_freeze: AC6: .rd_arima_fingerprint = ordem + coeficientes nomeados + sha256 da serie DM; repetivel; CONTROL perturbar O-1", {
   st <- rd2_state(); p <- st$p; eng <- st$eng
   fit_fp <- function(pan) {
     fe <- rd2_feats(p, pan)
@@ -204,7 +204,7 @@ test_that("[RD.2] AC6: .rd_arima_fingerprint = ordem + coeficientes nomeados + s
   expect_false(identical(fit_fp(pc)$fp$dm_digest, a$fp$dm_digest))
 })
 
-test_that("[RD.2] fontes: so definicoes, sem relogio, env global, atribuicao global nem aritmetica de hora (grep de fonte)", {
+test_that("[PLUGINS] grep: RD.2 fontes: so definicoes, sem relogio, env global, atribuicao global nem aritmetica de hora (grep de fonte)", {
   for (f in c("helpers_nowcast.R", "training.R", "freeze.R")) {
     src <- sub("#.*$", "", readLines(file.path(rd_models(), "dessem-regdin", "R", f), warn = FALSE))
     expect_false(any(grepl("Sys\\.time|Sys\\.Date|Sys\\.getenv|[+-]\\s*3600|difftime|with_tz|force_tz|as\\.POSIX|<<-|globalenv|saveRDS|\\.rd_nowcast",

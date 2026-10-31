@@ -131,13 +131,20 @@ rd_foundation <- function(name) {
   f
 }
 
-## Envelope bruto (area, values, delivery, meta): hourly = data.table(DataHora, Carga) O..O+8 no frame de modelagem.
+## Envelope bruto (area, values, delivery, meta): hourly = data.table(DataHora, Carga) O..O+9 no frame de modelagem (o motor roda
+## horizon_days + 1 dias); a ENTREGA e os `values` ficam com os horizon_days (9) primeiros dias.
 .rd_envelope <- function(hourly, area, cuts, acc, head_used) {
   x <- data.table::data.table(interval_end = hourly$DataHora, y_pred = hourly$Carga)
-  rule <- function(z) { r <- rd_semihourly_rule(z); acc$sh <- r; r }       # a regra roda UMA vez (aviso unico)
-  delivery <- .rd_guarded(acc, rd_foundation("to_semihourly")(x, rule, cuts$available_until,
-                                                              cuts$origin_day + (plugin_constants()$horizon_days - 1L)))
-  v <- matrix(as.numeric(acc$sh), nrow = plugin_constants()$horizon_days, ncol = 48L, byrow = TRUE)
+  nd <- plugin_constants()$horizon_days                                     # dias ENTREGUES (O..O+8)
+  ## a regra roda UMA vez (aviso unico) sobre TODOS os dias do motor (O..O+9: o spline do ultimo dia entregue ve o dia seguinte,
+  ## como no oraculo); a entrega e os `values` ficam com as 2 x 24 x nd primeiras
+  rule <- function(z) {
+    if (is.null(acc$full)) acc$full <- rd_semihourly_rule(x)
+    r <- acc$full[seq_len(2L * nrow(z))]; acc$sh <- r; r
+  }
+  delivery <- .rd_guarded(acc, rd_foundation("to_semihourly")(x[seq_len(nd * plugin_constants()$hours_per_day)], rule,
+                                                              cuts$available_until, cuts$origin_day + (nd - 1L)))
+  v <- matrix(as.numeric(acc$sh), nrow = nd, ncol = 48L, byrow = TRUE)
   list(area = area, values = v, delivery = delivery,
        meta = list(warnings = unique(acc$w), head_used = head_used))
 }

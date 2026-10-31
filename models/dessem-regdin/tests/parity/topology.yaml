@@ -1,0 +1,14 @@
+# Topologia da paridade do dessem-regdin (RD.6): o oraculo roda o dessem-regdin por area do store, inclusive as areas de subsistema
+# (SECO, S, NE, N) que na topologia de producao nao sao folhas. Aqui as quatro sao folhas para o leitor do clean-room as aceitar;
+# RGD_MED e RGD_MAX sao os membros (a variante MED/MAX entra por `params.exogena`). Mesmo esquema de config/topology.yaml. Nao e a topologia do produto. ASCII.
+schema_version: 1
+khat_range: [1.00, 1.15]
+subsystems:
+  SECO: {areas: [SECO], loss: PESE}
+  S: {areas: [S], loss: PES}
+  "N": {areas: ["N"], loss: PEN}
+  NE: {areas: [NE], loss: PENE}
+order: [SECO, S, "N", NE]
+members:
+  - {sigla: RGD_MED, mdir: dessem-regdin, exogena: MED}
+  - {sigla: RGD_MAX, mdir: dessem-regdin, exogena: MAX}

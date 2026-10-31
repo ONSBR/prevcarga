@@ -51,7 +51,7 @@ RD_TZ <- "Etc/GMT+3"
 
 ## Painel de exibicao (meia hora; rotulo ja convertido pelo leitor) deterministico. `days` dias terminando em O,
 ## dia O parcial ate `until` (POSIXct) quando dado. area unica.
-rd_panel <- function(origin = "2024-12-23", days = 60L, until = NULL, area = "SE", tz = RD_TZ, fc_days = 9L,
+rd_panel <- function(origin = "2024-12-23", days = 60L, until = NULL, area = "SE", tz = RD_TZ, fc_days = 10L,
                      fc_short = integer(), hol_type = 12L, hol_simplified = 3L) {
   O <- lubridate::ymd(origin)
   t0 <- lubridate::force_tz(lubridate::as_datetime(O - days), tz)

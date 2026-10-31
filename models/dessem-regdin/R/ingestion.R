@@ -89,6 +89,14 @@ rd_panel_contract <- function(reason, details = NULL)
                               missing_days = format(miss), history_days = spec$history_days$train))
     }
   }
+  ## hora de carga historica com NA = hora ausente (o to_hourly mantem a linha): completude nomeando dia e hora
+  if (anyNA(hist$load_mwh)) {
+    i <- which(is.na(hist$load_mwh))[[1L]]
+    rd_abort("plugin.regdin_series_gap", where = "dessem-regdin/ingest",
+             reason = sprintf("carga com NA em %d hora(s); primeira: dia %s hora %s", sum(is.na(hist$load_mwh)),
+                              format(hd[[i]]), format(hist$interval_end[[i]], "%H:%M")),
+             details = list(dia = format(hd[[i]]), n_na = sum(is.na(hist$load_mwh))))
+  }
   days <- seq(first, last, by = "day")
   got <- vapply(days, function(x) sum(hd == x), integer(1L))
   bad <- which(got != plugin_constants()$hours_per_day)
@@ -164,7 +172,10 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   k <- plugin_constants()
   O <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
   last <- cuts$last_data_day
-  horizon <- if (is.null(spec)) k$horizon_days else as.integer(spec$horizon_days)
+  ## dias ENTREGUES = horizon_days (O..O+8); o motor roda horizon_days + 1 dias (O..O+9), como o oraculo com corte intradiario
+  ## (data_adapter.R: n_forecast_days = horizon + 1): o splinefun monoH.FC de desagregaModeloSH precisa do dia seguinte para as
+  ## ultimas horas do ultimo dia entregue. E contagem de dias, nao aritmetica de hora.
+  horizon <- (if (is.null(spec)) k$horizon_days else as.integer(spec$horizon_days)) + 1L
   .rd_assert_panel(panel, cuts, spec)
   area <- rd_single_area(panel)
 

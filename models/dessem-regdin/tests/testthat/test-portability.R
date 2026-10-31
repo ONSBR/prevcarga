@@ -92,6 +92,6 @@ test_that("[PLUGINS] artefato_puro: thaw do arquivo == memoria (mesmo artefato e
   expect_true(rd_ascii(conditionMessage(e2)))
 })
 
-test_that("[DEFERRED M8] artefato_puro: sha256 do artefato identico entre Windows nativo e Linux (bundle)", {
+test_that("[DEFERRED M8] cross_os: sha256 do artefato identico entre Windows nativo e Linux (bundle)", {
   testthat::skip("[DEFERRED M8] braco Windows x Linux: precisa do bundle e do runner Windows do M8 (dono: M8 portabilidade)")
 })
