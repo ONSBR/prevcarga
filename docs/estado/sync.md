@@ -64,3 +64,5 @@ Pacote instalado so para os testes (R 4.5.3, P3M binario): `httpuv` 1.6.17 (e de
 ## Decisoes de fechamento (Gabriel, 2026-10-31)
 - Tudo que executa os `.ps1`/`.cmd` (Pester, equivalencia sh x ps1, matriz dos .ps1, e2e do instalador, catalogo do bundle) fica DEFERIDO para o gate **windows-vm do M8** (dono: Gabriel). Os SKIPs explicitos permanecem; nada foi instalado nesta maquina.
 - Indice de forecasts: o `release-pack` passara a escrever `forecasts/<O>/latest.txt` como fix de integracao apos o merge do M8.6; o lado do sync ja le esse arquivo.
+
+- **Gate Windows (M8.11)**: os itens Windows deste modulo (Pester do sync, matriz dos .ps1, sh x ps1, catalogo) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W06, W11, W12). Pendente: Gabriel.

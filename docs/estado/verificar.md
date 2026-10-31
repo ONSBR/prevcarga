@@ -50,3 +50,5 @@ ausente => FAIL classe 13) e `artefatos.sha` (SHA256SUMS local divergente => FAI
 ## Pendencias
 - [DEFERRED M8.6] braco Windows e gate `cross_os` (artefato Linux -> Windows) rodam este verbo entre plataformas; nao executavel nesta maquina.
 - A paridade/A-B Delta=0 contra o oraculo e do M8.8.
+
+- **Gate Windows (M8.11)**: os itens Windows deste modulo (braco Windows e cross_os) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W04, W14). Pendente: Gabriel.

@@ -30,3 +30,5 @@ Gate de performance: `prevcarga forecast --origin <O> --format json` pelo bundle
 |---|---|---|---|---|---|
 | linux-x86_64 | (pendente: operador) | | | | |
 | windows-x86_64 | [DEFERRED windows-vm do M8, dono: Gabriel, 2026-10-31] | | | | |
+
+- **Gate Windows (M8.11)**: os itens Windows deste modulo (braco Windows do NFR de 30 min) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W15). Pendente: Gabriel.

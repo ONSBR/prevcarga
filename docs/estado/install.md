@@ -117,3 +117,5 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
 O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO para `<R>/bin/`; o uninstall remove `bin/`. Detalhe e protocolo: `docs/estado/sync.md`.
 
 - Decisao (Gabriel, 2026-10-31): os [DEFERRED M8.6] acima ficam para o gate windows-vm do M8 (dono Gabriel); ver `docs/estado/sync.md`.
+
+- **Gate Windows (M8.11)**: os itens Windows deste modulo (Pester, analyzer, HKCU, `cmd`, MAX_PATH, aspas do `-e`, doctor no Windows) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W03-W05, W07-W10). Pendente: Gabriel.
