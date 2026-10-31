@@ -16,3 +16,8 @@ O REDUCE (combina, pesos, reconcile, scores, relatorio) e do M7.7; `dplus`/`base
   aborta `contract.backtest_long_na`. `run_cell` devolve o LONG; o orquestrador publica `long.parquet` + `.key` (chave esperada do plano). `member_long` NAO e cacheado: a chave do cache
   nao tem folha na identidade (repete entre folhas do mesmo membro/origem/corte) e colidiria.
 - Alteracoes fora do backtest.R: `inference.R` (`prevcarga_infer_cell` aceita `artifact` e `truncate_at`; `prevcarga_infer_read_panel` aceita `truncate_at`, ambos opcionais) e `orchestrate.R`.
+- M7.8 (clima previsto ponta a ponta): o M7 so repassa `ctx$weather_issue_cutoff` ao leitor e registra o limite (nenhum filtro de `issue_time`/`freshest` em backtest.R/cache.R; grep em `test-backtest-weather.R`).
+  Chave do artefato (`.bt_key_args`): regra + `cell$train_weather_issue_limit` (limite do TREINO, vindo do dates.R no plano) + `weather_forecast_in_train` do descriptor. Chave `member_long` do plano: regra + limite da
+  celula (`prevcarga_weather_issue_limit` do leitor sobre o corte simulado e o lag do manifest); regra diferente => `cache_key`/`.key` e `run_id` diferentes (celula `done` de outra regra recomputa no `--resume`).
+  `prevcarga_backtest()$summary$weather_issue_cutoff`, `plan --format json` e o `result` do backtest expoem a regra efetiva (flag > config.yaml > default). Desvio: o ticket cita `spec$inputs$weather_forecast$train`;
+  o run.yaml nao tem esse campo, a fonte e o descriptor `weather_forecast_in_train`. Testes: `test-backtest-weather.R` (FORBIDDEN/CONTROL por regra, lag, serial x `--jobs 2`, molde honesty_gate_weather), `test-cache.R`.

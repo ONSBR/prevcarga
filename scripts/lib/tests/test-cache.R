@@ -14,11 +14,13 @@ expect_pc <- function(expr, id, exit) {
 
 SHA <- paste(rep("a", 64L), collapse = "")
 O <- lubridate::ymd("2025-03-01")
+WL <- lubridate::ymd_hm("2025-03-01 06:00", tz = PC_M7_TZ)   # weather_issue_limit devolvido pelo leitor
 
 ## chave com defaults de fixture; `...` sobrescreve qualquer argumento de prevcarga_cache_key
 pc_m7_key <- function(kind, label, spec, ...) {
   a <- list(kind = kind, member_label = label, model_spec = spec, data_fingerprint = SHA, load_label = "start",
-            timezone = PC_M7_TZ, weather_issue_cutoff = "available_until", feature_config = list(a = 1L),
+            timezone = PC_M7_TZ, weather_issue_cutoff = "available_until", weather_issue_limit = WL,
+            feature_config = list(a = 1L),
             model_versions = list(x = "v1"), code_version = "abc123", lock_hash = "lock1")
   d <- list(...)
   if (kind %in% c("features", "member_long")) {
@@ -101,8 +103,8 @@ test_that("AC3: chave deterministica v_<hash>, laterais fora do hash e do identi
     expect_false(identical(k2, key), info = names(ch))
     expect_null(env$prevcarga_cache_get(ctx, k2, "artifact"), info = names(ch))
   }
-  ## weather_issue_cutoff esta reservado na identidade (uso ponta a ponta no M7.8)
-  expect_false(identical(key, do.call(env$prevcarga_cache_key, utils::modifyList(args, list(weather_issue_cutoff = "origin_midnight_utc")))))
+  ## artefato de membro SEM previsto no treino: a regra de clima nao entra (sem over-key; M7.8)
+  expect_identical(key, do.call(env$prevcarga_cache_key, utils::modifyList(args, list(weather_issue_cutoff = "origin_midnight_utc"))))
   ## parquet para data.table
   dt <- data.table::data.table(a = 1:3, b = c(0.5, 1.5, 2.5))
   kd <- do.call(env$prevcarga_cache_key, utils::modifyList(args, list(seed = 7L)))
@@ -200,4 +202,42 @@ test_that("fixtures do M7: deck sintetico e ctx em tempdir", {
   d <- pc_m7_deck(O)
   expect_true(file.exists(file.path(d, "manifest.json")))
   expect_identical(nrow(pc_m7_members()), 8L)
+})
+
+## --- M7.8 AC2: regra e limite de clima na identidade ------------------------------------------------------------------
+test_that("M7.8 AC2: features, member_long e artefato com previsto no treino diferem por regra e limite; sem previsto, nao", {
+  lbl <- pc_m7_label("RF"); spec <- pc_m7_spec("origin_agnostic")
+  au <- lubridate::ymd_hm("2025-03-01 09:00", tz = PC_M7_TZ)
+  rules <- c("available_until", "origin_midnight_utc")
+  for (kind in c("features", "member_long")) {
+    k <- vapply(rules, function(r) pc_m7_key(kind, lbl, spec, origin = O, available_until = au, weather_issue_cutoff = r), "")
+    expect_false(identical(k[[1L]], k[[2L]]), info = kind)                                             # CONTROL: regra
+    expect_false(identical(k[[1L]], pc_m7_key(kind, lbl, spec, origin = O, available_until = au, weather_issue_limit = WL + 3600)),
+                 info = kind)                                                                           # CONTROL: limite
+    expect_identical(k[[1L]], pc_m7_key(kind, lbl, spec, origin = O, available_until = au), info = kind)  # FORBIDDEN: mesmo pedido
+  }
+  a <- function(...) pc_m7_key("artifact", lbl, spec, train_origin = O, last_data_day = O, ...)
+  expect_false(identical(a(weather_forecast_in_train = TRUE),
+                         a(weather_forecast_in_train = TRUE, weather_issue_cutoff = "origin_midnight_utc")))
+  expect_false(identical(a(weather_forecast_in_train = TRUE), a(weather_forecast_in_train = TRUE, weather_issue_limit = WL + 3600)))
+  expect_identical(a(), a(weather_issue_cutoff = "origin_midnight_utc", weather_issue_limit = WL + 3600))   # sem previsto: igual
+  expect_false(identical(a(weather_forecast_in_train = TRUE), a()))                                        # CONTROL: o flag entra
+  ## meta.json registra os dois campos efetivos
+  ctx <- pc_m7_ctx()
+  args <- list(kind = "member_long", member_label = lbl, model_spec = spec, data_fingerprint = SHA, load_label = "start",
+               timezone = PC_M7_TZ, weather_issue_cutoff = "origin_midnight_utc", weather_issue_limit = WL, origin = O,
+               available_until = au, code_version = "c1", lock_hash = "l1")
+  key <- do.call(env$prevcarga_cache_key, args)
+  d <- env$prevcarga_cache_put(ctx, key, "member_long", list(1L), do.call(env$prevcarga_cache_identity, args))
+  w <- jsonlite::read_json(file.path(d, "meta.json"))$identity$feature_config$weather
+  expect_identical(w$weather_issue_cutoff, "origin_midnight_utc")
+  expect_identical(w$weather_issue_limit, "2025-03-01T09:00:00+0000")
+  ## regra ausente, invalida ou limite ausente => contract (exit 2), antes de qualquer IO
+  expect_pc(pc_m7_key("member_long", lbl, spec, origin = O, available_until = au, weather_issue_cutoff = NULL),
+            "contract.cache_identity", 2L)
+  expect_pc(pc_m7_key("member_long", lbl, spec, origin = O, available_until = au, weather_issue_cutoff = "x"),
+            "contract.cache_identity", 2L)
+  expect_pc(pc_m7_key("features", lbl, spec, origin = O, available_until = au, weather_issue_limit = NULL),
+            "contract.cache_identity", 2L)
+  expect_pc(a(weather_forecast_in_train = TRUE, weather_issue_limit = NULL), "contract.cache_identity", 2L)
 })
