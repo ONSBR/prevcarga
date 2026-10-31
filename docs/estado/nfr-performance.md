@@ -22,7 +22,7 @@ Gate de performance: `prevcarga forecast --origin <O> --format json` pelo bundle
   sem tempo no run_manifest.json, CONTROL de espera injetada no `infer`.
 
 ## Pendencias
-- [PENDENTE, dono: Gabriel/operador] O numero REAL (<= 1800 s) exige o deck real com `manifest.json` (o `data/` local nao tem), artefatos oficiais
+- [PENDENTE, dono: Gabriel/operador; aceito por Gabriel em 2026-10-31] ACs 1, 2 e 4 e o recibo nfr-30min (AC 2 no windows-vm). O numero REAL (<= 1800 s) exige o deck real com `manifest.json` (o `data/` local nao tem), artefatos oficiais
   sincronizados e o tempo do oraculo na mesma maquina. Nenhum numero e inventado: o procedimento esta no cabecalho de `tests/ab/test-nfr-30min.R` e em
   `docs/estado/m6-forecast.md` (bench M6.6).
 
