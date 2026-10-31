@@ -11,8 +11,10 @@
 ## Ferramenta de DEV/QA (fora do bundle); nao e codigo de produto.
 
 PC_SUITE_DIRS <- c("scripts/lib/tests", "tests/bundle", "tests/install", "tests/ab")
-## Motivos de skip aceitos: os do ticket + os adiamentos declarados com dono (gate da VM Windows). Qualquer outro skip reprova.
-PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "[DEFERRED windows-vm do M8")
+## Motivos de skip aceitos: os 4 do ticket + adiamentos declarados com dono: o gate da VM Windows ("[DEFERRED windows-vm do M8", "[DEFERRED M8" do build Windows),
+## o build duplo do mesmo commit (M8.1; "dist/repro-1", ja provado no M8.1) e o teste que nao consegue simular a ausencia de pacote com a library do bundle. Qualquer outro skip reprova.
+PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "[DEFERRED windows-vm do M8", "[DEFERRED M8",
+                          "dist/repro-1", "nao ha como simular a ausencia")
 
 pc_suite_arg <- function(args, name, default = NULL) {
   hit <- grep(paste0("^--", name, "="), args, value = TRUE)
