@@ -61,6 +61,6 @@ Exits: 0, 8 `upload.usage`, 9 `upload.key_exists`, 10 `upload.network`.
 O grep "so upload conhece o servico" cobre o codigo de PRODUTO (scripts/prevcarga, scripts/lib, install, config, models/*/R); dev tools antigos (`scripts/tools/bundle_gates.R`) e docs citam o termo.
 
 ## Pendencias
-- [DEFERRED M8.6] `prevcarga-sync` (le `releases/latest.txt` e os `SHA256SUMS` por prefixo) e o `install` ja publicado dependem deste layout.
+- `prevcarga-sync` (M8.6, `docs/estado/sync.md`) consome este layout (`artifacts/.../latest.txt` + `SHA256SUMS` por `v_<hash>`). Pendente no release-pack: `--what forecasts` deveria escrever `forecasts/<O>/latest.txt` (uma `<available_until>/<versao>` por linha), o indice que o sync le.
 - Retencao do Object Lock (`--object-lock-retain-until-date`) e a aceitacao da flag por `aws s3 cp` dependem da politica do bucket ([TBD: ADR-0039]); ver discovery do M8.5.
 - O `install.sh` (M8.3) le o catalogo gerado cortando as colunas 3/4/5 como se fossem `class/message/hint` (o gerado tem `exit_code` na coluna 3); ver discovery.

@@ -1,0 +1,5 @@
+id	class	message	hint
+sync.io_failed	bundle	falha de escrita ou utilitario ausente no registry local	confira permissoes e espaco em disco do --state e se o prevcarga instalado esta ao lado do prevcarga-sync
+sync.network	network	falha de rede ao baixar do release-base	confira --release-base e a conexao e repita; nada foi gravado no registry local
+sync.sha_mismatch	integrity	sha256 de um objeto nao confere com o SHA256SUMS publicado	baixe de novo; se persistir o publicado esta corrompido; nada foi gravado no registry local
+sync.usage	config	argumento invalido ou ausente do prevcarga-sync	veja prevcarga-sync --help (-Help no PowerShell)
