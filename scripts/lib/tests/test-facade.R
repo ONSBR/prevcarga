@@ -160,7 +160,9 @@ test_that("stubs derivados da descoberta, com dono (ac-9)", {
   tab <- E$prevcarga_verbs_discover()
   stubs <- tab$verb[vapply(tab$handler, is.null, NA)]
   expect_setequal(stubs, setdiff(names(E$prevcarga_verbs_planned), sub("\\.R$", "", list.files(E$prevcarga_cli_dir()))))
-  expect_gt(length(stubs), 0L)
+  ## M8.5: release-pack tem arquivo em cli/ e deixou de ser stub; com todos os verbos planejados implementados nao sobra stub (o laco cobre o que sobrar)
+  expect_false("release-pack" %in% stubs)
+  expect_false(is.null(tab$handler[[which(tab$verb == "release-pack")]]))
   ## M2.5: validate-deck tem arquivo em cli/ e deixou de ser stub (a lista de stubs vem so da descoberta)
   expect_false("validate-deck" %in% stubs)
   expect_true("validate-deck" %in% tab$verb)

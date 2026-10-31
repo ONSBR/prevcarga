@@ -104,8 +104,7 @@ test_that("stubs de outro dono (derivados da descoberta): exit 1 todo.not_implem
   have <- sub("\\.R$", "", list.files(file.path(root, "scripts", "lib", "cli"), pattern = "\\.R$"))
   stubs <- setdiff(names(planned), have)
   expect_false("reconcile" %in% stubs)   # R.5: reconcile tem cli/reconcile.R
-  expect_true("release-pack" %in% stubs)
-  expect_true(length(stubs) >= 1L)
+  expect_false("release-pack" %in% stubs)   # M8.5: release-pack tem cli/release-pack.R (todos os verbos planejados existem; o laco abaixo cobre o que sobrar)
   for (v in stubs) {
     t <- pc_cli(root, v)
     expect_identical(t$status, 1L, info = v)
@@ -117,7 +116,6 @@ test_that("stubs de outro dono (derivados da descoberta): exit 1 todo.not_implem
     expect_identical(parse_json(j)$error$id, "todo.not_implemented")
     expect_true(grepl(planned[[v]], parse_json(j)$error$where, fixed = TRUE))
   }
-  expect_true(any(grepl("M8", pc_cli(root, "release-pack")$stderr)))
 })
 
 ## ---- bloco 3: matriz de classes 0-15, precedencia, --debug, catalogo (ac-12) -------------------------------

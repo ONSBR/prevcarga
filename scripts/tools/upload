@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# scripts/tools/upload -- envio ao bucket publico (M8.5; ADR-0039, contrato de erros ADR-0040). Ferramenta de DEV, so Linux, FORA do bundle.
+# E o UNICO arquivo do repo que fala com o servico de armazenamento (cliente `aws`); credencial e perfil sao do cliente: o perfil
+# AWS_PROFILE e herdado por ele, ou passado por --profile. O pacote prevcarga nunca fala com o servico (ADR-0016).
+# Nao decide conteudo nem calcula hash: envia o diretorio montado por `prevcarga release-pack` (que ja gravou os SHA256SUMS).
+#
+# Uso:
+#   upload --bucket <b> --list [--profile <p>] [--format text|json]     chaves versionadas publicadas (entrada de release-pack --published)
+#   upload --bucket <b> <dir>  [--profile <p>] [--format text|json]     envia <dir> (layout do release-pack)
+#   --catalog <tsv>   catalogo de erros ja gerado (senao e gerado em tmp por scripts/tools/export_error_catalog.R; nunca lido do repo)
+# Nome do bucket: [TBD: ADR-0039]; sempre por --bucket.
+# Regras: (1) uma chave versionada ja existente NAO e sobrescrita: upload.key_exists (exit 9) ANTES de enviar qualquer objeto;
+# (2) latest.txt e a unica chave mutavel, enviada por ultimo e sem trava; (3) versionadas vao com Object Lock COMPLIANCE;
+# (4) o SHA256SUMS da RAIZ de <dir> e conferencia local do pacote (nao e chave do bucket) e nao e enviado.
+# Saida: texto ASCII (erro em stderr) ou, com --format json, UM documento em stdout e stderr vazio. Exits: 0, 8 uso, 9 integridade, 10 rede.
+
+set -u
+HERE="$(dirname "$(readlink -f "$0")")"
+FMT=text; BUCKET=""; DIR=""; LIST=0; CATALOG=""; PROFILE=""; TMPD=""
+
+trap '[ -n "$TMPD" ] && rm -rf "$TMPD"' EXIT
+
+# --- erros (ADR-0040): catalogo GERADO (colunas id, class, exit_code, message, hint) sob demanda; fallback embutido com o MESMO texto de scripts/lib/errors/release_pack.tsv ------
+pc_exit_for_class() { case "$1" in config) echo 8;; integrity) echo 9;; network) echo 10;; *) echo 1;; esac; }
+pc_catalog_row() {
+  if [ -z "$CATALOG" ]; then
+    TMPD="$(mktemp -d)" && CATALOG="$TMPD/error-catalog.tsv" &&
+      Rscript --vanilla "$HERE/export_error_catalog.R" --out "$CATALOG" >/dev/null 2>&1 || true
+  fi
+  row="$(awk -F'\t' -v id="$1" '$1==id {print; exit}' "$CATALOG" 2>/dev/null)"
+  if [ -n "$row" ]; then printf '%s\n' "$row"; return; fi
+  case "$1" in
+    upload.key_exists) printf 'upload.key_exists\tintegrity\t9\ta chave versionada ja existe no destino e nao pode ser sobrescrita\tgere uma nova versao; so latest.txt e regravado\n';;
+    upload.network)    printf 'upload.network\tnetwork\t10\tfalha de rede ou de credencial ao falar com o destino\tconfira a conexao e o perfil de credenciais e repita; nada foi sobrescrito\n';;
+    *)                 printf 'upload.usage\tconfig\t8\targumento invalido ou ausente do upload\tveja scripts/tools/upload --help\n';;
+  esac
+}
+pc_json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n\r\t'; }
+pc_die() { # pc_die <error.id> <onde>
+  row="$(pc_catalog_row "$1")"
+  classe="$(printf '%s' "$row" | cut -f2)"; msg="$(printf '%s' "$row" | cut -f4)"; hint="$(printf '%s' "$row" | cut -f5)"
+  code="$(pc_exit_for_class "$classe")"
+  if [ "$FMT" = json ]; then
+    printf '{"ok":false,"exit_code":%s,"error":{"id":"%s","class":"%s","message":"%s","hint":"%s","where":"%s"}}\n' \
+      "$code" "$1" "$classe" "$(pc_json_str "$msg")" "$(pc_json_str "$hint")" "$(pc_json_str "${2:-}")"
+  else
+    printf 'prevcarga: erro [%s] (exit %s)\no que: %s\nonde: %s\ncomo corrigir: %s\n' "$classe" "$code" "$msg" "${2:-}" "$hint" >&2
+  fi
+  exit "$code"
+}
+
+# --- argumentos --------------------------------------------------------------------------------------------------------
+for a in "$@"; do [ "$a" = "--format=json" ] && FMT=json; done
+prev=""; for a in "$@"; do [ "$prev" = "--format" ] && [ "$a" = json ] && FMT=json; prev="$a"; done
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --bucket|--format|--catalog|--profile)
+      [ $# -ge 2 ] && [ -n "$2" ] || pc_die upload.usage "$1"
+      case "$1" in --bucket) BUCKET="$2";; --catalog) CATALOG="$2";; --profile) PROFILE="$2";;
+        --format) case "$2" in text|json) FMT="$2";; *) pc_die upload.usage "--format";; esac;; esac
+      shift 2;;
+    --format=*) case "${1#--format=}" in text|json) FMT="${1#--format=}";; *) pc_die upload.usage "--format";; esac; shift;;
+    --list) LIST=1; shift;;
+    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    -*) pc_die upload.usage "$1";;
+    *) [ -z "$DIR" ] || pc_die upload.usage "$1"; DIR="$1"; shift;;
+  esac
+done
+[ -n "$BUCKET" ] || pc_die upload.usage "--bucket"
+[ -z "$CATALOG" ] || [ -f "$CATALOG" ] || pc_die upload.usage "--catalog"
+
+aws_cli() { if [ -n "$PROFILE" ]; then aws --profile "$PROFILE" "$@"; else aws "$@"; fi; }
+
+# --- --list ---------------------------------------------------------------------------------------------------------------
+if [ "$LIST" = 1 ]; then
+  [ -z "$DIR" ] || pc_die upload.usage "--list nao recebe <dir>"
+  raw="$(aws_cli s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].Key' --output text 2>/dev/null)" || pc_die upload.network "list-objects-v2"
+  keys="$(printf '%s' "$raw" | tr '\t' '\n' | grep -v '^None$' | grep -v '^$' | grep -v '/latest\.txt$' | grep -v '^latest\.txt$' | LC_ALL=C sort || true)"
+  if [ "$FMT" = json ]; then
+    arr="$(printf '%s' "$keys" | awk 'NF {gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\"%s\"", (n++ ? "," : ""), $0}')"
+    printf '{"ok":true,"exit_code":0,"result":{"bucket":"%s","chaves":[%s]}}\n' "$(pc_json_str "$BUCKET")" "$arr"
+  else
+    [ -z "$keys" ] || printf '%s\n' "$keys"
+  fi
+  exit 0
+fi
+
+# --- envio ----------------------------------------------------------------------------------------------------------------
+[ -n "$DIR" ] && [ -d "$DIR" ] || pc_die upload.usage "<dir>"
+ALL="$(cd "$DIR" && find . -type f | sed 's|^\./||' | LC_ALL=C sort)"
+ALL="$(printf '%s\n' "$ALL" | grep -v '^SHA256SUMS$' || true)"
+[ -n "$ALL" ] || pc_die upload.usage "<dir> vazio"
+VERSIONED="$(printf '%s\n' "$ALL" | grep -v '/latest\.txt$' | grep -v '^latest\.txt$' || true)"
+POINTERS="$(printf '%s\n' "$ALL" | grep '/latest\.txt$' || true)"
+
+# 1) recusa sobrescrever chave versionada ANTES de enviar qualquer objeto (404 = ausente; qualquer outra falha = rede)
+while IFS= read -r key; do
+  [ -n "$key" ] || continue
+  if err="$(aws_cli s3api head-object --bucket "$BUCKET" --key "$key" 2>&1 >/dev/null)"; then pc_die upload.key_exists "$key"; fi
+  case "$err" in *404*|*"Not Found"*|*NoSuchKey*) ;; *) pc_die upload.network "head-object $key";; esac
+done <<EOT
+$VERSIONED
+EOT
+
+# 2) envia: versionadas com Object Lock, depois os latest.txt (unica chave mutavel, sem trava)
+n=0; m=0
+while IFS= read -r key; do
+  [ -n "$key" ] || continue
+  aws_cli s3 cp "$DIR/$key" "s3://$BUCKET/$key" --object-lock-mode COMPLIANCE --only-show-errors >/dev/null 2>&1 || pc_die upload.network "$key"
+  n=$((n + 1))
+done <<EOT
+$VERSIONED
+EOT
+while IFS= read -r key; do
+  [ -n "$key" ] || continue
+  aws_cli s3 cp "$DIR/$key" "s3://$BUCKET/$key" --only-show-errors >/dev/null 2>&1 || pc_die upload.network "$key"
+  m=$((m + 1))
+done <<EOT
+$POINTERS
+EOT
+
+if [ "$FMT" = json ]; then
+  printf '{"ok":true,"exit_code":0,"result":{"bucket":"%s","dir":"%s","enviadas":%s,"latest":%s}}\n' \
+    "$(pc_json_str "$BUCKET")" "$(pc_json_str "$DIR")" "$n" "$m"
+else
+  printf 'upload: %s chaves versionadas e %s latest.txt enviados\n' "$n" "$m"
+fi
+exit 0

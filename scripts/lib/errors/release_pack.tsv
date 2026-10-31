@@ -1,0 +1,8 @@
+id	class	message	hint
+config.release_out_not_empty	config	o diretorio de saida do release-pack existe e nao esta vazio	use um diretorio novo ou vazio em --out; nada foi tocado
+integrity.release_inconsistent	integrity	o pacote de release tem item inconsistente (versao, RUNTIME.json, run_manifest.json ou chave)	corrija os itens listados em result.recusados e rode de novo; nada foi escrito
+integrity.release_key_published	integrity	a chave do pacote ja esta publicada (chave versionada e imutavel)	gere uma nova versao; so latest.txt e mutavel
+integrity.release_receipt	integrity	recibo de gate ausente, de outro sha256 ou reprovado para o bundle	rode os gates sobre o bundle exato e gere os recibos; nada foi escrito
+upload.key_exists	integrity	a chave versionada ja existe no destino e nao pode ser sobrescrita	gere uma nova versao; so latest.txt e regravado
+upload.network	network	falha de rede ou de credencial ao falar com o destino	confira a conexao e o perfil de credenciais e repita; nada foi sobrescrito
+upload.usage	config	argumento invalido ou ausente do upload	veja scripts/tools/upload --help
