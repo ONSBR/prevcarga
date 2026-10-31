@@ -62,11 +62,19 @@ nenhum de RNG; so os itens de "Divergencias aceitas" acima.
 - Estado por modulo: `docs/estado/{features_facade,training,inference,plugin_dispatch,plugins_porte_fechamento}.md`; por plugin:
   `docs/estado/{random_forest,lgbm,holt_winters,dessem_linear,dessem_regdin,dessem_engine}.md`.
 
-## Vereditos do spike ADR-0019 (M5.10; consumidos de `docs/journal/spike-adr0019.md`, efemero)
-- ADR-0019 s3 LGBM: confirma -- temperatura e carga do LGBM alinham no mesmo slot (offset 0 em todas as linhas) com o rotulo gravado `end` ou `start`;
-  o oraculo so desalinha +30 min com store `end` (o clean-room corrige no leitor). Delta=0 preservado no store `start` (o do oraculo e da producao).
-- ADR-0019 s4 RF: confirma -- 0 intervalos com dia diferente do de `interval_start` no clean-room; o oraculo com store `end` joga 23:30-00:00 em D+1.
-- Achado lateral (sem dono ainda): `prevcarga_assert_stage_requires` trata `requires = "frame"` do LGBM como coluna do frame (o spike usou `frame.raw`).
+## Vereditos do spike ADR-0019 (M5.10; copiados de `docs/journal/spike-adr0019.md`, efemero e gitignorado, com a evidencia)
+Medicao, nao correcao (2026-10-29): R 4.5.3 (clean-room) x R 4.2.3 (oraculo, processo filho `env -i ... TZ=UTC`, deck COPIADO); deck sentinela de
+`scripts/tools/fixture_store.R` (`sentinel = TRUE`), tz Etc/GMT+3; rodado com o rotulo da carga gravado `end` (caso real do ADR-0035: o leitor desloca -30 min) e `start`.
+- ADR-0019 s3 LGBM: confirma. Caminho: leitor unico -> despachante (offset 0) -> ingestao -> `prevcarga_build_features(stage = "train")`, `disable_loess: true`.
+  Clean-room (end e start): temperatura - carga = 0 em todas as linhas, `offset_min` = 0 em todas (2736 linhas / 2561 de features). Oraculo: com store `start`
+  alinhado (0), com store `end` +30 min em todas (2831 linhas), porque o oraculo nao le o rotulo. Delta=0 preservado no store `start` (o do oraculo e da producao);
+  deck sha256 (SP, 60 dias, O=2026-10-01): end d7cbfc51...28b7, start a5c41fe7...479e4.
+- ADR-0019 s4 RF: confirma. Ingestao RF (`to_hourly` por `interval_start`): 0 de 2400 intervalos com dia diferente do de `interval_start` (100 nas bordas 23:30/00:00), media
+  diaria RF - ref = 0 em 50 dias completos, para end e start. Oraculo com store `end`: 60 intervalos (1 por dia, 23:30-00:00) caem em D+1, hora -30 em 1440 horas; com `start`: 0.
+  deck sha256 (ZZ1, 80 dias): end b7ec17e9...159f9, start 94498 0ac...0c (ver journal ate o /consolidate).
+- Nao-interferencia: sha256 de `models/` antes == depois (52d0fd42...109b); oraculo com as mesmas 4 entradas `??` pre-existentes.
+- Achados laterais (sem dono ainda): `prevcarga_assert_stage_requires` trata `requires = "frame"` do LGBM como coluna do frame (o spike usou `frame.raw`);
+  plugins acham a fundacao via `.GlobalEnv` fora da CLI. Nenhum vies confirmado => nao ha correcao pos-M5 a nomear para s3/s4.
 
 ## Gates do fechamento (M5.12)
 `scripts/lib/tests/test-plugins-gates-cli.R`: (1) 5 runners x `fast`/`parity` como processos (10 saem 0; zero `[DEFERRED M5]`/`[DEFERRED M6]`; pack `[M5]` e `[M6]`
