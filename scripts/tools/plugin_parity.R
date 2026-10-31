@@ -109,7 +109,7 @@ prevcarga_parity_layouts <- list(
       prevcarga_abort("tools.golden_missing", where = unit$id, details = list(unit = unit$id, item = "native$meta$discarded_step"))
     t0 <- lubridate::force_tz(lubridate::as_datetime(unit$origin), tz)
     first_end <- unit$available_until + lubridate::minutes(30L)
-    col <- as.integer(round(as.numeric(difftime(first_end, t0, units = "mins")) / 30))
+    col <- as.integer(round(lubridate::time_length(lubridate::interval(t0, first_end), "minute") / 30))
     if (col >= 1L && col <= ncol(m)) m[1L, col] <- ds
     fill <- list(end = as.numeric(first_end), value = ds)
   } else {
@@ -160,7 +160,7 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
   tz <- lubridate::tz(unit$available_until)
   if (is.null(delivery_days)) {
     t0 <- lubridate::force_tz(lubridate::as_datetime(unit$origin), tz)
-    delivery_days <- as.integer(ceiling(as.numeric(difftime(max(envelope$delivery$interval_end), t0, units = "days"))))
+    delivery_days <- as.integer(ceiling(lubridate::time_length(lubridate::interval(t0, max(envelope$delivery$interval_end)), "day")))
   }
   cuts <- list(available_until = unit$available_until, tz = tz, origin_day = unit$origin)
   grid <- prevcarga_delivery_grid(cuts, delivery_days)

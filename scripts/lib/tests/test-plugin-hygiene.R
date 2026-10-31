@@ -24,8 +24,7 @@ test_that("[ac-0] codigo da fundacao limpo (zero hits); source()/library() so va
   expect_equal(nrow(hi), 0L, info = .ph_fmt(hi))
 })
 
-test_that("[ac-0] PENDENTE: difftime em plugin_parity.R (fix do P.0g apos o RF.4)", {
-  skip("PENDENTE: plugin_parity.R usa difftime() (linhas 106 e 157); o RF.4 esta editando o arquivo. A assercao fica aqui e liga quando o fix do P.0g pos-RF.4 entrar.")
+test_that("[ac-0] sem difftime em plugin_parity.R (fix do P.0g pos-RF.4: lubridate::time_length)", {
   h <- pc_grep_code(grep("plugin_parity.R", .ph_files(), value = TRUE), pc_foundation_forbidden["difftime"])
   expect_equal(nrow(h), 0L, info = .ph_fmt(h))
 })
