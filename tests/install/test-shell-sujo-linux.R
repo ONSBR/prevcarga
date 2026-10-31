@@ -102,3 +102,38 @@ test_that("[AC5] CONTROL 2: setter de TZ injetado que nao fixa => exit 7 com std
   expect_length(bad$stdout, 0L)
   expect_match(strsplit(rawToChar(bad$stderr), "\n")[[1L]][1L], "^prevcarga: erro \\[runtime\\] \\(exit 7\\)$")
 })
+
+## --- M8.9: o lancador e hermetico a library herdada (decisao do Gabriel; docs/estado/install.md) --------------------------------------------
+## `--vanilla` ignora os ARQUIVOS de perfil mas nao as variaveis herdadas: um shell com R_LIBS_USER/R_LIBS/R_LIBS_SITE poria uma library de fora
+## na frente da do bundle. A library "sombra" tem um pacote `jsonlite` falso (versao 99.0) que aborta ao carregar: se o R do bundle a ve, o verbo cai.
+test_that("[M8.9] FORBIDDEN: com R_LIBS_USER/R_LIBS/R_LIBS_SITE apontando uma library sombra, o lancador instalado so usa a library do bundle (saida = shell limpo)", {
+  shadow <- file.path(W, "shadow-lib"); src <- file.path(W, "shadow-src", "jsonlite")
+  dir.create(shadow); dir.create(file.path(src, "R"), recursive = TRUE)
+  writeLines(c("Package: jsonlite", "Version: 99.0", "Title: sombra", "Description: sombra de teste.", "License: GPL-2", "Encoding: UTF-8"), file.path(src, "DESCRIPTION"))
+  writeLines("exportPattern(\"^[^.]\")", file.path(src, "NAMESPACE"))
+  writeLines(".onLoad <- function(libname, pkgname) stop(\"SHADOW LIB LOADED\")", file.path(src, "R", "zzz.R"))
+  inst <- suppressWarnings(system2(file.path(R.home("bin"), "R"), c("CMD", "INSTALL", "--no-test-load", "-l", shQuote(shadow), shQuote(src)), stdout = TRUE, stderr = TRUE))
+  skip_if(!dir.exists(file.path(shadow, "jsonlite")), paste("R CMD INSTALL da sombra falhou:", paste(utils::tail(inst, 3), collapse = " | ")))
+  dirty <- c(paste0("R_LIBS_USER=", shadow), paste0("R_LIBS=", shadow), paste0("R_LIBS_SITE=", shadow),
+             paste0("R_PROFILE_USER=", file.path(HOME_SUJO, ".Rprofile")), paste0("R_ENVIRON_USER=", file.path(HOME_SUJO, ".Rprofile")),
+             "PATH=/usr/local/bin:/usr/bin:/bin")
+  go <- function(launcher, envs) {
+    so <- tempfile(); se <- tempfile(); on.exit(unlink(c(so, se)))
+    st <- system2("env", c("-i", envs, "/bin/sh", shQuote(launcher), "models", "--format", "json"), stdout = so, stderr = se)
+    list(status = as.integer(st), stdout = readBin(so, "raw", file.size(so)), stderr = readBin(se, "raw", file.size(se)))
+  }
+  limpo <- go(LAUNCHER, "PATH=/usr/local/bin:/usr/bin:/bin")
+  sujo <- go(LAUNCHER, dirty)
+  expect_identical(limpo$status, 0L)
+  expect_identical(sujo$status, 0L)
+  expect_identical(norm_run_id(sujo$stdout), norm_run_id(limpo$stdout)); expect_identical(sujo$stderr, limpo$stderr)
+  ## CONTROL: o lancador ANTIGO (so `env -u R_HOME`) com o mesmo ambiente sujo carrega a sombra e cai (o teste tem dentes)
+  old <- file.path(R, "bin", "prevcarga-antigo")
+  src_l <- readLines(LAUNCHER)
+  i <- grep("^exec env ", src_l); expect_length(i, 1L)
+  src_l[i] <- sub("^exec env .* \"\\$V/runtime/bin/Rscript\"", "exec env -u R_HOME \"$V/runtime/bin/Rscript\"", src_l[i])
+  writeLines(src_l, old); Sys.chmod(old, "0755")
+  antigo <- go(old, dirty)
+  expect_false(identical(antigo$status, 0L))
+  expect_match(rawToChar(c(antigo$stdout, antigo$stderr)), "SHADOW LIB LOADED", fixed = TRUE)
+})

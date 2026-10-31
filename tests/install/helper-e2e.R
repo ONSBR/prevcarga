@@ -15,12 +15,13 @@
 .pce_state <- new.env(parent = emptyenv())
 
 ## --- lancador ---------------------------------------------------------------------------------------------------------
-## Ambiente do filho = o do teste sem as variaveis R_* do R hospedeiro e com o git CEGO ao repo que hospeda sandbox/: o `code_commit` da
-## proveniencia vem de `git -C <code do bundle>`; uma raiz de instalacao REAL nao esta dentro de um repositorio (=> "unknown"), mas a deste teste
-## esta (sandbox/ do worktree) e herdaria o HEAD/sujo do repo de dev, que muda a cada commit e quebraria a comparacao com a inferencia oficial.
+## Ambiente do filho = o do teste (heranca INTEGRAL: R_LIBS_USER etc. do R hospedeiro ficam, para o e2e provar que o lancador e hermetico),
+## so com o git CEGO ao repo que hospeda sandbox/: o `code_commit` da proveniencia vem de `git -C <code do bundle>`; uma raiz de instalacao REAL
+## nao esta dentro de um repositorio (=> "unknown"), mas a deste teste esta (sandbox/ do worktree) e herdaria o HEAD/sujo do repo de dev, que muda a cada
+## commit e quebraria a comparacao com a inferencia oficial.
 pce_clean_env <- function() {
   e <- Sys.getenv()
-  e <- e[setdiff(names(e), c("R_LIBS_USER", "R_LIBS", "R_LIBS_SITE", "R_HOME", "GIT_CEILING_DIRECTORIES"))]
+  e <- e[setdiff(names(e), "GIT_CEILING_DIRECTORIES")]
   c(e, GIT_CEILING_DIRECTORIES = pci_root())
 }
 
@@ -29,8 +30,6 @@ pce_clean_env <- function() {
 pc_e2e_cli <- function(root, args, timeout = 1800, wd = NULL) {
   win <- identical(.Platform$OS.type, "windows")
   cmd <- if (win) file.path(root, "bin", "prevcarga.cmd") else file.path(root, "bin", "prevcarga")
-  ## o filho herda o ambiente do R de teste: R_LIBS_USER/R_LIBS/R_LIBS_SITE/R_HOME do R hospedeiro vazariam a library do host para o
-  ## bundle (ver o discovery do M8.9); o teste os remove para exercitar o lancador como numa sessao limpa
   r <- processx::run(cmd, c(args, "--format", "json"), error_on_status = FALSE, windows_verbatim_args = FALSE,
                      encoding = "UTF-8", timeout = timeout, wd = wd,
                      env = pce_clean_env())

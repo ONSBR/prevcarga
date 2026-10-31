@@ -18,7 +18,8 @@ Tudo roda em `sandbox/` (gitignored). Sem bundle em `dist/` os bracos fazem skip
 - O artefato carrega o `load_label` do treino e o forecast recusa deck de outro rotulo (`contract.load_label_mismatch`): a perna `end` tem mundo proprio (`pc_e2e_world_end`).
 - Cache: `sandbox/pc-e2e-world-<chave>` (chave = sha do bundle + arvores `scripts/models/config/install` do HEAD + diff). Primeira montagem ~35 min (treino); depois ~0.
   Mudou o codigo de produto => chave nova => mundo novo (o `/tidy` apaga por idade).
-- O filho do lancador roda SEM `R_LIBS_USER/R_LIBS/R_LIBS_SITE/R_HOME` herdados (ver discovery: o `--vanilla` nao neutraliza variavel de ambiente).
+- O filho do lancador HERDA o ambiente do teste inteiro (inclusive `R_LIBS_USER` do R hospedeiro): o e2e prova que o lancador e hermetico (o achado virou correcao do lancador
+  neste ticket, `docs/estado/install.md`). So o git e cegado ao repo que hospeda `sandbox/` (`GIT_CEILING_DIRECTORIES`), para o `code_commit` ser `unknown` como numa raiz real.
 
 ## Resultado (Linux; bundle `0.9.0-e2e`, build jammy desta ponta)
 - AC1: deck `end` x o MESMO deck pre-deslocado `start`: parquets da entrega byte-identicos (Delta 0); `target_datetime` = `interval_end` (1o previsto = available_until + 30 min,
@@ -34,6 +35,7 @@ Tudo roda em `sandbox/` (gitignored). Sem bundle em `dist/` os bracos fazem skip
 - CONTROL do rotulo: o corte de 08:30 nao tem pesos da combina (`contract.combina_input`); a entrega do CONTROL usa um intervalo a mais de carga para manter o corte em 09:00.
 
 ## Correcoes de integracao achadas pelo e2e (commits proprios nesta branch)
+- `install/prevcarga` e `install/prevcarga.cmd`: hermeticos a `R_LIBS*`/`R_PROFILE_USER`/`R_ENVIRON_USER` herdados (decisao do Gabriel; ver `docs/estado/install.md`).
 - `release_pack.R`: a sonda de manifest de deck lia `timezone$load` de TODO arquivo antes do filtro de nome; o `artifact.rds.manifest.json` real tem `timezone` em texto =>
   `generic.unexpected` em todo `release-pack --what=artifacts` sobre artefatos reais.
 - `verify_repro.R`: `SHA256SUMS` na raiz de uma chave de forecasts (gravado pelo release-pack, copiado pelo sync) era "arquivo nao listado" => `verificar --oficial` nunca passava
