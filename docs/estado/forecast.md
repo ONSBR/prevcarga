@@ -79,7 +79,7 @@
 ## M6.6 -- sub-gates [M6] do LONG e bench do NFR de 30 min
 - `scripts/tools/gates/m6_long.R` (pack descoberto por `prevcarga_gates_run`, dono `M6`, tier fast, `applies_to` = os 5 plugins; nenhum `models/<m>/tests/run_all_gates.R` editado). Gates `m6_schema_long`, `m6_ytrue_real`,
   `m6_anti_leak`, `m6_no_dayshift`, `m6_primeira_entrega`, `m6_fim_da_faixa` (7 gates com `m6_nowcast_dplus0`; o charset do runner e `[a-z0-9_]`, entao `m6_<gate>` e nao `m6_long.<gate>`). O pack de dono `M6` SUBSTITUI os slots `[DEFERRED M6]`
-  das tabelas (RF `gate04`/`gate08`, LGBM `gate11_ytrue_real`/`nowcast_dplus0_long`, HW `schema_long`/`ytrue_real`); `harness_*`/`gate12` ([DEFERRED M7]) seguem como slot com dono.
+  das tabelas (RF `gate04`/`gate08`, LGBM `gate11_ytrue_real`/`nowcast_dplus0_long`, HW `schema_long`/`ytrue_real`); `harness_*`/`gate12` ([DEFERRED M7]) sao do pack `m7_harness.R` (M7.5; ver `docs/estado/backtest.md`).
 - Cada gate roda `prevcarga_long_subgates(panel, member, cuts)` (data.frame gate/passed/detail) sobre o painel de `prevcarga_build_long` com entrega SINTETICA na grade real do membro; `delivery_days` vem do descriptor do plugin (lido num
   `Rscript --vanilla` filho). `no_dayshift` compara a correlacao y_pred x y_true no mesmo dia com a de +-1 dia (48 leads). `primeira_entrega`/`fim_da_faixa` comparam com `prevcarga_delivery_grid` (sem aritmetica de 30 min).
   CONTROLs em `test-long_subgates.R` (lead off-by-one, deslocado 1 dia, y_true = y_pred, fim 1 slot antes, inicio em available_until).
