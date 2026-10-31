@@ -1,5 +1,7 @@
 #!/bin/sh
 # prevcarga -- lancador fino. Nao altera nem le variavel de ambiente: TZ, locale e BLAS sao fixados in-process pelo runtime.R.
+# Hermetico: alem de R_HOME, descarta as variaveis que poem uma library de fora no .libPaths() do R do bundle (R_LIBS*, R_PROFILE_USER, R_ENVIRON_USER);
+# `--vanilla` ignora os ARQUIVOS de perfil mas nao as variaveis herdadas (todo processo R herda R_LIBS_USER dos filhos). `env -u` nao define nada.
 # A raiz <R> e achada pelo proprio caminho (readlink -f); o ponteiro `current` escolhe a versao instalada.
 R=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 if [ ! -f "$R/current" ]; then
@@ -12,4 +14,4 @@ if [ -z "$v" ] || [ ! -x "$V/runtime/bin/Rscript" ]; then
   printf 'prevcarga: erro [bundle] (exit 6)\no que: versao %s ausente\nonde: %s\ncomo corrigir: install.sh --rollback ou reinstale\n' "$v" "$V" >&2
   exit 6
 fi
-exec env -u R_HOME "$V/runtime/bin/Rscript" --vanilla "$V/code/scripts/prevcarga" "$@"
+exec env -u R_HOME -u R_LIBS -u R_LIBS_USER -u R_LIBS_SITE -u R_PROFILE_USER -u R_ENVIRON_USER "$V/runtime/bin/Rscript" --vanilla "$V/code/scripts/prevcarga" "$@"

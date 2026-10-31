@@ -186,6 +186,25 @@ test_that("artifacts: layout do bucket com caminho relativo e sha256 de cada arq
   expect_length(stage_left(out), 0L)
 })
 
+test_that("artifacts: manifest de artefato REAL (timezone em texto, em arquivo que nao e manifest.json) nao derruba a sonda de manifest de deck (M8.9)", {
+  ctx <- new_ctx(); mk_registry(ctx)
+  v <- readLines(file.path(ctx$state_dir, "artifacts", "lgbm", "A1", "latest.txt"), warn = FALSE)
+  d <- file.path(ctx$state_dir, "artifacts", "lgbm", "A1", v)
+  put(file.path(d, "artifact.rds.manifest.json"), "{\"timezone\":\"Etc/GMT+3\",\"model\":\"lgbm\"}")
+  put(file.path(d, "params.json"), "[1, 2, 3]")
+  fs <- c("artifact.rds", "run_manifest.json", "artifact.rds.manifest.json", "params.json")
+  put(file.path(d, "SHA256SUMS"), paste0(vapply(file.path(d, fs), sha, ""), "  ", fs, "\n", collapse = ""))
+  out <- file.path(tmp_dir("o"), "pack")
+  expect_no_error(rp("artifacts", out, ctx))                                             # antes: "$ operator is invalid for atomic vectors"
+  expect_true(file.exists(file.path(out, "artifacts", "lgbm", "A1", v, "artifact.rds.manifest.json")))
+  ## CONTROL: um manifest.json de DECK (timezone$load) no mesmo lugar continua recusado
+  ctx2 <- new_ctx(); mk_registry(ctx2)
+  v2 <- readLines(file.path(ctx2$state_dir, "artifacts", "lgbm", "A1", "latest.txt"), warn = FALSE)
+  put(file.path(ctx2$state_dir, "artifacts", "lgbm", "A1", v2, "manifest.json"), "{\"timezone\":{\"load\":\"Etc/GMT+3\"}}")
+  cond <- cond_of(rp("artifacts", file.path(tmp_dir("o"), "pack2"), ctx2))
+  expect_identical(cond$id, "integrity.release_forbidden_content"); expect_true("deck_manifest" %in% cond$result$recusados$motivo)
+})
+
 test_that("[CONTROL] artifacts: sem combina/ ou sem reconcile/ -> state.official_set_incomplete (exit 13), <out> nao criado", {
   for (omit in list(paste0("combina/", LEAVES), "reconcile/SS2", c(paste0("combina/", LEAVES), paste0("reconcile/", SSES)))) {
     ctx <- new_ctx(); mk_registry(ctx, omit = omit)

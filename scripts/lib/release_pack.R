@@ -94,12 +94,14 @@ pc_rp_classify <- function(paths, what) {
 ## manifest.json do DECK (insumo) nunca vai: o da entrega do forecast nao tem timezone$load nem lag de clima.
 .pc_rp_is_deck_manifest <- function(file) {
   m <- tryCatch(jsonlite::read_json(file, simplifyVector = FALSE), error = function(e) NULL)
-  is.list(m) && (!is.null(m$timezone$load) || !is.null(m$weather_forecast_publication_lag_hours))
+  tz <- if (is.list(m)) m$timezone else NULL            # `timezone` de um manifest de artefato e texto (nao um mapa)
+  is.list(m) && ((is.list(tz) && !is.null(tz$load)) || !is.null(m$weather_forecast_publication_lag_hours))
 }
 ## (o nome vem de uma constante: aqui o arquivo e so SONDADO para ser RECUSADO; quem le o manifest do deck como insumo e o leitor unico)
 .pc_rp_mname <- paste0("manifest", ".json")
 .pc_rp_deck_manifests <- function(src, rel) {
-  i <- basename(rel) == .pc_rp_mname & vapply(src, function(f) .pc_rp_is_deck_manifest(f), NA, USE.NAMES = FALSE)
+  i <- basename(rel) == .pc_rp_mname
+  i[i] <- vapply(src[i], function(f) .pc_rp_is_deck_manifest(f), NA, USE.NAMES = FALSE)   # so sonda arquivos com o nome do manifest
   .pc_rp_rows(rel[i], "deck_manifest")
 }
 

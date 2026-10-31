@@ -21,19 +21,26 @@ test_that("[AC6] nenhuma variavel de ambiente lida e HKLM nunca tocado; CONTROL:
   expect_true(any(grepl("CurrentUser.OpenSubKey\\('Environment'", ps1)))
 })
 
-## Unica atribuicao permitida: `set "R_HOME="` depois de `setlocal` (equivale ao `env -u R_HOME` do Linux).
+## Unicas atribuicoes permitidas: as 6 limpezas `set "X="` depois de `setlocal` (equivalem ao `env -u R_HOME -u R_LIBS -u R_LIBS_USER -u R_LIBS_SITE
+## -u R_PROFILE_USER -u R_ENVIRON_USER` do Linux; decisao do Gabriel no M8.9: o lancador e hermetico a library herdada). Qualquer outro `set` falha.
+LAUNCHER_UNSETS <- c("R_HOME", "R_LIBS", "R_LIBS_USER", "R_LIBS_SITE", "R_PROFILE_USER", "R_ENVIRON_USER")
 launcher_bad_sets <- function(x) {
   i <- grep("(?i)^\\s*set\\s", x, perl = TRUE)
-  i[trimws(x[i]) != 'set "R_HOME="']
+  i[!(trimws(x[i]) %in% paste0('set "', LAUNCHER_UNSETS, '="'))]
 }
-test_that("[AC5] lancador: so `set \"R_HOME=\"` apos setlocal; qualquer outro `set ` falha (CONTROL), CRLF, exit 6 ASCII, sem blocos", {
+test_that("[AC5] lancador: so as 6 limpezas `set \"X=\"` apos setlocal; qualquer outro `set ` falha (CONTROL), CRLF, exit 6 ASCII, sem blocos", {
   expect_length(launcher_bad_sets(cmd), 0L)
-  r <- which(trimws(cmd) == 'set "R_HOME="'); sl <- grep("(?i)^\\s*setlocal\\s*$", cmd, perl = TRUE)
-  expect_length(r, 1L); expect_length(sl, 1L); expect_lt(sl, r)
-  expect_lt(r, grep("Rscript.exe", cmd, fixed = TRUE)[1])
+  sl <- grep("(?i)^\\s*setlocal\\s*$", cmd, perl = TRUE); expect_length(sl, 1L)
+  for (v in LAUNCHER_UNSETS) {                                                 # cada limpeza exatamente 1x, entre setlocal e o Rscript.exe
+    r <- which(trimws(cmd) == paste0('set "', v, '="'))
+    expect_length(r, 1L); expect_lt(sl, r); expect_lt(r, grep("Rscript.exe", cmd, fixed = TRUE)[1])
+  }
+  expect_length(grep("(?i)^\\s*set\\s", cmd, perl = TRUE), length(LAUNCHER_UNSETS))   # e nenhuma outra atribuicao
   expect_length(launcher_bad_sets(c(cmd, "  SET TZ=UTC")), 1L)            # CONTROL: outra variavel
   expect_length(launcher_bad_sets(c(cmd, 'set "R_HOME=C:\\x"')), 1L)       # CONTROL: R_HOME com valor
-  expect_length(launcher_bad_sets(c(cmd, "set R_LIBS=")), 1L)
+  expect_length(launcher_bad_sets(c(cmd, "set R_LIBS=")), 1L)               # sem aspas: fora da lista exata
+  expect_length(launcher_bad_sets(c(cmd, 'set "R_LIBS_USER=/x"')), 1L)        # variavel da lista, mas com valor
+  expect_length(launcher_bad_sets(c(cmd, 'set "R_PLATFORM="')), 1L)           # variavel parecida, fora da lista
   expect_true(any(grepl("prevcarga: erro [bundle] (exit 6)", cmd, fixed = TRUE)))
   expect_gte(sum(grepl("exit /b 6", cmd, fixed = TRUE)), 2L)
   expect_true(any(grepl("runtime\\R\\bin\\Rscript.exe", cmd, fixed = TRUE)))

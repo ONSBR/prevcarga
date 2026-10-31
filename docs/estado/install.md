@@ -43,7 +43,15 @@ O runtime do bundle e `runtime/bin/Rscript` (wrapper do M8.1, ja relocavel: o in
 ## Lancador (`install/prevcarga`)
 Resolve `<R>` por `readlink -f "$0"`, le a 1a linha de `current`, confere `versions/<v>/runtime/bin/Rscript` e faz `exec env -u R_HOME ... Rscript --vanilla
 versions/<v>/code/scripts/prevcarga "$@"`. Nao altera variavel de ambiente (a palavra proibida nao aparece no arquivo; o teste conta 0). Sem `current` ou com
-versao inexistente: `prevcarga: erro [bundle] (exit 6)` em ASCII. O bundle carrega o lancador em `code/install/prevcarga` (copiado por
+versao inexistente: `prevcarga: erro [bundle] (exit 6)` em ASCII.
+**Hermetico a library herdada (M8.9, decisao do Gabriel)**: o `exec` e `env -u R_HOME -u R_LIBS -u R_LIBS_USER -u R_LIBS_SITE -u R_PROFILE_USER -u R_ENVIRON_USER`.
+`--vanilla` ignora os ARQUIVOS de perfil/Renviron mas NAO as variaveis de ambiente herdadas (todo processo R que lanca filhos as propaga, e muitos
+usuarios as fixam no perfil do shell): sem isso um `R_LIBS_USER` poe a library do host na frente da do bundle no `.libPaths()` (visto no e2e do M8.9: o `arrow` do
+host, compilado contra outro libstdc++, foi carregado no lugar do do bundle). `env -u` nao define nada (o teste continua contando 0 `export`). Teste:
+`tests/install/test-shell-sujo-linux.R` (library sombra com um `jsonlite` falso que aborta ao carregar; saida byte a byte igual a do shell limpo; CONTROL: o lancador antigo,
+so `-u R_HOME`, carrega a sombra e cai). O e2e do M8.9 NAO remove essas variaveis do filho: prova o lancador. `runtime-libpaths` (forcar `.libPaths()` em processo) e uma
+linha de WARN no doctor nao foram necessarias. Fora do escopo: o `install.sh` (validacao do stage, linha `env -u R_HOME ... Rscript`, fixada pelo helper dos testes) e o
+`install.ps1` ainda herdam o ambiente ao validar o bundle; o `prevcarga-sync` so chama o lancador. O bundle carrega o lancador em `code/install/prevcarga` (copiado por
 `build_bundle_linux.sh`); bundles antigos usam o que esta ao lado do `install.sh`.
 
 ## Fachada: config e doctor da instalacao
@@ -56,7 +64,7 @@ so no layout `.../versions/<v>/code`; arvore de dev nao muda). `ctx$install_root
 `test-shell-sujo-linux.R` (AC 5, bundle COMPLETO). Helper: `helper-install.R` (bundles reempacotados a partir do candidato com o `code/` do worktree
 sobreposto; variante `slim` sem as libs pesadas; `pc_tree_sha`; variante de teste do instalador que troca `current` antes de validar = CONTROL do AC 2).
 - Raizes e bundles em `sandbox/` (mesmo disco; ~500 MB por bundle completo), apagados ao fim. Nunca `~/.local`, `~/.profile`, rede ou upload.
-- [DEFERRED M6.9] o verbo `forecast` ainda nao existe na CLI: o teste do shell sujo usa `describe` e `validate-deck` (texto e JSON) + `--version`.
+- (fechado no M8.9) `forecast --origin O` roda no teste do shell sujo pelo lancador instalado do mundo do e2e (`docs/estado/m8-e2e-bundle.md`): entrega identica byte a byte entre o shell sujo e `env -i` (so o `gerado_em` do manifest, relogio da rodada, difere), CONTROL com outro deck. `describe`/`validate-deck`/`--version` ficam como braco barato.
   Unica diferenca permitida entre execucoes: `run_id` (relogio UTC + pid) do envelope JSON. Se o host nao tem `pt_BR.UTF-8`, o shell sujo usa o 1o
   locale UTF-8 instalado (o bash do `bin/R` avisa por conta propria); se o fuso do host ja e `America/Sao_Paulo`, o TZ sujo vira `Asia/Tokyo` (a sonda do CONTROL precisa distinguir).
 - [DEFERRED M8.7] `doctor` validando o RUNTIME.json: outro ticket. O braco Windows e a secao abaixo (M8.4).
@@ -90,7 +98,7 @@ Argumento desconhecido/valor ausente/`-Format` invalido => `install.usage` (exit
 ## Lancador (`install/prevcarga.cmd`, CRLF, copiado para `<R>\bin`)
 Resolve `<R>` por `%~dp0..`, le a 1a linha de `current` por `for /f "usebackq delims="`, confere `versions\<v>\runtime\R\bin\Rscript.exe` e executa
 `Rscript.exe --vanilla ...\code\scripts\prevcarga %*`; `& exit /b` sem argumento propaga o `ERRORLEVEL` do R. Sem `current` ou com versao inexistente:
-`prevcarga: erro [bundle] (exit 6)` (ASCII, stderr) e `exit /b 6`. Unica atribuicao: `setlocal` + `set "R_HOME="` (limpa o R_HOME herdado so no processo; equivale ao `env -u R_HOME` do Linux); qualquer outro `set ` e proibido (teste estatico com CONTROL). **Sem blocos `( ... )`**: um caminho com `(x86)` quebraria o
+`prevcarga: erro [bundle] (exit 6)` (ASCII, stderr) e `exit /b 6`. Unicas atribuicoes: `setlocal` + 6 limpezas `set "X="` (R_HOME, R_LIBS, R_LIBS_USER, R_LIBS_SITE, R_PROFILE_USER, R_ENVIRON_USER; so no processo; equivalem ao `env -u ...` do Linux, M8.9); qualquer outro `set ` e proibido (teste estatico com CONTROL; a execucao no Windows e do gate windows-vm). **Sem blocos `( ... )`**: um caminho com `(x86)` quebraria o
 parser do cmd dentro deles (por isso `goto` em vez do `if (...)` do snippet do ticket). O bundle o carrega em `code\install\prevcarga.cmd` (git archive, M8.2);
 bundles antigos usam o que esta ao lado do `install.ps1`.
 

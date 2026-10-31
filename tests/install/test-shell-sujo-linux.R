@@ -1,7 +1,7 @@
 ## test-shell-sujo-linux.R -- shell sujo x shell limpo pelo lancador INSTALADO (M8.3, AC 5): TZ/LC_ALL/OPENBLAS/~/.Rprofile do usuario
 ## nao mudam NENHUM byte da saida (runtime.R fixa TZ, locale e BLAS in-process e sobrescreve o shell). Usa o bundle COMPLETO.
-## [DEFERRED M6.9] o verbo `forecast` ainda nao existe na CLI (forecast.R so tem a funcao): os verbos que leem o deck e dependem de
-## data/hora/locale -- describe e validate-deck (texto e JSON) -- ocupam o lugar do `forecast --origin`; trocar quando o M6.9 pousar.
+## M8.9: alem dos verbos de leitura abaixo, o braco [FORECAST] roda `forecast --origin <O>` (o verbo existe desde o M6.9) pelo lancador INSTALADO do mundo do e2e.
+## Os verbos describe/validate-deck (texto e JSON) seguem como braco barato, sem treino.
 ## FORBIDDEN: stdout, stderr, exit e arvores (deck e state) byte-identicos entre os dois shells; `grep -c export` no lancador = 0.
 ## CONTROL 1: a sonda de hora (sem o guard do runtime) DIFERE entre os shells. CONTROL 2: setter de TZ que nao fixa => exit 7, stdout vazio.
 library(testthat)
@@ -102,3 +102,65 @@ test_that("[AC5] CONTROL 2: setter de TZ injetado que nao fixa => exit 7 com std
   expect_length(bad$stdout, 0L)
   expect_match(strsplit(rawToChar(bad$stderr), "\n")[[1L]][1L], "^prevcarga: erro \\[runtime\\] \\(exit 7\\)$")
 })
+
+## --- M8.9: o lancador e hermetico a library herdada (decisao do Gabriel; docs/estado/install.md) --------------------------------------------
+## `--vanilla` ignora os ARQUIVOS de perfil mas nao as variaveis herdadas: um shell com R_LIBS_USER/R_LIBS/R_LIBS_SITE poria uma library de fora
+## na frente da do bundle. A library "sombra" tem um pacote `jsonlite` falso (versao 99.0) que aborta ao carregar: se o R do bundle a ve, o verbo cai.
+test_that("[M8.9] FORBIDDEN: com R_LIBS_USER/R_LIBS/R_LIBS_SITE apontando uma library sombra, o lancador instalado so usa a library do bundle (saida = shell limpo)", {
+  shadow <- file.path(W, "shadow-lib"); src <- file.path(W, "shadow-src", "jsonlite")
+  dir.create(shadow); dir.create(file.path(src, "R"), recursive = TRUE)
+  writeLines(c("Package: jsonlite", "Version: 99.0", "Title: sombra", "Description: sombra de teste.", "License: GPL-2", "Encoding: UTF-8"), file.path(src, "DESCRIPTION"))
+  writeLines("exportPattern(\"^[^.]\")", file.path(src, "NAMESPACE"))
+  writeLines(".onLoad <- function(libname, pkgname) stop(\"SHADOW LIB LOADED\")", file.path(src, "R", "zzz.R"))
+  inst <- suppressWarnings(system2(file.path(R.home("bin"), "R"), c("CMD", "INSTALL", "--no-test-load", "-l", shQuote(shadow), shQuote(src)), stdout = TRUE, stderr = TRUE))
+  skip_if(!dir.exists(file.path(shadow, "jsonlite")), paste("R CMD INSTALL da sombra falhou:", paste(utils::tail(inst, 3), collapse = " | ")))
+  dirty <- c(paste0("R_LIBS_USER=", shadow), paste0("R_LIBS=", shadow), paste0("R_LIBS_SITE=", shadow),
+             paste0("R_PROFILE_USER=", file.path(HOME_SUJO, ".Rprofile")), paste0("R_ENVIRON_USER=", file.path(HOME_SUJO, ".Rprofile")),
+             "PATH=/usr/local/bin:/usr/bin:/bin")
+  go <- function(launcher, envs) {
+    so <- tempfile(); se <- tempfile(); on.exit(unlink(c(so, se)))
+    st <- system2("env", c("-i", envs, "/bin/sh", shQuote(launcher), "models", "--format", "json"), stdout = so, stderr = se)
+    list(status = as.integer(st), stdout = readBin(so, "raw", file.size(so)), stderr = readBin(se, "raw", file.size(se)))
+  }
+  limpo <- go(LAUNCHER, "PATH=/usr/local/bin:/usr/bin:/bin")
+  sujo <- go(LAUNCHER, dirty)
+  expect_identical(limpo$status, 0L)
+  expect_identical(sujo$status, 0L)
+  expect_identical(norm_run_id(sujo$stdout), norm_run_id(limpo$stdout)); expect_identical(sujo$stderr, limpo$stderr)
+  ## CONTROL: o lancador ANTIGO (so `env -u R_HOME`) com o mesmo ambiente sujo carrega a sombra e cai (o teste tem dentes)
+  old <- file.path(R, "bin", "prevcarga-antigo")
+  src_l <- readLines(LAUNCHER)
+  i <- grep("^exec env ", src_l); expect_length(i, 1L)
+  src_l[i] <- sub("^exec env .* \"\\$V/runtime/bin/Rscript\"", "exec env -u R_HOME \"$V/runtime/bin/Rscript\"", src_l[i])
+  writeLines(src_l, old); Sys.chmod(old, "0755")
+  antigo <- go(old, dirty)
+  expect_false(identical(antigo$status, 0L))
+  expect_match(rawToChar(c(antigo$stdout, antigo$stderr)), "SHADOW LIB LOADED", fixed = TRUE)
+})
+
+## --- M8.9: `forecast` ponta a ponta, shell sujo x `env -i` -------------------------------------------------------------------------
+## Mundo do e2e (helper-e2e.R): bundle instalado, artefatos oficiais sincronizados. Cada shell parte de uma COPIA do mesmo estado (o export e imutavel).
+test_that("[M8.9][AC5] FORBIDDEN: `forecast --origin O` pelo lancador instalado, shell sujo x `env -i`: entrega identica byte a byte; CONTROL: outro deck => outra entrega", {
+  skip_if(is.na(pci_candidate()))
+  w <- pc_e2e_world()
+  base <- pci_work_dir(); n <- 0L                              # no frame do teste: as entregas vivem ate o fim dele
+  fc <- function(shell, deck = w$deck) {
+    n <<- n + 1L; st <- file.path(base, paste0("st", n)); dir.create(st)
+    stopifnot(all(file.copy(list.files(pc_e2e_synced(w)$local, full.names = TRUE, all.files = TRUE, no.. = TRUE), st, recursive = TRUE)))
+    r <- run_in(shell, "/bin/sh", c(file.path(w$root, "bin", "prevcarga"), "forecast", paste0("--data=", deck), paste0("--state=", st),
+                                    "--origin", w$origin, "--skip-validate", "--format", "json"))
+    j <- jsonlite::fromJSON(rawToChar(r$stdout), simplifyVector = FALSE)
+    list(status = r$status, stderr = r$stderr, saida = j$result$saida, norm = gsub(st, "STATE", rawToChar(norm_run_id(r$stdout)), fixed = TRUE))
+  }
+  sem_relogio <- function(d) { m <- jsonlite::read_json(file.path(d, "manifest.json")); m$gerado_em <- NULL; m }
+  a <- fc("sujo"); b <- fc("limpo")
+  expect_identical(a$status, 0L); expect_identical(b$status, 0L)
+  expect_identical(a$stderr, b$stderr)
+  expect_identical(pc_e2e_delivery_shas(a$saida, skip = "manifest.json"), pc_e2e_delivery_shas(b$saida, skip = "manifest.json"))
+  expect_identical(sem_relogio(a$saida), sem_relogio(b$saida))
+  expect_identical(sub('"generated_at":"[^"]*"', "", sub('"gerado_em":"[^"]*"', "", a$norm)), sub('"generated_at":"[^"]*"', "", sub('"gerado_em":"[^"]*"', "", b$norm)))
+  ## CONTROL: um deck de outra semente muda a entrega (a comparacao acima tem dentes)
+  c2 <- fc("limpo", pc_e2e_deck(file.path(base, "deck-seed"), w$origin, seed = 12))
+  expect_false(identical(pc_e2e_delivery_shas(c2$saida, skip = "manifest.json"), pc_e2e_delivery_shas(b$saida, skip = "manifest.json")))
+})
+

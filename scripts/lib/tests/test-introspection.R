@@ -161,7 +161,7 @@ test_that("models: um por membro identico ao spec; copia com horizon 3 aparece [
     expect_identical(r$horizon_days, s$horizon_days)
     expect_identical(r$history_days, s$history_days)
     expect_identical(r$seed, s$seed)
-    expect_identical(r$modes, s$modes)
+    expect_identical(unlist(r$modes), s$modes)
     expect_identical(r$protocol_default, s$backtest$protocol_default)
   }
   cp <- copy_install()
@@ -179,12 +179,12 @@ test_that("areas: ordem, perda e khat_range da topologia; override de S na copia
   t <- E$prevcarga_topology(root = pc_root())
   a <- E$prevcarga_build_areas(mk_ctx(E))
   expect_identical(a$sin, "SIN")
-  expect_identical(a$order, t$order)
+  expect_identical(unlist(a$order), t$order)
   expect_identical(vapply(a$subsystems, function(s) s$name, ""), t$order)
   for (s in a$subsystems) {
     expect_identical(s$loss, t$subsystems[[s$name]]$loss)
-    expect_identical(s$khat_range, t$subsystems[[s$name]]$khat_range)
-    expect_identical(s$areas, t$subsystems[[s$name]]$areas)
+    expect_identical(unlist(s$khat_range), t$subsystems[[s$name]]$khat_range)
+    expect_identical(unlist(s$areas), t$subsystems[[s$name]]$areas)
   }
   txt <- E$prevcarga_render_areas(a)
   expect_true(any(grepl("S  perda=PES  khat_range=1.00-1.15", txt, fixed = TRUE)))
@@ -192,7 +192,7 @@ test_that("areas: ordem, perda e khat_range da topologia; override de S na copia
   file.copy(file.path(pc_root(), "scripts", "lib", "tests", "fixtures", "topology_khat_override_s.yaml"),
             file.path(cp, "config", "topology.yaml"), overwrite = TRUE)
   a2 <- E$prevcarga_build_areas(mk_ctx(E, root = cp))
-  kr <- stats::setNames(lapply(a2$subsystems, function(s) s$khat_range), vapply(a2$subsystems, function(s) s$name, ""))
+  kr <- stats::setNames(lapply(a2$subsystems, function(s) unlist(s$khat_range)), vapply(a2$subsystems, function(s) s$name, ""))
   expect_identical(kr$S, c(0.98, 1.20))
   expect_identical(kr$SECO, c(1.00, 1.15))
   expect_identical(kr$NE, c(1.00, 1.15))
@@ -219,7 +219,8 @@ test_that("describe: corte de treino por membro derivado em dates.R, so a origem
   expect_identical(d$member_set_hash, E$prevcarga_member_set_hash(E$prevcarga_members(root = pc_root())))
   l <- E$prevcarga_build_describe(mk_ctx(E), model = "lgbm")
   expect_identical(names(l$models), "lgbm")
-  expect_identical(l$models$lgbm, E$prevcarga_model_spec("lgbm", pc_root()))
+  sp <- E$prevcarga_model_spec("lgbm", pc_root()); sp$modes <- as.list(sp$modes)      # modes sai como array (ADR-0040)
+  expect_identical(l$models$lgbm, sp)
   expect_gt(length(E$prevcarga_build_describe(mk_ctx(E))$models), 1L)
   e <- tryCatch(E$prevcarga_build_describe(mk_ctx(E), model = "inexistente"), prevcarga_error = function(e) e)
   expect_identical(e$id, "config.unknown_model")
@@ -301,3 +302,23 @@ test_that("auto-registro: os 5 verbos descobertos, owner M1, exempt so doctor/st
     expect_false(any(grepl("todo.not_implemented|ainda nao implementada", c(r$out, r$err))), info = v)
   }
 })
+
+test_that("[M8.9] ADR-0040: campos de lista saem como array no JSON mesmo com 1 elemento (1 subsistema, 1 area, 1 modo); CONTROL: o vetor cru viraria escalar", {
+  E <- new_env()
+  cp <- copy_install()
+  writeLines(c("schema_version: 1", "khat_range: [1.00, 1.15]", "subsystems:", "  SECO: {areas: [SP], loss: PESE}", "order: [SECO]",
+               "members:", "  - {sigla: RF, mdir: random-forest, exogena: null}"), file.path(cp, "config", "topology.yaml"))
+  js <- function(x) as.character(jsonlite::toJSON(x, auto_unbox = TRUE, null = "null"))
+  a <- E$prevcarga_build_areas(mk_ctx(E, root = cp))
+  expect_match(js(a), "\"order\":\\[\"SECO\"\\]")
+  expect_match(js(a), "\"areas\":\\[\"SP\"\\]")
+  expect_match(js(a), "\"khat_range\":\\[1,1.15\\]")
+  m <- E$prevcarga_build_models(mk_ctx(E, root = cp))
+  expect_match(js(m), "\"modes\":\\[[^]]+\\]")
+  d <- E$prevcarga_build_describe(mk_ctx(E, root = cp))
+  expect_match(js(d), "\"order\":\\[\"SECO\"\\]")
+  expect_match(js(d$models[[1L]]), "\"modes\":\\[")
+  ## CONTROL: sem o as.list o mesmo conteudo vira escalar (o teste tem dentes)
+  expect_match(js(list(order = "SECO", areas = "SP")), "\"order\":\"SECO\"")
+})
+

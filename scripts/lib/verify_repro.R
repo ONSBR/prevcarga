@@ -40,7 +40,8 @@ pc_vr_integrity <- function(dir) {
                                    nao_listados = list()))
   paths <- vapply(ent, function(e) as.character(e$path), "")
   shas <- vapply(ent, function(e) as.character(e$sha256), "")
-  on_disk <- setdiff(list.files(dir, recursive = TRUE, all.files = TRUE), c("manifest.json", "run_manifest.json"))
+  ## SHA256SUMS na raiz = indice de transporte que o release-pack grava em cada chave e o prevcarga-sync copia (nao e conteudo da entrega)
+  on_disk <- setdiff(list.files(dir, recursive = TRUE, all.files = TRUE), c("manifest.json", "run_manifest.json", "SHA256SUMS"))
   extra <- .pc_vr_sorted(setdiff(on_disk, paths))
   got <- vapply(paths, function(p) {
     f <- file.path(dir, p)
