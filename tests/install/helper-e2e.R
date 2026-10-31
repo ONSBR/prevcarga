@@ -15,8 +15,14 @@
 .pce_state <- new.env(parent = emptyenv())
 
 ## --- lancador ---------------------------------------------------------------------------------------------------------
-## Ambiente do filho = o do teste sem as variaveis R_* do R hospedeiro.
-pce_clean_env <- function() { e <- Sys.getenv(); e[setdiff(names(e), c("R_LIBS_USER", "R_LIBS", "R_LIBS_SITE", "R_HOME"))] }
+## Ambiente do filho = o do teste sem as variaveis R_* do R hospedeiro e com o git CEGO ao repo que hospeda sandbox/: o `code_commit` da
+## proveniencia vem de `git -C <code do bundle>`; uma raiz de instalacao REAL nao esta dentro de um repositorio (=> "unknown"), mas a deste teste
+## esta (sandbox/ do worktree) e herdaria o HEAD/sujo do repo de dev, que muda a cada commit e quebraria a comparacao com a inferencia oficial.
+pce_clean_env <- function() {
+  e <- Sys.getenv()
+  e <- e[setdiff(names(e), c("R_LIBS_USER", "R_LIBS", "R_LIBS_SITE", "R_HOME", "GIT_CEILING_DIRECTORIES"))]
+  c(e, GIT_CEILING_DIRECTORIES = pci_root())
+}
 
 ## Executa o lancador da plataforma. `args` sem --format (acrescentado como json). Devolve list(status, stdout, stderr, json).
 ## `wd` = diretorio de trabalho do filho (default: o atual).
