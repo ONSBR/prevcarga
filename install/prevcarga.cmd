@@ -1,5 +1,8 @@
 @echo off
-rem prevcarga.cmd -- lancador fino (Windows). Nao define variavel: runtime.R fixa TZ/locale/BLAS in-process.
+setlocal
+rem prevcarga.cmd -- lancador fino (Windows). Nao define variavel (so limpa R_HOME): runtime.R fixa TZ/locale/BLAS in-process.
+rem R_HOME e limpo so neste processo (equivale ao `env -u R_HOME` do Linux); e a UNICA atribuicao permitida.
+set "R_HOME="
 rem <R> = pasta acima de bin\; o ponteiro current (1 linha) escolhe a versao. Sem blocos entre parenteses:
 rem um caminho como "Program Files (x86)" quebraria o parser do cmd dentro deles.
 if not exist "%~dp0..\current" goto nocurrent

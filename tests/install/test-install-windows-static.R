@@ -21,16 +21,25 @@ test_that("[AC6] nenhuma variavel de ambiente lida e HKLM nunca tocado; CONTROL:
   expect_true(any(grepl("CurrentUser.OpenSubKey\\('Environment'", ps1)))
 })
 
-test_that("[AC5] lancador sem `set ` (CONTROL: acusa um lancador com set), CRLF, exit 6 ASCII, sem blocos entre parenteses", {
-  pat <- "(?i)^\\s*set\\s"
-  expect_length(grep(pat, cmd, perl = TRUE), 0L)
-  expect_length(grep(pat, c(cmd, "  SET TZ=UTC"), perl = TRUE), 1L)
+## Unica atribuicao permitida: `set "R_HOME="` depois de `setlocal` (equivale ao `env -u R_HOME` do Linux).
+launcher_bad_sets <- function(x) {
+  i <- grep("(?i)^\\s*set\\s", x, perl = TRUE)
+  i[trimws(x[i]) != 'set "R_HOME="']
+}
+test_that("[AC5] lancador: so `set \"R_HOME=\"` apos setlocal; qualquer outro `set ` falha (CONTROL), CRLF, exit 6 ASCII, sem blocos", {
+  expect_length(launcher_bad_sets(cmd), 0L)
+  r <- which(trimws(cmd) == 'set "R_HOME="'); sl <- grep("(?i)^\\s*setlocal\\s*$", cmd, perl = TRUE)
+  expect_length(r, 1L); expect_length(sl, 1L); expect_lt(sl, r)
+  expect_lt(r, grep("Rscript.exe", cmd, fixed = TRUE)[1])
+  expect_length(launcher_bad_sets(c(cmd, "  SET TZ=UTC")), 1L)            # CONTROL: outra variavel
+  expect_length(launcher_bad_sets(c(cmd, 'set "R_HOME=C:\\x"')), 1L)       # CONTROL: R_HOME com valor
+  expect_length(launcher_bad_sets(c(cmd, "set R_LIBS=")), 1L)
   expect_true(any(grepl("prevcarga: erro [bundle] (exit 6)", cmd, fixed = TRUE)))
   expect_gte(sum(grepl("exit /b 6", cmd, fixed = TRUE)), 2L)
   expect_true(any(grepl("runtime\\R\\bin\\Rscript.exe", cmd, fixed = TRUE)))
   raw <- readBin(file.path(root, "install", "prevcarga.cmd"), "raw", file.size(file.path(root, "install", "prevcarga.cmd")))
   expect_true(as.raw(13L) %in% raw)
-  expect_false(any(grepl("\\(\\s*$", cmd)))   # nenhum bloco "( ... )" multilinha
+  expect_false(any(grepl("\\(\\s*$", cmd)))
 })
 
 test_that("[AC1/AC7] os error.id emitidos existem no catalogo de install.tsv (sem digitos) e o mesmo conjunto do install.sh", {

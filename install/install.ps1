@@ -25,6 +25,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 $script:PcExit = 0
+$script:ShowHelp = $false
 $script:PcStage = ''
 $script:PcTemp = ''
 $script:PcCatalog = Join-Path $PSScriptRoot 'error-catalog.tsv'  # GERADO; no bundle extraido: code\install\
@@ -74,12 +75,12 @@ function Get-PcEmbeddedRow([string]$Id) {  # mesmo texto de scripts/lib/errors/i
     'install.download_failed' { return @('network', 'falha ao baixar o bundle', 'confira -ReleaseBase e a rede') }
     'install.io_failed' { return @('bundle', 'falha de escrita na raiz da instalacao', 'confira permissoes e espaco em disco da raiz') }
     'install.manifest_invalid' { return @('bundle', 'RUNTIME.json invalido ou arquivo do bundle divergente', 'reinstale o bundle da mesma versao; a versao atual nao foi alterada') }
-    'install.no_previous_version' { return @('config', 'nao ha versao anterior retida para voltar', 'instale a versao desejada com install.ps1 -Version') }
-    'install.preflight_failed' { return @('bundle', 'plataforma nao suportada', 'Windows 64-bit com PowerShell >= 5.1 e espaco livre na raiz') }
+    'install.no_previous_version' { return @('config', 'nao ha versao anterior retida para voltar', 'instale a versao desejada de novo com o instalador (--version / -Version)') }
+    'install.preflight_failed' { return @('bundle', 'plataforma nao suportada', 'Linux x86_64 glibc >= 2.35 com zstd, tar, sha256sum e cliente HTTPS; ou Windows 64-bit com PowerShell >= 5.1 e espaco livre na raiz') }
     'install.sha_mismatch' { return @('integrity', 'sha256 do bundle nao confere', 'baixe o bundle novamente e confira o SHA256SUMS') }
     'install.sha_missing' { return @('integrity', 'sha256 do bundle nao informado', 'passe -Sha256 ou um SHA256SUMS ao lado do bundle') }
     'install.state_inside_versions' { return @('config', '-State aponta para dentro de versions\', 'use um diretorio de estado fora de <raiz>\versions') }
-    default { return @('config', 'argumento invalido ou ausente', 'veja o cabecalho de install.ps1') }
+    default { return @('config', 'argumento invalido ou ausente', 'veja a ajuda do instalador (install.sh --help / install.ps1 -Help)') }
   }
 }
 
@@ -168,6 +169,7 @@ function Resolve-PcRest([string[]]$Tokens) {
     elseif ($name -eq 'uninstall') { $script:Uninstall = [switch]$true }
     elseif ($name -eq 'yes') { $script:Yes = [switch]$true }
     elseif ($name -eq 'purge') { $script:Purge = [switch]$true }
+    elseif ($name -eq 'help' -or $name -eq 'h') { $script:ShowHelp = $true }
     else { $bad = @($tok, 'argumento desconhecido') }
     if ($bad) { break }
     $i++
@@ -510,6 +512,10 @@ function Invoke-PcInstall {
 
 function Invoke-PcMain {
   $bad = Resolve-PcRest $Rest
+  if ($script:ShowHelp) {
+    Write-PcStream 'out' "uso: install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-Data <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]`n     install.ps1 -Rollback [-Root <dir>]`n     install.ps1 -Uninstall -Yes [-Purge] [-Root <dir>]"
+    return
+  }
   if ($script:Format -ne 'json' -and $script:Format -ne 'text') { Write-PcError 'install.usage' '-Format' 'use text ou json' }
   if ($bad) { Write-PcError 'install.usage' $bad[0] $bad[1] }
   if ($Rollback -and $Uninstall) { Write-PcError 'install.usage' '-Rollback -Uninstall' 'opcoes exclusivas' }

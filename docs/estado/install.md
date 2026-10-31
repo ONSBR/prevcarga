@@ -90,7 +90,7 @@ Argumento desconhecido/valor ausente/`-Format` invalido => `install.usage` (exit
 ## Lancador (`install/prevcarga.cmd`, CRLF, copiado para `<R>\bin`)
 Resolve `<R>` por `%~dp0..`, le a 1a linha de `current` por `for /f "usebackq delims="`, confere `versions\<v>\runtime\R\bin\Rscript.exe` e executa
 `Rscript.exe --vanilla ...\code\scripts\prevcarga %*`; `& exit /b` sem argumento propaga o `ERRORLEVEL` do R. Sem `current` ou com versao inexistente:
-`prevcarga: erro [bundle] (exit 6)` (ASCII, stderr) e `exit /b 6`. Zero linhas `set `. **Sem blocos `( ... )`**: um caminho com `(x86)` quebraria o
+`prevcarga: erro [bundle] (exit 6)` (ASCII, stderr) e `exit /b 6`. Unica atribuicao: `setlocal` + `set "R_HOME="` (limpa o R_HOME herdado so no processo; equivale ao `env -u R_HOME` do Linux); qualquer outro `set ` e proibido (teste estatico com CONTROL). **Sem blocos `( ... )`**: um caminho com `(x86)` quebraria o
 parser do cmd dentro deles (por isso `goto` em vez do `if (...)` do snippet do ticket). O bundle o carrega em `code\install\prevcarga.cmd` (git archive, M8.2);
 bundles antigos usam o que esta ao lado do `install.ps1`.
 
@@ -101,5 +101,6 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
 - `tests/install/test-install-e2e-windows.R`: ponte (Pester nos dois shells + analyzer; recibo `install-e2e-windows`); fora do Windows `skip` `nao-windows`.
 - `tests/install/test-install-windows-static.R`: checagens estaticas que rodam no Linux (ASCII, sem `$env:`/HKLM, lancador sem `set `, ids no catalogo, ordem hash < `Expand-Archive`, argumentos espelhados).
 - **[DEFERRED M8.6]** TUDO que executa o `.ps1`/`.cmd` (Pester, analyzer, registro HKCU, `Expand-Archive`, `cmd`, MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`,
-  R_HOME herdado do shell no `Rscript.exe`, `doctor` no Windows): nao ha host Windows nem `pwsh` nesta maquina de dev; nada foi executado nem simulado.
-- Dependencia de catalogo: o texto de `install.tsv` (hints) cita `install.sh`/Linux; o instalador Windows usa o catalogo gerado (mesmos ids/classes) e, antes da extracao, textos embutidos proprios.
+  `doctor` no Windows): nao ha host Windows nem `pwsh` nesta maquina de dev; nada foi executado nem simulado.
+- Catalogo: os hints de `install.tsv` (usage, no_previous_version, preflight_failed) agora sao neutros de plataforma; `install.sh` e `install.ps1` embutem o MESMO texto (fallback pre-extracao). `install.ps1 -Help` imprime o uso.
+- **[DEFERRED M8.6]** tambem: aspas do `-e` no PS 5.1, MAX_PATH e falsos positivos do PSScriptAnalyzer (`PSUseDeclaredVarsMoreThanAssignments` nao habilitada).

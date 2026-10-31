@@ -183,7 +183,9 @@ Describe 'AC4 retencao N=2 e rollback' {
 
 Describe 'AC5 lancador' {
   It 'zero linhas set; doctor sai 0 com install_root = <R>; sem current: exit 6 e 1a linha de stderr contratual' -Skip:(-not $script:HaveCandidate) {
-    (Select-String -LiteralPath $script:Launcher -Pattern '(?i)^\s*set\s').Count | Should -Be 0
+    # unica atribuicao permitida: set "R_HOME=" (limpa o R_HOME herdado so no processo do cmd, apos setlocal)
+    @(Select-String -LiteralPath $script:Launcher -Pattern '(?i)^\s*set\s' | Where-Object { $_.Line.Trim() -ne 'set "R_HOME="' }).Count | Should -Be 0
+    (Select-String -LiteralPath $script:Launcher -Pattern '(?i)^\s*setlocal\s*$').Count | Should -Be 1
     $R = New-TestRoot
     (Invoke-Inst 'powershell.exe' $R (New-FixtureBundle 'prevcarga-v2-windows-x86_64.zip')).Status | Should -Be 0
     $out = & cmd.exe /d /c ('"' + (Join-Path $R 'bin\prevcarga.cmd') + '" doctor --format json') 2>$null

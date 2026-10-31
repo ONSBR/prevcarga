@@ -30,12 +30,12 @@ pc_catalog_row() { # <error.id> -> linha id\tclass\tmessage\thint; fallback embu
     install.download_failed)      printf 'install.download_failed\tnetwork\tfalha ao baixar o bundle\tconfira --release-base e a rede\n';;
     install.io_failed)            printf 'install.io_failed\tbundle\tfalha de escrita na raiz da instalacao\tconfira permissoes e espaco em disco da raiz\n';;
     install.manifest_invalid)     printf 'install.manifest_invalid\tbundle\tRUNTIME.json invalido ou arquivo do bundle divergente\treinstale o bundle da mesma versao; a versao atual nao foi alterada\n';;
-    install.no_previous_version)  printf 'install.no_previous_version\tconfig\tnao ha versao anterior retida para voltar\tinstale a versao desejada com install.sh --version\n';;
-    install.preflight_failed)     printf 'install.preflight_failed\tbundle\tplataforma nao suportada\tLinux x86_64 glibc >= 2.35 com zstd, tar, sha256sum e um cliente HTTPS do sistema\n';;
+    install.no_previous_version)  printf 'install.no_previous_version\tconfig\tnao ha versao anterior retida para voltar\tinstale a versao desejada de novo com o instalador (--version / -Version)\n';;
+    install.preflight_failed)     printf 'install.preflight_failed\tbundle\tplataforma nao suportada\tLinux x86_64 glibc >= 2.35 com zstd, tar, sha256sum e cliente HTTPS; ou Windows 64-bit com PowerShell >= 5.1 e espaco livre na raiz\n';;
     install.sha_mismatch)         printf 'install.sha_mismatch\tintegrity\tsha256 do bundle nao confere\tbaixe o bundle novamente e confira o SHA256SUMS\n';;
     install.sha_missing)          printf 'install.sha_missing\tintegrity\tsha256 do bundle nao informado\tpasse --sha256 ou um SHA256SUMS ao lado do bundle\n';;
     install.state_inside_versions) printf 'install.state_inside_versions\tconfig\t--state aponta para dentro de versions/\tuse um diretorio de estado fora de <raiz>/versions\n';;
-    *)                            printf 'install.usage\tconfig\targumento invalido ou ausente\tveja install.sh --help\n';;
+    *)                            printf 'install.usage\tconfig\targumento invalido ou ausente\tveja a ajuda do instalador (install.sh --help / install.ps1 -Help)\n';;
   esac; }
 
 pc_json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n\r\t'; }
