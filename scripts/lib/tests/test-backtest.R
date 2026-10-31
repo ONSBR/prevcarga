@@ -1,7 +1,7 @@
 ## test-backtest.R -- M7.3 (parte MAP): backtest.R = truncagem pelo leitor, corte de treino por classe, protocolos, LONG da celula
 ## (ADR-0023, ADR-0032, ADR-0040). In-process, plugins-brinquedo das duas classes (sensiveis a ultima carga vista) + deck
 ## sintetico (fixture_store.R). Cada FORBIDDEN (delta 0) tem o seu CONTROL (delta != 0). Tudo em tempdir; sem env vars.
-## [DEFERRED M7.7] o REDUCE (combina/reconcile/scores/relatorio) nao e testado aqui.
+## O REDUCE (combina/reconcile/scores) e testado em test-backtest-reduce.R (M7.7).
 library(testthat)
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
 lib <- file.path(pc_root(), "scripts", "lib")
@@ -73,7 +73,7 @@ DECK <- local({
 
 mod <- new.env()
 for (m in c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-            "features", "registry", "training", "inference", "build_long_output", "cache", "orchestrate", "backtest"))
+            "features", "registry", "training", "inference", "build_long_output", "evaluation", "combination", "reconcile", "cache", "orchestrate", "backtest"))
   sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
 suppressMessages(mod$prevcarga_runtime_enforce())
 
