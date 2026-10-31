@@ -39,5 +39,5 @@ prevcarga_verb_backtest <- list(
   exempt  = FALSE,
   modules = c("topology.R", "schema_long.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R",
               "features.R", "registry.R", "training.R", "inference.R", "build_long_output.R", "evaluation.R", "combination.R",
-              "reconcile.R", "cache.R", "orchestrate.R", "backtest.R")
+              "reconcile.R", "cache.R", "reporting.R", "orchestrate.R", "backtest.R")
 )

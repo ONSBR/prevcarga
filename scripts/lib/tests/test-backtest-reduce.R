@@ -73,7 +73,7 @@ DECK <- local({
 mod <- new.env()
 for (m in c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
             "features", "registry", "training", "inference", "build_long_output", "evaluation", "honesty_gate", "combination", "reconcile", "cache",
-            "orchestrate", "backtest"))
+            "reporting", "orchestrate", "backtest"))
   sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
 suppressMessages(mod$prevcarga_runtime_enforce())
 
@@ -351,4 +351,30 @@ test_that("[AC6] y_true fresco do leitor: sentinela no long do membro nao aparec
   expect_identical(aw$awaiting[aw$origem == BO1], FALSE)
   expect_true(file.exists(file.path(res3$paths$scores, "scores.json")))
   expect_true(file.exists(file.path(res3$paths$scores, "scores.rds")))
+})
+
+test_that("[M7.4] verbo --report: HTML e PDF do backtest real; falha do report apos o REDUCE => exit 14 partial.report_failed, scores intactos", {
+  ctx <- bctx(); ctx$origin <- BR; ctx$format <- "json"
+  args <- list("--corte" = "08:00", "--report" = TRUE, "--report-format" = "pdf", "--baseline" = "todos")
+  res <- suppressWarnings(mod$prevcarga_backtest_run(ctx, args))
+  expect_identical(res$report_status, "ok")
+  expect_identical(basename(res$report_path), "backtest.pdf")
+  expect_identical(rawToChar(readBin(res$report_path, "raw", 5L)), "%PDF-")
+  html <- file.path(dirname(res$report_path), "backtest.html")
+  expect_true(file.exists(html))
+  expect_identical(basename(dirname(dirname(res$report_path))), res$run_id)
+  h <- rawToChar(readBin(html, "raw", file.size(html)))
+  for (tok in c("WMAPE por horizonte", "SIN fresco", "skill O-1", "available_until simulado", "08:00")) expect_true(grepl(tok, h, fixed = TRUE), info = tok)
+  ## sem --report: nada e escrito e o result nao traz caminho
+  ctx2 <- bctx(); ctx2$origin <- BR; ctx2$format <- "json"
+  r0 <- suppressWarnings(mod$prevcarga_backtest_run(ctx2, list("--corte" = "08:00", "--baseline" = "none")))
+  expect_null(r0$report_path); expect_identical(r0$report_status, "skipped")
+  expect_false(dir.exists(file.path(ctx2$state_dir, "backtest", r0$run_id, "report")))
+  ## falha do report: a entrega (scores) fica e o verbo sobe exit 14 com o result completo
+  ctx3 <- bctx(); ctx3$origin <- BR; ctx3$format <- "json"
+  mock(prevcarga_backtest_report = function(...) stop("motor de report quebrou"))
+  cond <- expect_pc(suppressWarnings(mod$prevcarga_backtest_run(ctx3, list("--corte" = "08:00", "--report" = TRUE, "--baseline" = "none"))),
+                    "partial.report_failed", 14L)
+  expect_identical(cond$result$report_status, "failed")
+  expect_true(file.exists(file.path(ctx3$state_dir, "backtest", cond$result$run_id, "scores", "scores.rds")))
 })

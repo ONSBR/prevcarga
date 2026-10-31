@@ -506,11 +506,19 @@ prevcarga_backtest_run <- function(ctx, args) {
   s <- out$summary
   ## REDUCE (M7.7, backtest.R): combina, reconcile e scores sobre as celulas `done`; ausente (so orchestrate.R carregado) => so o MAP
   rd <- get0("prevcarga_backtest_reduce", mode = "function")
+  rep <- list(status = "skipped", path = NULL)
   if (is.function(rd)) {
     bl <- .prevcarga_tr_arg(args, "--baseline")
-    s <- rd(ctx, plan, out, dplus = isTRUE(args[["--dplus"]]), baseline = if (is.null(bl)) "todos" else bl)$summary
+    red <- rd(ctx, plan, out, dplus = isTRUE(args[["--dplus"]]), baseline = if (is.null(bl)) "todos" else bl)
+    s <- red$summary
+    ## relatorio (M7.4): depois do REDUCE, so render; falha nao desfaz a entrega (exit 14 partial.report_failed, abaixo)
+    if (isTRUE(args[["--report"]])) {
+      rf <- .prevcarga_tr_arg(args, "--report-format")
+      rep <- .bt_report_step(ctx, plan, red$scores, red$paths, if (is.null(rf)) "html" else rf)
+    }
   }
   res <- list(schema_version = 1L, run_id = out$run_id, weather_issue_cutoff = plan$weather_issue_cutoff, verdict = s$verdict,
+              report_path = rep$path, report_status = rep$status,
               summary = list(ok = s$ok, total = s$total, failed = s$failed, skipped = s$skipped,
                              incompleto = if (is.null(s$incompleto)) list() else lapply(seq_len(nrow(s$incompleto)), function(i) list(
                                origem = format(s$incompleto$origem[[i]], "%Y-%m-%d"), corte_hm = s$incompleto$corte_hm[[i]],
@@ -521,6 +529,8 @@ prevcarga_backtest_run <- function(ctx, args) {
                                available_until = format(s$failures$available_until[[i]], "%Y-%m-%dT%H:%M:%S%z"),
                                classe = s$failures$classe[[i]], error_id = s$failures$error_id[[i]],
                                mensagem = s$failures$mensagem[[i]]))))
+  if (identical(rep$status, "failed") && identical(s$verdict, "ok"))
+    prevcarga_abort("partial.report_failed", where = "prevcarga_backtest_run", details = list(cause = attr(rep, "cause")), result = res)
   if (!identical(s$verdict, "ok")) {
     if (!identical(ctx$format, "json")) writeLines(iconv(.m7_failure_lines(s), from = "UTF-8", to = "ASCII", sub = "?"), con = stderr())
     prevcarga_abort("partial.backtest_delivery", where = sprintf("ok=%d/%d", s$ok, s$total), result = res)
