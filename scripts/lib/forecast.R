@@ -292,6 +292,30 @@
        ja_publicado = isTRUE(exp$ja_publicado), report = report)
 }
 
+## Cronometro por passo (NFR de 30 min, M8.10). O relogio e INJETADO pela fachada (`ctx$step_clock`, segundos); forecast.R nao le relogio.
+## Sem relogio => sem campos de tempo no result. O tempo NUNCA entra na entrega nem no run_manifest.json (a entrega e byte-deterministica);
+## so no `result` do envelope. `duracao_s` = soma dos passos (cada passo = diferenca entre marcas consecutivas, a partir da largada).
+.forecast_stopwatch <- function(clock) {
+  on <- is.function(clock)
+  last <- if (on) clock() else NA_real_
+  laps <- list()
+  list(
+    lap = function(passo) {
+      if (!on) return(invisible(NULL))
+      now <- clock()
+      laps[[length(laps) + 1L]] <<- list(passo = passo, duracao_s = round(now - last, 3))
+      last <<- now
+      invisible(NULL)
+    },
+    timing = function() {
+      if (!on) return(list())
+      list(duracao_s = round(sum(vapply(laps, function(l) l$duracao_s, 0)), 3), passos = laps, jobs = 1L,
+           platform = paste0(if (identical(.Platform$OS.type, "windows")) "windows" else if (grepl("linux", R.version$os)) "linux" else R.version$os,
+                             "-", R.version$arch),
+           runtime_id = paste0("R", as.character(getRversion()), "-", R.version$platform))
+    })
+}
+
 ## --- 7. relatorio diagnostico (M6.5) -----------------------------------------------------------------------------
 ## Roda DEPOIS do commit da entrega e nunca a altera: grava so em `<state_dir>/reports/<origem>/<available_until>/<versao>/`
 ## (fora de `forecasts/`). Pesos = media por membro dos pesos congelados do corte da rodada (a combina nao tem intercepto: 0).
@@ -347,29 +371,37 @@ prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsi
   if (!is.character(niveis) || length(niveis) != 1L || !niveis %in% prevcarga_export_niveis)
     prevcarga_abort("config.usage", where = "--niveis", details = list(hint = "sin, subsistemas ou tudo"))
   sink <- .forecast_warn_sink()
+  tk <- .forecast_stopwatch(ctx$step_clock)
   mem <- .forecast_member_table(ctx)
   g <- .forecast_gate0(ctx, origin, skip_validate, mem, sink)
+  tk$lap("validate-deck")
   plan <- .forecast_plan(ctx, areas)
   rctx <- ctx                                    # convencao da rodada para o que vem depois do infer (build_long, combina, reconcile)
   rctx$tz <- g$cuts$tz
   rctx$load_label <- g$cuts$load_label
   withCallingHandlers({
     members <- .forecast_members(ctx, plan, g, mem)
+    tk$lap("infer")
     lv <- .forecast_leaves(rctx, members, g, plan, mem)
+    tk$lap("combina")
     rec <- .forecast_reconcile(lv$long, plan, rctx)
+    tk$lap("reconcile")
     versao <- prevcarga_forecast_versao(.forecast_versao_parts(ctx, members, lv, rec, g, plan))
     key <- prevcarga_export_key(g$origin, g$cuts$available_until, versao, g$cuts$tz)
     sc <- .forecast_write_scratch(rctx, key, plan, niveis, incluir_membros, lv, rec)
     .forecast_write_run_json(ctx, sc$dir, g, plan, lv, rec, versao, sc, incluir_membros)
     prevcarga_write_run_manifest(.forecast_run_manifest(ctx, g, members, lv, rec, mem, key), sc$dir)
     exp <- prevcarga_export(sc$dir, key, niveis = niveis, incluir_membros = incluir_membros, ctx = ctx)
+    tk$lap("export")
   }, prevcarga_warning = function(w) {
     sink$add(w$id, conditionMessage(w))
     invokeRestart("muffleWarning")
   })
   for (w in rec$warnings) sink$add(w$id, w$message)
   rep <- if (isTRUE(report)) .forecast_report_step(rctx, g, plan, key, lv, rec, report_format) else list(status = "skipped", path = NULL)
+  if (isTRUE(report)) tk$lap("report")
   result <- .forecast_result(g, plan, rec, key, versao, niveis, exp, unclass(rep)[c("status", "path")])
+  result <- c(result, tk$timing())
   ## falha do report apos a entrega (M6.10): a chave forecasts/ ja foi commitada e nao e desfeita; sobe exit 14 com o result completo
   if (identical(rep$status, "failed"))
     prevcarga_abort("partial.report_failed", where = "prevcarga_forecast", details = list(cause = attr(rep, "cause")),

@@ -62,6 +62,7 @@ cmd_forecast <- function(ctx, args) {
   prevcarga_require_data_dir(ctx)
   areas <- .prevcarga_fc_resolve_areas(area, ss, .prevcarga_fc_topology(ctx))
   ctx$generated_at <- .prevcarga_fc_generated_at(ctx$run_id)
+  ctx$step_clock <- function() proc.time()[["elapsed"]]           # relogio injetado: so o result do envelope leva o tempo (M8.10), nunca a entrega
   out <- prevcarga_forecast(ctx, origin = ctx$origin, areas = areas, niveis = niveis,
                             report = isTRUE(args[["--report"]]), report_format = fmt,
                             skip_validate = isTRUE(args[["--skip-validate"]]),
