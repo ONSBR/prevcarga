@@ -68,6 +68,17 @@ test_that("[FORBIDDEN] trilho mesma-plataforma: +9e-6 passa, +1,1e-5 reprova (ex
   expect_true(all(a$n_fora[a$path != "SIN.parquet"] == 0L))
 })
 
+test_that("entrega sincronizada do bucket (SHA256SUMS na raiz, do release-pack) passa a integridade; CONTROL: outro arquivo nao listado => exit 9 (M8.9)", {
+  d <- vr_dirs(); vr_delivery(d$r); vr_delivery(d$s)
+  writeLines("0000  SIN.parquet", file.path(d$r, "SHA256SUMS"))                    # indice de transporte: nao e conteudo da entrega
+  r <- vr_run(d)
+  expect_identical(r$resultado, "PASS")
+  writeLines("x", file.path(d$r, "LEIAME.txt"))                                    # CONTROL: arquivo qualquer fora do manifest continua reprovando
+  e <- vr_err(vr_run(d))
+  expect_identical(e$id, "integrity.manifest_sha"); expect_identical(e$exit_code, 9L)
+  expect_identical(unlist(e$details$nao_listados), "LEIAME.txt")
+})
+
 test_that("[FORBIDDEN] trilho entre-plataformas: +0,09% passa, +0,11% reprova [CONTROL: mesma-plataforma reprova o mesmo +0,09%]", {
   d <- vr_dirs()
   vr_delivery(d$r, id = list(platform = "x86_64-w64-mingw32"))
