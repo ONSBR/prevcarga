@@ -32,6 +32,7 @@ source(file.path(.dl_repo, "scripts", "tools", "plugin_gates.R"))
   list("units_yaml", "-", "PLUGINS", "fast"), list("runner_controle", "-", "PLUGINS", "fast"),
   list("paridade", "-", "PLUGINS", "parity"), list("paridade_control", "-", "PLUGINS", "parity"),
   list("fanout_parity", "-", "PLUGINS", "parity-full"), list("exogena_oper", "-", "PLUGINS", "fast"),
+  list("aditividade_epico", "-", "PLUGINS", "fast"), list("readme", "-", "PLUGINS", "fast"),
   list("gate01_schema_long", "gate01", "DEFERRED M6", "fast"), list("gate06_ytrue_real", "gate06", "DEFERRED M6", "fast"),
   list("gate03_sem_crash", "gate03", "DEFERRED M7", "fast"), list("fachada", "-", "DEFERRED M5", "fast"),
   list("cross_os", "-", "DEFERRED M8", "fast"))
