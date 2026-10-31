@@ -53,8 +53,7 @@ pcg_additivity <- function(root, manifest0, stamp) {
   md <- file.path(root, "models")
   m1 <- pcg_models_manifest(md)
   novos <- list.files(md, recursive = TRUE, full.names = TRUE)
-  novos <- novos[!grepl("/models/[^/]+/models/", novos) | TRUE]
-  novos <- novos[file.info(novos)$mtime > stamp]
+  novos <- novos[which(file.info(novos)$mtime > stamp)]
   list(manifest_equal = identical(manifest0, m1), newer = novos,
        store_dirs = Sys.glob(file.path(md, "*", "models")))
 }
@@ -64,7 +63,7 @@ pcg_oracle_state <- function(oracle, stamp_file, tolerated = PCG_ORACLE_TOLERATE
   st <- suppressWarnings(system2("git", c("-C", shQuote(oracle), "status", "--porcelain"), stdout = TRUE, stderr = FALSE))
   fs <- list.files(oracle, recursive = TRUE, all.files = TRUE, full.names = TRUE, no.. = TRUE)
   fs <- fs[!grepl("/\\.git/", fs)]
-  list(status = setdiff(trimws(st), tolerated), newer = fs[file.info(fs)$mtime > file.info(stamp_file)$mtime])
+  list(status = setdiff(trimws(st), tolerated), newer = fs[which(file.info(fs)$mtime > file.info(stamp_file)$mtime)])
 }
 
 ## repositorio-fixture que imita o oraculo (git proprio, 1 commit) em tempdir
@@ -159,12 +158,17 @@ test_that("[ac-42] TZ sujo sozinho no ambiente de entrada: o runner sai 0 (o run
 test_that("[ac-42] setter de TZ quebrado (copia da instalacao): o runner sai 7 e stdout vazio; copia intacta sai 0 ate a tabela", {
   skip_on_os("windows")
   s <- .pcg$get()
-  bad <- pc_install_copy(broken_tz = TRUE, plugins = TRUE)
+  ## copia da instalacao com o setter de TZ trocado por um que so OBSERVA o TZ do shell (nao o fixa): so a copia e alterada
+  break_tz <- function(root) cat(c("", "## [M5.12 fixture] setter de TZ quebrado, so nesta copia",
+    ".pcg_orig_setters <- prevcarga_runtime_setters",
+    "prevcarga_runtime_setters <- function() { s <- .pcg_orig_setters(); s$tz <- function() .prevcarga_tz_observed(); s }"),
+    file = file.path(root, "scripts", "lib", "runtime.R"), sep = "\n", append = TRUE)
+  bad <- pc_install_copy(mutate = break_tz, plugins = TRUE)
   withr::defer(unlink(dirname(bad), recursive = TRUE))
   tdir <- file.path(bad, "models", "random-forest", "tests")
   dir.create(tdir, recursive = TRUE, showWarnings = FALSE)
   file.copy(file.path(s$root, "models", "random-forest", "tests", "run_all_gates.R"), tdir)
-  r <- pcg_run_runner(file.path(tdir, "run_all_gates.R"), "fast")
+  r <- pc_with_env(list(TZ = "America/Sao_Paulo"), pcg_run_runner(file.path(tdir, "run_all_gates.R"), "fast"))
   expect_identical(r$exit, 7L, info = paste(r$stderr, collapse = "\n"))
   expect_length(r$stdout, 0L)
   expect_true(any(grepl("runtime", r$stderr)))
