@@ -74,9 +74,7 @@ test_that("[e2e] outro processo, mesmo deck e artefatos: mesma versao e sha256 i
 test_that("[e2e 00h] rodada das 00h com os 8 membros reais: deck ate O-1 23:30, origem O, entrega de O 00:30 sem carga do dia O", {
   skip_if_stopped("run00")
   w <- ok("weights00")
-  ## [DEFERRED DL/RD] hoje os DESSEM (linear/regdin) abortam sem a linha do dia O na cabeca mm (plugin.dessem_linear_mm_missing_origin):
-  ## a rodada das 00h exige que a cabeca mm seja opcional quando available_until = O 00:00. Enquanto isso o teste se declara pendente.
-  if (!is.null(w$error) && grepl("mm_missing_origin", w$error$id)) skip(paste("DEFERRED DL/RD:", w$error$id))
+  ## os DESSEM rodam a 00h sem cabeca mm (fix/dl-00h-paridade; regdin cai no ARIMA puro): qualquer erro aqui e regressao, nunca skip
   expect_null(w$error)
   j <- ok("run00")
   expect_null(j$error)

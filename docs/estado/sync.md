@@ -59,8 +59,8 @@ Pacote instalado so para os testes (R 4.5.3, P3M binario): `httpuv` 1.6.17 (e de
   `pwsh` 7), `doctor` no Windows, `cross_os`. Nada foi executado nem simulado: nao ha host Windows nem `pwsh` nesta maquina.
 - [DEFERRED M8.6 -> Gabriel, apos rebuild do bundle] o braco "catalogo gerado == `code/install/error-catalog.tsv` do bundle candidato" e o e2e "install.sh instala o sync" precisam de um
   candidato em `dist/` que traga `sync.tsv` e `prevcarga-sync.sh` (o build jammy nao roda aqui).
-- **Indice de forecasts**: o `release-pack --what forecasts` ainda nao publica o ponteiro `forecasts/<O>/latest.txt`; o sync o exige (sem listar o bucket nao ha como descobrir
-  `available_until`/`versao`). Ver discovery do M8.6. O fixture do teste o escreve a mao.
+- **Indice de forecasts**: o `release-pack --what forecasts --latest` publica o ponteiro `forecasts/<O>/latest.txt` (uma `<AAAAMMDDTHHMM>/<versao>` por linha; 18a8c97), que o
+  sync le (ele nunca lista o bucket).
 
 ## Decisoes de fechamento (Gabriel, 2026-10-31)
 - Tudo que executa os `.ps1`/`.cmd` (Pester, equivalencia sh x ps1, matriz dos .ps1, e2e do instalador, catalogo do bundle) fica DEFERIDO para o gate **windows-vm do M8** (dono: Gabriel). Os SKIPs explicitos permanecem; nada foi instalado nesta maquina.

@@ -10,7 +10,7 @@ publicado nem baixado nos testes**: o upload e de outro ticket; os testes usam `
 `install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]] [--root <dir>] [--data <dir>] [--state <dir>]
 [--skip-platform-check] [--add-to-path] [--profile <arq>] [--format text|json]`; `--rollback`; `--uninstall --yes [--purge]`.
 Sem `--bundle` baixa `<release-base>/releases/<v>/prevcarga-<v>-linux-x86_64.tar.zst` e `SHA256SUMS` (HTTPS; falha => exit 10);
-`latest` le `<release-base>/releases/latest.txt` (1 linha) [DEFERRED M8.5: o release-pack publica esse arquivo; o nome e premissa deste ticket].
+`latest` le `<release-base>/releases/latest.txt` (1 linha) (publicado pelo `release-pack --what runtime --latest`, M8.5).
 Com `--bundle` a versao vem de `--version` ou do nome `prevcarga-<v>-linux-x86_64.tar.zst`.
 
 ## Layout de `<R>` (gravado pelo instalador)

@@ -58,8 +58,8 @@
 - Corte entregavel (decisao do Gabriel, 2026-10-30): `available_until = O 00:00` (rodada das 00h, nenhuma informacao do dia O) e qualquer corte intradiario de O sao validos; so
   `available_until >= O+1 00:00` (dia O completo, ou `--origin` anterior ao ultimo dia do deck) e RECUSADO no gate-0, antes do infer, com `completude.forecast_origin_day_complete`
   (exit 3, `errors/forecast.tsv`; hint: deck vivo do dia O ou truncate_at/--corte). `combination.R` nao muda. Testes: `[00h]` em test-forecast_compose.R (espioes; 1a entrega O 00:30, sem carga de O,
-  CONTROL dia O completo => recusa) e `[e2e 00h]` em test-forecast_e2e.R (8 membros reais, fases weights00/run00). PENDENTE [DEFERRED DL/RD]: no e2e das 00h os DESSEM abortam
-  `plugin.dessem_linear_mm_missing_origin` (a cabeca mm exige linhas do dia O); a cabeca mm deve ser opcional quando nao ha carga de O. O teste se declara `skip` com esse id ate la.
+  CONTROL dia O completo => recusa) e `[e2e 00h]` em test-forecast_e2e.R (8 membros reais, fases weights00/run00). Resolvido (fix/dl-00h-paridade + RD): sem hora de O os DESSEM
+  rodam sem cabeca mm (dessem-linear: DM(O) pura do motor; regdin: ARIMA puro). O e2e das 00h nao tem mais skip: qualquer erro e regressao.
 - Chave imutavel x `niveis`/`incluir_membros` (achado do M6.4): a `versao` do M6.7 nao inclui o conjunto de arquivos; a mesma chave com outro `niveis`/`incluir_membros` da `export.key_conflict`
   (exit 9). Opcoes: incluir niveis/incluir_membros ordenados na versao, ou o export aceitar superconjunto e publicar so os faltantes. Nao tratado aqui (exports.R e do M6.7).
 - Limitacoes conhecidas (nao tratadas aqui): (1) o verbo `forecast` e a gramatica docopt sao do M6.9 (hoje stub): o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
