@@ -38,6 +38,7 @@ prevcarga_backtest <- function(ctx, origins, models = NULL, areas = NULL, cortes
   plan <- prevcarga_plan(ctx, origins, cortes, protocol = protocol, filters = list(model = models, area = areas))
   map <- prevcarga_orchestrate(ctx, plan, .bt_make_run_cell(ctx, plan), jobs = jobs, keep_going = keep_going,
                                resume = resume, break_lock = break_lock)
+  map$summary$weather_issue_cutoff <- plan$weather_issue_cutoff     # regra efetiva (flag > config.yaml > default), so registrada
   list(run_id = plan$run_id, status = map$status, summary = map$summary, paths = .bt_paths(ctx, plan$run_id, plan))
 }
 
@@ -65,9 +66,12 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
 .bt_key_args <- function(ctx, plan, cell, spec) {
   ident <- plan$ident
   weather <- if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff
+  ## o limite do treino ja vem pronto do plano (dates.R); so entra na chave se o descriptor usa previsto no treino
+  fc_train <- isTRUE(prevcarga_plugin_load(cell$mdir, prevcarga_models_root(ctx$root))$descriptor$weather_forecast_in_train)
   list(kind = "artifact", member_label = list(mdir = cell$mdir, exogena = cell$exogena), model_spec = spec,
        data_fingerprint = ident$data_fingerprint, load_label = ident$load_label, timezone = ident$tz,
-       weather_issue_cutoff = weather, train_origin = cell$train_origin, last_data_day = cell$last_data_day,
+       weather_issue_cutoff = weather, weather_issue_limit = cell$train_weather_issue_limit,
+       weather_forecast_in_train = fc_train, train_origin = cell$train_origin, last_data_day = cell$last_data_day,
        feature_config = list(area = cell$folha,
                              spec = spec[c("name", "split", "granularity_min", "horizon_days", "history_days", "seed", "params")]),
        code_version = ident$code_version, lock_hash = ident$lock_hash)

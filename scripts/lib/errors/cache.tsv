@@ -3,6 +3,6 @@ contract.cache_kind	contract	kind de cache fora de features, artifact, member_lo
 contract.cache_key	contract	chave de cache mal formada (esperado v_ e 16 hex)	gere a chave com prevcarga_cache_key
 contract.cache_member_label	contract	member_label do cache exige mdir e exogena	informe member_label = list(mdir, exogena); exogena NA quando o membro nao tem variante
 contract.cache_split	contract	model_spec sem split valido (origin_agnostic ou origin_scoped)	declare split no run.yaml do modelo; o cache nunca assume default
-contract.cache_identity	contract	campo de identidade do cache ausente ou invalido para o kind	informe os campos de corte do kind (features e member_long: origin e available_until; artifact: train_origin e last_data_day; khat: subsistema, origin e window_days)
+contract.cache_identity	contract	campo de identidade do cache ausente ou invalido para o kind	informe os campos de corte do kind (features e member_long: origin e available_until; artifact: train_origin e last_data_day; khat: subsistema, origin e window_days; features, member_long e artefato com clima previsto no treino: weather_issue_cutoff e weather_issue_limit)
 integrity.cache_put_conflict	integrity	chave de cache ja existe com sha256 diferente	entrada de cache nao deterministica; apague a entrada e investigue a semente
 warning.cache_corrupt_quarantined	integrity	entrada de cache corrompida movida para a quarentena (aviso)	nenhuma acao: a entrada foi tratada como MISS e sera recomputada; a copia fica em cache/_quarantine
