@@ -45,5 +45,9 @@ Tudo roda em `sandbox/` (gitignored). Sem bundle em `dist/` os bracos fazem skip
 - [DEFERRED windows-vm do M8, dono: Gabriel, 2026-10-31] Windows x Linux: `verificar --trilho entre-plataformas` <= 0,1%, `--jobs` no Windows, CONTROL +0,2% (exit 12) e os recibos
   `cross-platform` (`pc_receipt_write`, um por bundle) so existem nesse gate. O corpo do braco esta em `tests/ab/test-cross-platform.R` (nunca executado) com SKIP explicito.
   O braco Linux publica a saida de referencia em `options(prevcarga.ab.shared)`. Nenhum recibo e gravado enquanto o braco Windows nao passar.
-- `areas --format json` serializa `order`/`areas` de 1 elemento como texto (auto_unbox); o `prevcarga-sync` falha com "enumeracao vazia" numa topologia de 1 subsistema
-  ou de subsistema de 1 area (a topologia real tem varias: latente).
+- (corrigido no M8.9) `areas`/`models`/`describe` serializavam campos de lista de 1 elemento como escalar; agora `as.list` (ADR-0040: lista e sempre array), regressao com 1 subsistema/1 area/1 modo + CONTROL em `test-introspection.R`.
+
+## Fechamento (2026-10-31)
+- `test-shell-sujo-linux.R` roda `forecast --origin O` pelo lancador instalado (shell sujo x `env -i`, entrega byte-identica) e fecha o DEFERRED M6.9; `docs/estado/sync.md` fecha o catalogo == bundle e o e2e install.sh+sync.
+- ACs reescritos para o contrato real (discovery resolvido): dado alterado => exit 13/2; valor alterado => exit 12; `--jobs` provado no `train-models`.
+

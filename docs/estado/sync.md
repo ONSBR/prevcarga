@@ -57,8 +57,7 @@ Pacote instalado so para os testes (R 4.5.3, P3M binario): `httpuv` 1.6.17 (e de
 - [DEFERRED M8.6 -> Gabriel, host Windows (recibo windows-vm)] TUDO que executa os `.ps1`/`.cmd`: Pester (`install.Tests.ps1`, `prevcarga-sync.Tests.ps1`), aspas do `-e` no PS 5.1,
   MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`, PSScriptAnalyzer 1.22.0, matriz dos .ps1 do contrato de erros, equivalencia sh x ps1 (AC 5; tambem roda no Linux com
   `pwsh` 7), `doctor` no Windows, `cross_os`. Nada foi executado nem simulado: nao ha host Windows nem `pwsh` nesta maquina.
-- [DEFERRED M8.6 -> Gabriel, apos rebuild do bundle] o braco "catalogo gerado == `code/install/error-catalog.tsv` do bundle candidato" e o e2e "install.sh instala o sync" precisam de um
-  candidato em `dist/` que traga `sync.tsv` e `prevcarga-sync.sh` (o build jammy nao roda aqui).
+- (fechado no M8.9, 2026-10-31) Com o bundle jammy `0.9.0-e2e` construido em `dist/` desta ponta, os dois bracos rodaram sem skip: o catalogo gerado por `export_error_catalog.R --out` == `code/install/error-catalog.tsv` do bundle candidato (`test-utilities-error-contract.R`) e o e2e "install.sh instala o sync" (`test-sync.R`, `pci_skip_unless_ready`). Sem candidato em `dist/` continuam skip explicito. O sync tambem rodou ponta a ponta no e2e do M8.9 (`docs/estado/m8-e2e-bundle.md`): bucket do release-pack REAL, estado local e oficial.
 - **Indice de forecasts**: o `release-pack --what forecasts` ainda nao publica o ponteiro `forecasts/<O>/latest.txt`; o sync o exige (sem listar o bucket nao ha como descobrir
   `available_until`/`versao`). Ver discovery do M8.6. O fixture do teste o escreve a mao.
 
