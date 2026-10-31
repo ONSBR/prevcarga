@@ -79,6 +79,9 @@ delivery <- function(x) {
 envelope <- function(x) {
   j <- x$json
   j$run_id <- NULL; j$result$saida <- NULL
+  ## cronometro (M8.10): medida de relogio, como o run_id; os NOMES dos passos seguem comparados
+  j$result$duracao_s <- NULL
+  if (!is.null(j$result$passos)) j$result$passos <- lapply(j$result$passos, function(p) p[setdiff(names(p), "duracao_s")])
   j$result$arquivos <- lapply(j$result$arquivos, function(a) a[c("path", "area", "linhas", "sha256")])
   j
 }

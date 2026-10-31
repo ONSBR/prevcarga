@@ -61,7 +61,11 @@ test_that("[AC3] CONTROL: espera injetada no infer reprova o orcamento de 2 s ap
   clock <- function() { clock_env$t <- clock_env$t + 0.01; clock_env$t }
   run <- function(sleep_s) {
     wait <- m6f_infer_spy(env, log)
-    mock(prevcarga_infer_cell = function(...) { clock_env$t <- clock_env$t + sleep_s / 12; wait(...) })   # 12 celulas (membro x folha) => ~sleep_s no infer
+    ## restauracao explicita no on.exit de run(): o defer do mock() (frame lazy) vazava a espera para a rodada base quando o
+    ## test-forecast_compose.R rodava antes no mesmo processo
+    old <- env$prevcarga_infer_cell
+    on.exit(assign("prevcarga_infer_cell", old, envir = env), add = TRUE)
+    assign("prevcarga_infer_cell", function(...) { clock_env$t <- clock_env$t + sleep_s / 12; wait(...) }, envir = env)   # 12 celulas (membro x folha) => ~sleep_s no infer
     env$prevcarga_forecast(fx_copy(step_clock = clock), skip_validate = TRUE)$result
   }
   r <- pc_nfr_injected_round(run, sleep_s = 3)

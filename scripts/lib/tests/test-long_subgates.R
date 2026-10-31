@@ -127,7 +127,8 @@ test_that("descoberta pelo runner: os 6 sub-gates entram para cada um dos 5 mode
     expect_setequal(gl, .m6l$M6L_GATES)
     expect_true("m6_nowcast_dplus0" %in% gl)
   }
-  expect_false(any(grepl("harness_|gate08", r$stdout)))
+  ## os gates de harness/gate08 sao do pack M7 (m7_harness.R, M7.5): podem existir na lista ALL, mas nunca como linha do pack M6
+  expect_false(any(grepl("harness_|gate08", grep(" \\| M6 \\| ", r$stdout, value = TRUE))))
   expect_match(grep("^modelo-fora N", r$stdout, value = TRUE), "^modelo-fora N 0 ")
   for (m in c("lgbm", "dessem-regdin")) expect_equal(sum(grepl(paste0("^", m, " \\| m6_.* \\| PASS$"), r$stdout)), 7L)
 })
