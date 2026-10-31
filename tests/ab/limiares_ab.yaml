@@ -1,0 +1,8 @@
+# Limiares fixos do A/B do corte (M8.8). Nao ha outra tolerancia: o que passa deles so entra por tests/ab/ab_excecoes.yaml (lista fechada).
+# A e B: |Delta| <= 1e-5 (MW, absoluto, mesmo host); C: igualdade de sha256 (copia de bytes); D: so gates de PROPRIEDADE da combina (sem eps, ADR-0025).
+limiares:
+  A: {tipo: abs, valor: 1.0e-5}
+  B: {tipo: abs, valor: 1.0e-5}
+  C: {tipo: sha256}
+  D: {tipo: propriedade}
+  E: {tipo: reporta}
