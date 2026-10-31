@@ -116,7 +116,6 @@ test_that("[ac-42] os runners sao descobertos por glob e cada mdir da topologia 
 })
 
 test_that("[ac-42] 5 runners x {fast, parity}: 10 processos saem 0; zero [DEFERRED M5]; [DEFERRED Mx] restante e SKIP com dono", {
-  skip_on_cran()
   s <- .pcg$get()
   mdirs <- vapply(pcg_runners(s$root), pcg_mdir_of, "")
   n_proc <- 0L
@@ -150,7 +149,6 @@ test_that("[ac-42] parser da tabela: [DEFERRED M5] sobrando e linha FAIL sao vis
 
 ## ---- bloco 2: runtime ------------------------------------------------------------------------------------------------
 test_that("[ac-42] TZ sujo sozinho no ambiente de entrada: o runner sai 0 (o runtime sobrescreve o shell)", {
-  skip_on_cran()
   s <- .pcg$get()
   runner <- file.path(s$root, "models", "holt-winters", "tests", "run_all_gates.R")
   r <- pc_with_env(list(TZ = "America/Sao_Paulo"), pcg_run_runner(runner, "fast"))
@@ -174,7 +172,6 @@ test_that("[ac-42] setter de TZ quebrado (copia da instalacao): o runner sai 7 e
 
 ## ---- bloco 3: aditividade e oraculo intacto ------------------------------------------------------------------------
 test_that("[ac-42] aditividade: manifesto sha256 de models/ identico, nada mais novo que o carimbo, nenhum models/*/models/", {
-  skip_on_cran()
   s <- .pcg$get()
   for (m in vapply(pcg_runners(s$root), pcg_mdir_of, "")) for (tier in PCG_TIERS) .pcg$run(m, tier)
   a <- pcg_additivity(s$root, s$manifest0, s$stamp)
@@ -184,7 +181,6 @@ test_that("[ac-42] aditividade: manifesto sha256 de models/ identico, nada mais 
 })
 
 test_that("[ac-42] oraculo intacto: git status so com as 3 docs/roadmap/*.md + verify-log/ toleradas e nada mais novo que o carimbo", {
-  skip_on_cran()
   skip_if_not(dir.exists(PCG_ORACLE), "oraculo ausente nesta maquina")
   s <- .pcg$get()
   for (m in vapply(pcg_runners(s$root), pcg_mdir_of, "")) for (tier in PCG_TIERS) .pcg$run(m, tier)
@@ -318,17 +314,21 @@ test_that("[ac-43] foundation_report.json do dessem-linear: sha256 igual ao requ
   }
 })
 
-test_that("[CONTROL ac-43] golden.lock com fingerprint alterado numa copia: o runner sai != 0 pedindo regerar o golden", {
+test_that("[CONTROL ac-43] golden.lock com fingerprint alterado numa copia: o runner sai != 0 e a ferramenta pede regerar o golden", {
   skip_on_os("windows")
-  skip_if_not(dir.exists(file.path(pc_root(), ".state", "golden", "plugins", "random-forest")), "golden ausente")
-  skip_if_not(dir.exists(file.path(pc_root(), "data")), "store de dados ausente")
   s <- .pcg$get()
-  cp <- pc_install_copy(plugins = TRUE)
-  withr::defer(unlink(dirname(cp), recursive = TRUE))
+  skip_if_not(dir.exists(file.path(s$root, ".state", "golden", "plugins", "random-forest")), "golden ausente")
+  skip_if_not(dir.exists(file.path(s$root, "data")) && file.exists(file.path(s$root, ".state", "deck-store", "manifest.json")),
+              "store de dados ausente")
+  skip_if_not(nzchar(Sys.which("git")), "git indisponivel")
   m <- "random-forest"
-  file.copy(file.path(s$root, "models", m, "tests"), file.path(cp, "models", m), recursive = TRUE)
+  ## copia = clone do repositorio (so o versionado) + golden REAL copiado (sem o modo somente-leitura, para poder apagar) + data/
+  cp <- file.path(withr::local_tempdir(pattern = "pcg-clone-"), "prevcarga")
+  system2("git", c("clone", "-q", "--local", "--no-hardlinks", shQuote(s$root), shQuote(cp)), stdout = FALSE, stderr = FALSE)
+  skip_if_not(dir.exists(cp), "clone falhou")
   dir.create(file.path(cp, ".state", "golden", "plugins"), recursive = TRUE)
-  file.copy(file.path(s$root, ".state", "golden", "plugins", m), file.path(cp, ".state", "golden", "plugins"), recursive = TRUE)
+  file.copy(file.path(s$root, ".state", "golden", "plugins", m), file.path(cp, ".state", "golden", "plugins"), recursive = TRUE,
+            copy.mode = FALSE)
   file.symlink(file.path(s$root, "data"), file.path(cp, "data"))        # so leitura; a copia nunca escreve em data/
   lock <- file.path(cp, "models", m, "tests", "parity", "golden.lock")
   txt <- readLines(lock, warn = FALSE)
@@ -336,10 +336,21 @@ test_that("[CONTROL ac-43] golden.lock com fingerprint alterado numa copia: o ru
   expect_gt(length(i), 0L)
   txt[i] <- sub('"randomForest": "[^"]*"', '"randomForest": "0.0.0-adulterado"', txt[i])
   writeLines(txt, lock)
+  ## a ferramenta de paridade recusa antes de rodar o clean-room e pede regerar o golden
+  err <- tempfile("pcg-err-")
+  st <- suppressWarnings(system2(file.path(R.home("bin"), "Rscript"),
+    c("--vanilla", shQuote(file.path(s$root, "scripts", "tools", "plugin_parity.R")), "--model", m, "--units",
+      shQuote(file.path(cp, "models", m, "tests", "parity", "units.yaml")), "--golden", shQuote(file.path(cp, ".state", "golden")),
+      "--data", shQuote(file.path(s$root, ".state", "deck-store")), "--lock", shQuote(lock),
+      "--rscript", shQuote(file.path(R.home("bin"), "Rscript"))), stdout = FALSE, stderr = err))
+  e <- readLines(err, warn = FALSE)
+  expect_false(identical(as.integer(st), 0L))
+  expect_true(any(grepl("regere o golden", e, fixed = TRUE)), info = paste(e, collapse = "\n"))
+  expect_true(any(grepl("tools.golden_stale", e, fixed = TRUE)))
+  ## o runner do plugin, no tier parity, reprova `paridade` e sai != 0
   r <- pcg_run_runner(file.path(cp, "models", m, "tests", "run_all_gates.R"), "parity")
   expect_false(identical(r$exit, 0L))
-  expect_true(any(grepl("regere o golden", c(r$stdout, r$stderr), fixed = TRUE)),
-              info = paste(utils::tail(c(r$stdout, r$stderr), 20L), collapse = "\n"))
+  expect_identical(r$table$status[r$table$id == "paridade"], "FAIL", info = paste(utils::tail(r$stdout, 15L), collapse = "\n"))
 })
 
 ## ---- bloco 5: write-through verificavel -------------------------------------------------------------------------------

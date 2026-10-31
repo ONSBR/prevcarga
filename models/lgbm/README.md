@@ -33,6 +33,12 @@ So ASCII. O plugin nao le variavel de ambiente, nao faz aritmetica de hora e nao
 - Deck exigido: `data.load.load_mwh`, `data.weather_forecast.temperature`, `data.holidays.prevcarga_code`.
 - Erros: ids `lgbm.*` em `scripts/lib/errors/lgbm.tsv` (classes contract/completude/window/integrity, mensagens ASCII).
 
+## Contrato `requires` / `provides` (M5.12; `R/register.R`, `stages`)
+
+- `ingestion`: `requires` = `lgbm_deck_tokens()` (carga, clima observado e previsto, feriados); `provides` = `frame`.
+- `feature_engineering`: `frame` -> `features`. `training`: `features` -> `model`.
+- `inference_features`: `frame`, `model` -> `inf_feat`. `inference`: `model`, `inf_feat` -> `envelope`.
+
 ## Layout `lgbm_day_48`
 
 `values` = matriz 2 x 48 (linha 1 = dia O completado, linha 2 = O+1; colunas = slots de 30 min no rotulo de INICIO do intervalo).

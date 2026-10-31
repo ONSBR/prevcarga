@@ -54,7 +54,7 @@ nenhum de RNG; so os itens de "Divergencias aceitas" acima.
 - **Registry** (`registry.R`, no layout `artifacts/` do bucket publico): `<state_dir>/artifacts/<mdir>/[<exogena>/]<area>/{latest.txt, v_<hash>/...}`;
   nucleo (M5.2), ciclo de vida (M5.7: pin, gc, promote). Estado em `docs/estado/registry_core.md` e `registry_lifecycle.md`.
 - **Verbos auto-registrados** (barrel por descoberta): `scripts/lib/cli/train-models.R`, `scripts/lib/cli/infer-model.R`, `scripts/lib/cli/registry.R`.
-- **Catalogos de erro** (um TSV por modulo, ADR-0040 7-8): `scripts/lib/errors/{features_facade,registry_core,training,train_models,inference,infer_cut,registry_lifecycle}.tsv`.
+- **Catalogos de erro** (um TSV por modulo, ADR-0040 7-8): `scripts/lib/errors/features_facade.tsv`, `registry_core.tsv`, `training.tsv`, `train_models.tsv`, `inference.tsv`, `infer_cut.tsv`, `registry_lifecycle.tsv`.
 - **Pack de gates** `scripts/tools/gates/m5_facades.R` (M5.8: `m5_determinism`, `m5_split_honesty`, `m5_intraday`, `m5_weather_reach`, `m5_day0_infer`,
   `m5_transparency`; substitui os slots `[DEFERRED M5]` dos 5 runners) e `scripts/tools/gates/m5.R` (M5.9: pureza e contrato de saida). Estado:
   `docs/estado/m5_facades_gates.md`, `docs/estado/m5-purity.md`. O pack `scripts/tools/gates/m6_long.R` (M6.6) substituiu os `[DEFERRED M6]`:
