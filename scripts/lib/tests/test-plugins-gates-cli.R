@@ -287,7 +287,7 @@ test_that("[ac-43] parity-full dos 5 runners: 8 membros verdes, max|Delta y_pred
     } else expect_gt(length(reps), 0L, label = paste(m, "relatorio de paridade"))
     for (p in reps) {
       j <- jsonlite::read_json(p, simplifyVector = FALSE)
-      ds <- pcg_collect_deltas(j)
+      ds <- pcg_collect_deltas(j$units)                               # so `units`: `controls` (HW) trazem Delta > 1e-5 DE PROPOSITO
       expect_gt(length(ds), 0L)
       for (x in ds) expect_true(pcg_delta_ok(x$unit, x$d), info = sprintf("%s %s max|D|=%g", m, x$unit, x$d))
       message(sprintf("[parity-full] %s %s sha256=%s unidades=%d", m, sub(paste0(s$root, "/"), "", p, fixed = TRUE),
