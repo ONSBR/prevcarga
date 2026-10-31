@@ -1,0 +1,7 @@
+id	class	message	hint
+contract.ab_deck_not_full_hour	contract	deck de paridade do A/B com available_until fora de hora cheia ou diferente do esperado	use um deck cujo corte derivado pelo leitor e hora cheia e igual a available_until_esperado do ab_origens.yaml
+contract.ab_origens_bad	contract	tests/ab/ab_origens.yaml invalido	confira origem, deck e available_until_esperado de cada entrada
+contract.ab_excecoes_bad	contract	tests/ab/ab_excecoes.yaml invalido (campo ausente, desconhecido ou condicao generica)	a lista e fechada e do Gabriel: id, membro, estagio, condicao, justificativa e adr sao obrigatorios
+contract.ab_stage_input	contract	entrada de estagio do A/B ausente ou fora do layout esperado	confira a saida do relayout e da rodada do clean-room para o mesmo caso
+contract.ab_fora_da_faixa	contract	instante pedido fora da faixa delivery_days do membro	o membro so entrega ate o fim de sua faixa (ADR-0032 c); recorte pela grade de entrega
+contract.ab_oracle_touched	contract	o oraculo foi alterado, ou o log do aws falso nao esta vazio	o oraculo e so leitura e a rodada nao toca a rede; investigue o runner

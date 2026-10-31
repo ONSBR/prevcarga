@@ -1,0 +1,4 @@
+docs/roadmap/CLI-MODULAR-OBJETIVO.md
+docs/roadmap/CLI-MODULAR-ONDE-ESTAMOS.md
+docs/roadmap/MIGRACAO-COMBINA-R.md
+docs/roadmap/verify-log/

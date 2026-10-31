@@ -1,0 +1,14 @@
+# Origens do A/B do corte (M8.8). Decks de paridade com available_until em HORA CHEIA (ADR-0035): o gerador de casos le o deck pelo leitor unico,
+# deriva o corte e RECUSA o caso se nao for hora cheia ou se diferir de available_until_esperado.
+# `deck: store` = o store real (data/) com o manifest de overlay (config/deck-manifest.store.json); o dia O inteiro existe no store, entao o
+# corte do caso e o truncamento em available_until_esperado (hora local do deck). Regra de clima do clean-room no estagio A: origin_midnight_utc
+# (ADR-0024; regra do oraculo). So 00Z existe no store; o deck sintetico com emissao 06Z (fixture_store.R) e o CONTROL da regra de clima.
+# `executavel: false` = o corte do oraculo (available_until - 30 min) cai na vespera de O: o run_job.sh so aceita corte como hora do dia O.
+weather_cutoff_clean_room: origin_midnight_utc
+origens:
+  - {origem: "2024-10-01", deck: store, available_until_esperado: "09:00"}
+  - {origem: "2024-07-01", deck: store, available_until_esperado: "10:00"}
+  - {origem: "2024-11-15", deck: store, available_until_esperado: "09:00"}   # O = feriado (unidade da excecao numerica do dessem-linear)
+  - {origem: "2024-10-01", deck: store, available_until_esperado: "00:00", executavel: false}   # rodada das 00h: sem manha (regdin)
+sinteticos:
+  - {origem: "2026-09-10", gerador: fixture_store, emissao_clima: "06Z"}    # CONTROL de clima: available_until no lugar de origin_midnight_utc
