@@ -333,6 +333,20 @@ LAUNCHER="$ROOT/versions/$VER/code/install/prevcarga"
 [ -f "$LAUNCHER" ] || pc_die install.manifest_invalid "$LAUNCHER" "lancador ausente"
 cp "$LAUNCHER" "$ROOT/bin/.prevcarga.new" && chmod 0755 "$ROOT/bin/.prevcarga.new" \
   && mv -f "$ROOT/bin/.prevcarga.new" "$ROOT/bin/prevcarga" || pc_die install.io_failed "$ROOT/bin/prevcarga"
+# prevcarga-sync (M8.6): utilitario de rede FORA do pacote R, ao lado do lancador, com o catalogo GERADO que ele le (<R>/bin/error-catalog.tsv)
+SYNC="$ROOT/versions/$VER/code/install/prevcarga-sync.sh"
+[ -f "$SYNC" ] || SYNC="$PC_HERE/prevcarga-sync.sh"   # bundles antigos: utilitario ao lado do install.sh
+if [ -f "$SYNC" ]; then
+  cp "$SYNC" "$ROOT/bin/.prevcarga-sync.new" && chmod 0755 "$ROOT/bin/.prevcarga-sync.new" \
+    && mv -f "$ROOT/bin/.prevcarga-sync.new" "$ROOT/bin/prevcarga-sync" || pc_die install.io_failed "$ROOT/bin/prevcarga-sync"
+else
+  pc_warn "prevcarga-sync ausente do bundle: o utilitario de sincronizacao nao foi instalado"
+fi
+CAT="$ROOT/versions/$VER/code/install/error-catalog.tsv"
+[ -f "$CAT" ] || CAT="$PC_CATALOG"
+if [ -f "$CAT" ]; then
+  cp "$CAT" "$ROOT/bin/.error-catalog.new" && mv -f "$ROOT/bin/.error-catalog.new" "$ROOT/bin/error-catalog.tsv" || pc_die install.io_failed "$ROOT/bin/error-catalog.tsv"
+fi
 pc_swap_current "$VER"
 rm -rf "$ROOT/versions/.old-$VER"
 

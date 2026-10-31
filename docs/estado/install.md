@@ -100,7 +100,12 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
   salva/restaura o Path de HKCU.
 - `tests/install/test-install-e2e-windows.R`: ponte (Pester nos dois shells + analyzer; recibo `install-e2e-windows`); fora do Windows `skip` `nao-windows`.
 - `tests/install/test-install-windows-static.R`: checagens estaticas que rodam no Linux (ASCII, sem `$env:`/HKLM, lancador sem `set `, ids no catalogo, ordem hash < `Expand-Archive`, argumentos espelhados).
-- **[DEFERRED M8.6]** TUDO que executa o `.ps1`/`.cmd` (Pester, analyzer, registro HKCU, `Expand-Archive`, `cmd`, MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`,
+- **[DEFERRED M8.6 -> Gabriel, host Windows]** (ainda pendente apos o M8.6; ver `docs/estado/sync.md`) TUDO que executa o `.ps1`/`.cmd` (Pester, analyzer, registro HKCU, `Expand-Archive`, `cmd`, MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`,
   `doctor` no Windows): nao ha host Windows nem `pwsh` nesta maquina de dev; nada foi executado nem simulado.
 - Catalogo: os hints de `install.tsv` (usage, no_previous_version, preflight_failed) agora sao neutros de plataforma; `install.sh` e `install.ps1` embutem o MESMO texto (fallback pre-extracao). `install.ps1 -Help` imprime o uso.
 - **[DEFERRED M8.6]** tambem: aspas do `-e` no PS 5.1, MAX_PATH e falsos positivos do PSScriptAnalyzer (`PSUseDeclaredVarsMoreThanAssignments` nao habilitada).
+
+## prevcarga-sync (M8.6)
+O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO para `<R>/bin/`; o uninstall remove `bin/`. Detalhe e protocolo: `docs/estado/sync.md`.
+
+- Decisao (Gabriel, 2026-10-31): os [DEFERRED M8.6] acima ficam para o gate windows-vm do M8 (dono Gabriel); ver `docs/estado/sync.md`.

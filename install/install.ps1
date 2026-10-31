@@ -485,6 +485,25 @@ function Invoke-PcInstall {
     Copy-Item -LiteralPath $launcher -Destination $tmpl -Force
     Move-Item -LiteralPath $tmpl -Destination (Join-Path $bin 'prevcarga.cmd') -Force
   } catch { Write-PcError 'install.io_failed' (Join-Path $bin 'prevcarga.cmd') $_.Exception.Message }
+  # prevcarga-sync (M8.6): utilitario de rede FORA do pacote R, ao lado do lancador, com o catalogo GERADO que ele le (<R>\bin\error-catalog.tsv)
+  try {
+    foreach ($n in 'prevcarga-sync.ps1', 'prevcarga-sync.cmd') {
+      $src = Join-Path $dest ('code\install\' + $n)
+      if (-not (Test-Path -LiteralPath $src)) { $src = Join-Path $PSScriptRoot $n }   # bundles antigos: ao lado do install.ps1
+      if (Test-Path -LiteralPath $src) {
+        $t = Join-Path $bin ('.' + $n + '.new')
+        Copy-Item -LiteralPath $src -Destination $t -Force
+        Move-Item -LiteralPath $t -Destination (Join-Path $bin $n) -Force
+      } else { Add-PcWarning ('prevcarga-sync ausente do bundle: ' + $n + ' nao foi instalado') }
+    }
+    $cat2 = Join-Path $dest 'code\install\error-catalog.tsv'
+    if (-not (Test-Path -LiteralPath $cat2)) { $cat2 = $script:PcCatalog }
+    if (Test-Path -LiteralPath $cat2) {
+      $t = Join-Path $bin '.error-catalog.new'
+      Copy-Item -LiteralPath $cat2 -Destination $t -Force
+      Move-Item -LiteralPath $t -Destination (Join-Path $bin 'error-catalog.tsv') -Force
+    }
+  } catch { Write-PcError 'install.io_failed' $bin $_.Exception.Message }
   Publish-PcCurrent $v
   if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue }
 
