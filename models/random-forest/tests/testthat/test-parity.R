@@ -20,13 +20,16 @@ RFP_RSCRIPT <- file.path(R.home("bin"), "Rscript")
 rfp_store <- function() {
   dir <- file.path(RFP_ROOT, ".state", "deck-store")
   src <- file.path(RFP_ROOT, "data")
-  if (!file.exists(file.path(dir, "manifest.json"))) {
+  tpl <- file.path(RFP_ROOT, "config", "deck-manifest.store.json")
+  mf <- file.path(dir, "manifest.json")
+  if (!file.exists(mf)) {
     if (!dir.exists(src)) return(NA_character_)
     dir.create(dir, recursive = TRUE, showWarnings = FALSE)
     for (d in c("load", "weather", "auxiliary"))
       if (!file.exists(file.path(dir, d))) file.symlink(normalizePath(file.path(src, d)), file.path(dir, d))
-    file.copy(file.path(RFP_ROOT, "config", "deck-manifest.store.json"), file.path(dir, "manifest.json"))
   }
+  ## overlay em cache (gitignored): o manifest acompanha sempre o template do store (ex.: lag de publicacao, ADR-0024)
+  if (!file.exists(mf) || !identical(unname(tools::md5sum(mf)), unname(tools::md5sum(tpl)))) file.copy(tpl, mf, overwrite = TRUE)
   dir
 }
 

@@ -58,6 +58,7 @@ prevcarga_resolve_cuts <- function(ctx, origin = NULL, model = NULL, data_lag_da
   ld <- prevcarga_read_load(ctx, origin = o$origin, from = o$origin, to = o$origin, truncate_at = truncate_at)
   au <- attr(ld, "available_until")
   tz <- attr(ld, "tz")
+  wlag <- prevcarga_deck_manifest(ctx$data_dir)$weather_forecast_publication_lag_hours   # lag de publicacao do deck
   models <- if (is.null(model)) {
     mem <- if (is.null(ctx$topology_path)) prevcarga_members(root = ctx$root) else
       prevcarga_members(path = ctx$topology_path, root = ctx$root)
@@ -80,6 +81,7 @@ prevcarga_resolve_cuts <- function(ctx, origin = NULL, model = NULL, data_lag_da
        available_until_by_area = attr(ld, "available_until_by_area"),
        load_label = attr(ld, "load_label"), tz = tz,
        weather_issue_cutoff = ctx$weather_issue_cutoff,
-       weather_issue_limit = prevcarga_weather_issue_limit(ctx$weather_issue_cutoff, o$origin, au, tz),
+       weather_issue_limit = prevcarga_weather_issue_limit(ctx$weather_issue_cutoff, o$origin, au, tz, wlag),
+       weather_publication_lag_hours = prevcarga_weather_effective_lag(ctx$weather_issue_cutoff, wlag),
        cuts = cuts)
 }

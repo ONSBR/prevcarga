@@ -18,7 +18,7 @@ expect_args_error <- function(expr, where) {
 TZ <- "Etc/GMT+3"
 O <- "2026-10-01"
 au <- lubridate::force_tz(lubridate::ymd_hms("2026-10-01 09:00:00"), TZ)
-lim_au  <- prevcarga_weather_issue_limit("available_until", lubridate::ymd(O), au, TZ)
+lim_au  <- prevcarga_weather_issue_limit("available_until", lubridate::ymd(O), au, TZ, 0L)
 lim_mid <- prevcarga_weather_issue_limit("origin_midnight_utc", lubridate::ymd(O), au, TZ)
 panel <- pc_hg_panel(O, back = 8L, horizon = 9L)
 weather <- pc_hg_weather(O)
@@ -57,6 +57,32 @@ test_that("AC2 origin_midnight_utc: honesto HONESTO (CONTROL = 00Z); 06Z e 18Z V
   expect_identical(prevcarga_honesty_gate_weather(pc_wf_issue(18), panel, weather, lim_mid)$verdict, "VAZA")
   ## a mesma 06Z e legal na 1a regra (honesta) e vazamento na 2a
   expect_identical(prevcarga_honesty_gate_weather(pc_wf_issue(6), panel, weather, lim_au)$verdict, "HONESTO")
+})
+
+## Lag de publicacao (ADR-0024; store: 6 h). Rodada das 00h: available_until = O 00:00 local (O 03Z) => limite O-1 18:00
+## local (O-1 21Z). Emissoes diarias 00Z como no store: a 00Z de O esta DENTRO da janela de lag (issue <= au < issue + lag).
+test_that("lag 6 h na rodada das 00h: FORBIDDEN = emissao dentro da janela de lag (delta 0); CONTROL = a 00Z de O-1", {
+  O0 <- "2026-10-02"
+  au0 <- lubridate::force_tz(lubridate::ymd_hms("2026-10-02 00:00:00"), TZ)
+  lim6 <- prevcarga_weather_issue_limit("available_until", lubridate::ymd(O0), au0, TZ, 6L)
+  expect_identical(format(lubridate::with_tz(lim6, "UTC"), "%Y-%m-%d %H"), "2026-10-01 21")
+  w <- rbind(pc_hg_weather("2026-10-01", issues_utc = 0L), pc_hg_weather(O0, issues_utc = 0L))
+  p0 <- pc_hg_panel(O0, back = 8L, horizon = 9L)
+  inwin <- w$issue_time <= au0 & au0 < w$issue_time + lubridate::hours(6L)        # a 00Z de O (O-1 21:00 local)
+  expect_identical(unique(format(lubridate::with_tz(w$issue_time[inwin], "UTC"), "%Y-%m-%d %H")), "2026-10-02 00")
+  h <- prevcarga_honesty_gate_weather(pc_wf_honest(lim6), p0, w, lim6)
+  expect_identical(h$verdict, "HONESTO")
+  expect_lte(h$forbidden_delta, 1e-5); expect_gt(h$control_delta, 1e-5)
+  expect_identical(h$arms$forbidden$n_perturbed, sum(inwin))                       # FORBIDDEN = exatamente a janela de lag
+  expect_identical(h$arms$control$n_perturbed, sum(!inwin))                        # CONTROL = a 00Z de O-1
+  expect_identical(h$arms$weather_issue_limit, "2026-10-01T21:00:00Z")
+  ## quem ignora o lag (limite = available_until) le a 00Z de O: VAZA
+  v <- prevcarga_honesty_gate_weather(pc_wf_honest(au0), p0, w, lim6)
+  expect_identical(v$verdict, "VAZA"); expect_gt(v$forbidden_delta, 1e-5)
+  ## sem lag, a mesma 00Z de O e a ultima permitida: vira o CONTROL (e nada fica proibido)
+  lim0 <- prevcarga_weather_issue_limit("available_until", lubridate::ymd(O0), au0, TZ, 0L)
+  rg0 <- .prevcarga_hgw_regions(w, lim0)
+  expect_identical(rg0$control, inwin); expect_false(any(rg0$forbidden))
 })
 
 test_that("multi-area: CONTROL e a mais fresca POR area", {

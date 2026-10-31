@@ -13,7 +13,9 @@ Molde in-process `prevcarga_honesty_gate(run_fn, panel, cut, horizon, tol = 1e-5
 
 `prevcarga_honesty_gate_weather(run_fn, panel, weather, weather_issue_limit, tol = 1e-5, perturb, cols = NULL)`; `run_fn(panel, weather)`.
 
-- `weather_issue_limit` chega pronto de `prevcarga_resolve_cuts()`/`prevcarga_weather_issue_limit()` (M2); vale para `available_until` e `origin_midnight_utc`. O gate nunca o recalcula (sem `ctx`/`origin`/`available_until` nos formals).
+- `weather_issue_limit` chega pronto de `prevcarga_resolve_cuts()`/`prevcarga_weather_issue_limit()` (M2); vale para `available_until` (ja descontado o lag de
+  publicacao do deck) e `origin_midnight_utc`. Braco do lag (`test-honesty-gate-weather.R`, 00h com lag 6): FORBIDDEN = emissao dentro da janela de lag
+  (`issue <= available_until < issue + lag`) => delta 0; CONTROL = a 00Z de O-1 (ultima permitida) => delta != 0; quem ignora o lag => VAZA. O gate nunca o recalcula (sem `ctx`/`origin`/`available_until` nos formals).
 - FORBIDDEN perturba so emissoes `issue_time > limite`; CONTROL a emissao mais fresca `issue_time <= limite` por `area_code`. `panel` (y_true, membros) sempre intocado; so `cols` (default: numericas fora de area_code/issue_time/valid_time) mudam.
 - Reusa `.prevcarga_hg_arm/delta/verdict` (mesma ordem de vereditos e limiar). `arms$channel = "weather"`, `arms$weather_issue_limit` em ISO UTC. Sem emissao acima do limite -> `reach_ok` FALSE -> INDETERMINADO; run_fn cego -> HARNESS QUEBRADO.
 - Fixtures: `pc_hg_weather`, `pc_wf_{honest,issue,blind,spy}` em `helper-run-fn.R`; suite `test-honesty-gate-weather.R`.

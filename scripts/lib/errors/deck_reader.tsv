@@ -7,3 +7,4 @@ contract.tz_invalid	contract	fuso do manifest.json fora da lista OlsonNames()	us
 contract.tz_in_parquet	contract	coluna de data-hora do parquet ja tem fuso (o store deve ser ingenuo)	regrave o parquet como timestamp[ns] sem fuso e declare o fuso no manifest.json
 contract.load_label_conflict	contract	--load-label contradiz o load_label declarado no manifest.json	remova a flag (o manifest vence) ou corrija o manifest do deck
 contract.dataset_missing	contract	dataset obrigatorio ausente no deck	gere o dataset indicado em where no store ou aponte --data para o deck correto
+contract.weather_lag_missing	contract	manifest.json sem weather_forecast_publication_lag_hours (obrigatorio quando o deck tem clima previsto)	declare no manifest.json do deck o atraso de publicacao do clima previsto em horas inteiras >= 0 (store atual: 6)

@@ -12,7 +12,7 @@
                               holidays = file.path("auxiliary", "holidays"))
 
 ## --- Manifest estrito (schema v1 fechado) --------------------------------------------------------
-.PREVCARGA_MANIFEST_KEYS <- c("schema_version", "load_label", "timezone")
+.PREVCARGA_MANIFEST_KEYS <- c("schema_version", "load_label", "timezone", "weather_forecast_publication_lag_hours")
 .PREVCARGA_MANIFEST_TZ_KEYS <- c("load", "weather_observed", "weather_forecast", "holidays", "dst_periods")
 .PREVCARGA_MANIFEST_FC_KEYS <- c("valid_time", "issue_time")
 
@@ -22,6 +22,16 @@
   if (!tz %in% OlsonNames())
     prevcarga_abort("contract.tz_invalid", where = where, details = list(tz = tz))
   tz
+}
+
+## Atraso de publicacao do clima previsto (ADR-0024): horas inteiras >= 0 entre issue_time e a emissao estar disponivel.
+## Propriedade do deck (como o fuso): obrigatoria quando o deck tem weather_forecast; sem default nem variavel de ambiente.
+.prevcarga_manifest_lag <- function(lag) {
+  where <- "manifest.json:weather_forecast_publication_lag_hours"
+  if (is.null(lag)) prevcarga_abort("contract.weather_lag_missing", where = where)
+  if (!(is.numeric(lag) && length(lag) == 1L && is.finite(lag) && lag >= 0 && lag == floor(lag)))
+    prevcarga_abort("contract.manifest_invalid", where = where, details = list(allowed = "inteiro >= 0 (horas)"))
+  as.integer(lag)
 }
 
 .prevcarga_manifest_read_json <- function(data_dir) {
@@ -69,16 +79,20 @@ prevcarga_deck_manifest <- function(data_dir) {
   out_tz <- list(load = .prevcarga_manifest_tz(tzm[["load"]], "load.timestamp"))
   if (has("weather_observed") || !is.null(tzm[["weather_observed"]]))
     out_tz$weather_observed <- .prevcarga_manifest_tz(tzm[["weather_observed"]], "weather_observed.timestamp")
+  lag <- m[["weather_forecast_publication_lag_hours"]]
   if (has("weather_forecast") || !is.null(fc)) {
     out_tz$weather_forecast <- list(
       valid_time = .prevcarga_manifest_tz(fc[["valid_time"]], "weather_forecast.valid_time"),
       issue_time = .prevcarga_manifest_tz(fc[["issue_time"]], "weather_forecast.issue_time"))
-  }
+    lag <- .prevcarga_manifest_lag(lag)
+  } else if (!is.null(lag)) lag <- .prevcarga_manifest_lag(lag)
   if (!is.null(tzm[["holidays"]])) out_tz$holidays <- .prevcarga_manifest_tz(tzm[["holidays"]], "holidays.date")
   if (!is.null(tzm[["dst_periods"]]))
     out_tz$dst_periods <- .prevcarga_manifest_tz(tzm[["dst_periods"]], "dst_periods.date")
 
-  list(schema_version = 1L, load_label = ll, timezone = out_tz)
+  out <- list(schema_version = 1L, load_label = ll, timezone = out_tz)
+  if (!is.null(lag)) out$weather_forecast_publication_lag_hours <- lag
+  out
 }
 
 ## --- Precedencia do rotulo da carga: manifest > --load-label > config.yaml > end (ADR-0035) -----------
@@ -269,12 +283,23 @@ prevcarga_last_load_day <- function(ctx, areas = NULL) {
 }
 
 ## --- Limite de emissao do clima previsto (ADR-0024); o dates.R so reexpoe este valor -------------------------
-prevcarga_weather_issue_limit <- function(rule, origin, available_until, tz_load) {
-  if (identical(rule, "available_until")) return(lubridate::with_tz(available_until, tz_load))
+## available_until: a emissao so esta disponivel `lag_hours` depois do issue_time (manifest do deck,
+## weather_forecast_publication_lag_hours) => limite = available_until - lag, no fuso da carga. Unico lugar com essa
+## aritmetica: treino, infer, painel e dates.R herdam o limite pronto. origin_midnight_utc (paridade do oraculo): sem lag.
+prevcarga_weather_issue_limit <- function(rule, origin, available_until, tz_load, lag_hours) {
+  if (identical(rule, "available_until")) {
+    if (missing(lag_hours) || is.null(lag_hours))
+      prevcarga_abort("contract.weather_lag_missing", where = "manifest.json:weather_forecast_publication_lag_hours")
+    return(lubridate::with_tz(available_until, tz_load) - lubridate::hours(.prevcarga_manifest_lag(lag_hours)))
+  }
   if (identical(rule, "origin_midnight_utc"))
     return(lubridate::with_tz(lubridate::force_tz(lubridate::as_datetime(origin), "UTC"), tz_load))
   prevcarga_abort("config.bad_weather_cutoff", where = as.character(rule))
 }
+
+## Lag efetivo da regra (proveniencia): o do deck em available_until; 0 em origin_midnight_utc (a regra nao usa lag).
+prevcarga_weather_effective_lag <- function(rule, lag_hours)
+  if (identical(rule, "origin_midnight_utc")) 0L else .prevcarga_manifest_lag(lag_hours)
 
 ## Por (area, valid_time), a emissao mais fresca com issue_time <= limit (como os oraculos HW, dessem-linear/regdin e
 ## LGBM: "for each valid_time keep the most recent issue"). Uma emissao que comeca depois de 00:00 do dia O (06Z, 18Z)
@@ -295,7 +320,8 @@ prevcarga_read_forecast_vintages <- function(ctx, areas, from, to, limit) {
 
 ## --- Clima por area (exogenas instantaneas: nao deslocadas) --------------------------------------------
 ## Com `origin`: observado so <= available_until (derivado da carga lida pelo proprio leitor, mesmo
-## origin/truncate_at); previsto so emissoes <= weather_issue_limit, a mais fresca por (area, valid_time).
+## origin/truncate_at); previsto so emissoes <= weather_issue_limit (= available_until - lag de publicacao do deck, na regra
+## available_until), a mais fresca por (area, valid_time).
 ## O observado sai com `valid_time` (a coluna crua `timestamp` do store so existe aqui dentro).
 prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas = NULL, from = NULL,
                                    to = NULL, select = NULL, origin = NULL, truncate_at = NULL) {
@@ -328,11 +354,13 @@ prevcarga_read_weather <- function(ctx, kind = c("observed", "forecast"), areas 
     } else {
       rule <- if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff
       src <- ctx$sources$weather_issue_cutoff
-      limit <- prevcarga_weather_issue_limit(rule, origin, au$available_until, d$tz)
+      lag <- d$manifest$weather_forecast_publication_lag_hours
+      limit <- prevcarga_weather_issue_limit(rule, origin, au$available_until, d$tz, lag)
       dt <- prevcarga_freshest_issue(dt, limit)
       extra <- list(weather_issue_cutoff = rule,
                     weather_issue_cutoff_source = if (is.null(src)) "default" else src,
                     weather_issue_limit = limit,
+                    weather_publication_lag_hours = prevcarga_weather_effective_lag(rule, lag),
                     freshest_issue_by_area = if (nrow(dt)) dt[, .(issue_time = max(issue_time)), by = area_code][
                       order(area_code, method = "radix")] else unique(dt[, .(area_code, issue_time)]))
     }
@@ -382,7 +410,7 @@ prevcarga_read_holiday_codes <- function(ctx, areas = NULL) {
 ## --- Painel do leitor (M2.7) ---------------------------------------------------------------------------------
 ## Agrega os atributos dos leitores sem recalcular; aborta se divergirem em tz ou available_until.
 .PREVCARGA_PANEL_LOAD_ATTRS <- c("available_until", "available_until_by_area", "load_label", "load_label_source", "tz")
-.PREVCARGA_PANEL_FC_ATTRS <- c("weather_issue_cutoff", "weather_issue_limit")
+.PREVCARGA_PANEL_FC_ATTRS <- c("weather_issue_cutoff", "weather_issue_limit", "weather_publication_lag_hours")
 
 pc_panel_attrs <- function(load, weather_obs, weather_fc) {
   for (x in list(weather_obs, weather_fc)) {

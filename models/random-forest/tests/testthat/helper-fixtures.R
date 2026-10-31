@@ -68,7 +68,8 @@ rf_fx_cuts <- function(O = RF_O, rule = "available_until", phase = "train", dir 
   ld <- rf_lib$prevcarga_read_load(rf_fx_ctx(dir, rule), RF_AREA, from = O, to = O, origin = O)
   au <- attr(ld, "available_until"); tz <- attr(ld, "tz")
   list(forecast_origin = O, origin_day = O, tz = tz, load_label = attr(ld, "load_label"), available_until = au,
-       weather_issue_cutoff = rule, weather_issue_limit = rf_lib$prevcarga_weather_issue_limit(rule, O, au, tz),
+       weather_issue_cutoff = rule, weather_issue_limit = rf_lib$prevcarga_weather_issue_limit(rule, O, au, tz,
+         rf_lib$prevcarga_deck_manifest(dir)$weather_forecast_publication_lag_hours),
        split = "origin_agnostic", train_origin = O - 1L - spec$horizon_days, last_data_day = O - 1L,
        data_lag_days = 0L, phase = phase, spec = spec)
 }

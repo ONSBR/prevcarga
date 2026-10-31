@@ -71,6 +71,7 @@ MUTATIONS <- list(
   mx_row("manifest_unknown_key", mx_manifest(function(m) { m$chave_inventada <- "x"; m }), "contract"),
   mx_row("tz_missing",       mx_manifest(function(m) { m$timezone$load <- NULL; m }), "contract"),
   mx_row("tz_invalid",       mx_manifest(function(m) { m$timezone$load <- "Marte/Olympus"; m }), "contract"),
+  mx_row("weather_lag_missing", mx_manifest(function(m) { m$weather_forecast_publication_lag_hours <- NULL; m }), "contract"),
   mx_row("load_label_conflict", function(d) pc_deck_manifest(d, load_label = "start"), "contract", opts = list(flag_label = "end")),
   ## contract: sanidade de carga e clima
   mx_row("grid_off",         function(d) pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:30:00"),

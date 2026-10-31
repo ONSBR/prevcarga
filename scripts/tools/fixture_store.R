@@ -128,13 +128,15 @@
   invisible(NULL)
 }
 
-.pc_fx_manifest <- function(manifest_label, tz) {
+.pc_fx_manifest <- function(manifest_label, tz, weather_lag_hours) {
   list(load_label = manifest_label, schema_version = 1L,
        timezone = list(load = tz, weather_forecast = list(issue_time = "UTC", valid_time = tz),
-                       weather_observed = tz))
+                       weather_observed = tz),
+       weather_forecast_publication_lag_hours = as.integer(weather_lag_hours))
 }
 
-.pc_fx_check_args <- function(dir, seed, areas, days, load_label, sentinel, manifest_label, load_until, tz, horizon_days) {
+.pc_fx_check_args <- function(dir, seed, areas, days, load_label, sentinel, manifest_label, load_until, tz, horizon_days,
+                              weather_lag_hours = 0L) {
   bad <- function(w) prevcarga_abort("tools.fixture_bad_args", where = w)
   if (!is.character(dir) || length(dir) != 1L || is.na(dir) || !nzchar(dir)) bad("dir")
   if (!is.numeric(seed) || length(seed) != 1L || !is.finite(seed)) bad("seed")
@@ -146,16 +148,21 @@
   if (!is.character(tz) || length(tz) != 1L || !tz %in% OlsonNames()) bad("tz")
   if (!is.null(load_until) && (!inherits(load_until, "POSIXct") || length(load_until) != 1L || is.na(load_until))) bad("load_until")
   if (!is.numeric(horizon_days) || length(horizon_days) != 1L || horizon_days < 0) bad("horizon_days")
+  if (!is.numeric(weather_lag_hours) || length(weather_lag_hours) != 1L || !is.finite(weather_lag_hours) ||
+      weather_lag_hours < 0 || weather_lag_hours != floor(weather_lag_hours)) bad("weather_lag_hours")
   invisible(NULL)
 }
 
 ## --- API publica -----------------------------------------------------------------------------------------------
 ## Gera o deck em `dir` e devolve `dir`. `load_until` (POSIXct): so ficam carga e clima observado com
 ## interval_end/valid_time <= load_until (o available_until que o leitor deriva fica igual a ele).
+## `weather_lag_hours`: atraso de publicacao do clima previsto declarado no manifest (ADR-0024). Default 0 no deck
+## sintetico (emissao disponivel no proprio issue_time); o store real declara 6 (config/deck-manifest.store.json).
 prevcarga_fixture_deck <- function(dir, seed, areas, days, load_label = "start", sentinel = FALSE,
                                    manifest_label = load_label, load_until = NULL, tz = "Etc/GMT+3",
-                                   horizon_days = 10L) {
-  .pc_fx_check_args(dir, seed, areas, days, load_label, sentinel, manifest_label, load_until, tz, horizon_days)
+                                   horizon_days = 10L, weather_lag_hours = 0L) {
+  .pc_fx_check_args(dir, seed, areas, days, load_label, sentinel, manifest_label, load_until, tz, horizon_days,
+                    weather_lag_hours)
   days <- sort(days)
   areas <- sort(areas, method = "radix")
   ld <- data.table::rbindlist(lapply(areas, .pc_fx_load, days = days, seed = seed, tz = tz,
@@ -182,7 +189,7 @@ prevcarga_fixture_deck <- function(dir, seed, areas, days, load_label = "start",
   .pc_fx_write_ds(ob, dir, "weather_observed")
   .pc_fx_write_ds(fc, dir, "weather_forecast")
   .pc_fx_write_ds(hol, dir, "holidays")
-  jsonlite::write_json(.pc_fx_manifest(manifest_label, tz), file.path(dir, "manifest.json"),
+  jsonlite::write_json(.pc_fx_manifest(manifest_label, tz, weather_lag_hours), file.path(dir, "manifest.json"),
                        auto_unbox = TRUE, pretty = TRUE)
   invisible(dir)
 }
