@@ -16,7 +16,7 @@ test_that("catalogo do leitor carrega pelo loader sem id duplicado", {
   cat <- env$prevcarga_errors_load(file.path(pc_root(), "scripts", "lib", "errors"))
   ids <- c("contract.manifest_missing", "contract.manifest_invalid", "contract.manifest_unknown_key",
            "contract.tz_missing", "contract.tz_invalid", "contract.tz_in_parquet",
-           "contract.load_label_conflict", "contract.dataset_missing")
+           "contract.load_label_conflict", "contract.dataset_missing", "contract.weather_lag_missing")
   expect_true(all(ids %in% cat$id))
   expect_false(anyDuplicated(cat$id) > 0L)
   expect_true(all(cat$class[cat$id %in% ids] == "contract"))
@@ -105,6 +105,38 @@ test_that("manifests mutados abortam [contract] com error.where do dataset.colun
   expect_identical(e$id, "contract.manifest_missing"); expect_identical(e$where, "manifest.json")
   e <- fail(prevcarga_read_load(pc_ctx_deck(d), from = D[1], to = D[2]))
   expect_identical(e$id, "contract.manifest_missing")
+})
+
+test_that("lag de publicacao do clima previsto (ADR-0024): obrigatorio com weather_forecast, inteiro >= 0, sem default", {
+  d <- pc_deck_sentinel("end", days = D)
+  expect_identical(prevcarga_deck_manifest(d)$weather_forecast_publication_lag_hours, 0L)
+  pc_deck_manifest(d, weather_lag_hours = 6L)
+  expect_identical(prevcarga_deck_manifest(d)$weather_forecast_publication_lag_hours, 6L)
+  W <- "manifest.json:weather_forecast_publication_lag_hours"
+  chk <- function(mutate, id, where = W) {
+    pc_deck_manifest(d, mutate = mutate)
+    e <- fail(prevcarga_deck_manifest(d))
+    expect_identical(e$id, id); expect_identical(e$class_name, "contract"); expect_identical(e$exit_code, 2L)
+    expect_identical(e$where, where)
+  }
+  chk(function(m) { m$weather_forecast_publication_lag_hours <- NULL; m }, "contract.weather_lag_missing")
+  chk(function(m) { m$weather_forecast_publication_lag_hours <- -1L; m }, "contract.manifest_invalid")
+  chk(function(m) { m$weather_forecast_publication_lag_hours <- "6"; m }, "contract.manifest_invalid")
+  chk(function(m) { m$weather_forecast_publication_lag_hours <- 5.5; m }, "contract.manifest_invalid")
+  chk(function(m) { m$weather_forecast_publication_lag_hours <- c(6L, 6L); m }, "contract.manifest_invalid")
+  chk(function(m) { m$weather_forecast_publication_lag_hours <- list(h = 6L); m }, "contract.manifest_invalid")
+  chk(function(m) { m$weather_forecast_publication_lag <- 6L; m }, "contract.manifest_unknown_key",
+      "weather_forecast_publication_lag")
+  ## sem chave => o leitor do previsto aborta (nada de default silencioso)
+  pc_deck_manifest(d, mutate = function(m) { m$weather_forecast_publication_lag_hours <- NULL; m })
+  expect_identical(fail(prevcarga_read_weather(pc_ctx_deck(d), "forecast", from = D[1], to = D[2]))$id,
+                   "contract.weather_lag_missing")
+  ## deck sem clima previsto (nem dataset nem fuso): a chave nao e exigida
+  pc_deck_manifest(d, mutate = function(m) {
+    m$timezone$weather_forecast <- NULL; m$weather_forecast_publication_lag_hours <- NULL; m })
+  unlink(file.path(d, "weather", "forecast"), recursive = TRUE)
+  m <- prevcarga_deck_manifest(d)
+  expect_null(m$weather_forecast_publication_lag_hours); expect_null(m$timezone$weather_forecast)
 })
 
 test_that("[FORBIDDEN] issue_time UTC 00Z vira 21:00 do dia anterior; [CONTROL] fuso trocado deixa 00:00", {

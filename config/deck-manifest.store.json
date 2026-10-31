@@ -6,5 +6,6 @@
     "weather_observed": "Etc/GMT+3",
     "weather_forecast": { "valid_time": "Etc/GMT+3", "issue_time": "UTC" },
     "holidays": "Etc/GMT+3"
-  }
+  },
+  "weather_forecast_publication_lag_hours": 6
 }

@@ -71,15 +71,18 @@
   code <- if (is.null(ctx$code_commit)) prevcarga_code_commit(ctx$root) else ctx$code_commit
   lock <- if (is.null(ctx$renv_lock_hash)) prevcarga_renv_lock_hash(ctx$root) else ctx$renv_lock_hash
   list(manifest = man, load_label = lab$value, tz = man$timezone$load, data_fingerprint = fp, code_version = code,
+       weather_lag = man$weather_forecast_publication_lag_hours,
        lock_hash = if (is.null(lock)) "no-renv-lock" else lock)
 }
 
 ## Identidade do pedido: flags operacionais (--jobs, --resume, --keep-going, --format, --report*, --break-lock) ficam
 ## de fora; o run_id muda com janela, cortes, protocolo efetivo por membro, membros/folhas, load_label,
-## weather_issue_cutoff, fuso e codigo. Usa as 8 chaves do contrato de prevcarga_version_hash.
+## weather_issue_cutoff + lag de publicacao efetivo do clima (0 em origin_midnight_utc), fuso e codigo. Usa as 8 chaves do
+## contrato de prevcarga_version_hash.
 .m7_run_id <- function(ctx, origins, cortes, cells, ident) {
   by_member <- unique(cells[, c("membro", "mdir", "exogena", "split", "protocol")])
   by_member <- by_member[order(by_member$membro, method = "radix"), ]
+  wic <- if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff
   prevcarga_version_hash(list(
     model_id = "backtest-run",
     data_fingerprint = "deck-agnostic",
@@ -90,7 +93,8 @@
         exogena = if (is.na(by_member$exogena[[i]])) NULL else by_member$exogena[[i]],
         split = by_member$split[[i]], protocol = by_member$protocol[[i]])),
       folhas = sort(unique(cells$folha), method = "radix"),
-      weather_issue_cutoff = if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff),
+      weather_issue_cutoff = wic,
+      weather_publication_lag_hours = if (identical(wic, "origin_midnight_utc")) 0L else ident$weather_lag),
     code_commit = ident$code_version,
     renv_lock_hash = ident$lock_hash,
     load_label = ident$load_label,

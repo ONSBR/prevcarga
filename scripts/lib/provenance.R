@@ -211,7 +211,7 @@ prevcarga_thaw <- function(path) {
 ## --- Identidade do deck: data_hash (M2.5; model-agnostico; receita = default de trabalho, ADR pendente) ------------
 ## sha256 de linhas `<caminho Hive RELATIVO ao data_dir>\t<sha256 do arquivo>` de todos os parquet (carga, clima,
 ## feriados), reordenadas por radix (independe de locale e da ordem de listagem), mais `load_label\t<efetivo>` e
-## `timezone.<chave>\t<IANA>` do manifest. Sem `--model`: o hash nao depende de modelo. `files` e a alavanca de
+## `timezone.<chave>\t<IANA>` do manifest (+ `weather_forecast_publication_lag_hours\t<h>` quando declarado). Sem `--model`: o hash nao depende de modelo. `files` e a alavanca de
 ## teste (qualquer ordem); NULL enumera os datasets canonicos. Sem parquet => contract.dataset_missing.
 .prevcarga_sha256_file <- function(path) digest::digest(file = path, algo = "sha256")
 
@@ -229,6 +229,8 @@ prevcarga_data_hash <- function(data_dir, manifest, load_label, files = NULL) {
   sha <- vapply(file.path(data_dir, files), .prevcarga_sha256_file, character(1), USE.NAMES = FALSE)
   tz <- unlist(manifest$timezone)
   tz_lines <- if (length(tz)) paste0("timezone.", names(tz), "\t", tz)[order(names(tz), method = "radix")] else character()
-  body <- c(paste0(files, "\t", sha), paste0("load_label\t", load_label), tz_lines)
+  lag <- manifest$weather_forecast_publication_lag_hours           # declarado pelo deck como o fuso (ADR-0024/0037)
+  lag_line <- if (is.null(lag)) character() else paste0("weather_forecast_publication_lag_hours\t", as.integer(lag))
+  body <- c(paste0(files, "\t", sha), paste0("load_label\t", load_label), tz_lines, lag_line)
   .prevcarga_sha256(paste0(body, "\n", collapse = ""))
 }

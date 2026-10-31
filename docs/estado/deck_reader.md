@@ -35,13 +35,25 @@
   `prevcarga_resolve_cuts(..., truncate_at)` (dates.R), com o mesmo valor. Testes: `test-read-panel.R` (corte da manha, FORBIDDEN dia O, CONTROL vespera,
   truncate_at == deck fisicamente truncado) e `test-dates.R`.
 - `prevcarga_last_load_day(ctx, areas = NULL)`: dia (`as_date(interval_start, tz)`) do ultimo intervalo; le so a particao `year` mais alta nao vazia.
-- `prevcarga_weather_issue_limit(rule, origin, available_until, tz_load)`: `available_until` => ele mesmo; `origin_midnight_utc` => `O 00:00 UTC` no fuso da carga.
+- `prevcarga_weather_issue_limit(rule, origin, available_until, tz_load, lag_hours)`: `available_until` => `available_until - lag_hours` (no fuso da carga;
+  lag de publicacao do deck, ver abaixo; ausente => `contract.weather_lag_missing`); `origin_midnight_utc` => `O 00:00 UTC` no fuso da carga, SEM lag (paridade do oraculo).
+  Unico lugar com essa aritmetica: `prevcarga_freshest_issue`, `prevcarga_read_forecast_vintages`, `prevcarga_resolve_cuts` (dates.R) e os paineis de treino/infer herdam o limite pronto.
+  `prevcarga_weather_effective_lag(rule, lag)` = lag efetivo para proveniencia (o do deck em `available_until`; 0 em `origin_midnight_utc`).
+- **Lag de publicacao do clima previsto (Gabriel 2026-10-30, ADR-0024 atualizado):** uma emissao so esta DISPONIVEL `lag` horas depois do `issue_time`.
+  Chave de topo `weather_forecast_publication_lag_hours` no `manifest.json` (como o fuso, ADR-0037): inteiro >= 0, OBRIGATORIA quando o deck tem
+  `weather_forecast` (dataset ou fuso declarado) => ausente `contract.weather_lag_missing`, invalida (negativa, nao inteira, texto, vetor) `contract.manifest_invalid`
+  (`where = manifest.json:weather_forecast_publication_lag_hours`); sem default nem variavel de ambiente. Store: 6 h (uma emissao/dia, 00Z): a rodada das 00h de O
+  (`available_until = O 00:00 local = O 03Z`, limite O-1 21Z) usa a 00Z de O-1; a partir de O 03:00 local (06Z, fronteira inclusiva) usa a 00Z de O. Decks sinteticos
+  (`fixture_store.R` `weather_lag_hours`, `helper-deck.R` `pc_deck_manifest(..., weather_lag_hours)`) declaram 0 por default. Proveniencia: attr
+  `weather_publication_lag_hours` no previsto e no painel, `prevcarga_resolve_cuts()$weather_publication_lag_hours` (e nos `cuts` de treino/infer), linha
+  `weather_forecast_publication_lag_hours` no `data_hash` (=> data_fingerprint da chave de cache do M7 e `data_hash` do run-manifest), `feature_config` do
+  `run_id` do M7 e `run.json` da rodada diaria. Testes: `test-deck-reader.R` (manifest) e `test-deck-reader-cut.R` (00h, 02:30, 03:00, origin_midnight_utc, FORBIDDEN/CONTROL).
   Regra vem de `ctx$weather_issue_cutoff` (fonte `ctx$sources$weather_issue_cutoff`, default `default` se ausente). `prevcarga_freshest_issue(fc, limit)`: emissao mais fresca <= limite por `(area, valid_time)` (fix/facade-channels: os oraculos HW/dessem-linear/regdin/LGBM
   combinam por valid_time; a 06Z comeca as 03:00 e o inicio do dia O vem da 00Z). `prevcarga_read_forecast_vintages(ctx, areas, from, to, limit)`: TODAS as emissoes
   `<= limit` em `[from, to]` (insumo dos plugins com `weather_forecast_in_train`, no treino e no infer; usado por `training.R` e `inference.R`).
 - `prevcarga_read_weather(..., origin, truncate_at)`: o observado sai com `valid_time` (F4: a coluna crua `timestamp` do store e renomeada na borda de entrada, logo
   apos o fuso; chave `(area_code, valid_time)`; nenhum consumidor ve `timestamp`); observado `<= available_until`; previsto so a emissao mais fresca permitida por `(area, valid_time)` (escolhida antes do recorte de `valid_time`);
-  attrs `weather_issue_cutoff`, `weather_issue_cutoff_source`, `weather_issue_limit`, `freshest_issue_by_area` (a maior emissao usada por area). `available_until` vem da carga lida pelo proprio leitor.
+  attrs `weather_issue_cutoff`, `weather_issue_cutoff_source`, `weather_issue_limit`, `weather_publication_lag_hours`, `freshest_issue_by_area` (a maior emissao usada por area). `available_until` vem da carga lida pelo proprio leitor.
 - Catalogo: `scripts/lib/errors/deck_cut.tsv`. Testes: `test-deck-reader-cut.R`; helper ganhou `pc_deck_until`, `pc_deck_drop`, `pc_deck_perturb`, `pc_deck_issues`.
 
 ## M2.7 (parte 3): feriados e painel do leitor
@@ -52,13 +64,13 @@
   `prevcarga_topology(path)$leaves` (`ctx$topology_path` ou `<ctx$root>/config/topology.yaml`) antes de ler => `topology.area_undeclared` (exit 4, `where` = a area).
   Devolve `load` (O-hist..O, cortada), `weather_observed` (O-hist..O, <= available_until), `weather_forecast` (O..O+horizon, emissao mais fresca permitida por valid_time), `holidays`
   (FIX 6: o calendario INTEIRO da area, sem janela, como o `.read_holidays` do oraculo; a janela antiga perdia o feriado anterior ao inicio do historico e
-  o `days_since_last_holiday` do RF divergia, ex. RS 2023-09-20 em rs-2024-10-01) e `attrs` (`origin`, `available_until`, `available_until_by_area`, `load_label`, `load_label_source`, `tz`, `weather_issue_cutoff`, `weather_issue_limit`).
+  o `days_since_last_holiday` do RF divergia, ex. RS 2023-09-20 em rs-2024-10-01) e `attrs` (`origin`, `available_until`, `available_until_by_area`, `load_label`, `load_label_source`, `tz`, `weather_issue_cutoff`, `weather_issue_limit`, `weather_publication_lag_hours`).
   `pc_panel_attrs` copia os atributos sem recalcular e aborta `contract.constraint_violated` se `tz`/`available_until` divergirem. O mapeamento area -> serie de clima e do plugin.
 - O limite inferior do filtro de particao `year` passou de `year(from)-1` para `year(from - 1 dia)` (nenhum ano fora da janela e coletado; o recorte fino segue em memoria).
 - Catalogo: `topology.area_undeclared` mora em `scripts/lib/errors/topology.tsv` (o `panel.tsv` foi removido). Testes: `test-read-panel.R`; helper ganhou `pc_deck_panel`, `pc_ctx_panel`, `pc_deck_topology`, `pc_deck_holidays_default`
   e `pc_deck_perturb` cobre `holidays` (+1 em `prevcarga_code`).
 
 ## manifest.json do store atual (M2.6)
-- Template versionado `config/deck-manifest.store.json` (schema v1, `load_label: start`, `Etc/GMT+3`; `issue_time` `UTC`; sem `corte`). Valores a confirmar pelo Gabriel antes do merge.
+- Template versionado `config/deck-manifest.store.json` (schema v1, `load_label: start`, `Etc/GMT+3`; `issue_time` `UTC`; `weather_forecast_publication_lag_hours: 6`; sem `corte`). Valores a confirmar pelo Gabriel antes do merge.
 - `scripts/tools/write_store_manifest.R --target <copia>` (dev, fora do pacote) grava o template numa copia/overlay do store: valida pelo leitor, identico => no-op, diferente => `contract.manifest_exists_different` (exit 2; catalogo em `scripts/lib/errors/store_manifest.tsv`). O produto nunca escreve no `data_dir`. Nada foi gravado no store real (`data/`).
 - Smoke `validate-deck` pendente (depende do verbo M2.5, nao integrado): rodar sobre a copia e registrar no PR.

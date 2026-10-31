@@ -132,8 +132,80 @@ test_that("emissoes 00Z/06Z/18Z nas duas regras; fonte flag e config; perturbar 
   expect_identical(m2, m)                       # FORBIDDEN: 06Z fora da regra origin_midnight_utc
   expect_false(identical(a2, a))                # CONTROL: dentro da regra available_until
   expect_identical(prevcarga_weather_issue_limit("origin_midnight_utc", O, O_09h, TZ), at("2026-09-30 21:00"))
-  expect_identical(prevcarga_weather_issue_limit("available_until", O, O_09h, TZ), O_09h)
-  expect_identical(fail(prevcarga_weather_issue_limit("outra", O, O_09h, TZ))$id, "config.bad_weather_cutoff")
+  expect_identical(prevcarga_weather_issue_limit("available_until", O, O_09h, TZ, 0L), O_09h)
+  expect_identical(fail(prevcarga_weather_issue_limit("outra", O, O_09h, TZ, 0L))$id, "config.bad_weather_cutoff")
+  expect_identical(attr(a, "weather_publication_lag_hours"), 0L)
+  expect_identical(attr(m, "weather_publication_lag_hours"), 0L)
+})
+
+## --- Lag de publicacao (ADR-0024): emissao so disponivel issue_time + lag depois -------------------------------------
+## Deck como o store: UMA emissao por dia, 00Z; lag 6 h. Corte do leitor (truncate_at) na rodada das 00h e vizinhas.
+lag_deck <- function(lag = 6L, dir = withr::local_tempdir(.local_envir = parent.frame())) {
+  d <- pc_deck_sentinel("end", days = O + (-2:1), issues = 0L, dir = dir)
+  pc_deck_manifest(d, weather_lag_hours = lag)
+  d
+}
+lag_read <- function(d, cut, rule = "available_until")
+  prevcarga_read_weather(cut_ctx(d, rule), "forecast", from = O - 1, to = O + 1, origin = O, truncate_at = cut)
+utc_day <- function(x) format(lubridate::with_tz(x, "UTC"), "%Y-%m-%d %H")
+
+test_that("limite available_until = available_until - lag (no fuso da carga); lag invalido/ausente aborta", {
+  O_00h <- at("2026-10-01 00:00")
+  expect_identical(prevcarga_weather_issue_limit("available_until", O, O_00h, TZ, 6L), at("2026-09-30 18:00"))
+  expect_identical(lubridate::tz(prevcarga_weather_issue_limit("available_until", O, O_00h, TZ, 6L)), TZ)
+  expect_identical(prevcarga_weather_issue_limit("origin_midnight_utc", O, O_00h, TZ, 6L),
+                   prevcarga_weather_issue_limit("origin_midnight_utc", O, O_00h, TZ))
+  expect_identical(fail(prevcarga_weather_issue_limit("available_until", O, O_00h, TZ))$id, "contract.weather_lag_missing")
+  expect_identical(fail(prevcarga_weather_issue_limit("available_until", O, O_00h, TZ, NULL))$id,
+                   "contract.weather_lag_missing")
+  for (bad in list(-1L, "6", 2.5, NA_integer_))
+    expect_identical(fail(prevcarga_weather_issue_limit("available_until", O, O_00h, TZ, bad))$id,
+                     "contract.manifest_invalid")
+})
+
+test_that("rodada das 00h (available_until = O 00:00 = O 03Z) com lag 6 usa a 00Z de O-1, nao a 00Z de O", {
+  d <- lag_deck(6L)
+  w <- lag_read(d, at("2026-10-01 00:00"))
+  expect_identical(attr(w, "available_until"), at("2026-10-01 00:00"))
+  expect_identical(attr(w, "weather_issue_limit"), at("2026-09-30 18:00"))
+  expect_identical(attr(w, "weather_publication_lag_hours"), 6L)
+  expect_identical(unique(utc_day(w$issue_time)), "2026-09-30 00")
+  expect_identical(utc_day(attr(w, "freshest_issue_by_area")$issue_time), rep("2026-09-30 00", 2L))
+  ## CONTROL: o mesmo deck com lag 0 pega a 00Z de O nas horas que ela cobre
+  pc_deck_manifest(d, weather_lag_hours = 0L)
+  w0 <- lag_read(d, at("2026-10-01 00:00"))
+  expect_true("2026-10-01 00" %in% utc_day(w0$issue_time))
+  expect_identical(attr(w0, "weather_publication_lag_hours"), 0L)
+})
+
+test_that("fronteira inclusiva: O 03:00 (06Z) pega a 00Z de O; O 02:30 ainda a 00Z de O-1", {
+  d <- lag_deck(6L)
+  w3 <- lag_read(d, at("2026-10-01 03:00"))
+  expect_identical(attr(w3, "weather_issue_limit"), at("2026-09-30 21:00"))       # = O 00Z, exatamente o issue_time
+  expect_identical(utc_day(attr(w3, "freshest_issue_by_area")$issue_time), rep("2026-10-01 00", 2L))
+  expect_true(all(utc_day(w3[valid_time > at("2026-09-30 21:00")]$issue_time) == "2026-10-01 00"))
+  w230 <- lag_read(d, at("2026-10-01 02:30"))
+  expect_identical(unique(utc_day(w230$issue_time)), "2026-09-30 00")
+})
+
+test_that("origin_midnight_utc (paridade do oraculo) ignora o lag: lag 6 == lag 0, sempre a 00Z de O", {
+  d <- lag_deck(6L)
+  m6 <- lag_read(d, at("2026-10-01 00:00"), "origin_midnight_utc")
+  expect_identical(attr(m6, "weather_issue_limit"), at("2026-09-30 21:00"))
+  expect_identical(attr(m6, "weather_publication_lag_hours"), 0L)
+  expect_identical(utc_day(attr(m6, "freshest_issue_by_area")$issue_time), rep("2026-10-01 00", 2L))
+  pc_deck_manifest(d, weather_lag_hours = 0L)
+  m0 <- lag_read(d, at("2026-10-01 00:00"), "origin_midnight_utc")
+  expect_identical(m0, m6)
+})
+
+test_that("[FORBIDDEN] emissao dentro da janela de lag (issue <= au < issue + lag) nao muda a leitura; [CONTROL] a ultima permitida muda", {
+  d <- lag_deck(6L)
+  base <- lag_read(d, at("2026-10-01 00:00"))
+  pc_deck_perturb(d, "weather_forecast", quote(issue_time == at("2026-09-30 21:00")), env = environment())   # O 00Z
+  expect_identical(lag_read(d, at("2026-10-01 00:00")), base)
+  pc_deck_perturb(d, "weather_forecast", quote(issue_time == at("2026-09-29 21:00")), env = environment())   # O-1 00Z
+  expect_false(identical(lag_read(d, at("2026-10-01 00:00")), base))
 })
 
 test_that("last_load_day no deck e no truncado; so o dia do interval_start", {

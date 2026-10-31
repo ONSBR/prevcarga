@@ -21,6 +21,7 @@ test_that("template valida pelo leitor com os valores do store; UTF-8 sem BOM, L
   tz <- m$timezone
   expect_identical(tz$load, "Etc/GMT+3"); expect_identical(tz$weather_observed, "Etc/GMT+3")
   expect_identical(tz$holidays, "Etc/GMT+3")
+  expect_identical(m$weather_forecast_publication_lag_hours, 6L)                   # store: 6 h (ADR-0024)
   b <- raw_of(tpl)
   expect_false(identical(b[1:3], as.raw(c(0xef, 0xbb, 0xbf))))
   expect_false(as.raw(13L) %in% b)

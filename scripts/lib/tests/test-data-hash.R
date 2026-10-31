@@ -50,6 +50,9 @@ test_that("data_hash CONTROL: 1 byte, load_label e fuso do manifest mudam o hash
   hm <- dh(d, manifest = m)
   expect_match(hm, hex64); expect_false(identical(hm, h))
   expect_false(identical(hm, dh(d, label = "start")))
+  ml <- hv$prevcarga_deck_manifest(d)
+  ml$weather_forecast_publication_lag_hours <- 6L                                    # lag de publicacao (ADR-0024)
+  expect_false(identical(dh(d, manifest = ml), h))
 })
 
 test_that("data_hash: corte/arquivo nao parquet nao muda; data_dir sem parquet aborta contract", {

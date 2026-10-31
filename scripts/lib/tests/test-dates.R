@@ -139,7 +139,8 @@ test_that("AC 18: resolve_cuts devolve tabela de 5 linhas por modelo + campos ru
   expect_identical(res$available_until_by_area, attr(ld, "available_until_by_area"))
   expect_identical(res$load_label, "end"); expect_identical(res$tz, TZ)
   expect_identical(res$weather_issue_cutoff, "available_until")
-  expect_identical(res$weather_issue_limit, env$prevcarga_weather_issue_limit("available_until", O, res$available_until, TZ))
+  expect_identical(res$weather_issue_limit, env$prevcarga_weather_issue_limit("available_until", O, res$available_until, TZ, 0L))
+  expect_identical(res$weather_publication_lag_hours, 0L)
   cu <- res$cuts
   expect_s3_class(cu, "data.table")
   expect_identical(nrow(cu), 5L)

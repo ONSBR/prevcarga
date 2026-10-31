@@ -246,6 +246,7 @@
   run <- list(origem = format(g$origin), available_until = .forecast_iso_min(g$cuts$available_until, g$cuts$tz),
               available_until_por_area = .forecast_au_by_area(g$cuts), timezone = g$cuts$tz,
               load_label = g$cuts$load_label, weather_issue_cutoff = g$cuts$weather_issue_cutoff,
+              weather_publication_lag_hours = g$cuts$weather_publication_lag_hours,
               khat = .forecast_khat_rows(rec$khat), covered = as.list(plan$covered), stray = as.list(plan$stray),
               closed = as.list(plan$closed), sin_closed = plan$sin_closed, members = mem_areas,
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,

@@ -157,7 +157,7 @@ for (cs in train_cases) local({
 
 ## ---- canal de clima: matriz nas duas regras de weather_issue_cutoff ------------------------------------------------
 au <- tt("2026-10-01 09:00:00")
-lim <- list(available_until = prevcarga_weather_issue_limit("available_until", o_d, au, TZ),
+lim <- list(available_until = prevcarga_weather_issue_limit("available_until", o_d, au, TZ, 0L),
             origin_midnight_utc = prevcarga_weather_issue_limit("origin_midnight_utc", o_d, au, TZ))
 weather <- pc_hg_weather(O)
 hour_utc <- function(x) as.integer(format(lubridate::with_tz(x, "UTC"), "%H"))

@@ -260,6 +260,10 @@
 - **Reamostragem só no despachante (2026-10-29, opção C2):** `granularity_min` 60 ⇒ o despachante aplica `to_hourly` à carga e, se o
   descriptor declarar `weather_resample: hourly`, ao clima (`raw` mantém o clima de 30 min). Nenhum plugin, fachada ou ferramenta reamostra.
   Ver `docs/estado/plugin_dispatch.md`.
+- **Lag de publicação do clima previsto (Gabriel 2026-10-30, ADR-0024 atualizado):** emissão só disponível `lag` h após o `issue_time`;
+  o deck declara `weather_forecast_publication_lag_hours` no `manifest.json` (obrigatório com clima previsto, sem default; store 6 h).
+  `weather_issue_cutoff: available_until` ⇒ limite = `available_until − lag`, calculado só em `prevcarga_weather_issue_limit` (deck_reader.R);
+  a rodada das 00h usa a 00Z de O−1. `origin_midnight_utc` (paridade) sem lag. Ver `docs/estado/deck_reader.md`.
 - **Um id para área fora da topologia:** `topology.area_undeclared` (`errors/topology.tsv`, exit 4); `topology.area_unknown` removido.
 
 ## Decisões estruturantes já tomadas

@@ -101,7 +101,8 @@ prevcarga_infer <- function(plugin, artifact, panel, cuts, ctx = list(), spec = 
   tc <- prevcarga_train_cut(spec, origin, row$data_lag_days)
   list(forecast_origin = origin, origin_day = origin, origin = origin, tz = rc$tz, load_label = rc$load_label,
        available_until = rc$available_until, weather_issue_cutoff = rc$weather_issue_cutoff,
-       weather_issue_limit = rc$weather_issue_limit, split = spec$split, train_origin = tc$train_origin,
+       weather_issue_limit = rc$weather_issue_limit, weather_publication_lag_hours = rc$weather_publication_lag_hours,
+       split = spec$split, train_origin = tc$train_origin,
        last_data_day = tc$last_data_day, data_lag_days = as.integer(row$data_lag_days),
        deck_areas = intersect(as.character(rc$available_until_by_area$area_code),
                               (if (is.null(ctx$topology_path)) prevcarga_topology(root = ctx$root)

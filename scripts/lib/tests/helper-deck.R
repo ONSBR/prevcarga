@@ -50,18 +50,20 @@
   fc[, .(area_code, issue_time, valid_time, temperature, heat_index)]
 }
 
-## Manifest padrao do deck sentinela (ADR-0037); `load_label` so e gravado quando "start".
-pc_deck_manifest_default <- function(load_label = NULL, issue_tz = "UTC") {
+## Manifest padrao do deck sentinela (ADR-0037); `load_label` so e gravado quando "start". `weather_lag_hours`: atraso de
+## publicacao do clima previsto (ADR-0024; 0 no deck sintetico, 6 no store real).
+pc_deck_manifest_default <- function(load_label = NULL, issue_tz = "UTC", weather_lag_hours = 0L) {
   m <- list(schema_version = 1L)
   if (!is.null(load_label)) m$load_label <- load_label
   m$timezone <- list(load = .pc_deck_tz, weather_observed = .pc_deck_tz,
                      weather_forecast = list(valid_time = .pc_deck_tz, issue_time = issue_tz))
+  m$weather_forecast_publication_lag_hours <- as.integer(weather_lag_hours)
   m
 }
 
 ## Reescreve o manifest do deck (para mutacoes): parte do padrao e aplica `mutate(lista) -> lista`.
-pc_deck_manifest <- function(data_dir, load_label = NULL, issue_tz = "UTC", mutate = NULL) {
-  m <- pc_deck_manifest_default(load_label, issue_tz)
+pc_deck_manifest <- function(data_dir, load_label = NULL, issue_tz = "UTC", mutate = NULL, weather_lag_hours = 0L) {
+  m <- pc_deck_manifest_default(load_label, issue_tz, weather_lag_hours)
   if (is.function(mutate)) m <- mutate(m)
   jsonlite::write_json(m, file.path(data_dir, "manifest.json"), auto_unbox = TRUE, pretty = TRUE)
   invisible(m)

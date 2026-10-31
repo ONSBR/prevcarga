@@ -47,6 +47,7 @@ prevcarga_train_inputs <- function(member, area, origin, ctx) {
   cuts <- list(forecast_origin = origin, origin_day = origin, origin = origin, tz = rc$tz,
                load_label = rc$load_label, available_until = rc$available_until,
                weather_issue_cutoff = rc$weather_issue_cutoff, weather_issue_limit = rc$weather_issue_limit,
+               weather_publication_lag_hours = rc$weather_publication_lag_hours,
                split = spec$split, train_origin = tc$train_origin, last_data_day = tc$last_data_day,
                data_lag_days = as.integer(row$data_lag_days))
 

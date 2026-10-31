@@ -190,6 +190,17 @@ test_that("[AC7] run_id: estavel sob flags operacionais; muda com janela, corte,
   expect_false(identical(mkplan({x <- ictx(); x$code_commit <- "outro"; x})$run_id, base))
 })
 
+test_that("run_id e cache_key carregam o lag de publicacao do clima (ADR-0024); origin_midnight_utc nao usa lag no run_id", {
+  d6 <- tempfile("m7-deck6-")
+  fx$prevcarga_fixture_deck(d6, seed = 5, areas = AREAS, days = seq(O1 - 14L, O2, by = "day"), load_label = "start",
+                            weather_lag_hours = 6L)
+  p0 <- mkplan(ictx()); p6 <- mkplan(ictx(data = d6))
+  expect_false(identical(p6$run_id, p0$run_id))                                               # CONTROL: lag efetivo 6 x 0
+  expect_false(any(p6$cells$cache_key %in% p0$cells$cache_key))                               # data_hash leva o lag
+  expect_identical(mkplan(ictx(data = d6, weather = "origin_midnight_utc"))$run_id,          # FORBIDDEN: regra sem lag
+                   mkplan(ictx(weather = "origin_midnight_utc"))$run_id)
+})
+
 test_that("[AC2] --resume: so pending/failed rodam; .key divergente e .tmp; CONTROL: apagar long.parquet recomputa so a celula", {
   ctx <- ictx()
   p <- mkplan(ctx)
