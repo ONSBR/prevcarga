@@ -1,2 +1,3 @@
 id	class	message	hint
 contract.backtest_long_na	contract	LONG da celula do backtest com y_pred NA ou entrega ate o corte	nunca preenche com 0: corrija o plugin/painel da celula
+contract.report_without_truth	contract	scores do backtest sem verdade fresca (y_true) para o relatorio	rode o backtest com a carga realizada disponivel; o relatorio so renderiza scores ja avaliados

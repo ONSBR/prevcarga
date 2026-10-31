@@ -1,7 +1,7 @@
 # Estado: backtest (M7.3 MAP, M7.7 REDUCE)
 
 Codigo: `scripts/lib/backtest.R`; catalogo `scripts/lib/errors/backtest.tsv`; testes `scripts/lib/tests/test-backtest.R` (toys das duas classes + deck do fixture_store).
-O REDUCE (M7.7) esta no fim deste arquivo; `report*` (relatorio) segue com o M6.5+.
+O REDUCE (M7.7) e o relatorio (M7.4) estao no fim deste arquivo.
 
 - `prevcarga_backtest(ctx, origins, models, areas, cortes, protocol, ...)`: resolve `cortes` (flag > `ctx$backtest$corte_default` > 08:00), monta `prevcarga_plan()`
   (protocolo incompativel aborta ali, exit 2 `contract.protocol_incompatible`, antes de criar qualquer arquivo) e despacha `prevcarga_orchestrate()` com `.bt_make_run_cell()`.
@@ -45,3 +45,19 @@ o registry de producao (`<state_dir>/artifacts/`) nunca e aberto (grep + spy de 
 - Resumo/veredito: `summary` ganha `incompleto`, `fallback_months`, `reconcile_failures`, `cache = prevcarga_cache_stats()`; `partial` se houver falha de celula, incompleto ou falha de reconcile (exit 14 no verbo,
   com `incompleto` no `result`). A coluna e `corte_hm` (a chave `corte` e proibida pelo grep do M2).
 - Testes/suites tocadas por consequencia: test-backtest.R, test-backtest-weather.R e test-orchestrate-psock.R carregam evaluation/combination/reconcile; o deck do psock ganhou a area `X` (subsistema do k-hat).
+
+## Relatorio `backtest --report` (M7.4) -- so render sobre o painel avaliado
+
+Codigo: `reporting.R` secao `.rpt_bt_*` (marcador `## --- Relatorio do backtest (M7.4)`), `backtest.R` secao 9 (`.bt_run_meta`, `.bt_report_step`), fio no verbo em `orchestrate.R` (`prevcarga_backtest_run`);
+testes `scripts/lib/tests/test-backtest-report.R` (insumo sintetico + honesty-gate) e o teste `[M7.4]` no fim de `test-backtest-reduce.R` (verbo real). Erro novo `contract.report_without_truth` em `errors/backtest.tsv`.
+
+- `prevcarga_backtest_report(ctx, scores, run_meta, format = c("html","pdf"), out_dir)`: valida `scores` (`member`, `combined`, `sin`, `peak_fixed_18_22`, `sin_fresh`, `fallback_months`, `awaiting_truth` ja avaliados; sem eles ou sem coluna `wmape`
+  aborta `contract.report_without_truth`, exit 2) e `run_meta` (`contract.report_input`). Nenhuma metrica e calculada: WMAPE, pico 18-22h (janela sobre `interval_start`), vies com sinal, skill O-1/O-7 e SIN fresco (`sum_check <= 1e-5`) vem de evaluation.R via REDUCE.
+- Blocos (mesma lista alimenta HTML e PDF): proveniencia (run_id, janela, load_label, fuso, versao, `weather_issue_cutoff`, `available_until` simulado por corte, protocolo por membro), WMAPE por `d_plus` (combinado + reconciliado, e por membro; curva SVG por area no HTML),
+  pico+vies, skill (so `none`/`sem baseline` quando a coluna nao existe), SIN fresco, meses em fallback `n_min`, origens aguardando verdade. NA vira o texto ASCII `aguardando verdade` (ou `sem baseline`), nunca 0.
+- Saida: `<state_dir>/backtest/<run_id>/report/backtest.html` (UTF-8, LF, atomico via `.m7_write_atomic`) e, com `pdf`, `backtest.pdf` pelo mesmo motor do M6.10 (`.pdf_open` extraido de `.report_pdf`: `grDevices::pdf`, `timestamp = FALSE`; byte-deterministico).
+  `prevcarga_html_page` ganhou o argumento `titles` (default = os titulos do forecast).
+- Verbo: `--report`/`--report-format` rodam o passo DEPOIS do REDUCE (`result.report_path`, `result.report_status`); falha do report com veredito `ok` => `partial.report_failed` (exit 14, M6.10) com o result completo e `scores/` intactos; veredito `partial` do backtest tem precedencia (exit 14 `partial.backtest_delivery`).
+- `run_meta$cortes` usa a coluna `corte_hm` (o grep m2_no_corte_key proibe `corte =`); o ticket citava `corte`.
+- Nao regressao do forecast: nenhum `.rpt_bt_*`/`prevcarga_backtest_report` e alcancavel de `prevcarga_report` (grafo `codetools::findGlobals`); o grep de metricas em `test-reporting.R` agora cobre so a parte do forecast (antes do marcador M7.4).
+- Desvio: o ticket cita `prevcarga_rpt_*`/`prevcarga_report_pdf()`; as primitivas reais do M6 sao `prevcarga_html_page`/`.report_table`/`prevcarga_svg_profile`/`.pdf_page_*` e o motor PDF e `.report_pdf`; foram reusadas, nao forkadas.

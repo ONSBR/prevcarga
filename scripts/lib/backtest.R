@@ -30,7 +30,7 @@
 }
 
 ## --- 2. Entrada do verbo --------------------------------------------------------------------------------------
-## `dplus` e `baseline` alimentam o REDUCE (M7.7); `report`/`report_format` sao do relatorio (M6.5+), aceitos e nao consumidos aqui.
+## `dplus` e `baseline` alimentam o REDUCE (M7.7); `report`/`report_format` ligam o relatorio do backtest (M7.4, secao 9).
 prevcarga_backtest <- function(ctx, origins, models = NULL, areas = NULL, cortes = NULL, protocol = NULL, dplus = NULL,
                                baseline = "todos", resume = FALSE, keep_going = FALSE, break_lock = FALSE, jobs = 1L,
                                report = FALSE, report_format = "html") {
@@ -44,6 +44,7 @@ prevcarga_backtest <- function(ctx, origins, models = NULL, areas = NULL, cortes
   paths <- .bt_paths(ctx, plan$run_id, plan)
   red <- .bt_reduce(ctx, plan, map, paths, dplus, baseline)
   map$summary <- .bt_merge_summary(ctx, map$summary, red)
+  if (isTRUE(report)) map$summary$report <- .bt_report_step(ctx, plan, red$scores, paths, report_format)
   list(run_id = plan$run_id, status = map$status, summary = map$summary, paths = paths, scores = red$scores)
 }
 
@@ -475,4 +476,31 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   s$cache <- prevcarga_cache_stats(ctx)
   if (identical(s$verdict, "ok") && (nrow(s$incompleto) || nrow(s$reconcile_failures))) s$verdict <- "partial"
   s
+}
+
+## --- 9. Relatorio (M7.4) ------------------------------------------------------------------------------------------------
+## So render sobre os `scores` do REDUCE (reporting.R: prevcarga_backtest_report). Roda DEPOIS do REDUCE e nunca o altera: grava so em
+## `<state_dir>/backtest/<run_id>/report/`. Falha de qualquer tipo => list(status = "failed", path = NULL) com a causa em attr "cause"
+## (o verbo converte em `partial.report_failed`, exit 14, como o M6.10); sucesso => list(status = "ok", path).
+
+## Metadados do plano que o relatorio mostra (cortes com available_until simulado, regra do clima, protocolos por membro).
+.bt_run_meta <- function(plan) {
+  cells <- plan$cells
+  cz <- unique(cells[, c("corte_hm", "available_until")], by = "corte_hm")
+  data.table::setorderv(cz, "corte_hm")
+  mem <- unique(cells[, c("membro", "split", "protocol", "granularity_min")], by = "membro")
+  data.table::setorderv(mem, "membro")
+  data.table::setnames(mem, "membro", "sigla")
+  list(run_id = plan$run_id,
+       origins = list(from = min(plan$origins), to = max(plan$origins), n = length(plan$origins)),
+       cortes = data.table::data.table(corte_hm = cz$corte_hm, available_until = cz$available_until),
+       weather_issue_cutoff = plan$weather_issue_cutoff, members = mem, load_label = plan$load_label, timezone = plan$tz,
+       version = as.character(plan$ident$code_version))
+}
+
+.bt_report_step <- function(ctx, plan, scores, paths, report_format) {
+  tryCatch({
+    if (is.null(scores)) prevcarga_abort("contract.report_without_truth", where = "scores")
+    list(status = "ok", path = prevcarga_backtest_report(ctx, scores, .bt_run_meta(plan), report_format, paths$report))
+  }, error = function(e) structure(list(status = "failed", path = NULL), cause = conditionMessage(e)))
 }
