@@ -227,7 +227,7 @@ test_that("[CONTROL] arquivo gravado em models/ por um plugin-fixture e arquivo 
 ## ---- bloco 4: parity-full consolidado (so Linux; so no fechamento) ----------------------------------------------------
 PCG_REPORTS <- list(                       # onde cada plugin deixa o(s) relatorio(s) de paridade (gitignorados, exceto o da fundacao)
   "random-forest" = c(".state/golden/parity_report_foundation.json"),
-  lgbm            = c(".state/golden/parity_report_foundation.json", ".state/golden/parity_report_full.json"),
+  lgbm            = character(),            # LGBM.5 compara em processo e nao grava relatorio: o veredito e a tabela do runner
   "holt-winters"  = c("models/holt-winters/tests/parity/parity_report.json"),
   "dessem-linear" = c("models/dessem-linear/tests/parity/foundation_report.json"),
   "dessem-regdin" = c(".state/parity/dessem-regdin/parity_report.json"))
@@ -280,7 +280,11 @@ test_that("[ac-43] parity-full dos 5 runners: 8 membros verdes, max|Delta y_pred
     expect_false(any(r$table$status == "FAIL"), info = info)
     reps <- file.path(s$root, PCG_REPORTS[[m]])
     reps <- reps[file.exists(reps)]
-    expect_gt(length(reps), 0L, label = paste(m, "relatorio de paridade"))
+    if (!length(PCG_REPORTS[[m]])) {                                   # sem relatorio proprio: o gate `paridade` do runner e o veredito
+      expect_identical(r$table$status[r$table$id %in% c("paridade", "paridade_control")], c("PASS", "PASS"), info = info)
+      message(sprintf("[parity-full] %s sem relatorio de arquivo; sha256 da tabela do runner=%s", m,
+                      digest::digest(paste(r$stdout, collapse = "\n"), algo = "sha256", serialize = FALSE)))
+    } else expect_gt(length(reps), 0L, label = paste(m, "relatorio de paridade"))
     for (p in reps) {
       j <- jsonlite::read_json(p, simplifyVector = FALSE)
       ds <- pcg_collect_deltas(j)
@@ -298,7 +302,11 @@ test_that("[ac-43] foundation_report.json do dessem-linear: sha256 igual ao requ
   s <- .pcg$get()
   rep <- file.path(s$root, "models", "dessem-linear", "tests", "parity", "foundation_report.json")
   skip_if_not(file.exists(rep))
-  sha <- digest::digest(file = rep, algo = "sha256")
+  j <- jsonlite::read_json(rep, simplifyVector = FALSE)
+  sha <- j$sha256                                                    # o `sha256` do relatorio (bloco `units` canonico), o que o fan-out confere
+  expect_match(sha, "^[0-9a-f]{64}$")
+  expect_true(isTRUE(j$all_ok))
+  message(sprintf("[parity-full] foundation_report.json sha256(bloco units)=%s sha256(arquivo)=%s", sha, digest::digest(file = rep, algo = "sha256")))
   for (m in c("dessem-regdin")) {
     u <- yaml::read_yaml(file.path(s$root, "models", m, "tests", "parity", "units.yaml"))$units
     req <- Filter(Negate(is.null), lapply(u, function(x) x$requires_report))
