@@ -1,7 +1,7 @@
-# Estado: backtest (M7.3) -- MAP por celula
+# Estado: backtest (M7.3 MAP, M7.7 REDUCE)
 
 Codigo: `scripts/lib/backtest.R`; catalogo `scripts/lib/errors/backtest.tsv`; testes `scripts/lib/tests/test-backtest.R` (toys das duas classes + deck do fixture_store).
-O REDUCE (combina, pesos, reconcile, scores, relatorio) e do M7.7; `dplus`/`baseline`/`report*` sao aceitos por `prevcarga_backtest()` e nao consumidos pelo MAP.
+O REDUCE (M7.7) esta no fim deste arquivo; `report*` (relatorio) segue com o M6.5+.
 
 - `prevcarga_backtest(ctx, origins, models, areas, cortes, protocol, ...)`: resolve `cortes` (flag > `ctx$backtest$corte_default` > 08:00), monta `prevcarga_plan()`
   (protocolo incompativel aborta ali, exit 2 `contract.protocol_incompatible`, antes de criar qualquer arquivo) e despacha `prevcarga_orchestrate()` com `.bt_make_run_cell()`.
@@ -21,3 +21,27 @@ O REDUCE (combina, pesos, reconcile, scores, relatorio) e do M7.7; `dplus`/`base
   celula (`prevcarga_weather_issue_limit` do leitor sobre o corte simulado e o lag do manifest); regra diferente => `cache_key`/`.key` e `run_id` diferentes (celula `done` de outra regra recomputa no `--resume`).
   `prevcarga_backtest()$summary$weather_issue_cutoff`, `plan --format json` e o `result` do backtest expoem a regra efetiva (flag > config.yaml > default). Desvio: o ticket cita `spec$inputs$weather_forecast$train`;
   o run.yaml nao tem esse campo, a fonte e o descriptor `weather_forecast_in_train`. Testes: `test-backtest-weather.R` (FORBIDDEN/CONTROL por regra, lag, serial x `--jobs 2`, molde honesty_gate_weather), `test-cache.R`.
+
+## REDUCE (M7.7) -- combina honesta por mes, reconcile por origem, avaliacao com y_true fresco
+
+Codigo: `backtest.R` secao 8 (`.bt_reduce`), gancho do verbo `prevcarga_backtest_reduce` (chamado por `prevcarga_backtest_run` em orchestrate.R quando backtest.R esta carregado);
+testes `scripts/lib/tests/test-backtest-reduce.R`. `cli/backtest.R` agora carrega evaluation.R, combination.R e reconcile.R. Store `<state_dir>/backtest/<run_id>/{combined,weights,reconciled,scores}`;
+o registry de producao (`<state_dir>/artifacts/`) nunca e aberto (grep + spy de leitura nos testes; sha256 de cache/ e backtest/ estavel ao `registry gc`).
+
+- Painel (`.bt_reduce_panel`): por (folha, corte), LONG das celulas `done` pelo leitor unico (`prevcarga_read_long`), proveniencia montada do plano (run_id = origem; delivery_days do descriptor),
+  `prevcarga_assert_members_aligned` (membro desalinhado e recusado pelo M4) -> `prevcarga_build_panel` -> `prevcarga_join_fresh_truth` (y_true fresco por `interval_end`). Nao existe `prevcarga_combina_panel`
+  (o texto do ticket): o pipeline e o mesmo de `prevcarga_combina_load` (M4.4) sobre o layout do backtest. Membro ausente => coluna `f_*` NA e a combina renormaliza.
+- Combina (`.bt_combine`): `prevcarga_combina_full(detail = TRUE)`; a mascara de treino e `prevcarga_combina_train_mask` do M4 (`interval_start < inicio(m)`: o alvo 00:00 do dia 1 entra), nunca redefinida aqui.
+  `n_min` = `ctx$combina$n_min` (default 24; nao ha chave em config.yaml). Grava `combined/<FOLHA>/<HHMM>/combined.parquet` e `weights/<AAAA-MM>/<FOLHA>_<HHMM>.rds`; meses em fallback => `summary$fallback_months`
+  (folha, corte_hm, mes). Nunca le pesos nem ponteiro de producao.
+- Reconcile (`.bt_reconcile`): so quando o plano cobre TODAS as folhas da topologia (um `--area` parcial nao e origem incompleta; nao ha reconcile). Folha sem linha combinada na origem => `summary$incompleto`
+  (origem, corte_hm, available_until, folhas_faltando) e nenhum arquivo em `reconciled/` para ela. Completo => bottom-up -> ratio -> `prevcarga_khat_fit(ratio, O, window_days)` (janela [O-W, O-1]; W = `ctx$khat_window_days`
+  ou `prevcarga_khat_window_days`, 730; `topology.R` nao tem `khat$window_days`) -> `prevcarga_khat_apply` -> SIN. A verdade do k-hat vem de `prevcarga_read_load` (leitor unico). Falha do reconcile (ex.: sem verdade do
+  subsistema) sai em `summary$reconcile_failures` e torna o veredito `partial`. `.bt_khat_apply` e pura sobre `truth` (reach-control das duas bordas no teste).
+- Avaliacao (`.bt_evaluate`): y_true re-juntado fresco (`prevcarga_read_actual`, por area) em membros, combinado e reconciliado; SIN nao existe no deck: sua verdade = soma dos subsistemas no instante (so se todos presentes).
+  So funcoes de evaluation.R (`prevcarga_scorecard`, `prevcarga_baseline`, `prevcarga_wmape`). `scores` = list(member, combined, sin, peak_fixed_18_22, sin_fresh, awaiting_truth, by_available_until, dplus, fallback_months);
+  scorecards por (corte_hm, [member], d_plus, area) com `skill_persistencia_O1`/`skill_sazonal_O7` conforme `--baseline` (`todos` default; `persistence`, `seasonal_naive`, `none`). `awaiting_truth` por (origem, corte_hm): sem nenhuma verdade
+  finita => `awaiting = TRUE` e nenhuma linha de metrica (nunca 0). Grava `scores/scores.rds` e `scores.json` atomicos.
+- Resumo/veredito: `summary` ganha `incompleto`, `fallback_months`, `reconcile_failures`, `cache = prevcarga_cache_stats()`; `partial` se houver falha de celula, incompleto ou falha de reconcile (exit 14 no verbo,
+  com `incompleto` no `result`). A coluna e `corte_hm` (a chave `corte` e proibida pelo grep do M2).
+- Testes/suites tocadas por consequencia: test-backtest.R, test-backtest-weather.R e test-orchestrate-psock.R carregam evaluation/combination/reconcile; o deck do psock ganhou a area `X` (subsistema do k-hat).

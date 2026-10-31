@@ -504,8 +504,17 @@ prevcarga_backtest_run <- function(ctx, args) {
                                keep_going = isTRUE(args[["--keep-going"]]), resume = isTRUE(args[["--resume"]]),
                                break_lock = isTRUE(args[["--break-lock"]]))
   s <- out$summary
+  ## REDUCE (M7.7, backtest.R): combina, reconcile e scores sobre as celulas `done`; ausente (so orchestrate.R carregado) => so o MAP
+  rd <- get0("prevcarga_backtest_reduce", mode = "function")
+  if (is.function(rd)) {
+    bl <- .prevcarga_tr_arg(args, "--baseline")
+    s <- rd(ctx, plan, out, dplus = isTRUE(args[["--dplus"]]), baseline = if (is.null(bl)) "todos" else bl)$summary
+  }
   res <- list(schema_version = 1L, run_id = out$run_id, weather_issue_cutoff = plan$weather_issue_cutoff, verdict = s$verdict,
               summary = list(ok = s$ok, total = s$total, failed = s$failed, skipped = s$skipped,
+                             incompleto = if (is.null(s$incompleto)) list() else lapply(seq_len(nrow(s$incompleto)), function(i) list(
+                               origem = format(s$incompleto$origem[[i]], "%Y-%m-%d"), corte_hm = s$incompleto$corte_hm[[i]],
+                               folhas_faltando = s$incompleto$folhas_faltando[[i]])),
                              failures = lapply(seq_len(nrow(s$failures)), function(i) list(
                                membro = s$failures$membro[[i]], folha = s$failures$folha[[i]],
                                origem = format(s$failures$origem[[i]], "%Y-%m-%d"),
