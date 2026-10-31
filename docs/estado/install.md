@@ -59,4 +59,47 @@ sobreposto; variante `slim` sem as libs pesadas; `pc_tree_sha`; variante de test
 - [DEFERRED M6.9] o verbo `forecast` ainda nao existe na CLI: o teste do shell sujo usa `describe` e `validate-deck` (texto e JSON) + `--version`.
   Unica diferenca permitida entre execucoes: `run_id` (relogio UTC + pid) do envelope JSON. Se o host nao tem `pt_BR.UTF-8`, o shell sujo usa o 1o
   locale UTF-8 instalado (o bash do `bin/R` avisa por conta propria); se o fuso do host ja e `America/Sao_Paulo`, o TZ sujo vira `Asia/Tokyo` (a sonda do CONTROL precisa distinguir).
-- [DEFERRED M8.4/M8.7] braco Windows (`install.ps1`) e `doctor` validando o RUNTIME.json: outros tickets.
+- [DEFERRED M8.7] `doctor` validando o RUNTIME.json: outro ticket. O braco Windows e a secao abaixo (M8.4).
+
+# Instalador Windows nativo e lancador `prevcarga.cmd` (M8.4; ADR-0038, ADR-0040)
+
+## O que e
+`install/install.ps1` (Windows PowerShell 5.1 e pwsh 7, `-ExecutionPolicy Bypass`, **sem admin**) espelha o `install.sh`: mesmo layout `<R>\current` +
+`<R>\versions\<v>` (+ `previous`, `config.yaml`, `state\`, `bin\prevcarga.cmd`), mesma ordem de invariantes, mesmos `error.id` e exits
+(`install.sha_missing`/`install.sha_mismatch` 9, `install.manifest_invalid`/`install.preflight_failed`/`install.io_failed` 6, `install.usage`/
+`install.no_previous_version`/`install.state_inside_versions` 8, `install.download_failed` 10). **Nada e baixado nem publicado nos testes.**
+Raiz default `%LOCALAPPDATA%\prevcarga` lida por `[Environment]::GetFolderPath('LocalApplicationData')` (nenhum `$env:` no instalador).
+
+## Uso
+`install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-Data <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]`;
+`-Rollback`; `-Uninstall -Yes [-Purge]`. A grafia `--bundle`/`--sha256`/... dos docs tambem e aceita (captura em `ValueFromRemainingArguments`).
+Argumento desconhecido/valor ausente/`-Format` invalido => `install.usage` (exit 8) pelo contrato, nao pelo erro nativo do PowerShell.
+
+## Diferencas deliberadas em relacao ao `install.sh`
+- Zip em vez de tar.zst: `releases/<v>/prevcarga-<v>-windows-x86_64.zip` (+ `SHA256SUMS`; TLS 1.2 forcado; `Invoke-WebRequest -UseBasicParsing`).
+  O zip do M8.2 tem a pasta `prevcarga/` no topo: o stage `versions\.stage-<v>` e extraido e o diretorio unico e movido para `versions\<v>`.
+- Runtime = `runtime\R\bin\Rscript.exe` (layout do M8.2; no Linux e `runtime/bin/Rscript`). Validacao: `Rscript.exe --vanilla -e ...` com
+  `prevcarga_runtime_validate(strict = TRUE)` (so aspas simples no codigo R: o PS 5.1 estraga aspas duplas em argumentos nativos).
+- Troca de `current`/`previous`/`config.yaml`: tempfile no mesmo diretorio + `[IO.File]::Replace` (ou `Move` se nao existe). Nunca symlink/junction.
+- PATH: `HKCU\Environment\Path` (REG_EXPAND_SZ preservado, `DoNotExpandEnvironmentNames`), `<R>\bin` acrescentado uma vez (comparacao sem caixa e sem `\` final),
+  `WM_SETTINGCHANGE` avisa a sessao (falha vira aviso). Nunca HKLM. O `-Uninstall` remove a entrada. Em `sh` isso e opt-in (`--add-to-path`); aqui e sempre (AC 6).
+- Preflight: SO 64-bit, PowerShell >= 5.1, >= 2 GiB livres no volume de `-Root` (unidade com letra; UNC nao e checada). `-SkipPlatformCheck` vira aviso.
+- Saida: bytes ASCII escritos direto no stream (`OpenStandardOutput/Error`), independentes de code page; JSON escapa tudo fora de 32..126 como `\uXXXX`.
+- Sucesso em `--format json` acrescenta `install_root`, `retained` e `path_updated` ao `result` (alem de `version/current/previous/state_dir/doctor` do `install.sh`).
+
+## Lancador (`install/prevcarga.cmd`, CRLF, copiado para `<R>\bin`)
+Resolve `<R>` por `%~dp0..`, le a 1a linha de `current` por `for /f "usebackq delims="`, confere `versions\<v>\runtime\R\bin\Rscript.exe` e executa
+`Rscript.exe --vanilla ...\code\scripts\prevcarga %*`; `& exit /b` sem argumento propaga o `ERRORLEVEL` do R. Sem `current` ou com versao inexistente:
+`prevcarga: erro [bundle] (exit 6)` (ASCII, stderr) e `exit /b 6`. Zero linhas `set `. **Sem blocos `( ... )`**: um caminho com `(x86)` quebraria o
+parser do cmd dentro deles (por isso `goto` em vez do `if (...)` do snippet do ticket). O bundle o carrega em `code\install\prevcarga.cmd` (git archive, M8.2);
+bundles antigos usam o que esta ao lado do `install.ps1`.
+
+## Testes
+- `install/tests/install.Tests.ps1` (Pester **5.5.0** fixo) + `PSScriptAnalyzerSettings.psd1` (PSScriptAnalyzer **1.22.0** fixo; `PSUseCompatibleSyntax` 5.1/7.0): AC 1-7, com os
+  CONTROLs (variante que troca `current` antes de validar; checksum de `state\` acusa 1 arquivo). Roda instalador em processo filho sob `chcp 850`, em `powershell.exe` e `pwsh`;
+  salva/restaura o Path de HKCU.
+- `tests/install/test-install-e2e-windows.R`: ponte (Pester nos dois shells + analyzer; recibo `install-e2e-windows`); fora do Windows `skip` `nao-windows`.
+- `tests/install/test-install-windows-static.R`: checagens estaticas que rodam no Linux (ASCII, sem `$env:`/HKLM, lancador sem `set `, ids no catalogo, ordem hash < `Expand-Archive`, argumentos espelhados).
+- **[DEFERRED M8.6]** TUDO que executa o `.ps1`/`.cmd` (Pester, analyzer, registro HKCU, `Expand-Archive`, `cmd`, MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`,
+  R_HOME herdado do shell no `Rscript.exe`, `doctor` no Windows): nao ha host Windows nem `pwsh` nesta maquina de dev; nada foi executado nem simulado.
+- Dependencia de catalogo: o texto de `install.tsv` (hints) cita `install.sh`/Linux; o instalador Windows usa o catalogo gerado (mesmos ids/classes) e, antes da extracao, textos embutidos proprios.
