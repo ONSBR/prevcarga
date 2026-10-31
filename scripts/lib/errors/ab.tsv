@@ -5,3 +5,5 @@ contract.ab_excecoes_bad	contract	tests/ab/ab_excecoes.yaml invalido (campo ause
 contract.ab_stage_input	contract	entrada de estagio do A/B ausente ou fora do layout esperado	confira a saida do relayout e da rodada do clean-room para o mesmo caso
 contract.ab_fora_da_faixa	contract	instante pedido fora da faixa delivery_days do membro	o membro so entrega ate o fim de sua faixa (ADR-0032 c); recorte pela grade de entrega
 contract.ab_oracle_touched	contract	o oraculo foi alterado, ou o log do aws falso nao esta vazio	o oraculo e so leitura e a rodada nao toca a rede; investigue o runner
+contract.ab_oracle_env	contract	o runtime do oraculo nao aplicou o env{} do job.json do membro (jq ausente ou chave nao exportada no log do caso)	instale jq no runtime do oraculo (o job_lib pula o env{} sem ele); o caso reprova, nunca segue sem o env
+contract.ab_oracle_patch	contract	patch da copia do oraculo sem cabecalho ab-patch, que nao aplica, ou que nao gravou o dia O	confira scripts/tools/ab_oracle_patches/ contra o commit do oraculo; o patch so toca a copia descartavel

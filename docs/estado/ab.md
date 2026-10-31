@@ -13,24 +13,41 @@ corte, e depois descartado: sem periodo paralelo nem comparacao recorrente (ADR-
   corte como hora do dia O): o regdin 00:00 nao e medido pelo runner. `pc_ab_store_overlay`: o store real nao tem `manifest.json`; o overlay e um
   diretorio NOVO com symlinks e o manifest de `config/deck-manifest.store.json` (recusa diretorio existente: `file.symlink` num destino que e link de
   diretorio cria o link DENTRO do alvo -- ver Incidente).
-- `scripts/tools/ab_oracle_run.sh <cases.tsv> <ref_out> --data <store> [--runtime docker|host]`: checksum da arvore do oraculo (inclusive
-  `models/*/models/` e `.git`) antes/depois, copia `rsync -a` sem `data/`, `models/*/models/` e `.git/` num `mktemp -d`, `aws` FALSO no PATH (grava em
-  `aws.log` e sai 1), runtime proprio construido com o `ci/build_marmita.sh` DA COPIA num container `ubuntu:22.04` (jammy, descartavel; mounts: copia rw,
-  `--data` `:ro`, `ref_out` rw), cada caso em modo LOCAL (`LOCAL_DATA_DIR`/`LOCAL_RESULTS_DIR`, `CUT` = hora de `corte_oraculo`, `PROTOCOL` do
-  `job.json`, janela `FROM = O-1 .. TO = O`; EXOGENA so como variavel do filho), `ref/A/{index.tsv,manifest.sha256,results/...}`, e no fim reconfere
-  checksum, `git status --porcelain` (com `GIT_OPTIONAL_LOCKS=0`, sem travar o indice) e `aws.log` vazio: diferenca => exit 3. O
-  `git status` do oraculo real tem 3 `docs/roadmap/*.md` e `verify-log/` NAO rastreados (estado conhecido, ESTADO-ATUAL/contexto 2026-10-30):
-  `tests/ab/oracle_untracked_allow.txt` lista exatamente esse conjunto; qualquer outra linha reprova. `--runtime host` (so depuracao: exige
-  `--rscript`/`--rlib`). `--b-comb/--b-load/--b-subsystem/--b-window`: estagio B, o `reconcilia_baseline.R` do oraculo em modo `full` na copia.
+- `scripts/tools/ab_oracle_run.sh <cases.tsv> <ref_out> --data <store> [--runtime docker|host] [--patches <dir>]`: checksum da arvore do oraculo
+  (inclusive `models/*/models/` e `.git`) antes/depois, copia `rsync -a` sem `data/`, `models/*/models/` e `.git/` num `mktemp -d`, patches de
+  `--patches` (default `scripts/tools/ab_oracle_patches/*.patch`) aplicados com `patch -p1` SO na copia (cabecalho `# ab-patch: mdir=<m>
+  fonte_dia_O=<f>`; listados com sha256 em `<ref_out>/patches.tsv`; sem cabecalho, nao aplica ou sem o dia O => `contract.ab_oracle_patch`, exit 1),
+  `aws` FALSO no PATH (grava em `aws.log` e sai 1), runtime proprio construido com o `ci/build_marmita.sh` DA COPIA num container `ubuntu:22.04`
+  (jammy, descartavel, com `jq` instalado; mounts: copia rw, `--data` `:ro`, `ref_out` rw). Cada caso roda POR ORIGEM, com o modo pela classe de
+  split do clean-room (ADR-0023):
+  - `job` (origin_scoped: HW, dessem): `run_job.sh` em modo LOCAL com `FROM = TO = O`, `CUT` = hora de `corte_oraculo`, `PROTOCOL` do `job.json`;
+    EXOGENA so como variavel do filho; `AB_DAY0_DIR` para o sidecar do patch.
+  - `split` (origin_agnostic: RF, LGBM): o `run_pipeline.R` da copia direto, como os goldens (`plugin_golden.R` + `models/*/tests/parity/oracle_driver.R`):
+    `--mode train` UMA vez em `train_origin = O-1-H` (`history_start = train_origin - history_days.train`, `train_args` do `job.json`), depois
+    `--mode infer` em O-1 e em O com o MESMO `--artifact` e o MESMO `history_start` absoluto `O - history_days.infer`, `--available-until "<dia> <CUT>"`,
+    `PREVCARGA_JOB=1` e o `env{}` do `job.json` exportado pelo runner (jq).
+  Todo caso confere no proprio log que o `env{}` do `job.json` foi exportado: linha `jq absent` ou chave sem `manifest env: export K=`/`K ja setado`
+  => `contract.ab_oracle_env`, caso FAIL (exit 1). `index.tsv` = caso, sigla, mdir, exogena, area, origem, result (LONGs separados por `;`), rc, modo,
+  fonte_dia_O. No fim reconfere checksum, `git status --porcelain` (com `GIT_OPTIONAL_LOCKS=0`) e `aws.log` vazio: diferenca => exit 3. O `git status`
+  do oraculo real tem 3 `docs/roadmap/*.md` e `verify-log/` NAO rastreados (estado conhecido): `tests/ab/oracle_untracked_allow.txt` lista exatamente
+  esse conjunto. `--runtime host` (so depuracao: exige `--rscript`/`--rlib`). `--b-*`: estagio B, o `reconcilia_baseline.R` do oraculo na copia.
+- `scripts/tools/ab_oracle_patches/hw_keep_step1.patch` (decisao do Gabriel 2026-10-31: descartar o passo 1 do fit em O esta errado; o A/B compara o
+  dia O do clean-room com o passo 1 DO PROPRIO oraculo, via copia patchada): `hw_infer` guarda o passo `first_idx - 1` de `$mean` (o dia O) pela
+  mesma cadeia do horizonte (assemble + LOESS 0,13 se `p_Suaviza`; SemiFer NAO, o `horizon_meta` do oraculo comeca em O+1: um dia O feriado/semi
+  divergiria e REPROVA, nunca passa calado) e o `run_pipeline.R --mode forecast` grava esse dia como LONG proprio (`first_forecast_day = O`) em
+  `$AB_DAY0_DIR/<area>_<origin>.parquet`; o runner o poe ao lado do LONG do harness (`day0_<O>.parquet`, que fica byte-igual ao do oraculo sem patch).
 - `scripts/tools/ab_relayout.R`: `pc_ab_relayout(ref_dir, out_dir, ctx, relabel = TRUE)` converte o LONG do oraculo (rotulo de INICIO, digitos civis
   sem fuso, `forecast_origin` Date) para o LONG nativo de 8 colunas: declara o fuso da carga, re-rotula para `interval_end` (+granularity_min), recalcula
   `lead = d_plus*48 + slot(interval_start)` (mesma regra do `build_long_output.R`), grava `<out>/<origem>/membros/<sigla>/<area>.parquet` e REGERA
-  `manifest.json`. `relabel = FALSE` so para o CONTROL. O layout do oraculo nunca entra no produto.
+  `manifest.json`. `result` com varios LONG (`;`) e re-rotulado arquivo a arquivo e unido (instante repetido => `contract.ab_stage_input`); a coluna
+  `fonte_dia_O` do index vai para `<out>/fonte_dia_O.tsv` (raiz). `relabel = FALSE` so para o CONTROL. O layout do oraculo nunca entra no produto.
 - `scripts/tools/ab_stages.R`: linhas `pc_ab_row_cols` (estagio, membro, mdir, sigla, exogena, area, origem, available_until, tz, plataforma, modo,
   khat_origin, delta_max, delta_rel, n, status PASS|FAIL|EXCECAO|REPORT, excecao_id, detalhe).
   - A (`pc_ab_stage_a`): por caso, grade `prevcarga_delivery_grid` (inicio `available_until + 30`, fim por `delivery_days` do descriptor); clean-room =
-    LONG do membro na origem O; oraculo = por instante, o passo da origem O quando existe e senao o da origem O-1 (RF/HW: o passo que o oraculo
-    calcula e descarta; dessem em corte intradiario: o proprio O; a coluna `detalhe` traz `fonte_dia_O`). Chave sem par => FAIL (nunca Delta = 0
+    LONG do membro na origem O; oraculo = por instante, o passo da origem O quando existe e senao o da origem O-1 (RF: infer em O-1 com o
+    MESMO artefato, modo split; HW: o passo 1 do fit em O pelo patch; LGBM e dessem: o proprio O). `detalhe` traz `fonte_dia_O` (de qual origem) e
+    `oraculo_dia_O` (do `fonte_dia_O.tsv` do runner: `O-1:mesmo_artefato(train_origin=...)` no modo split -- inclusive no LGBM, cujo dia O e o nativo
+    de O --, `O:hw_keep_step1.patch:...` no HW). Chave sem par => FAIL (nunca Delta = 0
     silencioso); entrada ausente => FAIL; instante do clean-room fora da faixa e contado em `fora_da_faixa=` (nao comparado); pedir um dia alem da faixa
     (`request_end`) => `contract.ab_fora_da_faixa`. Antes dos valores roda `pc_vr_integrity` (fase 1 do `verificar`) nas duas arvores. Limiar `1e-5`
     (`limiares_ab.yaml`). O comparador de valores NAO chama `prevcarga_verify_repro` inteiro: o oraculo nao tem identidade (`run_manifest.json`),
@@ -64,36 +81,47 @@ NAO semeadas (sem decisao registrada do Gabriel; cada uma e um item para ele): `
 (`ab_fixture_excecoes` em `tests/ab/helper-ab.R`). Qualquer divergencia nova: FAIL na celula + discovery com os numeros, nunca entrada nova.
 
 ## Testes (`tests/ab/`, `TZ=UTC LC_ALL=C.UTF-8 Rscript --vanilla -e 'testthat::test_dir("tests/ab", filter=...)'`)
-`test-ab-oracle-intact.R` (oraculo FALSO em tempdir: checksum, git status, aws.log, corte = au - 30 min; CONTROLs de toque em `models/*/models/`, `aws s3 ls`,
-arquivo novo), `test-ab-stages.R` (A com FORBIDDEN e CONTROLs +0,2 MW / sem re-rotulagem / regra de clima no deck 06Z / faixa e `fora_da_faixa`; B; C; D; E x10),
+`test-ab-oracle-intact.R` (oraculo FALSO em tempdir: checksum, git status, aws.log, corte = au - 30 min; modo job POR ORIGEM (`FROM = TO = O`) e modo
+split como os goldens (1 train em O-1-H + infer O-1 e O, mesmo artefato e history_start, env{} e PREVCARGA_JOB no filho), com CONTROLs de dentes
+(janela O-1..O e re-treino por origem reprovam); CONTROLs de toque em `models/*/models/`, `aws s3 ls`, arquivo novo, `jq absent` no log e env{} sem
+export (`contract.ab_oracle_env`); patch so na copia + `patches.tsv` + sidecar do dia O, e CONTROLs de patch sem cabecalho/que nao aplica/sem dia O), `test-ab-stages.R` (A com FORBIDDEN e CONTROLs (+ relayout de varios LONG por caso com `oraculo_dia_O` no detalhe; instante repetido reprova) +0,2 MW / sem re-rotulagem / regra de clima no deck 06Z / faixa e `fora_da_faixa`; B; C; D; E x10),
 `test-ab-verdict-injection.R` (um FAIL por vez em A, B, C, D e perna Windows; fora da lista; 00:00 em deck com manha; 0 membros; E x10; carregador estrito;
 relatorio ASCII e recibos), `test-ab-corte.R` (pipeline real sobre a referencia congelada; skip explicito sem ela). Fixtures em tempdir, nunca `data/`.
 
-## Medido nesta sessao (subconjunto representativo, SP x 2024-10-01 09:00)
-Referencia gerada de verdade por `ab_oracle_run.sh --runtime docker` (container `ubuntu:22.04`, `ci/build_marmita.sh` da copia: R 4.2.3 + renv.lock do
-oraculo, build ~3 min; runtime em `runtime.txt`), 3 casos (RF, LGBM, HW) x SP x origem 2024-10-01, `available_until` 09:00, corte do oraculo 08:30,
-protocolo do `job.json` (RF/LGBM `daily`, HW `retrain_harness`), janela O-1..O. Oraculo: checksum identico antes/depois, `git status --porcelain` = so o
-conjunto nao rastreado conhecido (lista permitida), `aws.log` vazio (0 chamadas). Clean-room: `pc_ab_clean_run` em R 4.5.3 sobre o overlay do store, regra
-`origin_midnight_utc`. Relayout + estagio A reais (`test-ab-corte.R` com options): o pipeline roda de ponta a ponta e o veredito e `CORTE-BLOQUEADO`:
+## Medido: SP x 2024-10-01, available_until 09:00 (RF, LGBM, HW)
+1a rodada (M8.8; runner antigo: janela `FROM = O-1 .. TO = O`, sem jq no container) => `CORTE-BLOQUEADO` com FAIL nas tres celulas: RF 414 instantes
+max 145,10 MW (origem O exata; os 30 do dia O divergiam), LGBM 78 max 1620,46 MW (mediana 197,6), HW 414 max 1146,00 MW. Investigacao (2026-10-31):
+os tres eram artefatos da COMPARACAO, nenhum defeito do clean-room:
+- LGBM: o container nao tinha `jq`; o `jobs/job_lib.sh:136-138` do oraculo logou `[job_lib][WARN] jq absent; skipping manifest env{} export` e o
+  `LGBM_DISABLE_LOESS=1` do `models/lgbm/job.json` nao foi aplicado. Com LOESS forcado no clean-room a diferenca caiu a 1,8e-11.
+- HW origem O: no `retrain_harness` com janela `FROM = O-1`, o `run_job.sh:459` fixa o history-start da janela inteira em `FROM - 730`: a origem O
+  era ajustada com 731 dias (o clean-room usa 730). Por origem (`FROM = TO`) o historico e o mesmo; controles deram Delta = 0.
+- RF dia O: o estagio A tirava o dia O do passo da origem O-1 do `daily`, que re-treina por origem: artefato com `train_origin` 2024-09-20 (= O-11;
+  esta nota dizia O-12, errado) x 2024-09-21 (O-10) do clean-room. Os goldens usam `--mode train` em O-1-H e `--mode infer` em O-1 e O com o MESMO
+  artefato.
+- HW dia O: o clean-room entrega o dia O pelo passo 1 do fit em O (`models/holt-winters/R/training.R`, `h_fit = H+1`); o oraculo calcula esse passo
+  e o DESCARTA, entao nenhuma saida dele o tinha (o passo 2 da origem O-1 nao e o mesmo numero). Decisao do Gabriel (2026-10-31): descartar e errado;
+  a referencia do dia O e o passo 1 do proprio oraculo em O (patch na copia), nem o passo 2 de O-1 nem um REPORT.
 
-| membro | instantes | max abs D (MW) | max rel | leitura |
-|---|---|---|---|---|
-| random-forest | 414 | 145,10 | 6,2e-3 | origem O (8 dias, 384 instantes): D = 0 EXATO; os 30 instantes do dia O (passo da origem O-1 do oraculo): 145 MW |
-| lgbm | 78 | 1620,46 | 6,6e-2 | origem O inteira (O..O+1): mediana 197,6 MW |
-| holt-winters | 414 | 1146,00 | 4,9e-2 | origem O (384): max 528 MW, mediana 43,5 MW; dia O (passo O-1) pior |
+2a rodada (este runner; `ref_out2` + `clean2` no scratchpad, nao versionados): oraculo R 4.2.3 (docker, `ci/build_marmita.sh` da copia, jq presente),
+checksum da arvore igual antes/depois (`6e951c10...`), `git status` = so o conjunto conhecido, `aws.log` vazio, `patches.tsv` = `hw_keep_step1.patch`
+(sha256 `eda5fbc7...`). Logs: `manifest env: export LGBM_DISABLE_LOESS=1` (+ `LGBM_CALENDAR_YEAREND`, `LGBM_TRAIN_CV`); RF `train_origin` 2024-09-21,
+LGBM 2024-09-29. Clean-room R 4.5.3 (`pc_ab_clean_run`, `origin_midnight_utc`). Estagio A, limiar 1e-5:
 
-Nenhuma excecao da lista cobre isso (nenhuma e do RF/LGBM/HW): FAIL nas tres celulas, Estagios B, C, D ausentes (sem entradas reais) e recibos ausentes.
-O RF no Delta = 0 da origem O prova que o relayout (rotulo, lead, chaves) esta certo. Hipoteses (NAO verificadas, ver discovery): (i) RF dia O: o
-`daily` do oraculo re-treina por origem (O-1 em O-12) e o clean-room entrega o dia O com o artefato de O (O-10), enquanto os goldens de paridade usam o
-MESMO artefato (`train` em O-10 + `infer` em O-1 e O) -- o `run_job.sh` sem forcar o protocolo nao isola esse passo; (ii) LGBM/HW: os goldens de
-paridade rodam o oraculo por driver (SECO/areas de subsistema, `available_until` proprio, `history_days` literal) e nao por `run_job.sh`; nenhuma
-paridade de area FOLHA (SP) contra `run_job.sh` foi medida antes. Reproduzir: `ref_out`, `clean` e `cases-sub.tsv` desta sessao ficaram no scratchpad
-(nao versionados; dados reais nao entram no git).
+| membro | modo | instantes | dia O (n, max abs D) | O+1.. (n, max abs D) | status |
+|---|---|---|---|---|---|
+| random-forest | split | 414 | 30, 0 (O-1 do mesmo artefato) | 384, 0 | PASS |
+| lgbm | split | 78 | 30, 0 (nativo de O) | 48, 0 | PASS |
+| holt-winters | job + patch | 414 | 30, 0 (passo 1 do fit em O) | 384, 0 | PASS |
+
+Delta = 0 EXATO (nao so <= 1e-5), sem excecao. `test-ab-corte.R` sobre essa referencia: 3 membros em Delta = 0; veredito `CORTE-BLOQUEADO` so por
+`estagio_{B,C,D}_ausente` e pelos recibos das pernas (pendencias abaixo).
 
 ## Pendencias (nao fabricadas)
 - A/B COMPLETO (todas as areas folha x membros x origens de `ab_origens.yaml`): pesado (oraculo por caso = treino + infer de 2 origens). Comando:
   1. `Rscript --vanilla -e 'source(...); cs <- pc_ab_cases("tests/ab/ab_origens.yaml", NULL, ctx); pc_ab_cases_write(cs, "cases.tsv")'` (ctx com o overlay do store);
-  2. `bash scripts/tools/ab_oracle_run.sh cases.tsv <ref_out> --data /opt/source/prevcarga-R/data --runtime docker --allow-untracked tests/ab/oracle_untracked_allow.txt`;
+  2. `bash scripts/tools/ab_oracle_run.sh cases.tsv <ref_out> --data /opt/source/prevcarga-R/data --runtime docker --allow-untracked tests/ab/oracle_untracked_allow.txt`
+     (o store entra `:ro`; o runner nunca escreve nele);
   3. `pc_ab_clean_run(cs, ctx, <clean>)` (R 4.5.3, libs no globalenv); 4. `options(prevcarga.ab.ref=, prevcarga.ab.clean=, prevcarga.ab.cases=, prevcarga.ab.stages=, prevcarga.ab.bundles=)` e `test_dir("tests/ab", filter="ab-corte")`.
 - Estagios B/C/D/E sobre dados reais: o runner tem o gancho `--b-*` e os comparadores estao provados em sintetico; falta montar as entradas reais
   (folhas combinadas + `ratio` da verdade) -- sem elas o veredito sai `CORTE-BLOQUEADO` por `estagio_<E>_ausente`, nunca OK.

@@ -129,8 +129,9 @@ pc_ab_match_excecao <- function(linha, excecoes) {
 ## --- Estagio A: y_pred por membro x area x origem na faixa delivery_days -----------------------------------
 .pc_ab_read <- function(f) as.data.frame(arrow::read_parquet(f))
 
-## Dia O do oraculo: o passo da origem O quando existe; senao o da origem O-1 (o passo que o oraculo calcula e descarta: RF/HW; o dessem
-## em corte intradiario ancora em O). Sempre dentro da grade de entrega; `fonte` diz de qual origem veio cada instante.
+## Dia O do oraculo: o passo da origem O quando existe; senao o da origem O-1 (RF: infer em O-1 com o MESMO artefato, modo split do runner; o HW
+## traz o dia O na propria origem O pelo patch hw_keep_step1; o dessem em corte intradiario ancora em O). Sempre dentro da grade de entrega;
+## `fonte` diz de qual origem veio cada instante.
 .pc_ab_ref_pick <- function(ref, area, origem, grid_num) {
   fo <- as.character(origem); fo1 <- as.character(origem - 1L)
   r <- ref[ref$area == area & as.numeric(ref$target_datetime) %in% grid_num, , drop = FALSE]
@@ -139,6 +140,16 @@ pc_ab_match_excecao <- function(linha, excecoes) {
   r1$.fonte <- rep("O-1", nrow(r1)); r0$.fonte <- rep("O", nrow(r0))
   out <- rbind(r0, r1)
   out[order(as.numeric(out$target_datetime)), , drop = FALSE]
+}
+
+## De onde o RUNNER tirou o dia O do oraculo para o caso (`<ref>/fonte_dia_O.tsv` do relayout: modo split = O-1 do mesmo artefato; patch = passo 1
+## do fit em O); "" sem o arquivo (fixtures sinteticas).
+.pc_ab_oracle_fonte <- function(ref, cs) {
+  f <- file.path(ref, "fonte_dia_O.tsv")
+  if (!file.exists(f)) return("")
+  t <- utils::read.delim(f, colClasses = "character", na.strings = character())
+  v <- t$fonte_dia_O[t$origem == cs$origem & t$sigla == cs$sigla & t$area == cs$area]
+  if (length(v)) v[[1L]] else ""
 }
 
 pc_ab_stage_a <- function(clean, ref, cases, ctx, excecoes = list(), tol = 1e-5, request_end = NULL, plataforma = "linux-x86_64") {
@@ -182,8 +193,10 @@ pc_ab_stage_a <- function(clean, ref, cases, ctx, excecoes = list(), tol = 1e-5,
     linha <- do.call(pc_ab_row, c(base, list(delta_max = max(d), n = length(d))))
     cl2 <- .pc_ab_classify(linha, d, gnum, as.numeric(grid[length(grid)]), ref_max, tol, excecoes)
     fonte <- if (all(rp$.fonte[k] == "O")) "O" else if (all(rp$.fonte[k] == "O-1")) "O-1" else "O+O-1"
+    od <- .pc_ab_oracle_fonte(ref, cs)
     mk(status = cl2$status, excecao_id = cl2$id, delta_max = max(d), delta_rel = if (ref_max > 0) max(d) / ref_max else NA_real_, n = length(d),
-       detalhe = trimws(paste0(cl2$detalhe, sprintf(" fonte_dia_O=%s fora_da_faixa=%d", fonte, n_fora))))
+       detalhe = trimws(paste0(cl2$detalhe, sprintf(" fonte_dia_O=%s%s fora_da_faixa=%d", fonte, if (nzchar(od)) paste0(" oraculo_dia_O=", od) else "",
+                                                    n_fora))))
   })
   pc_ab_bind(rows)
 }

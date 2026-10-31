@@ -43,20 +43,33 @@ pc_ab_manifest_write <- function(dir) {
   invisible(fs)
 }
 
-## ref_dir = <ref_out>/A (index.tsv do runner); out_dir recebe uma arvore por origem. Linhas sem resultado (rc != 0 ou arquivo ausente) sao
-## devolvidas em `faltando` (o comparador as reporta como FAIL de entrada, nunca como Delta = 0).
+## ref_dir = <ref_out>/A (index.tsv do runner), out_dir recebe uma arvore por origem. Linhas sem resultado (rc != 0 ou arquivo ausente) sao
+## devolvidas em `faltando` (o comparador as reporta como FAIL de entrada, nunca como Delta = 0). `result` pode listar varios LONG do mesmo caso
+## separados por ';' (modo split: infer em O-1 e em O; modo job com patch: LONG do harness + dia O do patch): cada um e re-rotulado e as linhas
+## sao unidas; chave (forecast_origin, target_datetime) repetida entre eles => contract.ab_stage_input. A coluna `fonte_dia_O` do index (de onde
+## o oraculo tirou o dia O) vai para `<out>/fonte_dia_O.tsv` (raiz, fora das arvores por origem) e o estagio A a cita no `detalhe`.
 pc_ab_relayout <- function(ref_dir, out_dir, ctx, relabel = TRUE) {
   idx <- utils::read.delim(file.path(ref_dir, "index.tsv"), stringsAsFactors = FALSE, colClasses = "character", na.strings = character())
   tz <- ctx$tz
   if (!is.character(tz) || length(tz) != 1L) prevcarga_abort("contract.ab_stage_input", where = "ctx$tz")
   falt <- character()
+  fontes <- list()
   for (i in seq_len(nrow(idx))) {
     r <- idx[i, ]
-    f <- file.path(ref_dir, r$result)
-    if (!identical(r$rc, "0") || !nzchar(r$result) || !file.exists(f)) { falt <- c(falt, r$caso); next }
-    long <- suppressWarnings(arrow::read_parquet(f))        # o arrow 11 do oraculo grava metadata R que o arrow novo nao desserializa (aviso)
-    .pc_ab_write_parquet(pc_ab_relabel(long, tz, relabel), file.path(out_dir, r$origem, "membros", r$sigla, paste0(r$area, ".parquet")))
+    fs <- if (nzchar(r$result)) file.path(ref_dir, strsplit(r$result, ";", fixed = TRUE)[[1L]]) else character()
+    if (!identical(r$rc, "0") || !length(fs) || !all(file.exists(fs))) { falt <- c(falt, r$caso); next }
+    ## o arrow 11 do oraculo grava metadata R que o arrow novo nao desserializa (aviso)
+    long <- do.call(rbind, lapply(fs, function(f) pc_ab_relabel(suppressWarnings(arrow::read_parquet(f)), tz, relabel)))
+    if (anyDuplicated(paste(long$forecast_origin, as.numeric(long$target_datetime))))
+      prevcarga_abort("contract.ab_stage_input", where = r$caso, details = list(why = "instante repetido entre os LONG do caso", result = r$result))
+    long <- long[order(long$forecast_origin, as.numeric(long$target_datetime)), , drop = FALSE]
+    rownames(long) <- NULL
+    .pc_ab_write_parquet(long, file.path(out_dir, r$origem, "membros", r$sigla, paste0(r$area, ".parquet")))
+    if (!is.null(r$fonte_dia_O) && nzchar(r$fonte_dia_O))
+      fontes[[length(fontes) + 1L]] <- data.frame(origem = r$origem, sigla = r$sigla, area = r$area, fonte_dia_O = r$fonte_dia_O)
   }
   for (o in list.dirs(out_dir, recursive = FALSE, full.names = TRUE)) pc_ab_manifest_write(o)
+  if (length(fontes))
+    utils::write.table(do.call(rbind, fontes), file.path(out_dir, "fonte_dia_O.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
   invisible(list(out = out_dir, faltando = falt, n = nrow(idx) - length(falt)))
 }

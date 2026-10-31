@@ -32,6 +32,34 @@ test_that("[AB.A] CONTROL: +0,2 MW numa folha da referencia com manifest regerad
   expect_identical(e$id, "integrity.manifest_sha")
 })
 
+## referencia do runner com `result` em 2 arquivos (modo split: LONG da origem O-1 e da origem O) e a coluna fonte_dia_O do index
+ab_world_split <- function(cs, dup = FALSE) {
+  w <- ab_build_world(cs)
+  long <- ab_oracle_long(cs); O <- as.Date(cs$origem)
+  d <- file.path(w$refraw, "results", cs$mdir, cs$area, "split")
+  dir.create(d, recursive = TRUE)
+  arrow::write_parquet(long[long$forecast_origin == O - 1L, ], file.path(d, "long_Om1.parquet"))
+  arrow::write_parquet(if (dup) long else long[long$forecast_origin == O, ], file.path(d, "long_O.parquet"))
+  idx <- data.frame(caso = cs$caso, sigla = cs$sigla, mdir = cs$mdir, exogena = "", area = cs$area, origem = cs$origem,
+                    result = paste(file.path("results", cs$mdir, cs$area, "split", c("long_Om1.parquet", "long_O.parquet")), collapse = ";"),
+                    rc = "0", modo = "split", fonte_dia_O = "O-1:mesmo_artefato(train_origin=2026-08-31)", stringsAsFactors = FALSE)
+  utils::write.table(idx, file.path(w$refraw, "index.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
+  ref2 <- file.path(w$base, "ref2")
+  list(w = w, ref = ref2, run = function() AB$pc_ab_relayout(w$refraw, ref2, list(tz = AB_TZ)))
+}
+
+test_that("[AB.A] relayout de varios LONG por caso (modo split) + fonte do dia O do runner no detalhe; CONTROL: instante repetido entre eles reprova", {
+  cs <- ab_case("RF", "random-forest")
+  k <- ab_world_split(cs); k$run()
+  expect_true(file.exists(file.path(k$ref, "fonte_dia_O.tsv")))
+  r <- AB$pc_ab_stage_a(k$w$clean, k$ref, cs, ab_ctx(), EXC)
+  expect_identical(r$status, "PASS")
+  expect_match(r$detalhe, "fonte_dia_O=O+O-1 oraculo_dia_O=O-1:mesmo_artefato(train_origin=2026-08-31)", fixed = TRUE)
+  k2 <- ab_world_split(cs, dup = TRUE)
+  e <- tryCatch(k2$run(), prevcarga_error = function(e) e)
+  expect_s3_class(e, "prevcarga_error"); expect_identical(e$id, "contract.ab_stage_input")
+})
+
 test_that("[AB.A] CONTROL: relayout sem a re-rotulagem para interval_end => as chaves divergem (FAIL), nunca Delta = 0", {
   cs <- ab_case("RF", "random-forest")
   w <- ab_build_world(cs, relabel = FALSE)

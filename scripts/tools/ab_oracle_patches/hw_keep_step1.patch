@@ -1,0 +1,61 @@
+# ab-patch: mdir=holt-winters fonte_dia_O=passo1_do_fit_em_O
+# hw_keep_step1.patch -- aplicado por scripts/tools/ab_oracle_run.sh SO na copia descartavel do oraculo (o oraculo segue byte-identico).
+# Decisao do Gabriel (2026-10-31): descartar o passo 1 do fit em O esta errado; o A/B compara o dia O do clean-room com o passo 1 DO PROPRIO
+# oraculo. hw_infer guarda o passo first_idx-1 de $mean (o dia O) pela mesma cadeia do horizonte (assemble + LOESS; SemiFer nao: o horizon_meta
+# do oraculo comeca em O+1) e o run_pipeline.R --mode forecast grava esse dia como LONG proprio (first_forecast_day = O) em
+# $AB_DAY0_DIR/<area>_<origin>.parquet. O LONG do harness fica byte-igual ao do oraculo sem patch.
+--- a/models/holt-winters/R/inference/hw_inference.R
++++ b/models/holt-winters/R/inference/hw_inference.R
+@@ -613,6 +613,16 @@
+     message("[hw_inference] Step 3: p_Suaviza=FALSE; skipping LOESS smoothing.")
+   }
+ 
++  # [prevcarga A/B: hw_keep_step1.patch -- SO na copia descartavel do ab_oracle_run.sh]
++  # O passo first_idx-1 de $mean (o dia O, previsao de datafimver+1) e calculado pelo fit e descartado acima.
++  # Aqui ele e MANTIDO como linha propria, pela mesma cadeia do horizonte: assemble + LOESS (p_Suaviza).
++  # SemiFer NAO se aplica: horizon_meta comeca em D = O+1 e nao tem FER/efeitoTemp do dia O.
++  previsao15_day0 <- NULL
++  if (first_idx >= 2L) {
++    previsao15_day0 <- .assemble_previsao15(artifact$fits_interval, 1L, first_idx - 1L)
++    if (p_Suaviza) previsao15_day0 <- .apply_loess_smoothing(previsao15_day0, 1L)
++  }
++
+   # ── Step 4: Format output ─────────────────────────────────────────────────
+   # PrevisaoDiaria.R:1921:
+   #   Out_Prev13 <- data.table("HOLTW", cod_areacarga=empr[k],
+@@ -644,7 +654,8 @@
+     model_id   = "HOLTW",
+     area       = area,
+     origin_day = origin_day,
+-    n_steps    = n_steps
++    n_steps    = n_steps,
++    previsao15_day0 = previsao15_day0
+   )
+ }
+ 
+--- a/models/holt-winters/run_pipeline.R
++++ b/models/holt-winters/run_pipeline.R
+@@ -316,6 +316,23 @@
+       arrow::write_parquet(long_dt, .cli_args$out)
+       message(sprintf("[run_pipeline] LONG output written: %s (%d rows)",
+                       .cli_args$out, nrow(long_dt)))
++      # [prevcarga A/B: hw_keep_step1.patch] o dia O mantido vira um LONG proprio (first_forecast_day = O) em
++      # AB_DAY0_DIR/<area>_<origin>.parquet; o LONG do harness acima fica byte-igual ao do oraculo.
++      .ab_day0_dir <- Sys.getenv("AB_DAY0_DIR")
++      if (nzchar(.ab_day0_dir)) {
++        .ab_day0 <- result$inference_result$previsao15_day0
++        if (is.null(.ab_day0)) stop("[hw_keep_step1] previsao15_day0 ausente (first_idx < 2?)")
++        .ab_long0 <- build_long_output(.ab_day0,
++                                       forecast_origin    = as.Date(.cli_args$origin),
++                                       area               = .cli_args$area,
++                                       data_dir           = .cli_args$data_dir,
++                                       granularity_min    = 30L,
++                                       first_forecast_day = as.Date(.cli_args$origin))
++        dir.create(.ab_day0_dir, recursive = TRUE, showWarnings = FALSE)
++        .ab_f0 <- file.path(.ab_day0_dir, sprintf("%s_%s.parquet", .cli_args$area, .cli_args$origin))
++        arrow::write_parquet(.ab_long0, .ab_f0)
++        message(sprintf("[hw_keep_step1] dia O written: %s (%d rows)", .ab_f0, nrow(.ab_long0)))
++      }
+     }
+ 
+   } else if (mode == "infer") {
