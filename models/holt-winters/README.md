@@ -50,7 +50,7 @@ O plugin nao faz aritmetica de hora (princ. 7), sem excecoes: o flag historico d
 
 ## Medicao do seed
 
-`seed` 1234 -> 1235 e medido (`max|delta values|`) por `[PLUGINS] seed_medicao` e gravado em `tests/parity/seed_measure.json` (gerado, gitignored), sem
+`seed` 1234 -> 1235 e medido (`max|delta values|`) por `[PLUGINS] seed_medicao` e gravado em `.state/parity/holt-winters/seed_measure.json` (gerado, gitignored), sem
 assercao de Delta: o `hw()` e MLE e o MO1 re-semeia o RNG com `params.kmeans_seed`. `kmeans_seed` 123 -> 7 muda o sha256 do artefato (CONTROL do `determinismo`).
 
 ## Gates x dono

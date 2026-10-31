@@ -228,7 +228,7 @@ test_that("[CONTROL] arquivo gravado em models/ por um plugin-fixture e arquivo 
 PCG_REPORTS <- list(                       # onde cada plugin deixa o(s) relatorio(s) de paridade (gitignorados, exceto o da fundacao)
   "random-forest" = c(".state/golden/parity_report_foundation.json"),
   lgbm            = character(),            # LGBM.5 compara em processo e nao grava relatorio: o veredito e a tabela do runner
-  "holt-winters"  = c("models/holt-winters/tests/parity/parity_report.json"),
+  "holt-winters"  = c(".state/parity/holt-winters/parity_report.json"),
   "dessem-linear" = c("models/dessem-linear/tests/parity/foundation_report.json"),
   "dessem-regdin" = c(".state/parity/dessem-regdin/parity_report.json"))
 
