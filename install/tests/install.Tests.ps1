@@ -240,6 +240,10 @@ Describe 'AC7 contrato de erros ASCII (code page 850)' -ForEach @('powershell.ex
       $t.Status | Should -Be $c.Code
       ($t.Stderr -split "`n")[0].TrimEnd() | Should -Be ('prevcarga: erro [' + $o.error.class + '] (exit ' + $c.Code + ')')
       Test-Ascii ($j.Stdout + $j.Stderr + $t.Stdout + $t.Stderr) | Should -BeTrue
+      $row = [IO.File]::ReadAllLines($cat) | Where-Object { $_.StartsWith($o.error.id + "`t") } | Select-Object -First 1
+      $hdr = ([IO.File]::ReadAllLines($cat))[0] -split "`t"; $cells = $row -split "`t"
+      $o.error.message | Should -Be $cells[[array]::IndexOf($hdr, 'message')]   # coluna pelo NOME (catalogo gerado tem exit_code)
+      $o.error.hint | Should -Be $cells[[array]::IndexOf($hdr, 'hint')]
     }
   }
 }

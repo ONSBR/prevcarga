@@ -84,11 +84,20 @@ function Get-PcEmbeddedRow([string]$Id) {  # mesmo texto de scripts/lib/errors/i
   }
 }
 
-function Read-PcCatalog([string]$Path, [string]$Id) {  # id<TAB>class<TAB>message<TAB>hint (ASCII, LF); $null se ausente
+function Read-PcCatalog([string]$Path, [string]$Id) {  # catalogo GERADO (ASCII, LF): colunas lidas pelo NOME no cabecalho (id, class, exit_code, message, hint); $null se ausente
   if (-not (Test-Path -LiteralPath $Path)) { return $null }
+  $col = $null
   foreach ($line in [IO.File]::ReadAllLines($Path, [Text.Encoding]::ASCII)) {
     $f = $line -split "`t"
-    if ($f.Count -ge 4 -and $f[0] -eq $Id) { return @($f[1], $f[2], $f[3]) }
+    if ($null -eq $col) {
+      if ($f.Count -ge 1 -and $f[0] -eq 'id') {
+        $col = @{}
+        for ($i = 0; $i -lt $f.Count; $i++) { $col[$f[$i]] = $i }
+        foreach ($n in 'class', 'message', 'hint') { if (-not $col.ContainsKey($n)) { return $null } }
+      }
+      continue
+    }
+    if ($f.Count -gt $col['hint'] -and $f[0] -eq $Id) { return @($f[$col['class']], $f[$col['message']], $f[$col['hint']]) }
   }
   return $null
 }

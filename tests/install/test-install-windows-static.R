@@ -66,3 +66,24 @@ test_that("[AC1-AC4] semantica espelhada do install.sh: hash antes de Expand-Arc
   for (a in c("Version", "ReleaseBase", "Bundle", "Sha256", "Root", "Data", "State", "SkipPlatformCheck", "Rollback", "Uninstall", "Yes", "Purge", "Format"))
     expect_true(any(grepl(paste0("\\$", a, "\\b"), ps1[1:40])), info = a)
 })
+
+test_that("[AC7] install.ps1 le o catalogo GERADO pelo NOME das colunas (id,class,exit_code,message,hint), nao por posicao", {
+  skip_if(!nzchar(Sys.which("Rscript")))
+  out <- tempfile(fileext = ".tsv"); on.exit(unlink(out))
+  st <- system2(file.path(R.home("bin"), "Rscript"), c("--vanilla", shQuote(file.path(root, "scripts", "tools", "export_error_catalog.R")), "--out", shQuote(out)),
+                stdout = FALSE, stderr = FALSE)
+  expect_identical(as.integer(st), 0L)
+  gen <- utils::read.delim(out, sep = "\t", quote = "", colClasses = "character", check.names = FALSE)
+  expect_identical(names(gen), c("id", "class", "exit_code", "message", "hint"))
+  # o mesmo algoritmo do Read-PcCatalog: indice de cada coluna pelo nome do cabecalho
+  hdr <- strsplit(readLines(out, n = 1L), "\t", fixed = TRUE)[[1]]
+  col <- stats::setNames(seq_along(hdr), hdr)
+  row <- strsplit(grep("^install\\.sha_missing\t", readLines(out), value = TRUE), "\t", fixed = TRUE)[[1]]
+  want <- tsv[tsv$id == "install.sha_missing", ]
+  expect_identical(row[col[["message"]]], want$message)
+  expect_identical(row[col[["hint"]]], want$hint)
+  expect_identical(row[col[["class"]]], want$class)
+  expect_false(identical(row[3L], want$message))   # CONTROL: leitura posicional (coluna 3) pegaria exit_code
+  expect_true(any(grepl("$col[$f[$i]] = $i", ps1, fixed = TRUE)) || any(grepl("$col[$f[$i]] = $i", gsub("\\s+", " ", ps1), fixed = TRUE)))
+  expect_true(any(grepl("$col['message']", ps1, fixed = TRUE)) && any(grepl("$col['hint']", ps1, fixed = TRUE)))
+})
