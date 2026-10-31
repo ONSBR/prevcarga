@@ -13,21 +13,22 @@ pela `day0_source` da unidade). Tolerancia unica 1e-5 MW (ADR-0017), exceto as d
 
 | sigla | mdir | variante | layout | caminho(s) | faixa de entrega | paridade | sha256 do relatorio |
 |---|---|---|---|---|---|---|---|
-| RF | random-forest | - | rf_wide_hourly_216 | train, infer | O..O+8 | @RF_STATUS@ | @RF_SHA@ |
-| LGBM | lgbm | - | lgbm_day_48 | train, infer | O..O+1 | @LGBM_STATUS@ | @LGBM_SHA@ |
-| HW | holt-winters | - | hw_matrix_nx48 | train, infer | O..O+8 | @HW_STATUS@ | @HW_SHA@ |
-| LIN_MED | dessem-linear | MED | dessem_semihourly_48 | train, infer, forecast | O..O+8 | @DL_STATUS@ | @DL_SHA@ |
-| LIN_MAX | dessem-linear | MAX | dessem_semihourly_48 | train, infer, forecast | O..O+8 | @DL_STATUS_FAN@ | @DL_SHA@ |
-| LIN_MXMN | dessem-linear | MXMN | dessem_semihourly_48 | train, infer, forecast | O..O+8 | @DL_STATUS_FAN@ | @DL_SHA@ |
-| RGD_MED | dessem-regdin | MED | dessem_semihourly_48 | train, infer, forecast | O..O+8 | @RD_STATUS@ | @RD_SHA@ |
-| RGD_MAX | dessem-regdin | MAX | dessem_semihourly_48 | train, infer, forecast | O..O+8 | @RD_STATUS@ | @RD_SHA@ |
+| RF | random-forest | - | rf_wide_hourly_216 | train, infer | O..O+8 | PASS (15 unid. foundation, max\|D\| <= 1e-5) | 7a97957d074ddd962b890c0fb6183b65c914fbd63e1ecde33f8bf239a66d55ee |
+| LGBM | lgbm | - | lgbm_day_48 | train, infer | O..O+1 | PASS (runner; sem relatorio proprio) | 04b89d1777229d674b297d835344033867264901f3ed289e8414b1c9202de15c (sha256 da tabela impressa pelo runner; sem arquivo de relatorio) |
+| HW | holt-winters | - | hw_matrix_nx48 | train, infer | O..O+8 | PASS (124 unid., max\|D\| = 0) | 50e82aacc060274a6e9fcad6f7349cac82b69a374ed3751a60a3a01eb59513bd |
+| LIN_MED | dessem-linear | MED | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (5 unid. SECO, max\|D\| 1e-9 na faixa; excecoes nomeadas) | foundation_report.json aa823f68dfabbb5f2dfbefcb9d0663d94e8565fb491f549b0fa96b506dd16507 (campo sha256 474f9a95...) |
+| LIN_MAX | dessem-linear | MAX | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (fan-out via runner; excecoes nomeadas) | foundation_report.json aa823f68dfabbb5f2dfbefcb9d0663d94e8565fb491f549b0fa96b506dd16507 (campo sha256 474f9a95...) |
+| LIN_MXMN | dessem-linear | MXMN | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (fan-out via runner; excecoes nomeadas) | foundation_report.json aa823f68dfabbb5f2dfbefcb9d0663d94e8565fb491f549b0fa96b506dd16507 (campo sha256 474f9a95...) |
+| RGD_MED | dessem-regdin | MED | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (13 unid., max\|D\| 1.35e-7) | f23b2be3646c76269a98c4cf739a76e685807b20b9be89e91cb45809815f2255 (parity_report.json do runner = a7b9c157...) |
+| RGD_MAX | dessem-regdin | MAX | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (13 unid., max\|D\| 1.35e-7) | f23b2be3646c76269a98c4cf739a76e685807b20b9be89e91cb45809815f2255 (parity_report.json do runner = a7b9c157...) |
 
 Notas da tabela:
 - Entrega dos 8 pelas fachadas `identical()` a `prevcarga_delivery_grid` (M5.11): 413 `interval_end` nos 7 de horizonte longo, 77 no LGBM.
 - O `foundation_report.json` do dessem-linear (caso-fundacao LIN_MED x SECO, versionado em `models/dessem-linear/tests/parity/`) e o
   `requires_report` de toda unidade do fan-out do dessem-regdin e do proprio dessem-linear; o sha256 e o mesmo em todos (conferido por
   `test-plugins-gates-cli.R`). O motor `_dessem-engine` tem golden isolado (`.state/golden/plugins/_dessem-engine`, MED/MAX/MXMN) e nao e membro.
-- `@FOOT@`
+- LGBM: o LGBM.5 compara em processo e nao grava arquivo de relatorio; a coluna de sha256 nao tem arquivo a hashear (achado para o epico lgbm). O sha256 do arquivo do HW e o do relatorio completo de 124 unidades (o tier parity regrava o arquivo com as 4 unidades smoke).
+- Pin corrigido neste ticket: os 13 `requires_report.sha256` de `models/dessem-regdin/tests/parity/units.yaml` (eaedc8ad... -> 474f9a95..., DL.9 regenerou o relatorio depois do RD.6).
 
 ## Divergencias aceitas e NOMEADAS (nenhuma escondida; nenhuma entrada em `tests/ab/ab_excecoes.yaml`, que so o Gabriel cria)
 1. **Hora incompleta descartada tambem na previsao de clima** (decisao Gabriel 2026-10-30; divergencia deliberada do oraculo, documentada por plugin):
