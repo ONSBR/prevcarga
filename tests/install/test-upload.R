@@ -181,6 +181,8 @@ test_that("so scripts/tools/upload conhece o servico de armazenamento no codigo 
             Sys.glob(file.path(pci_root(), "scripts", "lib", "cli", "*.R")), Sys.glob(file.path(pci_root(), "scripts", "lib", "errors", "*.tsv")),
             Sys.glob(file.path(pci_root(), "install", "*")), Sys.glob(file.path(pci_root(), "config", "*")),
             Sys.glob(file.path(pci_root(), "models", "*", "R", "*.R")), Sys.glob(file.path(pci_root(), "scripts", "tools", "upload")))
+  prod <- c(prod, list.files(file.path(pci_root(), "install"), recursive = TRUE, full.names = TRUE))   # install/tests/ (M8.4)
+  prod <- unique(prod[!dir.exists(prod)])
   hit <- prod[vapply(prod, function(f) any(grepl(pat, readLines(f, warn = FALSE), perl = TRUE)), NA)]
   expect_identical(sub(paste0(pci_root(), "/"), "", hit, fixed = TRUE), "scripts/tools/upload")
   bait <- tempfile(fileext = ".R"); writeLines(paste0("x <- '", "aws", " s3 cp'"), bait)       # CONTROL: o grep acha uma isca

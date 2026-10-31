@@ -24,7 +24,10 @@ pc_exit_for_class() { # tabela 0-15 de errors.R (so as classes dos utilitarios):
   case "$1" in bundle) echo 6;; config) echo 8;; integrity) echo 9;; network) echo 10;; *) echo 1;; esac; }
 
 pc_catalog_row() { # <error.id> -> linha id\tclass\tmessage\thint; fallback embutido (mesmo texto de install.tsv) antes da extracao
-  row="$(awk -F'\t' -v id="$1" '$1==id {print; exit}' "$PC_CATALOG" 2>/dev/null)"
+  ## o catalogo GERADO (install/error-catalog.tsv) tem cabecalho id,class,exit_code,message,hint: as colunas sao lidas
+  ## pelo NOME do cabecalho, nunca por posicao
+  row="$(awk -F'\t' -v id="$1" 'NR==1 {for (i = 1; i <= NF; i++) c[$i] = i; next}
+    $c["id"]==id {printf "%s\t%s\t%s\t%s\n", $c["id"], $c["class"], $c["message"], $c["hint"]; exit}' "$PC_CATALOG" 2>/dev/null)"
   if [ -n "$row" ]; then printf '%s\n' "$row"; return; fi
   case "$1" in
     install.download_failed)      printf 'install.download_failed\tnetwork\tfalha ao baixar o bundle\tconfira --release-base e a rede\n';;
