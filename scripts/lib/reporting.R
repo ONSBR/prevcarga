@@ -37,10 +37,10 @@ prevcarga_html_escape <- function(x) {
                     proveniencia = "Proveniencia")
 
 ## `sections`: lista nomeada (nome = id da secao) de fragmentos HTML ja escapados. Documento UTF-8, CSS inline, sem script.
-prevcarga_html_page <- function(title, sections, css = .report_css) {
+prevcarga_html_page <- function(title, sections, css = .report_css, titles = .report_titles) {
   ids <- names(sections)
   body <- vapply(seq_along(sections), function(i) {
-    h <- if (ids[[i]] %in% names(.report_titles)) .report_titles[[ids[[i]]]] else ids[[i]]
+    h <- if (ids[[i]] %in% names(titles)) titles[[ids[[i]]]] else ids[[i]]
     sprintf("<section id=\"%s\">\n<h2>%s</h2>\n%s\n</section>", prevcarga_html_escape(ids[[i]]), prevcarga_html_escape(h),
             paste(sections[[i]], collapse = "\n"))
   }, "")
@@ -279,12 +279,17 @@ prevcarga_svg_profile <- function(x = NULL, y, labels = NULL, width = 720, heigh
   .pdf_page_table(title, data.frame(area = rows$area, baseline = rows$baseline, dif_pct = rows$dif))
 }
 
+## Abre o dispositivo PDF deterministico (unico ponto de configuracao; o relatorio do backtest, M7.4, reusa).
+.pdf_open <- function(path, title) {
+  grDevices::pdf(path, width = 11.69, height = 8.27, family = "Helvetica", compress = FALSE, useKerning = FALSE, timestamp = FALSE,
+                 title = .pdf_ascii(title))
+}
+
 .report_pdf <- function(long, weights, khat, provenance, baselines, out) {
   dir.create(out, recursive = TRUE, showWarnings = FALSE)
   path <- file.path(out, "report.pdf")
   ok <- FALSE
-  grDevices::pdf(path, width = 11.69, height = 8.27, family = "Helvetica", compress = FALSE, useKerning = FALSE, timestamp = FALSE,
-                 title = .pdf_ascii(paste("prevcarga forecast", provenance$origem)))
+  .pdf_open(path, paste("prevcarga forecast", provenance$origem))
   on.exit({ grDevices::dev.off(); if (!ok) unlink(path) }, add = TRUE)
   tt <- .report_titles
   .pdf_page_curva(long, as.character(provenance$subsistemas))
@@ -317,4 +322,181 @@ prevcarga_report <- function(long, weights, khat, provenance, baselines, format 
   on.exit(close(con))
   writeBin(charToRaw(enc2utf8(paste0(html, "\n"))), con)
   path
+}
+
+## --- Relatorio do backtest (M7.4) ---------------------------------------------------------------------------------
+## So RENDER sobre o painel avaliado pelo REDUCE (M7.7): nenhuma metrica e calculada aqui (WMAPE, pico, vies, skill, SIN fresco vem
+## prontos de evaluation.R). Secao propria (prefixo `.rpt_bt_`): nada daqui e alcancavel a partir de `prevcarga_report`
+## (forecast --report, que nunca emite metrica de acerto). Valor ausente vira texto ASCII ("aguardando verdade" ou "sem baseline"), nunca 0.
+## Os mesmos blocos (lista de tabelas) alimentam o HTML (.report_table, prevcarga_html_page) e o PDF (.pdf_open, .pdf_page_*).
+
+.rpt_bt_titles <- c(proveniencia = "Proveniencia, cortes e available_until simulado", horizonte = "WMAPE por horizonte (d_plus)",
+                    pico = "Pico 18-22h (janela sobre interval_start) e vies com sinal", skill = "Skill vs persistencia O-1 e sazonal-ingenuo O-7",
+                    sin = "SIN fresco (SIN = soma dos subsistemas)", fallback = "Meses em fallback n_min da combina",
+                    aguardando = "Origens aguardando verdade")
+
+.rpt_bt_txt_wait <- "aguardando verdade"
+.rpt_bt_txt_nobase <- "sem baseline"
+
+.rpt_bt_value <- function(x, digits = 2L, missing = .rpt_bt_txt_wait, sign = FALSE) {
+  if (is.null(x) || !length(x)) return(missing)
+  out <- rep(missing, length(x))
+  ok <- is.finite(as.numeric(x))
+  if (any(ok)) out[ok] <- formatC(as.numeric(x)[ok], format = "f", digits = digits, flag = if (sign) "+" else "")
+  out
+}
+
+.rpt_bt_check <- function(scores, run_meta) {
+  bad <- function(w) prevcarga_abort("contract.report_input", where = w)
+  if (!is.list(scores)) bad("scores")
+  truth_cols <- c("member", "combined", "sin", "peak_fixed_18_22", "sin_fresh", "fallback_months", "awaiting_truth")
+  miss <- setdiff(truth_cols, names(scores))
+  if (length(miss)) prevcarga_abort("contract.report_without_truth", where = paste(miss, collapse = ","))
+  for (n in c("member", "combined", "sin"))
+    if (is.data.frame(scores[[n]]) && nrow(scores[[n]]) && !"wmape" %in% names(scores[[n]]))
+      prevcarga_abort("contract.report_without_truth", where = paste0(n, "$wmape"))
+  if (!is.list(scores$sin_fresh) || !all(c("wmape", "sum_check") %in% names(scores$sin_fresh)))
+    prevcarga_abort("contract.report_without_truth", where = "sin_fresh")
+  need <- c("run_id", "origins", "cortes", "weather_issue_cutoff", "members", "load_label", "timezone", "version")
+  if (!is.list(run_meta) || !all(need %in% names(run_meta))) bad("run_meta")
+  invisible(TRUE)
+}
+
+## Bloco = list(id, header = chr, rows = list de chr, note = chr). Linhas ja formatadas (texto ASCII).
+.rpt_bt_block <- function(id, header, rows, note = NULL, chart = NULL) list(id = id, header = header, rows = rows, note = note, chart = chart)
+
+.rpt_bt_rows <- function(df, cols) {
+  df <- as.data.frame(df)
+  lapply(seq_len(nrow(df)), function(i) vapply(cols, function(f) f(df[i, , drop = FALSE]), ""))
+}
+
+.rpt_bt_str <- function(col) function(r) as.character(r[[col]])
+.rpt_bt_pct <- function(col = "wmape") function(r) .rpt_bt_value(r[[col]], 2L)
+.rpt_bt_skill <- function(col, wmape_col = "wmape") function(r) {
+  if (!col %in% names(r)) return(.rpt_bt_txt_nobase)
+  if (!is.finite(r[[wmape_col]])) return(.rpt_bt_txt_wait)
+  .rpt_bt_value(r[[col]], 4L, missing = .rpt_bt_txt_nobase)
+}
+
+.rpt_bt_ord <- function(df, cols) {
+  df <- as.data.frame(df)
+  cols <- intersect(cols, names(df))
+  if (!nrow(df) || !length(cols)) return(df)
+  df[do.call(order, c(unname(lapply(df[cols], function(v) if (is.factor(v)) as.character(v) else v)), list(method = "radix"))), , drop = FALSE]
+}
+
+.rpt_bt_blocks <- function(scores, run_meta) {
+  cut_hm <- function(r) as.character(r$corte_hm)
+  fmt_au <- function(x) format(x, "%Y-%m-%d %H:%M", tz = lubridate::tz(x))
+  om <- run_meta$origins
+  hdr <- list(c("run_id", run_meta$run_id),
+              c("janela de origens", sprintf("%s a %s (%d origens)", format(om$from), format(om$to), as.integer(om$n))),
+              c("load_label", run_meta$load_label), c("timezone", run_meta$timezone), c("versao", run_meta$version),
+              c("weather_issue_cutoff", run_meta$weather_issue_cutoff))
+  cortes <- as.data.frame(run_meta$cortes)
+  cr <- lapply(seq_len(nrow(cortes)), function(i) c("corte_hm", cortes$corte_hm[[i]], "available_until simulado", fmt_au(cortes$available_until[[i]])))
+  mem <- as.data.frame(run_meta$members)
+  mr <- lapply(seq_len(nrow(mem)), function(i) c("membro", mem$sigla[[i]], "split / protocolo / granularidade", paste(mem$split[[i]], mem$protocol[[i]], mem$granularity_min[[i]], sep = " / ")))
+  prov <- .rpt_bt_block("proveniencia", c("campo", "valor", "campo", "valor"),
+                        c(lapply(hdr, function(r) c(r, "", "")), cr, mr),
+                        note = "available_until simulado por corte, no fuso da carga")
+  comb <- .rpt_bt_ord(scores$combined, c("area", "corte_hm", "d_plus"))
+  mbr <- .rpt_bt_ord(scores$member, c("member", "area", "corte_hm", "d_plus"))
+  sinc <- .rpt_bt_ord(scores$sin, c("area", "corte_hm", "d_plus"))
+  hor_cols <- list(.rpt_bt_str("area"), cut_hm, .rpt_bt_str("d_plus"), .rpt_bt_pct(), function(r) as.character(r$n))
+  chart <- if (nrow(sinc)) lapply(split(sinc, as.character(sinc$area)), function(g) g[order(g$d_plus), c("d_plus", "wmape")]) else NULL
+  hor <- .rpt_bt_block("horizonte", c("area", "corte_hm", "d_plus", "wmape %", "n"),
+                       c(.rpt_bt_rows(comb, hor_cols), .rpt_bt_rows(sinc, hor_cols)),
+                       note = "combinado por folha seguido do reconciliado (subsistemas e SIN)", chart = chart)
+  hor_m <- .rpt_bt_block("horizonte-membros", c("membro", "area", "corte_hm", "d_plus", "wmape %", "n"),
+                         .rpt_bt_rows(mbr, c(list(.rpt_bt_str("member")), hor_cols)))
+  pk <- .rpt_bt_ord(scores$peak_fixed_18_22, c("area", "corte_hm", "d_plus"))
+  peak <- .rpt_bt_block("pico", c("area", "corte_hm", "d_plus", "wmape pico %", "vies com sinal"),
+                        .rpt_bt_rows(pk, list(.rpt_bt_str("area"), cut_hm, .rpt_bt_str("d_plus"), .rpt_bt_pct(),
+                                              function(r) .rpt_bt_value(r$bias_signed, 2L, sign = TRUE))),
+                        note = "janela 18h-22h sobre interval_start; vies = previsto - realizado (positivo = superestima)")
+  sk_cols <- list(.rpt_bt_str("area"), cut_hm, .rpt_bt_str("d_plus"), .rpt_bt_skill("skill_persistencia_O1"), .rpt_bt_skill("skill_sazonal_O7"))
+  skill <- .rpt_bt_block("skill", c("area", "corte_hm", "d_plus", "skill O-1", "skill O-7"),
+                         c(.rpt_bt_rows(comb, sk_cols), .rpt_bt_rows(sinc, sk_cols)),
+                         note = "skill = 1 - WMAPE(modelo)/WMAPE(baseline); 0 = igual ao baseline; baselines leem so carga < O")
+  sk_m <- .rpt_bt_block("skill-membros", c("membro", "area", "corte_hm", "d_plus", "skill O-1", "skill O-7"),
+                        .rpt_bt_rows(mbr, c(list(.rpt_bt_str("member")), sk_cols)))
+  sf <- scores$sin_fresh
+  chk <- if (is.finite(sf$sum_check)) { if (sf$sum_check <= 1e-5) "ok" else "FALHOU" } else .rpt_bt_txt_wait
+  sin <- .rpt_bt_block("sin", c("campo", "valor"),
+                       list(c("SIN fresco wmape %", .rpt_bt_value(sf$wmape, 2L)),
+                            c("sum_check (max |SIN - soma dos subsistemas|)", .rpt_bt_value(sf$sum_check, 8L)),
+                            c("sum_check <= 1e-5", chk)),
+                       note = "SIN = soma dos subsistemas; a verdade do SIN e a soma dos subsistemas realizados (tol 1e-5)")
+  fb <- as.data.frame(scores$fallback_months)
+  fall <- .rpt_bt_block("fallback", c("folha", "corte_hm", "mes"),
+                        if (nrow(fb)) .rpt_bt_rows(.rpt_bt_ord(fb, c("folha", "corte_hm", "mes")), list(.rpt_bt_str("folha"), cut_hm, .rpt_bt_str("mes")))
+                        else list(c("nenhum", "", "")),
+                        note = "meses em que a combina caiu em fallback n_min (carimbados)")
+  aw <- as.data.frame(scores$awaiting_truth)
+  aw <- aw[!is.na(aw$awaiting) & aw$awaiting, , drop = FALSE]
+  wait <- .rpt_bt_block("aguardando", c("origem", "corte_hm", "available_until simulado", "estado"),
+                        if (nrow(aw)) lapply(seq_len(nrow(aw)), function(i) c(format(aw$origem[[i]]), aw$corte_hm[[i]], fmt_au(aw$available_until[[i]]),
+                                                                              .rpt_bt_txt_wait))
+                        else list(c("nenhuma", "", "", "")))
+  list(prov, hor, hor_m, peak, skill, sk_m, sin, fall, wait)
+}
+
+.rpt_bt_html_block <- function(b) {
+  tbl <- .report_table(b$header, b$rows)
+  svg <- if (is.null(b$chart)) character() else vapply(names(b$chart), function(a) {
+    g <- b$chart[[a]]
+    paste0("<h3>", prevcarga_html_escape(paste("WMAPE por d_plus:", a)), "</h3>\n", prevcarga_svg_profile(g$d_plus, g$wmape, paste0("d+", g$d_plus)))
+  }, "")
+  note <- if (is.null(b$note)) character() else sprintf("<p class=\"nota\">%s</p>", prevcarga_html_escape(b$note))
+  paste(c(tbl, note, svg), collapse = "\n")
+}
+
+.rpt_bt_pdf <- function(blocks, run_meta, path) {
+  ok <- FALSE
+  .pdf_open(path, paste("prevcarga backtest", run_meta$run_id))
+  on.exit({ grDevices::dev.off(); if (!ok) unlink(path) }, add = TRUE)
+  ttl <- c(.rpt_bt_titles, `horizonte-membros` = "WMAPE por horizonte, por membro", `skill-membros` = "Skill por membro")
+  for (b in blocks) {
+    df <- if (length(b$rows)) stats::setNames(as.data.frame(do.call(rbind, b$rows), stringsAsFactors = FALSE), make.unique(b$header)) else data.frame()
+    title <- ttl[[b$id]]
+    if (!is.null(b$note)) title <- paste0(title, " - ", b$note)
+    .pdf_page_table(title, df)
+    if (!is.null(b$chart) && length(b$chart)) {
+      op <- graphics::par(mfrow = c(2L, 3L), oma = c(0, 0, 2, 0), mar = c(4, 4, 2.5, 1))
+      for (a in names(b$chart)) {
+        g <- b$chart[[a]]
+        graphics::plot(g$d_plus, g$wmape, type = "l", col = "#1f5f8b", xlab = "d_plus", ylab = "WMAPE %", main = .pdf_ascii(a), cex.main = 0.9)
+      }
+      graphics::mtext("WMAPE por d_plus (reconciliado)", outer = TRUE, font = 2)
+      graphics::par(op)
+    }
+  }
+  ok <- TRUE
+  path
+}
+
+## Escreve `<out_dir>/backtest.html` (binario UTF-8, LF, atomico) e, com format = "pdf", `<out_dir>/backtest.pdf` (grDevices::pdf, atomico);
+## devolve o caminho do formato pedido. O PDF tambem so existe se o HTML saiu (o HTML e a fonte dos blocos).
+.rpt_bt_write <- function(blocks, run_meta, format, out_dir) {
+  ttl <- c(.rpt_bt_titles, `horizonte-membros` = "WMAPE por horizonte, por membro", `skill-membros` = "Skill por membro")
+  secs <- stats::setNames(lapply(blocks, .rpt_bt_html_block), vapply(blocks, function(b) b$id, ""))
+  html <- prevcarga_html_page(paste("prevcarga backtest", run_meta$run_id), secs, titles = ttl)
+  hpath <- file.path(out_dir, "backtest.html")
+  .m7_write_atomic(hpath, function(tmp) {
+    con <- file(tmp, open = "wb"); on.exit(close(con))
+    writeBin(charToRaw(enc2utf8(paste0(html, "\n"))), con)
+  })
+  if (!identical(format, "pdf")) return(hpath)
+  ppath <- file.path(out_dir, "backtest.pdf")
+  .m7_write_atomic(ppath, function(tmp) .rpt_bt_pdf(blocks, run_meta, tmp))
+  ppath
+}
+
+## Entrada: `scores` do REDUCE (M7.7) e `run_meta` do plano (ver .bt_run_meta em backtest.R). Sem verdade em `scores` aborta
+## `[prevcarga/contract]` exit 2 (contract.report_without_truth). Requer orchestrate.R (.m7_write_atomic) carregado.
+prevcarga_backtest_report <- function(ctx, scores, run_meta, format = c("html", "pdf"), out_dir) {
+  format <- match.arg(format)
+  .rpt_bt_check(scores, run_meta)
+  .rpt_bt_write(.rpt_bt_blocks(scores, run_meta), run_meta, format, out_dir)
 }

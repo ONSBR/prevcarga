@@ -410,3 +410,15 @@ test_that("[AC6][AC7] greps: sem lista inline de modelos, sem literal de contage
   ## CONTROL: o grep acusa uma lista inline plantada
   expect_true(grepl("c\\(\"holt-winters\"", "x <- c(\"holt-winters\", \"lgbm\")"))
 })
+
+test_that("--origin A..B: as origens saem Date de typeof double (seq(by = 'day') devolve integer; plugins comparam com identical())", {
+  e <- new.env()
+  sys.source(file.path(lib, "errors.R"), envir = e)
+  sys.source(file.path(lib, "orchestrate.R"), envir = e)
+  o <- e$.m7_origins(list(origin = list(from = O1, to = O2)))
+  expect_s3_class(o, "Date"); expect_identical(typeof(o), "double")
+  expect_identical(o, c(O1, O2))
+  ## uma origem unica tambem e normalizada; CONTROL: o seq cru e integer
+  expect_identical(typeof(e$.m7_origins(list(origin = structure(as.integer(unclass(O1)), class = "Date")))), "double")
+  expect_identical(typeof(seq(O1, O2, by = "day")), "integer")
+})

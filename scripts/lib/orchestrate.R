@@ -57,11 +57,12 @@
 }
 
 ## Janela --origin A..B (ou uma data) => vetor de Datas diarias; ausente => config.origin_range_required.
+## seq(by = "day") devolve Date de typeof integer; os plugins comparam datas com identical(), entao toda origem sai double.
 .m7_origins <- function(ctx) {
   o <- ctx$origin
   if (is.null(o)) prevcarga_abort("config.origin_range_required", where = "--origin")
-  if (inherits(o, "Date")) return(o)
-  seq(o$from, o$to, by = "day")
+  v <- if (inherits(o, "Date")) o else seq(o$from, o$to, by = "day")
+  lubridate::as_date(as.double(unclass(v)))
 }
 
 .m7_identity_inputs <- function(ctx) {
@@ -119,10 +120,11 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   ident <- .m7_identity_inputs(ctx)
   weather <- if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff
   ## data_lag_days do descriptor; os cortes de treino vem prontos do dates.R (nunca calculados aqui)
-  lags <- list()
+  lags <- list(); fc_train <- list()
   for (m in mdirs) {
     plugin <- prevcarga_plugin_load(m, prevcarga_models_root(ctx$root))
     lags[[m]] <- as.integer(plugin$descriptor$data_lag_days)
+    fc_train[[m]] <- isTRUE(plugin$descriptor$weather_forecast_in_train)
   }
 
   g <- data.table::CJ(i = seq_len(nrow(mem)), folha = as.character(folhas), origem = origins, corte_hm = cortes,
@@ -135,22 +137,28 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   ## fixed treina uma vez, na primeira origem da janela; os demais protocolos, na origem da celula
   cells[, cut_origin := data.table::fifelse(protocol == "fixed", min(origins), origem)]
   cutrows <- unique(cells[, c("mdir", "cut_origin")])
-  cutrows[, c("train_origin", "last_data_day") := {
+  ## o limite do clima do TREINO vem do dates.R (mesma linha dos cortes): entra na chave do artefato dos membros que usam previsto no treino
+  cutrows[, c("train_origin", "last_data_day", "train_weather_issue_limit") := {
     rc <- prevcarga_resolve_cuts(ctx, cut_origin, model = mdir, data_lag_days = stats::setNames(lags[[mdir]], mdir))
     row <- rc$cuts[rc$cuts$model == mdir, ]
-    list(row$train_origin, row$last_data_day)
+    list(row$train_origin, row$last_data_day, rc$weather_issue_limit)
   }, by = seq_len(nrow(cutrows))]
   cells <- cutrows[cells, on = c("mdir", "cut_origin")]
   cells[, cut_origin := NULL]
   cells[, available_until := lubridate::ymd_hm(paste(format(origem, "%Y-%m-%d"), corte_hm), tz = ident$tz)]
+  ## limite do clima da celula: o do leitor (prevcarga_weather_issue_limit, deck_reader.R) sobre o corte simulado; o M7 nao filtra emissao
+  cells[, weather_issue_limit := do.call(c, lapply(seq_len(.N), function(i)
+    prevcarga_weather_issue_limit(weather, origem[[i]], available_until[[i]], ident$tz, ident$weather_lag)))]
+  cells[, weather_forecast_in_train := vapply(mdir, function(m) fc_train[[m]], NA)]
   cells[, cache_key := vapply(seq_len(.N), function(i) prevcarga_cache_key(
     "member_long", list(mdir = mdir[[i]], exogena = exogena[[i]]), specs[[mdir[[i]]]],
     ident$data_fingerprint, ident$load_label, ident$tz, weather_issue_cutoff = weather,
+    weather_issue_limit = weather_issue_limit[[i]],
     origin = origem[[i]], available_until = available_until[[i]],
     code_version = ident$code_version, lock_hash = ident$lock_hash), "")]
   data.table::setorder(cells, membro, folha, origem, corte_hm)
   list(run_id = .m7_run_id(ctx, origins, cortes, cells, ident), cells = cells, origins = origins, cortes = cortes,
-       protocol = protocol, load_label = ident$load_label, tz = ident$tz, ident = ident)
+       weather_issue_cutoff = weather, protocol = protocol, load_label = ident$load_label, tz = ident$tz, ident = ident)
 }
 
 ## --- 3. Plano canonico em disco -----------------------------------------------------------------------------
@@ -167,7 +175,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
 
 .m7_plan_doc <- function(plan) {
   cells <- plan$cells
-  list(schema_version = 1L, run_id = plan$run_id,
+  list(schema_version = 1L, run_id = plan$run_id, weather_issue_cutoff = plan$weather_issue_cutoff,
        window = format(range(plan$origins), "%Y-%m-%d"), cortes = plan$cortes,
        protocol = if (is.null(plan$protocol)) NULL else plan$protocol, total = nrow(cells),
        cells = lapply(seq_len(nrow(cells)), function(i) list(
@@ -459,7 +467,7 @@ prevcarga_plan_result <- function(plan) {
     mdir = sg$mdir[[i]], exogena = if (is.na(sg$exogena[[i]])) NULL else sg$exogena[[i]],
     split = sg$split[[i]], protocol = sg$protocol[[i]], granularity_min = sg$granularity_min[[i]],
     cells = sum(cells$membro == sg$membro[[i]]))), sg$membro)
-  list(schema_version = 1L, run_id = plan$run_id,
+  list(schema_version = 1L, run_id = plan$run_id, weather_issue_cutoff = plan$weather_issue_cutoff,
        window = list(from = format(min(plan$origins), "%Y-%m-%d"), to = format(max(plan$origins), "%Y-%m-%d"),
                      origins = length(plan$origins)),
        cortes = as.list(plan$cortes), folhas = length(unique(cells$folha)), total = nrow(cells),
@@ -497,14 +505,33 @@ prevcarga_backtest_run <- function(ctx, args) {
                                keep_going = isTRUE(args[["--keep-going"]]), resume = isTRUE(args[["--resume"]]),
                                break_lock = isTRUE(args[["--break-lock"]]))
   s <- out$summary
-  res <- list(schema_version = 1L, run_id = out$run_id, verdict = s$verdict,
+  ## REDUCE (M7.7, backtest.R): combina, reconcile e scores sobre as celulas `done`; ausente (so orchestrate.R carregado) => so o MAP
+  rd <- get0("prevcarga_backtest_reduce", mode = "function")
+  rep <- list(status = "skipped", path = NULL)
+  if (is.function(rd)) {
+    bl <- .prevcarga_tr_arg(args, "--baseline")
+    red <- rd(ctx, plan, out, dplus = isTRUE(args[["--dplus"]]), baseline = if (is.null(bl)) "todos" else bl)
+    s <- red$summary
+    ## relatorio (M7.4): depois do REDUCE, so render; falha nao desfaz a entrega (exit 14 partial.report_failed, abaixo)
+    if (isTRUE(args[["--report"]])) {
+      rf <- .prevcarga_tr_arg(args, "--report-format")
+      rep <- .bt_report_step(ctx, plan, red$scores, red$paths, if (is.null(rf)) "html" else rf)
+    }
+  }
+  res <- list(schema_version = 1L, run_id = out$run_id, weather_issue_cutoff = plan$weather_issue_cutoff, verdict = s$verdict,
+              report_path = rep$path, report_status = rep$status,
               summary = list(ok = s$ok, total = s$total, failed = s$failed, skipped = s$skipped,
+                             incompleto = if (is.null(s$incompleto)) list() else lapply(seq_len(nrow(s$incompleto)), function(i) list(
+                               origem = format(s$incompleto$origem[[i]], "%Y-%m-%d"), corte_hm = s$incompleto$corte_hm[[i]],
+                               folhas_faltando = s$incompleto$folhas_faltando[[i]])),
                              failures = lapply(seq_len(nrow(s$failures)), function(i) list(
                                membro = s$failures$membro[[i]], folha = s$failures$folha[[i]],
                                origem = format(s$failures$origem[[i]], "%Y-%m-%d"),
                                available_until = format(s$failures$available_until[[i]], "%Y-%m-%dT%H:%M:%S%z"),
                                classe = s$failures$classe[[i]], error_id = s$failures$error_id[[i]],
                                mensagem = s$failures$mensagem[[i]]))))
+  if (identical(rep$status, "failed") && identical(s$verdict, "ok"))
+    prevcarga_abort("partial.report_failed", where = "prevcarga_backtest_run", details = list(cause = attr(rep, "cause")), result = res)
   if (!identical(s$verdict, "ok")) {
     if (!identical(ctx$format, "json")) writeLines(iconv(.m7_failure_lines(s), from = "UTF-8", to = "ASCII", sub = "?"), con = stderr())
     prevcarga_abort("partial.backtest_delivery", where = sprintf("ok=%d/%d", s$ok, s$total), result = res)

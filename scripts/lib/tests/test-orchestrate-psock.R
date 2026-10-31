@@ -50,12 +50,12 @@ ROOT <- pc_install_copy(mutate = function(r) {
 })
 DECK <- local({
   d <- tempfile("psock-deck-")
-  fx$prevcarga_fixture_deck(d, seed = 5, areas = AREAS, days = seq(PO1 - 30L, max(PORIGINS), by = "day"))
+  fx$prevcarga_fixture_deck(d, seed = 5, areas = c(AREAS, "X"), days = seq(PO1 - 30L, max(PORIGINS), by = "day"))
   d
 })
 
 MODULES <- c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-             "features", "registry", "training", "inference", "build_long_output", "cache", "orchestrate", "backtest")
+             "features", "registry", "training", "inference", "build_long_output", "evaluation", "combination", "reconcile", "cache", "orchestrate", "backtest")
 
 ## roda `body` (linhas R) num R novo com a lib em globalenv, runtime fixado e `ctx` pronto. env = vetor nomeado do shell.
 child <- function(body, env = character(), hooks = "NULL") {

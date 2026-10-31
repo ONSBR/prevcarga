@@ -22,7 +22,7 @@ HP_CRASH <- "seco-2024-07-01"
 
 hp_units_path <- function() file.path(hw_root(), "models", HP_MODEL, "tests", "parity", "units.yaml")
 hp_lock_path <- function() file.path(hw_root(), "models", HP_MODEL, "tests", "parity", "golden.lock")
-## relatorio GERADO fora de models/ (aditividade do M5.12): .state/parity/<plugin>/, como o dessem-regdin
+## relatorio fora de models/ (gitignorado em .state/, como dessem-regdin): o runner nunca escreve sob models/ (aditividade)
 hp_report_path <- function() file.path(hw_root(), ".state", "parity", HP_MODEL, "parity_report.json")
 hp_golden_root <- function() file.path(hw_root(), ".state", "golden")
 hp_data_dir <- function() file.path(hw_root(), "data")
@@ -204,7 +204,6 @@ hp_report_write <- function(path = hp_report_path()) {
               day0_coverage = paste("o resto do dia O pos-SemiFer/LOESS (delivery de O) nao tem contrapartida direta no oraculo:",
                                     "coberto pelo passo cru (meta$day0_raw, comparado) + as mesmas funcoes provadas em O+1..O+8"))
   txt <- jsonlite::toJSON(doc, auto_unbox = TRUE, null = "null", digits = NA, na = "null", pretty = TRUE)
-  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   writeBin(charToRaw(paste0(paste(as.character(txt), collapse = "\n"), "\n")), path)
   digest::digest(path, algo = "sha256", file = TRUE)
 }

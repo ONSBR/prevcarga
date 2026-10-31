@@ -67,9 +67,9 @@ test_that("[PLUGINS] seed_medicao: seed 1234 -> 1235 medido e gravado em .state/
   expect_identical(dim(v0), dim(v1))
   d <- max(abs(as.matrix(v0) - as.matrix(v1)))
   expect_true(is.finite(d))                                                # medida, nao limite: hw() e MLE e o kmeans re-semeia
-  dir <- file.path(hw_root(), ".state", "parity", "holt-winters")      # gerado fora de models/ (aditividade)
+  dir <- file.path(hw_root(), ".state", "parity", "holt-winters")             # fora de models/ (aditividade)
   dir.create(dir, recursive = TRUE, showWarnings = FALSE)
-  if (dir.exists(dir)) {
+  {
     jsonlite::write_json(list(seed_from = 1234L, seed_to = 1235L, max_abs_delta_values = d, n_values = length(v0)),
                          file.path(dir, "seed_measure.json"), auto_unbox = TRUE, digits = NA)
     expect_true(file.exists(file.path(dir, "seed_measure.json")))

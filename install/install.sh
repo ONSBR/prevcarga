@@ -24,18 +24,21 @@ pc_exit_for_class() { # tabela 0-15 de errors.R (so as classes dos utilitarios):
   case "$1" in bundle) echo 6;; config) echo 8;; integrity) echo 9;; network) echo 10;; *) echo 1;; esac; }
 
 pc_catalog_row() { # <error.id> -> linha id\tclass\tmessage\thint; fallback embutido (mesmo texto de install.tsv) antes da extracao
-  row="$(awk -F'\t' -v id="$1" '$1==id {print; exit}' "$PC_CATALOG" 2>/dev/null)"
+  ## o catalogo GERADO (install/error-catalog.tsv) tem cabecalho id,class,exit_code,message,hint: as colunas sao lidas
+  ## pelo NOME do cabecalho, nunca por posicao
+  row="$(awk -F'\t' -v id="$1" 'NR==1 {for (i = 1; i <= NF; i++) c[$i] = i; next}
+    $c["id"]==id {printf "%s\t%s\t%s\t%s\n", $c["id"], $c["class"], $c["message"], $c["hint"]; exit}' "$PC_CATALOG" 2>/dev/null)"
   if [ -n "$row" ]; then printf '%s\n' "$row"; return; fi
   case "$1" in
     install.download_failed)      printf 'install.download_failed\tnetwork\tfalha ao baixar o bundle\tconfira --release-base e a rede\n';;
     install.io_failed)            printf 'install.io_failed\tbundle\tfalha de escrita na raiz da instalacao\tconfira permissoes e espaco em disco da raiz\n';;
     install.manifest_invalid)     printf 'install.manifest_invalid\tbundle\tRUNTIME.json invalido ou arquivo do bundle divergente\treinstale o bundle da mesma versao; a versao atual nao foi alterada\n';;
-    install.no_previous_version)  printf 'install.no_previous_version\tconfig\tnao ha versao anterior retida para voltar\tinstale a versao desejada com install.sh --version\n';;
-    install.preflight_failed)     printf 'install.preflight_failed\tbundle\tplataforma nao suportada\tLinux x86_64 glibc >= 2.35 com zstd, tar, sha256sum e um cliente HTTPS do sistema\n';;
+    install.no_previous_version)  printf 'install.no_previous_version\tconfig\tnao ha versao anterior retida para voltar\tinstale a versao desejada de novo com o instalador (--version / -Version)\n';;
+    install.preflight_failed)     printf 'install.preflight_failed\tbundle\tplataforma nao suportada\tLinux x86_64 glibc >= 2.35 com zstd, tar, sha256sum e cliente HTTPS; ou Windows 64-bit com PowerShell >= 5.1 e espaco livre na raiz\n';;
     install.sha_mismatch)         printf 'install.sha_mismatch\tintegrity\tsha256 do bundle nao confere\tbaixe o bundle novamente e confira o SHA256SUMS\n';;
     install.sha_missing)          printf 'install.sha_missing\tintegrity\tsha256 do bundle nao informado\tpasse --sha256 ou um SHA256SUMS ao lado do bundle\n';;
     install.state_inside_versions) printf 'install.state_inside_versions\tconfig\t--state aponta para dentro de versions/\tuse um diretorio de estado fora de <raiz>/versions\n';;
-    *)                            printf 'install.usage\tconfig\targumento invalido ou ausente\tveja install.sh --help\n';;
+    *)                            printf 'install.usage\tconfig\targumento invalido ou ausente\tveja a ajuda do instalador (install.sh --help / install.ps1 -Help)\n';;
   esac; }
 
 pc_json_str() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n\r\t'; }
@@ -330,6 +333,20 @@ LAUNCHER="$ROOT/versions/$VER/code/install/prevcarga"
 [ -f "$LAUNCHER" ] || pc_die install.manifest_invalid "$LAUNCHER" "lancador ausente"
 cp "$LAUNCHER" "$ROOT/bin/.prevcarga.new" && chmod 0755 "$ROOT/bin/.prevcarga.new" \
   && mv -f "$ROOT/bin/.prevcarga.new" "$ROOT/bin/prevcarga" || pc_die install.io_failed "$ROOT/bin/prevcarga"
+# prevcarga-sync (M8.6): utilitario de rede FORA do pacote R, ao lado do lancador, com o catalogo GERADO que ele le (<R>/bin/error-catalog.tsv)
+SYNC="$ROOT/versions/$VER/code/install/prevcarga-sync.sh"
+[ -f "$SYNC" ] || SYNC="$PC_HERE/prevcarga-sync.sh"   # bundles antigos: utilitario ao lado do install.sh
+if [ -f "$SYNC" ]; then
+  cp "$SYNC" "$ROOT/bin/.prevcarga-sync.new" && chmod 0755 "$ROOT/bin/.prevcarga-sync.new" \
+    && mv -f "$ROOT/bin/.prevcarga-sync.new" "$ROOT/bin/prevcarga-sync" || pc_die install.io_failed "$ROOT/bin/prevcarga-sync"
+else
+  pc_warn "prevcarga-sync ausente do bundle: o utilitario de sincronizacao nao foi instalado"
+fi
+CAT="$ROOT/versions/$VER/code/install/error-catalog.tsv"
+[ -f "$CAT" ] || CAT="$PC_CATALOG"
+if [ -f "$CAT" ]; then
+  cp "$CAT" "$ROOT/bin/.error-catalog.new" && mv -f "$ROOT/bin/.error-catalog.new" "$ROOT/bin/error-catalog.tsv" || pc_die install.io_failed "$ROOT/bin/error-catalog.tsv"
+fi
 pc_swap_current "$VER"
 rm -rf "$ROOT/versions/.old-$VER"
 

@@ -28,6 +28,7 @@ source(file.path(.rd_repo, "scripts", "tools", "plugin_gates.R"))
   list("contract_e2e", "gate08", "PLUGINS", "fast"), list("flag12_yearend", "gate09", "PLUGINS", "fast"),
   list("nowcast_parcial", "gate10,gate11", "PLUGINS", "fast"), list("split_nowcast_med", "gate12", "PLUGINS", "fast"),
   list("split_nowcast_max", "gate13", "PLUGINS", "fast"),
+  list("aditividade_epico", "-", "PLUGINS", "fast"), list("readme", "-", "PLUGINS", "fast"),
   list("units_yaml", "-", "PLUGINS", "fast"), list("runner_controle", "-", "PLUGINS", "fast"),
   list("requires_report", "-", "PLUGINS", "parity"),
   list("mm_head_oracle", "-", "PLUGINS", "parity"), list("paridade_smoke", "-", "PLUGINS", "parity"),

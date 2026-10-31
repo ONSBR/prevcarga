@@ -8,6 +8,9 @@
 ##   artifact               : origin_agnostic {split, train_origin, last_data_day}; origin_scoped {split, train_origin}
 ##                            -- available_until NUNCA entra (o sweep de --corte nao re-treina artefato)
 ##   khat                   : {subsistema, origin, window_days}
+## Clima previsto (ADR-0024, M7.8): features/member_long levam SEMPRE a regra efetiva `weather_issue_cutoff` e o
+## `weather_issue_limit` (POSIXct devolvido pelo leitor/dates.R) no feature_config; o artefato so os leva quando o
+## descriptor do membro declara `weather_forecast_in_train` (sem over-key dos demais). O cache nunca filtra emissao.
 ## `train_origin`/`last_data_day` chegam prontos da linha do membro de prevcarga_resolve_cuts (dates.R): este modulo
 ## nunca calcula corte nem le o descriptor. Laterais (platform, bundle_id, trained_at, host) ficam so no meta.json.
 ## Sem relogio, sem variavel de ambiente, sem rede; coleta de lixo do cache fica fora do pacote.
@@ -41,6 +44,16 @@
 .pc_is_day <- function(v) inherits(v, "Date") && length(v) == 1L && !is.na(v)
 .pc_is_instant <- function(v) inherits(v, "POSIXct") && length(v) == 1L && !is.na(v)
 .pc_is_chr1 <- function(v) is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
+.pc_weather_rules <- c("available_until", "origin_midnight_utc")
+
+## Identidade do clima previsto por kind: list() quando o kind (ou o membro) nao consome previsto; senao regra + limite.
+.pc_cache_weather <- function(kind, common) {
+  if (!(kind %in% c("features", "member_long") || (kind == "artifact" && isTRUE(common$weather_forecast_in_train))))
+    return(list())
+  .pc_cache_need(common$weather_issue_cutoff, "weather_issue_cutoff", function(v) .pc_is_chr1(v) && v %in% .pc_weather_rules)
+  .pc_cache_need(common$weather_issue_limit, "weather_issue_limit", .pc_is_instant)
+  list(weather_issue_cutoff = common$weather_issue_cutoff, weather_issue_limit = common$weather_issue_limit)
+}
 
 .pc_cache_identity <- function(kind, member_label, model_spec, common, cuts, origin = NULL,
                                available_until = NULL, khat = NULL) {
@@ -75,7 +88,7 @@
        cutoff = cutoff,
        feature_config = list(kind = kind, exogena = member_label$exogena, split = split,
                              feature_config = common$feature_config, model_versions = common$model_versions,
-                             seed = common$seed, weather_issue_cutoff = common$weather_issue_cutoff),
+                             seed = common$seed, weather = .pc_cache_weather(kind, common)),
        code_commit = common$code_version,
        renv_lock_hash = common$lock_hash,
        load_label = common$load_label,
@@ -87,10 +100,12 @@ prevcarga_cache_identity <- function(kind, member_label, model_spec, data_finger
                                      weather_issue_cutoff = NULL, train_origin = NULL, last_data_day = NULL,
                                      origin = NULL, available_until = NULL, feature_config = NULL,
                                      model_versions = NULL, code_version, lock_hash, seed = NULL,
-                                     subsistema = NULL, window_days = NULL) {
+                                     subsistema = NULL, window_days = NULL, weather_issue_limit = NULL,
+                                     weather_forecast_in_train = FALSE) {
   seed <- if (is.null(seed)) model_spec$seed else seed
   common <- list(data_fingerprint = data_fingerprint, load_label = load_label, timezone = timezone,
-                 weather_issue_cutoff = weather_issue_cutoff, feature_config = feature_config,
+                 weather_issue_cutoff = weather_issue_cutoff, weather_issue_limit = weather_issue_limit,
+                 weather_forecast_in_train = weather_forecast_in_train, feature_config = feature_config,
                  model_versions = model_versions, code_version = code_version, lock_hash = lock_hash, seed = seed)
   for (n in c("data_fingerprint", "load_label", "timezone", "code_version", "lock_hash"))
     .pc_cache_need(common[[n]], n, .pc_is_chr1)
@@ -106,11 +121,12 @@ prevcarga_cache_key <- function(kind, member_label, model_spec, data_fingerprint
                                 weather_issue_cutoff = NULL, train_origin = NULL, last_data_day = NULL,
                                 origin = NULL, available_until = NULL, feature_config = NULL,
                                 model_versions = NULL, code_version, lock_hash, seed = NULL,
-                                subsistema = NULL, window_days = NULL) {
+                                subsistema = NULL, window_days = NULL, weather_issue_limit = NULL,
+                                weather_forecast_in_train = FALSE) {
   id <- prevcarga_cache_identity(kind, member_label, model_spec, data_fingerprint, load_label, timezone,
                                  weather_issue_cutoff, train_origin, last_data_day, origin, available_until,
                                  feature_config, model_versions, code_version, lock_hash, seed,
-                                 subsistema, window_days)
+                                 subsistema, window_days, weather_issue_limit, weather_forecast_in_train)
   prevcarga_version_hash(id)
 }
 

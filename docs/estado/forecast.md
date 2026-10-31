@@ -58,8 +58,8 @@
 - Corte entregavel (decisao do Gabriel, 2026-10-30): `available_until = O 00:00` (rodada das 00h, nenhuma informacao do dia O) e qualquer corte intradiario de O sao validos; so
   `available_until >= O+1 00:00` (dia O completo, ou `--origin` anterior ao ultimo dia do deck) e RECUSADO no gate-0, antes do infer, com `completude.forecast_origin_day_complete`
   (exit 3, `errors/forecast.tsv`; hint: deck vivo do dia O ou truncate_at/--corte). `combination.R` nao muda. Testes: `[00h]` em test-forecast_compose.R (espioes; 1a entrega O 00:30, sem carga de O,
-  CONTROL dia O completo => recusa) e `[e2e 00h]` em test-forecast_e2e.R (8 membros reais, fases weights00/run00). PENDENTE [DEFERRED DL/RD]: no e2e das 00h os DESSEM abortam
-  `plugin.dessem_linear_mm_missing_origin` (a cabeca mm exige linhas do dia O); a cabeca mm deve ser opcional quando nao ha carga de O. O teste se declara `skip` com esse id ate la.
+  CONTROL dia O completo => recusa) e `[e2e 00h]` em test-forecast_e2e.R (8 membros reais, fases weights00/run00). Resolvido (fix/dl-00h-paridade + RD): sem hora de O os DESSEM
+  rodam sem cabeca mm (dessem-linear: DM(O) pura do motor; regdin: ARIMA puro). O e2e das 00h nao tem mais skip: qualquer erro e regressao.
 - Chave imutavel x `niveis`/`incluir_membros` (achado do M6.4): a `versao` do M6.7 nao inclui o conjunto de arquivos; a mesma chave com outro `niveis`/`incluir_membros` da `export.key_conflict`
   (exit 9). Opcoes: incluir niveis/incluir_membros ordenados na versao, ou o export aceitar superconjunto e publicar so os faltantes. Nao tratado aqui (exports.R e do M6.7).
 - Limitacoes conhecidas (nao tratadas aqui): (1) o verbo `forecast` e a gramatica docopt sao do M6.9 (hoje stub): o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
@@ -79,7 +79,7 @@
 ## M6.6 -- sub-gates [M6] do LONG e bench do NFR de 30 min
 - `scripts/tools/gates/m6_long.R` (pack descoberto por `prevcarga_gates_run`, dono `M6`, tier fast, `applies_to` = os 5 plugins; nenhum `models/<m>/tests/run_all_gates.R` editado). Gates `m6_schema_long`, `m6_ytrue_real`,
   `m6_anti_leak`, `m6_no_dayshift`, `m6_primeira_entrega`, `m6_fim_da_faixa` (7 gates com `m6_nowcast_dplus0`; o charset do runner e `[a-z0-9_]`, entao `m6_<gate>` e nao `m6_long.<gate>`). O pack de dono `M6` SUBSTITUI os slots `[DEFERRED M6]`
-  das tabelas (RF `gate04`/`gate08`, LGBM `gate11_ytrue_real`/`nowcast_dplus0_long`, HW `schema_long`/`ytrue_real`); `harness_*`/`gate12` ([DEFERRED M7]) seguem como slot com dono.
+  das tabelas (RF `gate04`/`gate08`, LGBM `gate11_ytrue_real`/`nowcast_dplus0_long`, HW `schema_long`/`ytrue_real`); `harness_*`/`gate12` ([DEFERRED M7]) sao do pack `m7_harness.R` (M7.5; ver `docs/estado/backtest.md`).
 - Cada gate roda `prevcarga_long_subgates(panel, member, cuts)` (data.frame gate/passed/detail) sobre o painel de `prevcarga_build_long` com entrega SINTETICA na grade real do membro; `delivery_days` vem do descriptor do plugin (lido num
   `Rscript --vanilla` filho). `no_dayshift` compara a correlacao y_pred x y_true no mesmo dia com a de +-1 dia (48 leads). `primeira_entrega`/`fim_da_faixa` comparam com `prevcarga_delivery_grid` (sem aritmetica de 30 min).
   CONTROLs em `test-long_subgates.R` (lead off-by-one, deslocado 1 dia, y_true = y_pred, fim 1 slot antes, inicio em available_until).

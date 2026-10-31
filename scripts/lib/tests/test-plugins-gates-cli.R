@@ -357,7 +357,7 @@ test_that("[CONTROL ac-43] golden.lock com fingerprint alterado numa copia: o ru
 
 ## ---- bloco 5: write-through verificavel -------------------------------------------------------------------------------
 PCG_README_SECTIONS <- c(mapa = "^##\\s+.*[Mm]apa", contrato = "^##\\s+.*[Cc]ontrato", layout = "^##\\s+.*[Ll]ayout",
-                         gates_dono = "^##\\s+Gates x dono")
+                         gates_dono = "^##\\s+.*[Gg]ate.* x dono")
 
 pcg_check_readme <- function(path) {
   x <- readLines(path, encoding = "UTF-8", warn = FALSE)

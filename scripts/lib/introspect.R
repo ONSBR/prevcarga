@@ -148,7 +148,7 @@ prevcarga_build_models <- function(ctx) {
     list(sigla = mem$sigla[[i]], mdir = mem$mdir[[i]],
          exogena = if (is.na(mem$exogena[[i]])) NULL else mem$exogena[[i]],
          split = s$split, granularity_min = s$granularity_min, horizon_days = s$horizon_days,
-         history_days = s$history_days, seed = s$seed, modes = s$modes,
+         history_days = s$history_days, seed = s$seed, modes = as.list(s$modes),
          protocol_default = s$backtest$protocol_default)
   })
   list(schema_version = 1L, members = rows)
@@ -166,13 +166,15 @@ prevcarga_render_models <- function(result) {
 cmd_models <- function(ctx, args = NULL) prevcarga_build_models(ctx)
 
 ## --- areas -------------------------------------------------------------------------------------------
+## ADR-0040: campo de lista e SEMPRE array no JSON. O envelope usa auto_unbox; um vetor de 1 elemento viraria escalar (1 subsistema, 1 area),
+## entao os campos de lista saem como `as.list` (lista de escalares => array).
 prevcarga_build_areas <- function(ctx) {
   t <- prevcarga_topology(root = ctx$root)
-  list(schema_version = 1L, sin = "SIN", order = t$order,
+  list(schema_version = 1L, sin = "SIN", order = as.list(t$order),
        subsystems = lapply(t$order, function(s) list(
          name = s, loss = t$subsystems[[s]]$loss,
-         khat_range = t$subsystems[[s]]$khat_range,
-         areas = t$subsystems[[s]]$areas)))
+         khat_range = as.list(t$subsystems[[s]]$khat_range),
+         areas = as.list(t$subsystems[[s]]$areas))))
 }
 
 prevcarga_render_areas <- function(result) {
@@ -239,7 +241,7 @@ prevcarga_build_describe <- function(ctx, model = ctx$model, data_lag_days = NUL
     mdirs <- model
   }
   specs <- list()
-  for (m in mdirs) specs[[m]] <- prevcarga_model_spec(m, root = ctx$root)
+  for (m in mdirs) { specs[[m]] <- prevcarga_model_spec(m, root = ctx$root); specs[[m]]$modes <- as.list(specs[[m]]$modes) }
   origin <- if (is.null(ctx$origin)) NULL else
     if (inherits(ctx$origin, "Date")) format(ctx$origin, "%Y-%m-%d") else NULL
   cu <- .prevcarga_describe_cuts(ctx, mdirs, data_lag_days)
