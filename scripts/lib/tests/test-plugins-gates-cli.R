@@ -139,7 +139,7 @@ test_that("[ac-42] 5 runners x {fast, parity}: 10 processos saem 0; zero [DEFERR
     expect_true(any(r$table$owner == "M6" & r$table$status == "PASS"), info = paste(m, tier, "pack m6_long.R nao descoberto"))
   }
   expect_identical(n_proc, length(mdirs) * length(PCG_TIERS))
-  expect_identical(n_proc, 10L)
+  expect_identical(n_proc, 5L * length(PCG_TIERS))                 # 10 no dev (fast + parity); 5 sob o bundle (so fast)
 })
 
 test_that("[ac-42] parser da tabela: [DEFERRED M5] sobrando e linha FAIL sao vistos (CONTROL do instrumento)", {
