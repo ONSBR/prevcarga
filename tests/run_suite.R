@@ -16,7 +16,7 @@ PC_SUITE_DIRS <- c("scripts/lib/tests", "tests/bundle", "tests/install", "tests/
 ## e os bracos do A/B que dependem da referencia do oraculo (matriz completa nao rodada: CORTE-BLOQUEADO, dono Gabriel) ou da perna Windows (DEFERIDO ao gate windows-vm). Qualquer outro skip reprova.
 PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "TBD: ADR-", "parity-full so no fechamento", "[DEFERRED windows-vm do M8", "[DEFERRED M8",
                           "dist/repro-1", "nao ha como simular a ausencia",
-                          "[TBD] referencia do oraculo ausente", "[TBD] saida do clean-room", "[TBD] smoke nao-gating",
+                          "[TBD] referencia do oraculo ausente", "[TBD] saida do clean-room", "[TBD] smoke nao-gating", "paridade pinada ao BLAS do golden",
                           "sem options(prevcarga.ab.shared)", "DEFERIDO ao gate windows-vm")
 
 pc_suite_arg <- function(args, name, default = NULL) {
@@ -66,6 +66,7 @@ pc_suite_main <- function(args) {
   if (identical(dirs, "none")) dirs <- character()                     # so os gates dos membros (diagnostico)
   cat(sprintf("run_suite: Rscript=%s R=%s root=%s\n", file.path(R.home("bin"), "Rscript"), as.character(getRversion()), root))
   all_rows <- list()
+  options(prevcarga.closure_tiers = "fast")          # test-plugins-gates-cli.R: so --tier fast sob o bundle (golden pinado ao BLAS do dev)
   for (d in dirs) {
     cat(sprintf("== testthat: %s\n", d))
     res <- testthat::test_dir(file.path(root, d), reporter = "summary", stop_on_failure = FALSE, stop_on_warning = FALSE)
