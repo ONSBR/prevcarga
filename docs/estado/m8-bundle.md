@@ -100,6 +100,17 @@ Nenhuma entrada nova entra por quem implementa.
   so `--origin` como flag de data, zero variavel de ambiente do produto, WSL2 nunca requisito, todo `id` de `ab_excecoes.yaml`, topicos obrigatorios); CONTROLs plantados.
 - `tests/run_suite.R`: a suite inteira pelo `Rscript` do bundle instalado (`scripts/lib/tests`, `tests/bundle`, `tests/install`, `tests/ab`, `models/*/tests/run_all_gates.R --tier fast`
   por membro de `prevcarga_members()`), sai != 0 com falha ou skip fora da lista permitida.
+  - Uso: `env -u R_HOME TZ=UTC LC_ALL=C.UTF-8 <R>/versions/<v>/runtime/bin/Rscript --vanilla tests/run_suite.R --lib=<dir com testthat e deps> --list-skips`. Chame o
+    WRAPPER `runtime/bin/Rscript` (o binario `runtime/lib/R/bin/Rscript` sozinho cai no R_HOME compilado, o R do sistema).
+  - O bundle e zero-dep: o `--lib` vai tambem para o `R_LIBS` do processo de QA, para os filhos Rscript que os testes lancam acharem o testthat (sem isso o
+    `m5-facades-gates` caia em `erro [generic]`). Ferramenta de dev, fora do bundle.
+  - Sob o bundle, `test-plugins-gates-cli.R` roda so `--tier fast` (`options(prevcarga.closure_tiers = "fast")`): o `golden.lock` pina o BLAS do ambiente de dev
+    que gerou o golden e o `plugin_parity.R` recusa outro BLAS (`tools.golden_stale`, item: blas). O tier parity vira skip com dono; a paridade e provada no dev
+    (fechamento do M5.12, `docs/estado/m5-training.md`).
+  - O runner chama 1 `run_all_gates.R` por plugin (`mdir` unico; as variantes exogenas compartilham o runner).
+  - Medido (2026-11-01, bundle jammy `0.12.0` instalado, R 4.5.3, ponta `0f9a3e2`): `tests/bundle` 72/0, `tests/install` 82/0, `tests/ab` 41/0,
+    `scripts/lib/tests` 1206 testes, 1 falha (a contagem fixa `n_proc == 10L` do fechamento dos plugins, corrigida no `0f9a3e2`; o arquivo re-rodado pelo bundle deu
+    114 ok / 0 falha / 3 skips com dono), `run_all_gates.R --tier fast` dos 5 plugins verdes, 36 skips todos na lista com motivo e dono.
 
 ### Pendencias do fechamento (honestas; nada foi simulado)
 - **[PENDENTE, dono: Gabriel] Windows nativo**: a suite inteira no Windows com o R do bundle instalado (item W16) e o Python-free/net/portabilidade/RUNTIME.json sobre o
