@@ -9,7 +9,7 @@ mk <- function(...) {
 }
 
 test_that("[AC] run_suite: tudo verde e skips permitidos => ok; gates 0 => ok", {
-  rows <- rbind(mk(), mk(skip_reason = "nao-windows"), mk(skip_reason = "x [TBD: ADR-0036] y"), mk(skip_reason = "deck-real-ausente"),
+  rows <- rbind(mk(), mk(skip_reason = "nao-windows"), mk(skip_reason = "x [TBD: ADR-0036] y"), mk(skip_reason = "TBD: ADR-0028 (metrica)"), mk(skip_reason = "[TBD] smoke"), mk(skip_reason = "parity-full so no fechamento"), mk(skip_reason = "deck-real-ausente"),
                 mk(skip_reason = "nao-linux"), mk(skip_reason = "pwsh ausente [DEFERRED windows-vm do M8, dono: Gabriel]"))
   expect_true(rs_env$pc_suite_verdict(rows, c(`random-forest` = 0L))$ok)
 })

@@ -11,10 +11,10 @@
 ## Ferramenta de DEV/QA (fora do bundle); nao e codigo de produto.
 
 PC_SUITE_DIRS <- c("scripts/lib/tests", "tests/bundle", "tests/install", "tests/ab")
-## Motivos de skip aceitos: os 4 do ticket + adiamentos declarados com dono: o gate da VM Windows ("[DEFERRED windows-vm do M8", "[DEFERRED M8" do build Windows),
+## Motivos de skip aceitos: os 4 do ticket (`[TBD: ADR-0036]` generalizado para qualquer decisao ADR pendente do Gabriel: "TBD: ADR-", "[TBD]") + o tier parity-full (so no fechamento do porte) + adiamentos declarados com dono: o gate da VM Windows ("[DEFERRED windows-vm do M8", "[DEFERRED M8" do build Windows),
 ## o build duplo do mesmo commit (M8.1; "dist/repro-1", ja provado no M8.1), o teste que nao consegue simular a ausencia de pacote com a library do bundle
 ## e os bracos do A/B que dependem da referencia do oraculo (matriz completa nao rodada: CORTE-BLOQUEADO, dono Gabriel) ou da perna Windows (DEFERIDO ao gate windows-vm). Qualquer outro skip reprova.
-PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "[DEFERRED windows-vm do M8", "[DEFERRED M8",
+PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "TBD: ADR-", "[TBD]", "parity-full so no fechamento", "[DEFERRED windows-vm do M8", "[DEFERRED M8",
                           "dist/repro-1", "nao ha como simular a ausencia",
                           "[TBD] referencia do oraculo ausente", "sem options(prevcarga.ab.shared)", "DEFERIDO ao gate windows-vm")
 
