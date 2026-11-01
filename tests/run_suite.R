@@ -12,9 +12,11 @@
 
 PC_SUITE_DIRS <- c("scripts/lib/tests", "tests/bundle", "tests/install", "tests/ab")
 ## Motivos de skip aceitos: os 4 do ticket + adiamentos declarados com dono: o gate da VM Windows ("[DEFERRED windows-vm do M8", "[DEFERRED M8" do build Windows),
-## o build duplo do mesmo commit (M8.1; "dist/repro-1", ja provado no M8.1) e o teste que nao consegue simular a ausencia de pacote com a library do bundle. Qualquer outro skip reprova.
+## o build duplo do mesmo commit (M8.1; "dist/repro-1", ja provado no M8.1), o teste que nao consegue simular a ausencia de pacote com a library do bundle
+## e os bracos do A/B que dependem da referencia do oraculo (matriz completa nao rodada: CORTE-BLOQUEADO, dono Gabriel) ou da perna Windows (DEFERIDO ao gate windows-vm). Qualquer outro skip reprova.
 PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "[DEFERRED windows-vm do M8", "[DEFERRED M8",
-                          "dist/repro-1", "nao ha como simular a ausencia")
+                          "dist/repro-1", "nao ha como simular a ausencia",
+                          "[TBD] referencia do oraculo ausente", "sem options(prevcarga.ab.shared)", "DEFERIDO ao gate windows-vm")
 
 pc_suite_arg <- function(args, name, default = NULL) {
   hit <- grep(paste0("^--", name, "="), args, value = TRUE)
@@ -55,6 +57,7 @@ pc_suite_main <- function(args) {
   if (!is.null(lib)) .libPaths(c(normalizePath(lib, winslash = "/", mustWork = TRUE), .libPaths()))
   if (!requireNamespace("testthat", quietly = TRUE)) { cat("run_suite: testthat ausente (use --lib=<dir>)\n"); return(2L) }
   dirs <- strsplit(pc_suite_arg(args, "dirs", paste(PC_SUITE_DIRS, collapse = ",")), ",", fixed = TRUE)[[1L]]
+  if (identical(dirs, "none")) dirs <- character()                     # so os gates dos membros (diagnostico)
   cat(sprintf("run_suite: Rscript=%s R=%s root=%s\n", file.path(R.home("bin"), "Rscript"), as.character(getRversion()), root))
   all_rows <- list()
   for (d in dirs) {
@@ -64,7 +67,7 @@ pc_suite_main <- function(args) {
     r <- all_rows[[d]]
     cat(sprintf("== %s: testes=%d falhas=%d erros=%d skips=%d\n", d, nrow(r), sum(r$failed), sum(r$errored), sum(nzchar(r$skip_reason))))
   }
-  rows <- do.call(rbind, all_rows)
+  rows <- if (length(all_rows)) do.call(rbind, all_rows) else pc_suite_rows(list(), "none")
   gates <- integer()
   if (!isTRUE("--no-models" %in% args)) {
     lib_dir <- file.path(root, "scripts", "lib")
