@@ -11,12 +11,13 @@
 ## Ferramenta de DEV/QA (fora do bundle); nao e codigo de produto.
 
 PC_SUITE_DIRS <- c("scripts/lib/tests", "tests/bundle", "tests/install", "tests/ab")
-## Motivos de skip aceitos: os 4 do ticket (`[TBD: ADR-0036]` generalizado para qualquer decisao ADR pendente do Gabriel: "TBD: ADR-", "[TBD]") + o tier parity-full (so no fechamento do porte) + adiamentos declarados com dono: o gate da VM Windows ("[DEFERRED windows-vm do M8", "[DEFERRED M8" do build Windows),
+## Motivos de skip aceitos: os 4 do ticket (`[TBD: ADR-0036]` generalizado para qualquer decisao ADR pendente do Gabriel: "TBD: ADR-") + o tier parity-full (so no fechamento do porte) + adiamentos declarados com dono: o gate da VM Windows ("[DEFERRED windows-vm do M8", "[DEFERRED M8" do build Windows),
 ## o build duplo do mesmo commit (M8.1; "dist/repro-1", ja provado no M8.1), o teste que nao consegue simular a ausencia de pacote com a library do bundle
 ## e os bracos do A/B que dependem da referencia do oraculo (matriz completa nao rodada: CORTE-BLOQUEADO, dono Gabriel) ou da perna Windows (DEFERIDO ao gate windows-vm). Qualquer outro skip reprova.
-PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "TBD: ADR-", "[TBD]", "parity-full so no fechamento", "[DEFERRED windows-vm do M8", "[DEFERRED M8",
+PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "TBD: ADR-", "parity-full so no fechamento", "[DEFERRED windows-vm do M8", "[DEFERRED M8",
                           "dist/repro-1", "nao ha como simular a ausencia",
-                          "[TBD] referencia do oraculo ausente", "sem options(prevcarga.ab.shared)", "DEFERIDO ao gate windows-vm")
+                          "[TBD] referencia do oraculo ausente", "[TBD] saida do clean-room", "[TBD] smoke nao-gating",
+                          "sem options(prevcarga.ab.shared)", "DEFERIDO ao gate windows-vm")
 
 pc_suite_arg <- function(args, name, default = NULL) {
   hit <- grep(paste0("^--", name, "="), args, value = TRUE)
@@ -54,7 +55,12 @@ pc_suite_verdict <- function(rows, gates = integer(), allowed = PC_SUITE_ALLOWED
 pc_suite_main <- function(args) {
   root <- normalizePath(pc_suite_arg(args, "root", file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1L])), "..")), winslash = "/", mustWork = TRUE)
   lib <- pc_suite_arg(args, "lib")
-  if (!is.null(lib)) .libPaths(c(normalizePath(lib, winslash = "/", mustWork = TRUE), .libPaths()))
+  if (!is.null(lib)) {
+    .libPaths(c(normalizePath(lib, winslash = "/", mustWork = TRUE), .libPaths()))
+    ## os testes lancam filhos Rscript (pc_rscript, runners-brinquedo) que precisam do testthat; o bundle e zero-dep, entao o
+    ## --lib vai para o ambiente DESTE processo de QA (herdado pelos filhos). Ferramenta de dev, fora do bundle; o produto nao le env.
+    Sys.setenv(R_LIBS = normalizePath(lib, winslash = "/"))
+  }
   if (!requireNamespace("testthat", quietly = TRUE)) { cat("run_suite: testthat ausente (use --lib=<dir>)\n"); return(2L) }
   dirs <- strsplit(pc_suite_arg(args, "dirs", paste(PC_SUITE_DIRS, collapse = ",")), ",", fixed = TRUE)[[1L]]
   if (identical(dirs, "none")) dirs <- character()                     # so os gates dos membros (diagnostico)

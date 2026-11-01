@@ -9,7 +9,7 @@ mk <- function(...) {
 }
 
 test_that("[AC] run_suite: tudo verde e skips permitidos => ok; gates 0 => ok", {
-  rows <- rbind(mk(), mk(skip_reason = "nao-windows"), mk(skip_reason = "x [TBD: ADR-0036] y"), mk(skip_reason = "TBD: ADR-0028 (metrica)"), mk(skip_reason = "[TBD] smoke"), mk(skip_reason = "parity-full so no fechamento"), mk(skip_reason = "deck-real-ausente"),
+  rows <- rbind(mk(), mk(skip_reason = "nao-windows"), mk(skip_reason = "x [TBD: ADR-0036] y"), mk(skip_reason = "TBD: ADR-0028 (metrica)"), mk(skip_reason = "[TBD] smoke nao-gating: x"), mk(skip_reason = "parity-full so no fechamento"), mk(skip_reason = "deck-real-ausente"),
                 mk(skip_reason = "nao-linux"), mk(skip_reason = "pwsh ausente [DEFERRED windows-vm do M8, dono: Gabriel]"))
   expect_true(rs_env$pc_suite_verdict(rows, c(`random-forest` = 0L))$ok)
 })
@@ -19,6 +19,7 @@ test_that("[CONTROL] run_suite: falha, erro, skip sem motivo permitido, teste va
   expect_false(rs_env$pc_suite_verdict(mk(errored = 1L))$ok)
   v <- rs_env$pc_suite_verdict(mk(skip_reason = "sem motivo conhecido"))
   expect_false(v$ok); expect_identical(v$skips_ruins$skip_reason, "sem motivo conhecido")
+  expect_false(rs_env$pc_suite_verdict(mk(skip_reason = "[TBD] qualquer coisa sem dono"))$ok)   # [TBD] generico nao basta
   expect_false(rs_env$pc_suite_verdict(mk(skip_reason = "Reason: empty test"))$ok)
   expect_false(rs_env$pc_suite_verdict(mk(skip_reason = "nao-windows || empty test"))$ok)
   g <- rs_env$pc_suite_verdict(mk(), c(lgbm = 0L, `holt-winters` = 1L))
