@@ -1,0 +1,26 @@
+# Emendas conscientes a testes de OUTROS epicos desde a tag m8-base (M8.12). Uma linha por teste: <caminho>  # <motivo ASCII>.
+# Gate: tests/bundle/test-emendas.R (git diff --name-status m8-base): D e R sempre reprovam; M so se listado aqui; A e livre.
+# Regra: so se acrescenta aqui um teste emendado de proposito, com o motivo. Arquivos novos (A) nao precisam constar.
+scripts/lib/tests/helper-deck.R  # manifest do deck declara weather_forecast_publication_lag_hours (fix weather-publication-lag, ADR-0024)
+scripts/lib/tests/helper-m6-fixtures.R  # rodada forecast (M6.4): fixtures e rodada das 00h
+scripts/lib/tests/helper-m7-fixtures.R  # gates de harness do oraculo em testthat (M7)
+scripts/lib/tests/helper-porte-closure.R  # painel de infer unico (prevcarga_infer_read_panel) e remocao do shim F1 do fechamento do porte
+scripts/lib/tests/test-cache.R  # weather_issue_cutoff na chave do cache (M7.8)
+scripts/lib/tests/test-cli-process.R  # gramatica docopt do M6 e verbo release-pack (M6.9, M8.5)
+scripts/lib/tests/test-data-hash.R  # manifest do deck declara weather_forecast_publication_lag_hours (fix weather-publication-lag, ADR-0024)
+scripts/lib/tests/test-dates.R  # manifest do deck declara weather_forecast_publication_lag_hours (fix weather-publication-lag, ADR-0024)
+scripts/lib/tests/test-deck-matrix.R  # manifest do deck declara weather_forecast_publication_lag_hours (fix weather-publication-lag, ADR-0024)
+scripts/lib/tests/test-deck-reader-cut.R  # manifest do deck declara weather_forecast_publication_lag_hours (fix weather-publication-lag, ADR-0024)
+scripts/lib/tests/test-deck-reader.R  # lag de publicacao do clima previsto + guarda do leitor unico mira referencia/leitura do manifest
+scripts/lib/tests/test-errors.R  # partial.report_failed exit 14 (M6.10)
+scripts/lib/tests/test-facade.R  # verbo release-pack na fachada (M8.5)
+scripts/lib/tests/test-honesty-gate-weather.R  # manifest do deck declara weather_forecast_publication_lag_hours (fix weather-publication-lag, ADR-0024)
+scripts/lib/tests/test-honesty-matrix.R  # manifest do deck declara weather_forecast_publication_lag_hours (fix weather-publication-lag, ADR-0024)
+scripts/lib/tests/test-introspection.R  # campos de lista como array JSON e verbo verificar (M8.7)
+scripts/lib/tests/test-m5-purity.R  # renv.lock agora existe: gate m5 estrito (M8.1)
+scripts/lib/tests/test-orchestrate.R  # origens como Date, --jobs PSOCK e lag de publicacao do clima (M7.6)
+scripts/lib/tests/test-plugin-dispatch.R  # canal cuts spec/phase e clima por valid_time no despachante (fix foundation)
+scripts/lib/tests/test-plugin-hygiene.R  # plugin_parity.R sem difftime (assercao da fundacao ligada)
+scripts/lib/tests/test-read-panel.R  # clima por valid_time no despachante (fix foundation)
+scripts/lib/tests/test-static-greps-m2.R  # allowlist de flags dos verbos novos (forecast/export/features/verificar): --origin segue o unico flag de data
+scripts/lib/tests/test-write-store-manifest.R  # manifest do deck declara weather_forecast_publication_lag_hours (fix weather-publication-lag, ADR-0024)

@@ -16,6 +16,7 @@ param(
   [string]$ModulesDir = '', [switch]$InstallModules, [string]$PwshExe = '',
   [switch]$Build, [string]$BuildVersion = '',
   [string]$NfrDeck = '', [string]$NfrState = '', [string]$NfrOrigin = '',
+  [string]$SuiteRepo = '', [string]$TestLib = '',
   [switch]$AllowSkip
 )
 Set-StrictMode -Version 3
@@ -44,6 +45,8 @@ $script:Items = [ordered]@{
   'W13' = 'shell sujo no Windows (TZ, locale, OPENBLAS, .Rprofile): forecast byte-identico e prevcarga.cmd sem set'
   'W14' = 'cross_os: entrega Linux x Windows (verificar entre-plataformas), CONTROL +0,2% => exit 12, recibo cross-platform'
   'W15' = 'NFR de 30 min no Windows (forecast <= 1800 s) e recibo nfr-30min'
+  'W16' = 'suite inteira (tests/run_suite.R) pelo Rscript.exe do bundle instalado: testthat + run_all_gates --tier fast, sem skip fora da lista'
+  'W17' = 'Python-free, grep de rede/env e portabilidade e RUNTIME.json sobre o bundle windows-x86_64 instalado (release-check.R)'
 }
 
 function Add-Result([string]$Id, [string]$Status, [string]$Detail) {
@@ -365,6 +368,33 @@ try {
     Write-Host ('recibo nfr-30min ' + $res + ': ' + $p)
   }
 } catch { Add-Result 'W14' 'FAIL' ('recibo: ' + (ConvertTo-AsciiText $_.Exception.Message)) }
+
+# --- W16/W17: fechamento do M8 (M8.12): suite inteira e Python-free da release pelo Rscript.exe do bundle INSTALADO -----------------------
+$installedOk = Test-Path -LiteralPath (Join-Path $script:Root 'current')
+$vdNow = ''; $rsNow = ''
+if ($installedOk) { $vdNow = Join-Path $script:Root ('versions\' + (Get-InstalledVersion)); $rsNow = Join-Path $vdNow 'runtime\R\bin\Rscript.exe' }
+# W16: a suite inteira (testthat dos 4 diretorios + run_all_gates --tier fast dos membros) no Windows nativo, com o R do bundle
+try {
+  if (-not $installedOk -or -not (Test-Path -LiteralPath $rsNow)) { Add-Result 'W16' 'SKIP' 'bundle nao instalado (W03 nao passou): sem Rscript.exe do bundle' }
+  elseif (-not $SuiteRepo -or -not (Test-Path -LiteralPath (Join-Path $SuiteRepo 'tests\run_suite.R'))) { Add-Result 'W16' 'SKIP' 'informe -SuiteRepo <arvore completa do repo: pasta repo\ do pacote, gerada por prepare_windows_gate.sh --suite-tree>' }
+  elseif (-not $TestLib -or -not (Test-Path -LiteralPath $TestLib)) { Add-Result 'W16' 'SKIP' 'informe -TestLib <pasta com testthat e dependencias (binarios Windows do R 4.5.3)>: o bundle e zero-dep e nao traz testthat' }
+  else {
+    $a = '--vanilla "' + (Join-Path $SuiteRepo 'tests\run_suite.R') + '" "--root=' + $SuiteRepo + '" "--lib=' + $TestLib + '" --list-skips'
+    $r = Invoke-Proc $rsNow $a 'W16'
+    $tail = (ConvertTo-AsciiText (($r.Out.Trim() -split "`n" | Select-Object -Last 1)))
+    if ($r.Exit -eq 0) { Add-Result 'W16' 'PASS' ('run_suite.R: ' + $tail) } else { Add-Result 'W16' 'FAIL' ('run_suite.R exit ' + $r.Exit + ': ' + $tail + ' (ver logs\W16.log)') }
+  }
+} catch { Add-Result 'W16' 'FAIL' (ConvertTo-AsciiText $_.Exception.Message) }
+# W17: Python-free + rede/env + portabilidade + RUNTIME.json do bundle windows-x86_64 instalado (o mesmo conteudo do zip candidato)
+try {
+  if (-not $installedOk -or -not (Test-Path -LiteralPath $rsNow)) { Add-Result 'W17' 'SKIP' 'bundle nao instalado (W03 nao passou): sem Rscript.exe do bundle' }
+  else {
+    $a = '--vanilla "' + (Join-Path $script:Repo 'tests\windows\release-check.R') + '" "--repo=' + $script:Repo + '" "--bundle-root=' + $vdNow + '"'
+    $r = Invoke-Proc $rsNow $a 'W17'
+    if ($r.Exit -eq 0) { Add-Result 'W17' 'PASS' 'python_free, net_grep, portabilidade e RUNTIME.json (r_version 4.5.3, windows-x86_64) sem hits' }
+    else { Add-Result 'W17' 'FAIL' ('release-check.R exit ' + $r.Exit + ': ' + (ConvertTo-AsciiText (($r.Out + $r.Err).Trim().Split("`n") | Where-Object { $_ -like '*FAIL*' } | Select-Object -First 1)) + ' (ver logs\W17.log)') }
+  }
+} catch { Add-Result 'W17' 'FAIL' (ConvertTo-AsciiText $_.Exception.Message) }
 
 # --- sumario e exit -----------------------------------------------------------------------------------------------------
 $c = Write-Summary

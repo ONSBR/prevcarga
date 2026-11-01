@@ -12,6 +12,10 @@
 
 PCG_TOL <- 1e-5
 PCG_TIERS <- c("fast", "parity")
+## sob o Rscript do bundle instalado (tests/run_suite.R, M8.12) so o tier fast: o golden.lock pina o BLAS do ambiente de dev que
+## gerou o golden (tools.golden_stale "item: blas" sob outro BLAS); a paridade contra o golden e provada no dev (fechamento do M5.12)
+PCG_TIERS <- intersect(PCG_TIERS, getOption("prevcarga.closure_tiers", PCG_TIERS))
+PCG_PARITY_SKIP <- "paridade pinada ao BLAS do golden: roda no ambiente de dev (fechamento do M5.12, docs/estado/m5-training.md); sob o bundle so --tier fast (M8.12 AC 1)"
 ## o oraculo (somente leitura) tem exatamente estas entradas nao rastreadas (docs/roadmap/*.md + verify-log/); nada alem delas
 PCG_ORACLE <- "/opt/ons-source/prevcargadessem3"
 PCG_ORACLE_TOLERATED <- c("?? docs/roadmap/CLI-MODULAR-OBJETIVO.md", "?? docs/roadmap/CLI-MODULAR-ONDE-ESTAMOS.md",
@@ -135,7 +139,7 @@ test_that("[ac-42] 5 runners x {fast, parity}: 10 processos saem 0; zero [DEFERR
     expect_true(any(r$table$owner == "M6" & r$table$status == "PASS"), info = paste(m, tier, "pack m6_long.R nao descoberto"))
   }
   expect_identical(n_proc, length(mdirs) * length(PCG_TIERS))
-  expect_identical(n_proc, 10L)
+  expect_identical(n_proc, 5L * length(PCG_TIERS))                 # 10 no dev (fast + parity); 5 sob o bundle (so fast)
 })
 
 test_that("[ac-42] parser da tabela: [DEFERRED M5] sobrando e linha FAIL sao vistos (CONTROL do instrumento)", {
@@ -172,6 +176,11 @@ test_that("[ac-42] setter de TZ quebrado (copia da instalacao): o runner sai 7 e
   expect_identical(r$exit, 7L, info = paste(r$stderr, collapse = "\n"))
   expect_length(r$stdout, 0L)
   expect_true(any(grepl("runtime", r$stderr)))
+})
+
+test_that("[ac-42] tier parity dos 5 runners (golden pinado ao BLAS do dev)", {
+  if (!"parity" %in% PCG_TIERS) skip(PCG_PARITY_SKIP)
+  expect_true("parity" %in% PCG_TIERS)                       # no dev o laco acima ja rodou o parity dos 5 runners
 })
 
 ## ---- bloco 3: aditividade e oraculo intacto ------------------------------------------------------------------------

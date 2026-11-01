@@ -3,7 +3,7 @@
 ## Bracos: ASCII; nenhuma leitura de variavel de ambiente; cobertura gate x tabela do roteiro (com CONTROL); It tags dos Pester; parse com pwsh SO se existir.
 library(testthat)
 root <- pci_root()
-GATE_FILES <- c("tests/windows/Invoke-WindowsGate.ps1", "tests/windows/write-receipt.R", "tests/windows/control-perturb.R",
+GATE_FILES <- c("tests/windows/Invoke-WindowsGate.ps1", "tests/windows/write-receipt.R", "tests/windows/control-perturb.R", "tests/windows/release-check.R",
                 "install/tests/windows-vm.Tests.ps1", "install/tests/windows-vm.Helpers.ps1", "install/tests/windows-vm-cross.Tests.ps1",
                 "scripts/tools/prepare_windows_gate.sh", "docs/reference/windows-gate.md")
 rd <- function(f) readLines(file.path(root, f), warn = FALSE)
@@ -31,13 +31,14 @@ coverage_gaps <- function(doc, gate) {
 DEFERRED_KEYWORDS <- c(build = "build_bundle_windows", instalador = "install.ps1", pester = "install.Tests.ps1", sync = "prevcarga-sync.Tests.ps1",
                        analyzer = "PSScriptAnalyzer", aspas = "-e", maxpath = "MAX_PATH", hermetico = "R_LIBS", doctor = "doctor",
                        sujo = "OPENBLAS", cross = "cross_os", nfr = "nfr-30min", matriz = "contrato de erros", catalogo = "error-catalog",
-                       equivalencia = "sh x ps1", receipts = "cross-platform")
+                       equivalencia = "sh x ps1", receipts = "cross-platform",
+                       suite = "run_suite.R", pythonfree = "release-check.R")
 keyword_gaps <- function(doc) { txt <- paste(doc, collapse = "\n"); names(DEFERRED_KEYWORDS)[!vapply(DEFERRED_KEYWORDS, grepl, NA, x = txt, fixed = TRUE)] }
 
 test_that("[AC] o gate cobre todo item da tabela do roteiro (e vice-versa); cada linha tem pendencia, origem, comando e resultado esperado", {
   doc <- rd("docs/reference/windows-gate.md"); gate <- rd("tests/windows/Invoke-WindowsGate.ps1")
   d <- doc_rows(doc)
-  expect_gte(nrow(d), 15L)
+  expect_gte(nrow(d), 17L)
   expect_identical(sort(gate_ids(gate)), sort(d$id))
   gaps <- coverage_gaps(doc, gate)
   for (k in names(gaps)) expect_length(gaps[[k]], 0L)
@@ -125,4 +126,55 @@ test_that("[AC] pendencias diferidas do repo apontam para este gate (docs/estado
     expect_true(any(grepl("windows-gate", rd(file.path("docs", "estado", paste0(f, ".md"))), fixed = TRUE)), info = f)
   }
   expect_true(file.exists(file.path(root, "docs", "estado", "windows-gate.md")))
+})
+
+## --- fechamento do M8 (M8.12): W16 (suite inteira no Windows nativo) e W17 (Python-free do bundle windows) ---------------------------------
+test_that("[AC] W16 e W17 estao no gate e no roteiro, sao PENDENTES (Gabriel) no estado e nao fingem resultado", {
+  gate <- rd("tests/windows/Invoke-WindowsGate.ps1"); doc <- rd("docs/reference/windows-gate.md"); est <- rd("docs/estado/windows-gate.md")
+  d <- doc_rows(doc)
+  for (id in c("W16", "W17")) {
+    expect_true(id %in% gate_ids(gate), info = id); expect_true(id %in% d$id, info = id)
+    expect_true(any(grepl(paste0("Add-Result '", id, "'"), gate, fixed = TRUE)), info = id)
+  }
+  expect_true(any(grepl("run_suite.R", d$como[d$id == "W16"], fixed = TRUE)) || any(grepl("run_suite.R", d$pendencia[d$id == "W16"], fixed = TRUE)))
+  expect_true(any(grepl("release-check.R", d$como[d$id == "W17"], fixed = TRUE)))
+  expect_true(any(grepl("W16", est, fixed = TRUE)) && any(grepl("W17", est, fixed = TRUE)) && any(grepl("PENDENTE", est, fixed = TRUE)))
+  ## sem -SuiteRepo/-TestLib o W16 e SKIP (INCOMPLETO), nunca PASS: o texto do gate declara o SKIP
+  g <- paste(gate, collapse = "\n")
+  expect_true(grepl("Add-Result 'W16' 'SKIP'", g, fixed = TRUE))
+  ## W16 roda o runner pelo Rscript.exe do bundle instalado (nao pelo R do host); W17 idem com release-check.R
+  expect_true(grepl("Invoke-Proc $rsNow $a 'W16'", g, fixed = TRUE) && grepl("Invoke-Proc $rsNow $a 'W17'", g, fixed = TRUE))
+})
+
+test_that("[AC] release-check.R: ASCII, sem variavel de ambiente, mesmos gates do test-python-free-release.R; roda de verdade no stage Linux (platform parametrizada) e acusa injecao [CONTROL]", {
+  f <- "tests/windows/release-check.R"
+  expect_length(env_hits(rd(f)), 0L)
+  src <- paste(rd(f), collapse = "\n")
+  expect_true(all(vapply(c("pc_bundle_python_free", "pc_bundle_net_grep", "pc_bundle_portability_grep", "prevcarga_runtime_validate", "4.5.3"), grepl, NA, x = src, fixed = TRUE)))
+  skip_if(!nzchar(Sys.which("Rscript")) && !file.exists(file.path(R.home("bin"), "Rscript")))
+  rs <- file.path(R.home("bin"), "Rscript")
+  w <- pci_work_dir(environment())
+  b <- file.path(w, "prevcarga"); dir.create(b)
+  dir.create(file.path(b, "code"), showWarnings = FALSE)
+  tools_env <- new.env(parent = globalenv()); sys.source(file.path(root, "scripts", "tools", "bundle_manifest.R"), envir = tools_env)
+  tools_env$pc_code_tree(root, file.path(b, "code"))                                  # o MESMO filtro do build do bundle
+  ## RUNTIME.json minimo e valido (files[] com 1 arquivo)
+  rj <- list(version = "0.0.0", platform = "linux-x86_64", r_version = "4.5.3", code_commit = strrep("a", 40),
+             files = list(list(path = "code/renv.lock", sha256 = "x")))
+  rj$files[[1L]]$sha256 <- digest::digest(file = file.path(b, "code", "renv.lock"), algo = "sha256")
+  writeLines(jsonlite::toJSON(rj, auto_unbox = TRUE), file.path(b, "RUNTIME.json"))
+  run <- function(extra = character()) {
+    out <- suppressWarnings(system2(rs, c("--vanilla", shQuote(file.path(root, "tests", "windows", "release-check.R")), paste0("--repo=", root),
+                                          paste0("--bundle-root=", b), "--platform=linux-x86_64", extra), stdout = TRUE, stderr = TRUE))
+    list(status = if (is.null(attr(out, "status"))) 0L else attr(out, "status"), out = out)
+  }
+  ok <- run()
+  expect_identical(ok$status, 0L, info = paste(ok$out, collapse = "\n"))
+  expect_true(any(grepl("^\\[PASS\\] python_free", ok$out)) && any(grepl("^\\[PASS\\] runtime_json", ok$out)))
+  writeLines("print(1)", file.path(b, "code", "x.py"))
+  bad <- run()
+  expect_identical(bad$status, 1L)
+  expect_true(any(grepl("^\\[FAIL\\] python_free.*code/x.py", bad$out)))
+  unlink(file.path(b, "code", "x.py"))
+  expect_identical(run("--expect-commit=bbbb")$status, 1L)                      # CONTROL: code_commit divergente reprova
 })

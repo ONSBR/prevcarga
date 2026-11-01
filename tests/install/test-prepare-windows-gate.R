@@ -21,7 +21,7 @@ world <- function() {
 EXPECTED <- c("gate/install/install.ps1", "gate/install/prevcarga.cmd", "gate/install/prevcarga-sync.ps1", "gate/install/error-catalog.tsv",
               "gate/install/tests/windows-vm.Tests.ps1", "gate/install/tests/windows-vm.Helpers.ps1", "gate/install/tests/windows-vm-cross.Tests.ps1",
               "gate/install/tests/install.Tests.ps1", "gate/install/tests/prevcarga-sync.Tests.ps1", "gate/install/tests/PSScriptAnalyzerSettings.psd1",
-              "gate/tests/windows/Invoke-WindowsGate.ps1", "gate/tests/windows/write-receipt.R", "gate/tests/windows/control-perturb.R",
+              "gate/tests/windows/Invoke-WindowsGate.ps1", "gate/tests/windows/write-receipt.R", "gate/tests/windows/control-perturb.R", "gate/tests/windows/release-check.R", "gate/scripts/tools/bundle_gates.R",
               "gate/scripts/tools/receipts.R", "gate/docs/reference/windows-gate.md", "bundle/prevcarga-9.9.9-windows-x86_64.zip",
               "bundle/prevcarga-9.9.9-windows-x86_64.zip.sha256", "ref/linux-x86_64/manifest.json", "ref/linux-x86_64/run_manifest.json", "ref/deck/manifest.json",
               "ref/state/a.txt", "ref/linux-bundle.sha256", "SHA256SUMS", "PACOTE.json")
@@ -72,4 +72,20 @@ test_that("[CONTROL] entradas invalidas falham: sem --bundle (8), --out nao vazi
   out <- file.path(W$w, "ok"); expect_identical(prep(c("--out", out, "--bundle", W$zip))$status, 0L)
   unlink(file.path(out, "gate", "docs", "reference", "windows-gate.md"))
   expect_true("gate/docs/reference/windows-gate.md" %in% setdiff(EXPECTED[1:17], list.files(out, recursive = TRUE, all.files = TRUE)))
+})
+
+test_that("[AC] --suite-tree (W16) copia a arvore versionada do HEAD com tests/run_suite.R e --test-lib copia o testlib; sem as opcoes o pacote nao tem repo/ nem testlib/", {
+  skip_if(!nzchar(Sys.which("git")), "git ausente")
+  W <- world(); out <- file.path(W$w, "pacote"); tl <- file.path(W$w, "tl"); dir.create(tl); writeLines("x", file.path(tl, "testthat.txt"))
+  r <- prep(c("--out", out, "--bundle", W$zip, "--sha256", W$sha, "--suite-tree", "--test-lib", tl))
+  expect_identical(r$status, 0L, info = paste(r$err, collapse = "\n"))
+  expect_true(file.exists(file.path(out, "repo", "tests", "run_suite.R")) && file.exists(file.path(out, "repo", "scripts", "lib", "runtime.R")))
+  expect_true(file.exists(file.path(out, "testlib", "testthat.txt")))
+  expect_false(dir.exists(file.path(out, "repo", ".git")))
+  out2 <- file.path(W$w, "pacote2")
+  r2 <- prep(c("--out", out2, "--bundle", W$zip, "--sha256", W$sha))
+  expect_identical(r2$status, 0L)
+  expect_false(dir.exists(file.path(out2, "repo")) || dir.exists(file.path(out2, "testlib")))
+  r3 <- prep(c("--out", file.path(W$w, "pacote3"), "--bundle", W$zip, "--test-lib", file.path(W$w, "nao-existe")))
+  expect_identical(r3$status, 8L)
 })

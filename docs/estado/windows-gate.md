@@ -18,7 +18,7 @@ Reune, num so lugar, toda pendencia que ficou **DEFERIDA** por falta de host Win
 - Testes que rodam NO LINUX: `tests/install/test-windows-gate-static.R` (ASCII, sem variavel de ambiente, cobertura gate x tabela do roteiro com CONTROL, tags dos `It`, parse com `pwsh` so se existir)
   e `tests/install/test-prepare-windows-gate.R` (pacote completo, SHA256SUMS, ASCII, CONTROLs de entrada invalida).
 
-## Itens W01..W15 (origem das pendencias)
+## Itens W01..W17 (origem das pendencias)
 W01 preflight (M8.11) · W02 build x2 e runtime_id (M8.2/M8.4/M8.6; `m8-bundle-windows.md`) · W03 install.ps1 em VM limpa (M8.4; `install.md`) · W04 doctor no Windows (M8.7; `verificar.md`) ·
 W05 Pester do instalador (M8.4) · W06 Pester do sync e equivalencia sh x ps1 (M8.6; `sync.md`) · W07 PSScriptAnalyzer (M8.4) · W08 aspas do `-e` no PS 5.1 (M8.4/M8.6) · W09 MAX_PATH ·
 W10 hermeticidade do `prevcarga.cmd` (M8.9) · W11 matriz dos `.ps1` (M8.6) · W12 catalogo do bundle (M8.6) · W13 shell sujo (M8.3/M8.9/M8.11) ·
@@ -51,3 +51,12 @@ Os estados `install.md`, `sync.md`, `m8-bundle-windows.md`, `m8-bundle.md`, `m8-
 | data | host/VM | bundle (versao, sha256) | itens PASS | itens FAIL/SKIP | observacoes |
 |---|---|---|---|---|---|
 | (pendente: Gabriel) | | | | | |
+
+## Fechamento do M8 (M8.12): W16 e W17 (acrescentados ao gate em 2026-10-31)
+- **W16, suite inteira no Windows nativo**: `tests/run_suite.R` pelo `Rscript.exe` do bundle instalado (testthat de `scripts/lib/tests`, `tests/bundle`, `tests/install`, `tests/ab` + `run_all_gates.R --tier fast`
+  dos membros de `prevcarga_members()`; sai != 0 com falha ou skip fora da lista permitida). Insumos: `-SuiteRepo` (arvore completa; `prepare_windows_gate.sh --suite-tree`) e `-TestLib` (testthat e dependencias, binarios
+  Windows do R 4.5.3; `--test-lib`), pois o bundle e zero-dep. Sem eles o item e SKIP (INCOMPLETO). O gate de emendas (`tests/bundle/test-emendas.R`) faz SKIP explicito sem `git` na VM (e do host de dev).
+- **W17, Python-free do bundle windows-x86_64**: `tests/windows/release-check.R` (R base + jsonlite do bundle) roda `pc_bundle_python_free`, `pc_bundle_net_grep`, `pc_bundle_portability_grep` e valida o `RUNTIME.json`
+  (r_version 4.5.3, platform windows-x86_64) sobre `versions\<v>` instalado. O braco Windows de `tests/bundle/test-python-free-release.R` faz SKIP `nao-windows` enquanto nao houver `dist\prevcarga-*-windows-x86_64.zip`.
+- **[PENDENTE, dono: Gabriel] W16 e W17**: nao executados (sem host Windows nem `pwsh` aqui); cobertura estatica em `tests/install/test-windows-gate-static.R` (linha no roteiro, item no gate, release-check.R rodado no Linux
+  contra um stage com `--platform=linux-x86_64` e CONTROL de injecao) e `tests/install/test-prepare-windows-gate.R` (`--suite-tree`, `--test-lib`). Nenhum resultado Windows foi simulado.

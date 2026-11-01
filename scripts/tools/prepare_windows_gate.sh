@@ -5,12 +5,14 @@
 #
 #   prepare_windows_gate.sh --out <pasta nova> --bundle <prevcarga-V-windows-x86_64.zip> [--sha256 <h>]
 #       [--linux-output <entrega do forecast Linux>] [--deck <deck>] [--state <estado sincronizado>]
-#       [--nfr-deck <deck real com manifest.json>] [--nfr-state <estado oficial sincronizado>] [--linux-bundle <tar.zst>] [--zip]
+#       [--nfr-deck <deck real com manifest.json>] [--nfr-state <estado oficial sincronizado>] [--linux-bundle <tar.zst>] [--suite-tree] [--test-lib <dir>] [--zip]
 #
 # Layout de <pasta>:
 #   gate\install\...                 install.ps1, prevcarga.cmd, prevcarga-sync.*, error-catalog.tsv (GERADO aqui), tests\*.Tests.ps1 e helpers
 #   gate\tests\windows\...           Invoke-WindowsGate.ps1, write-receipt.R, control-perturb.R
 #   gate\scripts\tools\receipts.R    formato dos recibos (rodado pelo Rscript.exe do bundle instalado)
+#   gate\scripts\tools\bundle_gates.R  gates de Python-free/rede/portabilidade (W17; tests\windows\release-check.R)
+#   repo\ (com --suite-tree)         arvore versionada do HEAD (git archive) para o W16 (tests\run_suite.R); testlib\ (com --test-lib)  testthat e deps (Windows)
 #   gate\docs\reference\windows-gate.md   o roteiro
 #   bundle\prevcarga-V-windows-x86_64.zip (+ .sha256)
 #   ref\linux-x86_64\ ref\deck\ ref\state\   (se informados) | nfr\deck\ nfr\state\ (se informados)
@@ -21,9 +23,9 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
 
 die() { echo "prevcarga: erro [config] (exit $1)" >&2; echo "o que: $2" >&2; echo "onde: ${3:--}" >&2; echo "como corrigir: ${4:-rode com --help}" >&2; exit "$1"; }
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
 
-out=""; bundle=""; sha=""; linux_out=""; deck=""; state=""; nfr_deck=""; nfr_state=""; linux_bundle=""; do_zip=0
+out=""; bundle=""; sha=""; linux_out=""; deck=""; state=""; nfr_deck=""; nfr_state=""; linux_bundle=""; suite_tree=0; test_lib=""; do_zip=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
@@ -36,6 +38,8 @@ while [ $# -gt 0 ]; do
     --nfr-deck) nfr_deck="${2:-}"; shift 2 ;;
     --nfr-state) nfr_state="${2:-}"; shift 2 ;;
     --linux-bundle) linux_bundle="${2:-}"; shift 2 ;;
+    --suite-tree) suite_tree=1; shift ;;
+    --test-lib) test_lib="${2:-}"; shift 2 ;;
     --zip) do_zip=1; shift ;;
     *) die 8 "argumento desconhecido" "$1" "rode com --help" ;;
   esac
@@ -63,8 +67,9 @@ for f in install.ps1 prevcarga.cmd prevcarga-sync.ps1 prevcarga-sync.cmd; do cp 
 for f in install.Tests.ps1 prevcarga-sync.Tests.ps1 windows-vm.Tests.ps1 windows-vm-cross.Tests.ps1 windows-vm.Helpers.ps1 PSScriptAnalyzerSettings.psd1; do
   cp "$repo/install/tests/$f" "$out/gate/install/tests/$f" || die 2 "faltou install/tests/$f" "$repo/install/tests"
 done
-for f in Invoke-WindowsGate.ps1 write-receipt.R control-perturb.R; do cp "$repo/tests/windows/$f" "$out/gate/tests/windows/$f" || die 2 "faltou tests/windows/$f" "$repo/tests/windows"; done
+for f in Invoke-WindowsGate.ps1 write-receipt.R control-perturb.R release-check.R; do cp "$repo/tests/windows/$f" "$out/gate/tests/windows/$f" || die 2 "faltou tests/windows/$f" "$repo/tests/windows"; done
 cp "$repo/scripts/tools/receipts.R" "$out/gate/scripts/tools/receipts.R" || die 2 "faltou receipts.R" "$repo/scripts/tools"
+cp "$repo/scripts/tools/bundle_gates.R" "$out/gate/scripts/tools/bundle_gates.R" || die 2 "faltou bundle_gates.R" "$repo/scripts/tools"
 cp "$repo/docs/reference/windows-gate.md" "$out/gate/docs/reference/windows-gate.md" || die 2 "faltou o roteiro" "$repo/docs/reference"
 # catalogo de erros GERADO (nao versionado): o instalador e o sync o leem ao lado dos .ps1
 rs="$(command -v Rscript || true)"
@@ -78,6 +83,15 @@ if [ -n "$linux_out" ]; then
   mkdir -p "$out/ref"; cp -rL "$linux_out" "$out/ref/linux-x86_64"; cp -rL "$deck" "$out/ref/deck"; cp -rL "$state" "$out/ref/state"
 fi
 if [ -n "$nfr_deck" ]; then mkdir -p "$out/nfr"; cp -rL "$nfr_deck" "$out/nfr/deck"; cp -rL "$nfr_state" "$out/nfr/state"; fi
+if [ "$suite_tree" -eq 1 ]; then
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || die 8 "--suite-tree pede um checkout git" "$repo"
+  mkdir -p "$out/repo" && git -C "$repo" archive HEAD | tar -x -C "$out/repo" || die 2 "git archive falhou" "$repo"
+  [ -f "$out/repo/tests/run_suite.R" ] || die 2 "a arvore nao tem tests/run_suite.R" "$out/repo"
+fi
+if [ -n "$test_lib" ]; then
+  [ -d "$test_lib" ] || die 8 "--test-lib inexistente" "$test_lib"
+  mkdir -p "$out/testlib" && cp -rL "$test_lib"/. "$out/testlib/" || die 2 "copia do testlib falhou" "$test_lib"
+fi
 lsha=""
 if [ -n "$linux_bundle" ]; then
   [ -f "$linux_bundle" ] || die 8 "bundle Linux inexistente" "$linux_bundle"

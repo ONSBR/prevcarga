@@ -28,13 +28,14 @@ scripts/tools/prepare_windows_gate.sh --out /caminho/pacote-windows-gate \
   --bundle dist/prevcarga-<V>-windows-x86_64.zip \
   --deck <deck sintetico ou real> --state <estado sincronizado> --linux-output <entrega do forecast Linux para esse deck/estado/origem> \
   --nfr-deck <deck real com manifest.json> --nfr-state <estado oficial sincronizado> \
-  --linux-bundle dist/prevcarga-<V>-linux-x86_64.tar.zst --zip
+  --linux-bundle dist/prevcarga-<V>-linux-x86_64.tar.zst --suite-tree --test-lib <pasta testthat+deps win> --zip
 ```
 
 - **Nao envia nada**: so copia para a pasta (e gera `<pasta>.zip` com `--zip`). Copie o zip para a VM por pasta compartilhada, pendrive ou `scp`; nao use o bucket publico.
 - **Artefatos de referencia Linux** (`ref\`): `--linux-output` e a entrega (`manifest.json` + `run_manifest.json` + parquets) de `prevcarga forecast --origin <O>` rodado no Linux com o
   **mesmo** `--deck`/`--state` (copiados para `ref\deck` e `ref\state`). A origem sai do `run_manifest.json`. Sem eles os itens W13 (braco do forecast) e W14 ficam SKIP.
 - `--nfr-deck/--nfr-state` (deck REAL de um dia util com `manifest.json` + artefatos oficiais sincronizados pelo `prevcarga-sync`) alimentam o W15. Sem eles: SKIP `deck-real-ausente`.
+- `--suite-tree` (W16) copia para `repo\` a arvore versionada do HEAD (`git archive`), e `--test-lib <dir>` copia para `testlib\` a pasta com testthat e dependencias (binarios Windows do R 4.5.3 baixados do P3M; o pacote nao os traz). Sem eles o W16 fica SKIP (INCOMPLETO).
 - `--linux-bundle` so grava o sha256 do bundle Linux (o recibo `cross-platform` do lado Linux e gerado no Linux; secao 6).
 - O pacote traz `SHA256SUMS` e `PACOTE.json`. Na VM, descompacte e confira (opcional): `Get-Content SHA256SUMS | ForEach-Object { ... }` ou `Get-FileHash -Algorithm SHA256 <arquivo>`.
 
@@ -44,13 +45,13 @@ scripts/tools/prepare_windows_gate.sh --out /caminho/pacote-windows-gate \
 cd <pasta do pacote>
 powershell -NoProfile -ExecutionPolicy Bypass -File gate\tests\windows\Invoke-WindowsGate.ps1 `
   -Bundle bundle\prevcarga-<V>-windows-x86_64.zip -Sha256 <sha256 do zip> -RefDir ref `
-  -NfrDeck nfr\deck -NfrState nfr\state -NfrOrigin <AAAA-MM-DD> `
+  -NfrDeck nfr\deck -NfrState nfr\state -NfrOrigin <AAAA-MM-DD> -SuiteRepo repo -TestLib testlib `
   -ModulesDir C:\modulos -PwshExe C:\pwsh7\pwsh.exe -Work C:\gate-work -ReceiptsDir C:\gate-work\receipts
 ```
 
 Parametros: `-Bundle`/`-Sha256` (o hash e **obrigatorio** e conferido antes de qualquer instalacao) **ou** `-ReleaseBase <url> [-Version <v>|latest]` (baixa o zip e confere contra o `SHA256SUMS` do release);
 `-RefDir` (referencias Linux); `-Work` (logs e temporarios); `-Root` (raiz da instalacao; default `%LOCALAPPDATA%\prevcarga`, o caso real do W09);
-`-ReceiptsDir` (recibos); `-ModulesDir`/`-InstallModules`; `-PwshExe`; `-Build -BuildVersion <v>` (W02, so em host de build com checkout git e internet); `-AllowSkip`.
+`-SuiteRepo` (arvore completa do repo, pasta `repo\` do pacote) e `-TestLib` (pasta com testthat e dependencias, binarios Windows do R 4.5.3; o bundle e zero-dep) para o W16; `-ReceiptsDir` (recibos); `-ModulesDir`/`-InstallModules`; `-PwshExe`; `-Build -BuildVersion <v>` (W02, so em host de build com checkout git e internet); `-AllowSkip`.
 
 Cada item roda em ordem, com log em `<Work>\logs\`. O sumario (ASCII) lista `PASS|FAIL|SKIP` por item e o resultado fica em `<Work>\gate-result.json`.
 **Exit**: `0` todos PASS; `1` algum FAIL; `2` sem FAIL mas com SKIP (INCOMPLETO, a menos que `-AllowSkip`); `3` erro de uso ou pre-condicao (por exemplo sha256 divergente).
@@ -81,6 +82,8 @@ Marque cada linha apos a execucao. "Origem" e o ticket que deferiu o item.
 | W13 | Shell sujo no Windows (TZ, locale, `OPENBLAS_NUM_THREADS=4`, `.Rprofile` que muda TZ) | M8.3/M8.9, M8.11 | `windows-vm.Tests.ps1` `[W13]` | PASS: `prevcarga.cmd` so com as 6 limpezas `set "X="`; `forecast` byte-identico sujo x limpo; CONTROLs: sonda sem guard difere, setter sem efeito => exit 7 com stdout vazio, outro deck => outra entrega |
 | W14 | `cross_os`: entrega Linux -> Windows, `verificar` entre plataformas, recibos | M8.7, M8.9 | `windows-vm-cross.Tests.ps1` `[W14]` | PASS: 2 rodadas identicas; `verificar --trilho=entre-plataformas` exit 0 (delta <= 0,001 do valor de referencia); CONTROL +0,2% => exit 12; recibo `cross-platform` |
 | W15 | Braco Windows do NFR de 30 min | M8.10 | `windows-vm-cross.Tests.ps1` `[W15]` | PASS: `duracao_s <= 1800` registrada pela rodada, sem passo `score`; recibo `nfr-30min` |
+| W16 | Suite inteira no Windows nativo com o R do bundle instalado (`tests/run_suite.R`: testthat de `scripts/lib/tests`, `tests/bundle`, `tests/install`, `tests/ab` + `run_all_gates.R --tier fast` de cada membro) | M8.12 | `-SuiteRepo repo -TestLib testlib` (a arvore completa do repo e uma pasta com testthat e dependencias, binarios Windows do R 4.5.3, via `prepare_windows_gate.sh --suite-tree --test-lib <dir>`); `Rscript.exe` do bundle instalado roda `run_suite.R --list-skips` | PASS: exit 0, zero falha e zero skip fora da lista (`nao-windows`, `nao-linux`, `deck-real-ausente`, `[TBD: ADR-0036]`, `[DEFERRED windows-vm do M8`); o skip de git ausente do gate de emendas e esperado (o gate de emendas e do host de dev) |
+| W17 | Python-free, grep de rede/env e portabilidade e `RUNTIME.json` sobre o bundle `windows-x86_64` (a prova do `test-python-free-release.R`, braco Windows) | M8.12 | `tests\windows\release-check.R` pelo `Rscript.exe` do bundle instalado (so R base + jsonlite do bundle) | PASS: zero arquivos Python, zero hits de `Sys.getenv`/rede/portabilidade no `code\`, `r_version` 4.5.3, `platform` windows-x86_64, todo `files[]` do `RUNTIME.json` confere; o `code_commit` deve ser o do bundle Linux (`RUNTIME-<plataforma>.json` do release) |
 
 Cobertura: o gate acusa **INCOMPLETO** (exit 2) enquanto houver SKIP; um item so conta como cumprido com PASS.
 
@@ -128,6 +131,8 @@ O `ab-corte` e produzido pelo A/B no Linux (`ab_report.R`) e nao faz parte deste
 | W13 | shell sujo | Diferenca de byte: compare `state-sujo`/`state-limpo` em `<Work>\vm`; exit 7 = o runtime nao conseguiu fixar TZ/locale/BLAS (e o comportamento correto do CONTROL). |
 | W14 | cross_os | exit 12 do `verificar` fora da tolerancia = divergencia numerica real entre plataformas: NAO relaxe a tolerancia (ADR-0036); abra discovery com o `result.arquivos[]`. exit 9/2 = entrega/identidade (confira que `ref\` e o mesmo deck/estado/origem). |
 | W15 | NFR | Estourou 1800 s: o passo mais lento esta no recibo; abra discovery de desempenho (nao mude o orcamento). |
+| W16 | suite | `logs\W16.log` traz as falhas e os skips fora da lista: corrija o produto ou o teste; nao amplie a lista de skips permitidos sem decisao do Gabriel. Falha so no Windows vira discovery. |
+| W17 | python-free | `logs\W17.log`: hit de Python, rede ou portabilidade no `code\` do bundle, ou `RUNTIME.json` divergente; refaca o build (W02). |
 
 Qualquer FAIL deve virar uma **discovery** no SpecForge (tipo `ticket`), com a observacao (log, passo) e a avaliacao; nao ajuste o gate para passar.
 
