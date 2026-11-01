@@ -73,7 +73,7 @@ pc_suite_main <- function(args) {
     lib_dir <- file.path(root, "scripts", "lib")
     e <- new.env(parent = globalenv())
     for (f in c("errors", "runtime", "topology")) sys.source(file.path(lib_dir, paste0(f, ".R")), envir = e)
-    mdirs <- e$prevcarga_members(root = root)$mdir
+    mdirs <- unique(e$prevcarga_members(root = root)$mdir)          # 1 runner por plugin (membros de uma mesma pasta, ex.: variantes exogenas, compartilham o runner)
     rs <- file.path(R.home("bin"), "Rscript")
     envv <- if (!is.null(lib)) paste0("R_LIBS=", normalizePath(lib, winslash = "/")) else character()
     for (m in mdirs) {
