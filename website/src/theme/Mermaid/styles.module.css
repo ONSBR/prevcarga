@@ -1,0 +1,21 @@
+.frame{position:relative;margin-bottom:var(--space-5);border:1px solid var(--border-default);border-radius:var(--radius-card);background:var(--surface-1);box-shadow:var(--shadow-inset);overflow:hidden}
+.bar{position:absolute;top:8px;right:8px;z-index:2;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--border-default);border-radius:var(--radius-control);background:var(--surface-raised);box-shadow:var(--shadow-1);opacity:0;transition:opacity var(--dur-fast) var(--ease-out)}
+.frame:hover .bar,.frame:focus-within .bar,.frame[data-full=true] .bar{opacity:1}
+@media (hover:none){.bar{opacity:1}}
+.btn,.pct{display:inline-flex;align-items:center;justify-content:center;height:28px;min-width:28px;padding:0 6px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);cursor:pointer;transition:var(--transition-color)}
+.btn:hover:not(:disabled),.pct:hover:not(:disabled){background:var(--surface-2);color:var(--text-primary)}
+.btn:disabled,.pct:disabled{opacity:var(--opacity-disabled);cursor:default}
+.btn:focus-visible,.pct:focus-visible,.range:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.pct{min-width:52px;font:var(--type-mono-sm);font-variant-numeric:tabular-nums}
+.sep{width:1px;height:18px;margin:0 4px;background:var(--border-default)}
+.range{width:96px;accent-color:var(--accent);cursor:pointer}
+.view{overflow-x:auto;overflow-y:hidden;padding:var(--space-5);cursor:default;outline:none}
+.view[data-zoomed=true]{cursor:grab}
+.view[data-zoomed=true]:active{cursor:grabbing}
+.view :global(.docusaurus-mermaid-container){background:none!important;border:0!important;padding:0!important;margin:0!important;box-shadow:none!important;width:max-content;min-width:100%;text-align:center}
+.view :global(.docusaurus-mermaid-container svg){display:inline-block;user-select:none}
+.scroller{display:contents}
+.frame[data-full=true]{position:fixed;z-index:calc(var(--ifm-z-index-fixed) - 1);top:var(--ifm-navbar-height);right:0;bottom:0;margin:0;border:0;border-left:1px solid var(--border-subtle);border-radius:0;background:var(--bg-app);box-shadow:none}
+.frame[data-full=true] .scroller{display:block;height:100%;overflow-y:auto;overflow-x:hidden}
+.frame[data-full=true] .view{min-height:100%;padding:var(--space-12) var(--space-6) var(--space-6)}
+.frame[data-full=true] .bar{position:fixed;top:calc(var(--ifm-navbar-height) + 12px);right:24px}

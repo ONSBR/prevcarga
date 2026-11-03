@@ -1,0 +1,248 @@
+---
+title: Configuração
+sidebar_label: Configuração
+sidebar_position: 3
+slug: /execucao/configuracao
+description: Referência do operador para o config.yaml (schema v1), as 12 flags globais, o manifest.json do deck, a topologia e os erros de configuração mais comuns.
+fontes:
+  - config/config.yaml
+  - config/deck-manifest.store.json
+  - config/topology.yaml
+  - scripts/lib/config.R
+  - scripts/lib/cli.R
+  - scripts/lib/banner.R
+  - scripts/lib/deck_reader.R
+  - scripts/lib/dates.R
+  - scripts/lib/topology.R
+  - scripts/lib/introspect.R
+  - scripts/lib/cli/models.R
+  - scripts/lib/cli/areas.R
+  - scripts/lib/cli/backtest.R
+  - scripts/lib/cli/plan.R
+  - scripts/lib/cli/forecast.R
+  - scripts/lib/cli/combine.R
+  - scripts/lib/training.R
+  - scripts/lib/errors.R
+  - scripts/lib/errors/core.tsv
+  - scripts/lib/errors/deck_reader.tsv
+  - install/install.sh
+  - install/install.ps1
+  - docs/estado/config.md
+  - docs/estado/deck_reader.md
+adrs: [ADR-0037, ADR-0035, ADR-0024, ADR-0040]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Execução · 3.3</span>
+
+<p className="pc-lead">O PrevCarga não lê variável de ambiente. Cada comando monta a sua configuração a partir de três fontes, nesta ordem: a flag da CLI, o arquivo <code>config.yaml</code> e o default embutido na CLI. O deck traz o seu próprio <code>manifest.json</code>, com fusos, rótulo da carga e atraso de publicação do clima. A topologia do SIN e os membros da combina moram em <code>config/topology.yaml</code>. Uma chave ou um valor inválido no <code>config.yaml</code>, ou uma flag global com valor fora do domínio, aborta com exit 8.</p>
+
+Esta página é a referência prática. O porquê da precedência e o desenho do contexto `ctx` estão em [Configuração e contexto](/arquitetura/configuracao-ctx).
+
+## O arquivo config.yaml (schema v1)
+
+### Onde a CLI procura
+
+1. O arquivo passado em `--config=<arquivo>`.
+2. Senão, `<raiz>/config.yaml`, onde `<raiz>` é a raiz do código que a CLI está rodando.
+3. Senão, numa instalação (código em `<R>/versions/<v>/code`), o `<R>/config.yaml` da instalação.
+4. Senão, nenhum arquivo: valem só os defaults e as flags.
+
+O instalador grava o `config.yaml` da instalação. Na primeira instalação ele escreve `schema_version: 1`, `format: text`, `color: auto`, `data_dir` (se `--data` foi passado) e `state_dir` (o `--state`, ou `<R>/state`). Num upgrade, ele preserva as chaves que já existem e só regrava `data_dir` e `state_dir`. Os detalhes estão em [Instalação](/execucao/instalacao).
+
+### Chaves e defaults
+
+O schema é fechado. Estas são as únicas chaves aceitas, e qualquer outra aborta com `config.unknown_key`.
+
+| Chave | Tipo | Valores | Default | Flag que sobrescreve |
+|---|---|---|---|---|
+| `schema_version` | inteiro | `1` | obrigatório no arquivo | nenhuma |
+| `data_dir` | texto | caminho do deck | sem default | `--data` |
+| `state_dir` | texto | caminho do estado | `<raiz>/.state` | `--state` |
+| `load_label` | enum | `end`, `start` | sem default no `ctx` | `--load-label` |
+| `weather_issue_cutoff` | enum | `available_until`, `origin_midnight_utc` | `available_until` | `--weather-cutoff` |
+| `color` | enum | `auto`, `always`, `never` | `auto` | `--color` |
+| `format` | enum | `text`, `json` | `text` | `--format` |
+| `backtest.corte_default` | texto | `HH:00` ou `HH:30` | `"08:00"` | `--corte` (só em `backtest` e `plan`) |
+
+Observações de cada chave:
+
+- **`schema_version`** é obrigatório. Ausente ou diferente de `1` aborta com `config.bad_type`.
+- **`data_dir`** não tem default. Um verbo que lê o deck sem `data_dir` nem `--data` aborta com `config.data_dir_missing`.
+- **`state_dir`** só é resolvido como caminho, nunca criado pela leitura da configuração.
+- **`load_label`** tem uma precedência própria, resolvida pelo leitor do deck: `manifest.json` acima de `--load-label`, acima do `config.yaml`, e `end` por último. Se o manifest declara um valor e a flag diz outro, o leitor aborta com `contract.load_label_conflict` (exit 2). O efeito do rótulo está em [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
+- **`weather_issue_cutoff`** escolhe a regra do clima previsto (ADR-0024). Com `available_until`, a emissão só entra se `issue_time` for no máximo `available_until` menos o atraso de publicação do manifest. Com `origin_midnight_utc`, o limite é 00:00 UTC do dia O, sem atraso.
+- **`color`** com `auto` só colore se a saída for um terminal e o sistema não for Windows.
+- **`backtest`** é um mapa com uma única chave, `corte_default`. Outra chave dentro dele aborta com `config.unknown_key` (`where` = `backtest.<chave>`). Um valor fora da grade de 30 minutos, como `"08:15"`, aborta com `config.bad_type`.
+
+### Exemplo
+
+```yaml title="config.yaml"
+schema_version: 1
+data_dir: /srv/prevcarga/deck
+state_dir: /srv/prevcarga/state
+weather_issue_cutoff: available_until
+color: auto
+format: text
+backtest:
+  corte_default: "08:00"
+```
+
+Os caminhos acima são ilustrativos. O `load_label` foi omitido de propósito: com um manifest que o declara, o valor do `config.yaml` nunca é usado.
+
+## Flags globais
+
+A CLI tem 12 flags globais. Quando a flag falta, vale o `config.yaml`, e depois o default embutido.
+
+| Flag | Chave do config.yaml | Default | O que faz | Erro se inválida |
+|---|---|---|---|---|
+| `--origin=<data>` | nenhuma | omitida, a origem é o dia do último intervalo de carga do deck | Forecast-origin O em `YYYY-MM-DD`. Só `backtest` e `plan` aceitam o intervalo `A..B`, com A anterior ou igual a B | `config.bad_origin` |
+| `--data=<dir>` | `data_dir` | sem default | Diretório do deck | `config.data_dir_missing` se ausente |
+| `--state=<dir>` | `state_dir` | `<raiz>/.state` | Diretório de estado | nenhum na leitura da configuração |
+| `--config=<arquivo>` | nenhuma | busca descrita acima | Arquivo `config.yaml` a usar | `config.bad_type` se o arquivo não existe |
+| `--load-label=<l>` | `load_label` | resolvido pelo leitor | Rótulo da carga: `end` ou `start` | `config.bad_load_label` |
+| `--weather-cutoff=<w>` | `weather_issue_cutoff` | `available_until` | Regra do clima previsto | `config.bad_weather_cutoff` |
+| `--format=<fmt>` | `format` | `text` | Saída em texto ou envelope JSON | `config.bad_format` |
+| `--color=<c>` | `color` | `auto` | Cor do banner | `config.bad_color` |
+| `--model=<m>` | nenhuma | nenhum | Seletor de modelo pelo `mdir` (por exemplo `random-forest`); cada verbo o interpreta | `config.unknown_model` |
+| `--debug` | nenhuma | desligado | Mostra o traceback em erro inesperado | nenhum |
+| `-h`, `--help` | nenhuma | nenhum | Mostra a ajuda gerada | nenhum |
+| `--version` | nenhuma | nenhum | Mostra a versão de `config/VERSION` | nenhum |
+
+Além das globais, cada verbo declara as suas opções. Algumas são flags de escopo: valem só no verbo que as declara. `--corte`, `--protocol` e `--dplus` são de `backtest` e `plan`. `--report` e `--report-format` valem em `backtest` e `forecast`. `--resume`, `--keep-going` e `--break-lock` são só de `backtest`. Usadas em outro verbo, abortam com `config.usage` (exit 8). A lista completa por verbo está em [Referência da CLI](/execucao/referencia-cli).
+
+:::note Duas sintaxes de corte intradiário
+`backtest` e `plan` recebem `--corte=<HH:MM,...>`, uma lista separada por vírgula na grade `HH:00` ou `HH:30`. O verbo `combine` declara um `--cut=<HHMM>` próprio. São flags distintas, cada uma no seu verbo.
+:::
+
+## O manifest.json do deck
+
+O `manifest.json` mora na raiz do deck (`data_dir`). Ele declara propriedades do dado, não do operador. Por isso não existe flag nem chave do `config.yaml` para os fusos ou para o atraso de publicação. Só o leitor do deck abre esse arquivo. O schema v1 é fechado: chave fora da lista aborta com `contract.manifest_unknown_key` (exit 2).
+
+| Chave | Obrigatória | Conteúdo |
+|---|---|---|
+| `schema_version` | sim | `1` |
+| `load_label` | não | `end` ou `start`; quando presente, vence a flag e o `config.yaml` |
+| `timezone.load` | sim | Fuso IANA da carga, que é também o fuso de saída |
+| `timezone.weather_observed` | se o deck tem `weather/observed` | Fuso IANA do clima observado |
+| `timezone.weather_forecast.valid_time` e `.issue_time` | se o deck tem `weather/forecast` | Fusos IANA dos dois instantes do clima previsto |
+| `timezone.holidays`, `timezone.dst_periods` | não | Fusos IANA opcionais |
+| `weather_forecast_publication_lag_hours` | se o deck tem `weather/forecast` | Atraso de publicação do clima previsto, em horas inteiras, 0 ou mais |
+
+Todo fuso tem de estar em `OlsonNames()`. Não há fuso default: um fuso exigido e ausente aborta com `contract.tz_missing`, e um nome inválido com `contract.tz_invalid`. A conversão dos timestamps ingênuos do store está em [Leitor único do deck](/arquitetura/leitor-deck).
+
+O template do store está versionado em `config/deck-manifest.store.json`:
+
+```json title="config/deck-manifest.store.json"
+{
+  "schema_version": 1,
+  "load_label": "start",
+  "timezone": {
+    "load": "Etc/GMT+3",
+    "weather_observed": "Etc/GMT+3",
+    "weather_forecast": { "valid_time": "Etc/GMT+3", "issue_time": "UTC" },
+    "holidays": "Etc/GMT+3"
+  },
+  "weather_forecast_publication_lag_hours": 6
+}
+```
+
+<Pendente titulo="Pendente · manifest do store real">O store local ainda não tem um <code>manifest.json</code>. Os valores do template (<code>load_label: start</code>, <code>Etc/GMT+3</code>, <code>issue_time</code> em UTC, atraso de 6 horas) estão marcados como a confirmar e nada foi gravado no store real.</Pendente>
+
+### O deck sem manifest.json
+
+A CLI nunca escreve no `data_dir`. O `manifest.json` tem de chegar junto com o deck. Sem ele, o leitor aborta com `contract.manifest_missing` (exit 2). Depois de colocar o manifest no deck, valide-o como em [Validar o deck antes de rodar](/execucao/validar-deck).
+
+## Topologia e membros
+
+A árvore do SIN e a lista de membros da combina moram num único arquivo, `config/topology.yaml`. Uma área nova é uma edição desse arquivo, sem mudança de código.
+
+| Chave | Conteúdo |
+|---|---|
+| `schema_version` | `1` |
+| `khat_range` | Faixa global do k-hat; no arquivo versionado, `[1.00, 1.15]` |
+| `subsystems` | Por subsistema: `areas`, `loss` (a perda) e, opcionalmente, um `khat_range` próprio |
+| `order` | Ordem dos subsistemas: `SECO`, `S`, `N`, `NE` |
+| `members` | Por membro: `sigla`, `mdir` (diretório em `models/`) e `exogena` |
+
+:::warning Aspas no subsistema N
+O YAML 1.1 lê `N` sem aspas como `FALSE`. No arquivo, o subsistema aparece sempre como `"N"`.
+:::
+
+Cada `mdir` precisa ter um `models/<mdir>/run.yaml`. Uma sigla repetida ou um `mdir` sem `run.yaml` aborta com `contract.topology_member_invalid` (exit 2). Os erros da topologia são da classe `contract`, não `config`. O contrato completo está em [Topologia e contrato por modelo](/arquitetura/topologia-run-yaml).
+
+Dois verbos mostram o que a CLI leu. Não leem o deck nem pedem `--origin`.
+
+<Terminal title="prevcarga — bash" lines={[
+  {type:'cmd', text:'prevcarga areas'},
+  {type:'out', text:'SIN'},
+  {type:'out', text:'  SECO  perda=PESE  khat_range=1.00-1.15'},
+  {type:'out', text:'    areas: RJ RO MG ES MT SP AC MS GO DF'},
+  {type:'out', text:'  S  perda=PES  khat_range=1.00-1.15'},
+  {type:'out', text:'    areas: RS PR SC'},
+  {type:'out', text:'  N  perda=PEN  khat_range=1.00-1.15'},
+  {type:'out', text:'    areas: PA TON AP AM MA'},
+  {type:'out', text:'  NE  perda=PENE  khat_range=1.00-1.15'},
+  {type:'out', text:'    areas: ALPE CE PBRN BAOE PI BASE'}
+]} />
+
+O `prevcarga models` lista os 8 membros, um por linha, com o que vem do `run.yaml` de cada `mdir`: `split`, granularidade, horizonte, histórico de treino e de inferência, `seed`, modos, protocolo de backtest default e `exogena`.
+
+<Terminal title="prevcarga — bash" lines={[
+  {type:'cmd', text:'prevcarga models'},
+  {type:'out', text:'models: 8 membros'},
+  {type:'out', text:'RF        random-forest  split=origin_agnostic gran=60min horizonte=9d historico=365/45 seed=123 modos=train,infer protocolo=daily exogena=-'},
+  {type:'out', text:'LGBM      lgbm           split=origin_agnostic gran=30min horizonte=1d historico=730/45 seed=123 modos=train,infer protocolo=daily exogena=-'},
+  {type:'out', text:'HW        holt-winters   split=origin_scoped gran=30min horizonte=8d historico=730/45 seed=1234 modos=train,infer,forecast protocolo=retrain_harness exogena=-'},
+  {type:'out', text:'RGD_MED   dessem-regdin  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MED'},
+  {type:'out', text:'RGD_MAX   dessem-regdin  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MAX'},
+  {type:'out', text:'LIN_MED   dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MED'},
+  {type:'out', text:'LIN_MAX   dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MAX'},
+  {type:'out', text:'LIN_MXMN  dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MXMN'}
+]} />
+
+Com `--format=json`, os dois verbos devolvem o mesmo conteúdo no envelope JSON. O significado de cada campo está em [Os modelos](/metodologia/modelos-visao-geral).
+
+## Erros de configuração comuns
+
+Os erros da classe `config` saem todos com exit 8. A mensagem em texto tem quatro linhas: classe e exit, o que houve, onde e como corrigir. Para conferir a configuração sem rodar nada, use `prevcarga doctor`: ele não aborta com o `config.yaml` quebrado e mostra o id do erro na linha `config.yaml`. Veja [Diagnóstico e introspecção](/execucao/diagnostico).
+
+| error.id | Causa típica | Onde (`where`) |
+|---|---|---|
+| `config.unknown_key` | Chave fora do schema v1, inclusive dentro de `backtest` | a chave, ou `backtest.<chave>` |
+| `config.bad_type` | `schema_version` ausente ou diferente de 1; tipo errado; YAML inválido; raiz que não é mapa; arquivo de `--config` inexistente; `corte_default` fora da grade de 30 min | a chave ou o arquivo |
+| `config.bad_origin` | `--origin` fora de `YYYY-MM-DD`, data inexistente, ou `A..B` fora de `backtest`/`plan` | `--origin` |
+| `config.bad_load_label` | `load_label` ou `--load-label` diferente de `end`/`start` | a chave do `config.yaml`; `-` quando o valor veio da flag |
+| `config.bad_weather_cutoff` | Regra de clima diferente de `available_until`/`origin_midnight_utc` | a chave do `config.yaml`; `-` quando o valor veio da flag |
+| `config.bad_color` | `color` diferente de `auto`/`always`/`never` | a chave do `config.yaml`; `-` quando o valor veio da flag |
+| `config.bad_format` | `format` diferente de `text`/`json` | a chave do `config.yaml`; `-` quando o valor veio da flag |
+| `config.data_dir_missing` | Verbo que lê o deck sem `data_dir` nem `--data` | `--data` |
+| `config.unknown_model` | `--model` com um nome que não é `mdir` de um membro da topologia; nos verbos de treino também vale `mdir/exogena`, e `--exogena` sem membro correspondente | o nome rejeitado |
+| `config.usage` | Sintaxe inválida, verbo inexistente ou flag de escopo no verbo errado | o token rejeitado |
+
+Exemplos reais da saída em texto:
+
+<Terminal title="prevcarga — bash" lines={[
+  {type:'cmd', text:'prevcarga models --config=./config.yaml'},
+  {type:'err', text:'prevcarga: erro [config] (exit 8)'},
+  {type:'out', text:'o que: chave desconhecida na configuracao'},
+  {type:'out', text:'onde: corte'},
+  {type:'out', text:'como corrigir: remova ou corrija a chave em config.yaml'},
+  {type:'cmd', text:'prevcarga describe --origin=2024-6-1'},
+  {type:'err', text:'prevcarga: erro [config] (exit 8)'},
+  {type:'out', text:'o que: --origin nao e uma data ISO YYYY-MM-DD'},
+  {type:'out', text:'onde: --origin'},
+  {type:'out', text:'como corrigir: use --origin=2024-06-01'},
+  {type:'cmd', text:'prevcarga models --corte=08:00'},
+  {type:'err', text:'prevcarga: erro [config] (exit 8)'},
+  {type:'out', text:'o que: uso invalido da linha de comando'},
+  {type:'out', text:'onde: --corte'},
+  {type:'out', text:'como corrigir: rode prevcarga --help para ver a sintaxe'}
+]} />
+
+No primeiro exemplo, o `config.yaml` tinha uma chave de topo `corte`, que não existe no schema v1. O corte do backtest é `backtest.corte_default`.
+
+:::info Erros do manifest e da topologia são exit 2
+Problemas no `manifest.json` do deck (`contract.manifest_missing`, `contract.manifest_invalid`, `contract.manifest_unknown_key`, `contract.tz_missing`, `contract.tz_invalid`, `contract.load_label_conflict`, `contract.weather_lag_missing`) e no `config/topology.yaml` (`contract.topology_*`, `contract.khat_range_invalid`) são da classe `contract`, com exit 2. A tabela completa de classes e códigos está em [Erros e solução de problemas](/execucao/erros-troubleshooting).
+:::

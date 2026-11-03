@@ -1,0 +1,156 @@
+---
+title: Visão geral e princípios
+sidebar_label: Princípios
+sidebar_position: 1
+slug: /arquitetura/principios
+description: O que é o PrevCarga V1, CLI modular só em R, os sete princípios de arquitetura que o código impõe e onde cada tipo de artefato mora no repositório.
+fontes:
+  - CLAUDE.md
+  - docs/adr/0018-runtime-r-only-cleanroom.md
+  - docs/estado/m1-spike-r453.md
+  - renv.lock
+  - scripts/prevcarga
+  - scripts/lib/cli.R
+  - scripts/lib/runtime.R
+  - scripts/lib/config.R
+  - scripts/lib/dates.R
+  - scripts/lib/reconcile.R
+  - scripts/lib/errors/dates.tsv
+  - scripts/lib/errors/reconcile.tsv
+  - scripts/lib/topology.R
+  - scripts/lib/evaluation.R
+  - scripts/lib/errors.R
+  - scripts/lib/registry.R
+  - scripts/lib/deck_reader.R
+  - scripts/lib/features.R
+  - models/*/R/register.R
+  - .gitignore
+adrs: [ADR-0018, ADR-0036, ADR-0008, ADR-0012, ADR-0019, ADR-0023, ADR-0035, ADR-0037, ADR-0038, ADR-0040]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Arquitetura · 2.1</span>
+
+<p className="pc-lead">O PrevCarga é a CLI <code>prevcarga</code>: modular, só em R, sem dependências externas de runtime. Sete princípios dão forma ao código: módulo é função R importável, o determinismo é fixado dentro do processo, a previsão nunca usa dado posterior ao corte, há três cortes de data distintos, topologia e métrica têm fonte única, coleções são descobertas por pasta e o ajuste de hora é centralizado na fundação. Cada princípio tem um módulo dono no código.</p>
+
+## Um só runtime: R
+
+Todo o sistema roda em R (ADR-0018). Com um único runtime, a grade semi-horária e a leitura da carga observada existem em um só lugar. Não há duas implementações que precisem concordar bit a bit, e com isso some uma classe inteira de erros de divergência entre implementações.
+
+- os modelos, a reconciliação e a combina são R;
+- a fachada da CLI é R (`scripts/prevcarga`, Rscript com docopt);
+- a grade e a leitura da carga são uma função R única, importável;
+- o bundle leva só a biblioteca R, sem ambiente Python.
+
+A versão do R é 4.5.3 (ADR-0036), com o `renv.lock` tirado do snapshot de pacotes de 2026-10-27. O lock é próprio: o do sistema de referência não compila em R 4.5.3. Com este lock, os cinco modelos rodam (`docs/estado/m1-spike-r453.md`).
+
+## Os sete princípios
+
+Cada princípio é imposto por código. A tabela resume. As seções seguintes dão o mecanismo e a página que o detalha.
+
+| # | Princípio | Onde mora | Página |
+|---|---|---|---|
+| 1 | Módulo é função R importável | `scripts/lib/*.R`, `scripts/prevcarga` | [Fachada da CLI](/arquitetura/fachada-cli) |
+| 2 | Determinismo fixado no processo, sem variáveis de ambiente | `scripts/lib/runtime.R`, `scripts/lib/config.R` | [Runtime](/arquitetura/runtime) |
+| 3 | Honestidade: nenhum dado posterior ao corte | `scripts/lib/dates.R`, `scripts/lib/reconcile.R` | [Os três cortes](/metodologia/tres-cortes) |
+| 4 | Três cortes de data distintos | `scripts/lib/dates.R` | [Os três cortes](/metodologia/tres-cortes) |
+| 5 | Fonte única de topologia e de métrica | `scripts/lib/topology.R`, `scripts/lib/evaluation.R` | [Topologia e contrato por modelo](/arquitetura/topologia-run-yaml) |
+| 6 | Barrel por descoberta | `scripts/lib/cli/`, `scripts/lib/errors/` | [Barrel por descoberta](/arquitetura/barrel-descoberta) |
+| 7 | Ajuste de hora centralizado, nunca dentro do modelo | `scripts/lib/deck_reader.R`, `scripts/lib/registry.R`, `scripts/lib/features.R` | [Despachante de plugin](/arquitetura/despachante) |
+
+### 1. Módulo é função R importável
+
+Cada módulo é um arquivo em `scripts/lib/` que expõe funções. Nenhum módulo é um script chamado por subprocesso com parâmetros passados por variável de ambiente. A CLI é uma fachada fina que compõe essas funções.
+
+O shim `scripts/prevcarga` só despacha. Ele carrega `errors.R` e `runtime.R`, resolve a raiz de instalação, carrega `config.R`, `banner.R` e `cli.R` e chama `prevcarga_main()`. Nenhum verbo é conhecido no shim. Os verbos entram por arquivo, como no princípio 6. Os módulos e os seus donos estão no [mapa de módulos](/arquitetura/mapa-modulos).
+
+### 2. Determinismo fixado no processo, sem variáveis de ambiente
+
+`scripts/lib/runtime.R` roda como primeira ação de todo verbo não isento e fixa, dentro do processo:
+
+- o fuso `TZ` em `UTC`;
+- o locale: `LC_CTYPE` em UTF-8, `LC_COLLATE` e `LC_NUMERIC` em `C`;
+- os quatro pins de thread (`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`, `VECLIB_MAXIMUM_THREADS`) em 1;
+- o BLAS com 1 thread.
+
+O runtime sobrescreve o que vier do shell. Só aborta se não conseguir fixar, com `runtime.tz_unfixable`, `runtime.locale_unavailable` ou `runtime.blas_unfixable` (classe `runtime`, exit 7). A única leitura do ambiente no pacote é o diagnóstico do runtime, que registra o que encontrou antes de fixar.
+
+A configuração segue `flag > config.yaml > default` (`scripts/lib/config.R`). Datas são tratadas só com lubridate e fuso explícito. O fuso do dado é declarado no `manifest.json` do deck (ADR-0037). Detalhes em [Runtime](/arquitetura/runtime), [Configuração e contexto](/arquitetura/configuracao-ctx) e [Determinismo e reprodutibilidade](/metodologia/determinismo).
+
+### 3. Honestidade: nenhum dado posterior ao corte
+
+A honestidade não é pressuposta do isolamento de processo (uma árvore de dados truncada no corte). Ela é uma propriedade de cada módulo (ADR-0008): cada um lê só o que o seu corte permite, e o código aborta quando um corte iria além da origem. Essas guardas de honestidade saem com códigos da classe `honesty` (exit 15):
+
+| Código | Onde | Quando aborta |
+|---|---|---|
+| `honesty.data_lag_negative` | `scripts/lib/dates.R` | `data_lag_days` negativo no descriptor ultrapassaria O − 1 e vazaria o dia da origem no treino |
+| `honesty.khat_after_origin` | `scripts/lib/reconcile.R` | O perfil k-hat foi ajustado com verdade posterior a O − 1 |
+
+Os cortes que as guardas protegem estão no princípio 4 e em [Os três cortes de data](/metodologia/tres-cortes).
+
+### 4. Três cortes de data distintos
+
+`scripts/lib/dates.R` separa três cortes:
+
+| Corte | Como é obtido |
+|---|---|
+| Origem O | `--origin`, o único corte informado pelo operador |
+| Corte de treino | Derivado por modelo pela classe de split (ADR-0023). `origin_agnostic`: `train_origin = O − 1 − H`. `origin_scoped`: `train_origin = O`, com um re-treino por dia. O último dia de dado é `O − 1 − data_lag_days`, do descriptor do plugin (no LGBM, `data_lag_days = 2`, logo O − 3) |
+| Corte intradiário | Derivado do próprio dado de carga (`available_until`, do leitor único). Membro de 30 min usa `available_until`; membro de 60 min usa `available_until` arredondado para baixo na hora cheia |
+
+Um corte uniforme para todos os modelos vaza horizonte, por isso não existe. O corte do clima previsto é escolhido por configuração (`weather_issue_cutoff`, flag `--weather-cutoff`). Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+### 5. Fonte única de topologia e de métrica
+
+`scripts/lib/topology.R` é o único lugar que lê `config/topology.yaml` (árvore do SIN, perdas, faixa do k-hat, membros) e os `models/<m>/run.yaml`. Nenhuma topologia, faixa ou granularidade é literal em `topology.R`: tudo vem do YAML. `scripts/lib/evaluation.R` tem a única definição de WMAPE, MAPE, MAE, RMSE, BIAS e pico, consumida por score, reconciliação, relatório da rodada e backtest. Assim os scorecards não discordam entre si. Ver [Topologia e contrato por modelo](/arquitetura/topologia-run-yaml) e [Avaliação](/metodologia/avaliacao).
+
+### 6. Barrel por descoberta
+
+Nenhuma coleção alimentada por vários módulos é uma lista central. Cada coleção é uma pasta lida por um loader determinístico: `list.files` seguido de ordenação radix pelo nome do arquivo, sob o locale `C` do runtime.
+
+| Coleção | Pasta | Loader |
+|---|---|---|
+| Verbos da CLI | `scripts/lib/cli/<verbo>.R` | `prevcarga_verbs_discover` (`cli.R`) |
+| Catálogo de erros | `scripts/lib/errors/<modulo>.tsv` | `prevcarga_errors_load` (`errors.R`) |
+| Estado por módulo | `docs/estado/<modulo>.md` | Convenção de pasta, sem loader de código |
+
+O catálogo `install/error-catalog.tsv` é derivado dos TSV e não é versionado nem editado à mão (ADR-0040). Ver [Barrel por descoberta](/arquitetura/barrel-descoberta).
+
+### 7. Ajuste de hora centralizado
+
+Nenhum plugin, motor ou adapter faz aritmética de hora (ADR-0012, ADR-0019, ADR-0035). Há só dois pontos que mexem em hora:
+
+- **O leitor único do deck** aplica o rótulo da carga. Com `load_label: end`, o carimbo de fim do intervalo vira início (−30 min). Ver [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
+- **O despachante da fundação** aplica o deslocamento de modelagem com `to_model_frame` na entrada e `to_display_frame` na saída (as duas definidas em `scripts/lib/features.R` e chamadas em `scripts/lib/registry.R`), pelo `model_time_offset_min` declarado no descriptor do plugin. Os dois DESSEM declaram 60. Os demais não declaram e ficam no default 0. Ver [Despachante de plugin](/arquitetura/despachante).
+
+## Tiers do repositório
+
+Cada tipo de artefato tem um destino fixo. O repositório versiona só código e documentação. Dados, artefatos treinados e saídas vivem fora do git.
+
+| Tipo | Destino | Versionado |
+|---|---|---|
+| Código de produção | `scripts/`, `scripts/lib/`, `scripts/tools/`, `models/`, `install/`, `config/` | Sim |
+| Estado atual do sistema | `docs/ESTADO-ATUAL.md` (índice) e `docs/estado/<modulo>.md` | Sim, atualizado junto com o código |
+| Decisões | `docs/adr/` (ADR-0001 a ADR-0022) e o registro de ADRs do plano de trabalho | Parcial, ver [Registro de decisões](/arquitetura/adrs) |
+| Referência operacional | `docs/reference/` | Sim |
+| Plano histórico | `docs/_archive/roadmap/` | Sim, só leitura |
+| Histórico do trabalho | `git log` e descrições de PR | No git, sem arquivos de resumo |
+| Nota em andamento | `docs/journal/` | Não (gitignored) |
+| Script experimental | `sandbox/` | Não (gitignored) |
+| Dados de entrada | `data/` (symlink ou sincronizado do repositório online) | Não |
+| Artefatos treinados | `models/*/models/` | Não |
+| Estado local | `.state/` | Não |
+| Saídas de build | `dist/` | Não |
+| Catálogo de erros gerado | `install/error-catalog.tsv` | Não |
+
+Regras que decorrem dos tiers:
+
+- não há arquivo de resumo de sessão, snapshot nem pasta de backup no repositório; o histórico é o git;
+- experimento vai para `sandbox/`, nunca solto na raiz de `scripts/`;
+- todo fato que sobrevive à mudança vai para o `docs/estado/<modulo>.md` do módulo, na mesma mudança;
+- a `main` espelha o remoto; o trabalho entra por branch curta e PR, e os hooks em `.githooks/` reforçam isso.
+
+:::info Índice de estado
+O índice `docs/ESTADO-ATUAL.md` está defasado em relação ao código. Este site descreve o código e os `docs/estado/<modulo>.md` conferidos contra ele.
+:::

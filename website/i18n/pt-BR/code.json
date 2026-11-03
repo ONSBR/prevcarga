@@ -1,0 +1,7 @@
+{
+  "theme.SearchBar.label": { "message": "Buscar" },
+  "theme.SearchBar.noResultsText": { "message": "Nenhum resultado" },
+  "theme.SearchBar.seeAll": { "message": "Ver todos os resultados" },
+  "theme.SearchPage.emptyResultsTitle": { "message": "Buscar na documentação" },
+  "theme.SearchPage.noResultsText": { "message": "Nenhum resultado encontrado" }
+}

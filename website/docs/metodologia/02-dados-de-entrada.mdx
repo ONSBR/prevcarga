@@ -1,0 +1,184 @@
+---
+title: Dados de entrada
+sidebar_label: Dados de entrada
+sidebar_position: 2
+slug: /metodologia/dados-de-entrada
+description: Quais dados alimentam a previsão, em que grade, quem usa o quê e por que o deck reprova em vez de preencher.
+fontes:
+  - docs/reference/DECK-CANONICO.md
+  - docs/adr/0002-grade-semihoraria-schema-long.md
+  - docs/adr/0004-store-parquet-hive.md
+  - docs/adr/0005-contrato-entrada-fail-por-origem.md
+  - docs/estado/m2-leitor.md
+  - docs/estado/deck_reader.md
+  - docs/estado/validation.md
+  - scripts/lib/deck_reader.R
+  - scripts/lib/validation.R
+  - scripts/lib/registry.R
+  - scripts/lib/schema_long.R
+  - scripts/lib/build_long_output.R
+  - scripts/lib/inference.R
+  - scripts/lib/training.R
+  - scripts/lib/errors.R
+  - scripts/lib/errors/validation.tsv
+  - scripts/lib/errors/deck_cut.tsv
+  - scripts/lib/errors/deck_reader.tsv
+  - scripts/lib/errors/topology.tsv
+  - scripts/lib/errors/plugin.tsv
+  - scripts/lib/errors/lgbm.tsv
+  - scripts/lib/errors/holt_winters.tsv
+  - config/deck-manifest.store.json
+  - models/*/run.yaml
+  - models/*/R/register.R
+  - models/random-forest/R/helpers_weather.R
+  - models/lgbm/R/ingestion.R
+  - models/lgbm/R/feature_engineering.R
+  - models/random-forest/R/ingestion.R
+  - models/holt-winters/R/ingestion.R
+  - models/holt-winters/R/feature_engineering.R
+  - models/dessem-linear/R/ingestion.R
+  - models/dessem-regdin/R/ingestion.R
+  - models/_dessem-engine/R/exogena.R
+adrs: [ADR-0002, ADR-0004, ADR-0005, ADR-0023, ADR-0024, ADR-0035, ADR-0037, ADR-0040]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Metodologia · 1.2</span>
+
+<p className="pc-lead">Todos os modelos leem o mesmo deck: um store parquet particionado por área e ano, com nomes de coluna canônicos, numa grade semi-horária de 48 patamares por dia. As variáveis explicativas são as do modelo tradicional: carga, temperatura e calendário. O deck é conferido antes de qualquer cálculo, e um buraco reprova a rodada com erro classificado. Nada é preenchido em silêncio: os tratamentos que cada modelo faz moram no pipeline do próprio modelo, não no deck.</p>
+
+## O acervo comum e quem lê o quê
+
+O deck é um diretório (`data_dir`) com um `manifest.json` na raiz e datasets parquet em partição Hive `area_code=/year=` (ADR-0004). O leitor único (`scripts/lib/deck_reader.R`) é o único lugar do sistema que abre o manifest e chama `arrow::open_dataset`. Ele conhece quatro datasets.
+
+| Dataset | Caminho | Colunas obrigatórias | Uso |
+|---|---|---|---|
+| Carga realizada | `load/` | `timestamp`, `load_mwh` | alvo e histórico de todos os modelos |
+| Clima previsto | `weather/forecast/` | `issue_time`, `valid_time`, `temperature` | exógena do horizonte; todas as emissões ficam guardadas |
+| Clima observado | `weather/observed/` | `timestamp`, `temperature` | exógena do histórico |
+| Dias especiais | `auxiliary/holidays/` | `date`, `holiday_type_id`, `prevcarga_code`, `simplified_code` | calendário de feriados |
+
+Colunas opcionais (`heat_index` nos dois climas e `rh` no observado) são conferidas por tipo quando existem e nenhum modelo as lê. A referência do deck (`docs/reference/DECK-CANONICO.md`) descreve ainda dois auxiliares opcionais, `auxiliary/load_tiers/` e `auxiliary/dst_periods/`. Nenhum módulo do código os lê nem os valida hoje.
+
+Os timestamps são gravados sem fuso. O fuso de cada dataset, e de cada coluna no clima previsto, é declarado no manifest (ADR-0037). O manifest também declara o rótulo da carga (`load_label`) e o atraso de publicação do clima previsto em horas (`weather_forecast_publication_lag_hours`), obrigatório quando o deck tem clima previsto (ADR-0024). A conversão de fuso e de rótulo está na [página de tempo](/metodologia/tempo-rotulo-fusos).
+
+### A matriz por modelo
+
+Cada plugin declara no descriptor (`models/<m>/R/register.R`) os tokens do deck que o primeiro estágio exige. A tabela resume esses tokens e o que o código de cada modelo faz com eles.
+
+| Modelo | Carga | Clima observado | Clima previsto | Feriados |
+|---|---|---|---|---|
+| `random-forest` | histórico até O−1 | não lê | horizonte e também nas origens de treino (safra por origem) | só a presença de `date` |
+| `lgbm` | no treino, até o `last_data_day` (O−3); na inferência, histórico até O−1 e o dia O até o corte | não lê | horizonte e também no treino | `prevcarga_code` ≥ 1 |
+| `holt-winters` | histórico até O−1 | histórico | só no horizonte, para a modulação dos feriados | `simplified_code` e `holiday_type_id` |
+| `dessem-linear` | histórico e o dia O até o corte | histórico | horizonte (`EXOGENAPREV`) | `prevcarga_code`, com `holiday_type_id` na falta |
+| `dessem-regdin` | histórico e o dia O até o corte | histórico | horizonte (`EXOGENAPREV`) | `prevcarga_code` (ou `holiday_type_id`) e `simplified_code` |
+
+Em resumo: os DESSEM usam o clima observado no histórico e o previsto no horizonte. RF e LGBM usam só o previsto, também nas origens passadas: a ingestão monta a safra de emissões de cada origem de treino. O HW usa o observado no histórico e o previsto só na modulação de feriado (o `efeitoTemp` do `SemiFer`). Só os modelos com `reads_day_O = TRUE` no descriptor (LGBM e os dois DESSEM) usam a carga do dia O como insumo.
+
+Os três códigos de feriado são obrigatórios no deck porque modelos diferentes consomem códigos diferentes. Para servir todos, o deck carrega todos.
+
+:::info Nunca entra observado além do corte
+Com uma origem, o leitor corta a carga e o clima observado no `available_until`, derivado do próprio dado de carga. O clima previsto entra só com emissões até o limite de emissão (`available_until` menos o atraso de publicação, na regra padrão). Os feriados são calendário conhecido de antemão e não têm corte. Os três cortes estão na [página dos cortes](/metodologia/tres-cortes).
+:::
+
+## Grade semi-horária flat-48
+
+A grade é semi-horária: o patamar começa em `:00` ou `:30`, com segundo zero (ADR-0002). Todo dia tem 48 intervalos de 30 minutos, sem exceção de horário de verão (`prevcarga_slots_per_day = 48`). Um dia com 46 ou 47 intervalos é buraco, não dia curto.
+
+A completude é contada por dia de `interval_start`, no fuso da carga, em `prevcarga_day_complete`. Um intervalo vale quando está na grade e tem `load_mwh` não NA, e uma duplicata conta uma vez. Daí as duas regras de carga:
+
+- carga NA não conta como patamar, e o dia fica incompleto (`completude.day_incomplete`);
+- carga menor ou igual a zero reprova (`contract.load_nonpositive`). Zero não é carga válida, nem marca de lacuna.
+
+## Padronização feita uma vez
+
+O deck chega com nomes canônicos. A tradução dos nomes de origem do ONS para os canônicos acontece uma única vez, na preparação do store, e nunca dentro de um modelo (ADR-0004 e ADR-0005). A validação do deck não tolera alias: coluna canônica ausente reprova com `contract.schema_missing`, nunca vira NA silencioso.
+
+| Canônico | Nome de origem (ONS) |
+|---|---|
+| `area_code` | `cod_areacarga` |
+| `timestamp` (carga) | `din_referencia` |
+| `load_mwh` | `val_carga` |
+| `temperature` | `val_tmp` |
+| `valid_time` (clima previsto) | `din_referencia` |
+| `issue_time` (clima previsto) | `din_origemprevisaoutc`, preservado no instante |
+| `date` (feriados) | `dat_diaespecial` |
+| `holiday_type_id` | `id_tipodiaespecial` |
+| `prevcarga_code` | `cod_prevcarga` |
+| `simplified_code` | `cod_simplificado` |
+
+A tabela vem da referência do deck. O código de preparação do store fica fora do PrevCarga: a CLI só lê o store já canônico.
+
+Os nomes internos dos motores (`DataHora`, `Carga`, `CargaGlobal`, `Exo_Temperatura`, `H01..H48`, `Feriado`, `TIPO_FER` e outros) não pertencem ao deck. Cada plugin os produz na própria ingestão, depois de ler as colunas canônicas.
+
+## A língua comum das saídas
+
+Toda saída de membro, combina e reconciliação usa o mesmo painel LONG de 8 colunas, em nome e ordem fixos (`prevcarga_schema_long` em `scripts/lib/schema_long.R`).
+
+| Coluna | Tipo | Significado |
+|---|---|---|
+| `area` | texto | área, subsistema ou SIN |
+| `forecast_origin` | texto `yyyy-MM-dd` | a origem O |
+| `target_datetime` | data-hora | fim do intervalo (`interval_end`), no fuso da carga |
+| `lead` | inteiro | `d_plus`·48 + slot, com slot de 1 a 48 contado de 00:00 |
+| `y_pred` | real | previsão |
+| `y_true` | real | carga realizada casada por `interval_end`, quando existe |
+| `d_plus` | inteiro | dia do `interval_start` menos O |
+| `granularity_min` | inteiro | sempre 30 |
+
+O conversor único (`scripts/lib/build_long_output.R`) recusa lead repetido, dia faltando no meio, dia depois do primeiro sem os 48 patamares e patamar fora da grade de 30 minutos contada de O 00:00. Só o primeiro dia, o resto de O depois do corte (`d_plus` 0), pode ser parcial. O detalhe está na [página do schema LONG](/arquitetura/schema-long).
+
+## Contrato de entrada em duas camadas
+
+O contrato de entrada tem uma camada estrutural e uma de dados.
+
+1. **Estrutural.** Cada estágio do plugin declara `requires` e `provides`. Quando o plugin carrega, antes de ler qualquer dado, o loader simula a cadeia inteira dos estágios contra os tokens do deck (`data.<dataset>.<coluna>`, derivados do mesmo contrato que a validação usa). O primeiro estágio com lacuna aborta com `plugin.provides_gap`, e nada é registrado.
+2. **De dados.** A validação do deck (`prevcarga validate-deck`, em `scripts/lib/validation.R`, passo 1 do forecast) confere o deck antes de qualquer cálculo. O veredito é acumulativo: a validação não para no primeiro defeito, e cada defeito vira um achado com área, dataset e onde. O detalhe está na [página da validação do deck](/arquitetura/validacao-deck).
+
+O contrato garante presença, não exclusividade. Todo plugin recebe o painel do mesmo leitor (`prevcarga_read_panel`), com os quatro datasets. O `requires` declara o que o plugin usa e não filtra o que chega. A janela de histórico de cada painel segue o `history_days` do `run.yaml` do membro.
+
+## A validação e os tratamentos de cada modelo
+
+### O que a validação do deck reprova
+
+| Defeito | Achado | Classe (exit) |
+|---|---|---|
+| Dia sem os 48 intervalos no histórico relevante, até O−1 | `day_incomplete` | completude (3) |
+| Buraco no dia O antes do último intervalo presente | `origin_day_gap` | completude (3) |
+| Carga menor ou igual a zero | `load_nonpositive` | contract (2) |
+| Patamar fora da grade ou intervalo duplicado | `grid_off`, `duplicate_interval` | contract (2) |
+| Manifest ausente, inválido, com chave desconhecida ou sem o fuso declarado | `manifest_missing`, `manifest_invalid`, `manifest_unknown_key`, `tz_missing`, `tz_invalid` | contract (2) |
+| Deck com clima previsto e sem o atraso de publicação | `weather_lag_missing` | contract (2) |
+| Dataset ausente, coluna obrigatória ausente, tipo errado, fuso gravado no parquet, layout fora do Hive | `dataset_missing`, `schema_missing`, `type_mismatch`, `tz_in_parquet`, `hive_layout` | contract (2) |
+| Temperatura observada ou prevista fora de −10 a 50 °C | `temperature_out_of_range` | contract (2) |
+| Código de feriado negativo | `code_negative` | contract (2) |
+| Área no deck fora da topologia | `area_undeclared` | topology (4) |
+| Histórico curto por membro: menos dias que `history_days.train` até o `last_data_day` do membro, ou que `history_days.infer` até O−1 | `window_train_deficit`, `window_infer_deficit` | window (5) |
+
+O histórico relevante vai do início da maior janela entre os membros do escopo até O−1. A completude conta a partir do primeiro dia presente de cada área: um dia anterior ao início do deck é déficit de janela, não buraco. Com vários defeitos, a classe do exit sai da precedência única de `scripts/lib/errors.R` (ADR-0040).
+
+A validação do deck também emite avisos que não reprovam: `outlier` (fora de 1,5 IQR e com o módulo do z acima de 3), `flatline` (6 ou mais intervalos idênticos seguidos), `climate_after_cut` (emissão do dia O depois do limite) e `available_until_spread` (áreas com cortes diferentes).
+
+:::warning Lacuna não é corte
+Um buraco até O−1 reprova. Um buraco no dia O antes de um intervalo presente também reprova, e o corte não encurta por causa dele. Já a ausência de carga depois do `available_until` e no horizonte é o esperado: é o que a rodada vai prever.
+:::
+
+### O que fica no pipeline de cada modelo
+
+O deck aprovado não é alterado. Os tratamentos de cada modelo moram na ingestão, na engenharia de atributos ou na inferência do próprio plugin.
+
+| Modelo | Tratamento | Onde |
+|---|---|---|
+| `dessem-linear`, `dessem-regdin` | completa o clima previsto curto no horizonte com a persistência do último dia completo anterior, em no máximo 2 dias curtos (`max_tail_fill_days`); lacuna maior reprova no contrato do plugin | ingestão, `fill_forecast_tail` do motor comum |
+| `dessem-linear`, `dessem-regdin` | monta o deck horário do motor (`CARGAHIST`, `EXOGENAHIST`, `EXOGENAPREV`, 24 horas por dia) e separa a carga do dia O até o corte, insumo do mm | ingestão |
+| `random-forest` | LOCF de `tmax` e `tmin` por dia do horizonte, a partir da origem anterior; origens de treino que seguem sem clima saem do treino | ingestão |
+| `lgbm` | os patamares do dia O depois do corte entram como sintéticos (`is_synthetic`, carga NA) para o BLF completar; com `tipodia_legacy` ligado (no `run.yaml` versionado está `false`), a sazonalidade ganha fallbacks hierárquicos calculados no treino e guardados no artefato (`sazonalidade_fallbacks`) | ingestão e atributos |
+| `holt-winters` | o pré-processamento da série: `Corrige.Dias.Faltantes`, `Corrige.Dados`, `Substitui.Feriados` e `Suaviza.LOESS` | engenharia de atributos |
+
+Um buraco antes do corte é reprovado pela validação do deck antes de chegar a esses tratamentos. Alguns plugins também conferem de novo o painel e abortam com erro próprio quando um dia de histórico chega incompleto: o `lgbm.completude` cobre os dias do histórico do LGBM, e o `hw.last_day_incomplete` cobre só o dia O−1 do HW. O detalhe de cada tratamento está nas páginas dos modelos, a partir da [visão geral dos modelos](/metodologia/modelos-visao-geral).
+
+<Pendente titulo="Pendente · manifest do store real">
+O store real ainda não tem `manifest.json`, e o leitor aborta com `contract.manifest_missing` até o store ser regravado. O template versionado `config/deck-manifest.store.json` (rótulo `start`, fuso `Etc/GMT+3`, `issue_time` em UTC, atraso de 6 horas) tem valores ainda a confirmar.
+</Pendente>

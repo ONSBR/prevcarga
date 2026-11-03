@@ -1,0 +1,253 @@
+---
+title: Diagnóstico e introspecção
+sidebar_label: Diagnóstico
+sidebar_position: 4
+slug: /execucao/diagnostico
+description: Os cinco verbos que inspecionam o ambiente e os contratos sem rodar previsão, doctor, status, models, areas e describe, com o que cada linha significa e como o código de saída é decidido.
+fontes:
+  - scripts/lib/introspect.R
+  - scripts/lib/cli/doctor.R
+  - scripts/lib/cli/status.R
+  - scripts/lib/cli/models.R
+  - scripts/lib/cli/areas.R
+  - scripts/lib/cli/describe.R
+  - scripts/lib/runtime.R
+  - scripts/lib/cli.R
+  - scripts/lib/errors.R
+  - scripts/lib/banner.R
+  - scripts/lib/dates.R
+  - scripts/lib/registry.R
+  - scripts/lib/errors/core.tsv
+  - models/lgbm/R/register.R
+  - docs/estado/introspect.md
+adrs: [ADR-0022, ADR-0023, ADR-0036, ADR-0040]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Execução · 3.4</span>
+
+<p className="pc-lead">Cinco verbos olham o sistema sem produzir previsão. <code>doctor</code> diagnostica o ambiente e o bundle instalado e sai com o código da falha mais grave. <code>status</code> resume o mesmo diagnóstico e o deck, e sai sempre com 0. <code>models</code>, <code>areas</code> e <code>describe</code> mostram os membros, a topologia e os contratos por modelo, e <code>describe --origin</code> calcula os cortes de data que uma rodada naquela origem usaria.</p>
+
+Nenhum dos cinco treina, infere ou grava artefato: eles só leem o ambiente, a configuração, a topologia e o deck. A saída é texto ASCII ou, com `--format=json`, o envelope único da CLI.
+
+| Verbo | Uso | Isento do runtime estrito | Código de saída |
+|---|---|---|---|
+| `doctor` | `prevcarga doctor` | sim | 0, ou a classe mais grave entre as linhas em FAIL |
+| `status` | `prevcarga status` | sim | sempre 0 |
+| `models` | `prevcarga models` | não | 0; erro de contrato, runtime ou config pela fachada |
+| `areas` | `prevcarga areas` | não | idem |
+| `describe` | `prevcarga describe [--origin=<data>] [--model=<m>]` | não | idem; modelo desconhecido sai com 8 |
+
+Os verbos isentos (`exempt = TRUE`, ADR-0022) não abortam quando o runtime não consegue fixar fuso, locale ou threads, nem quando o `config.yaml` está quebrado. Nesse caso o contexto é montado em modo tolerante: o `config.yaml` é ignorado, valem os defaults e as flags, e o erro de configuração vira uma linha do diagnóstico. Os demais verbos rodam o runtime estrito como primeira ação e saem com 7 se ele falhar. O porquê está em [Runtime](/arquitetura/runtime).
+
+Todos aceitam as flags globais, inclusive `--format=json`. Em JSON a saída é o envelope único da CLI, com `ok`, `verb`, `exit_code`, `error`, `warnings`, `result`, `run_id` e `version`. O banner só aparece no texto do `doctor` (e em `--help`, `--version` e sem verbo), nunca em JSON.
+
+## doctor
+
+```bash
+prevcarga doctor
+prevcarga doctor --format=json
+```
+
+O `doctor` monta todas as linhas antes de calcular o código de saída. Ele nunca aborta no meio, e o número de linhas é constante: 18 linhas fixas do ambiente e 7 linhas do bundle e dos artefatos, 25 no total. Cada linha tem quatro campos: `check`, `status`, `found` e `effective`.
+
+```text title="Formato de cada linha (prevcarga_render_doctor)"
+[<status>] <check>  found=<encontrado>  effective=<efetivo>
+```
+
+Depois das linhas vêm `resumo: PASS=… WARN=… FAIL=… N/A=…` e, se houver FAIL, `ofensores:` com os nomes das linhas em falha.
+
+### Vocabulário de status
+
+| Status | Significado |
+|---|---|
+| `PASS` | O item está como o produto exige. |
+| `WARN` | Divergência que não impede a rodada; não muda o código de saída. |
+| `FAIL` | Falha que impede a rodada; entra no cálculo do código de saída. |
+| `N/A` | Item que não se aplica a esta instalação (por exemplo, as linhas do bundle quando o sistema roda fora de uma instalação). |
+
+### As 18 linhas fixas
+
+Nas linhas de runtime, `found` é o valor que o processo herdou do shell e `effective` é o valor depois que o runtime aplicou os setters. Um shell "sujo" não é erro: a linha só falha se o valor efetivo continuar fora do exigido.
+
+| Linha | Exigido | FAIL ou WARN quando | Classe |
+|---|---|---|---|
+| `TZ` | fuso efetivo `UTC` | FAIL se o fuso efetivo não é UTC | runtime (7) |
+| `locale` | `LC_CTYPE` UTF-8, `LC_COLLATE` e `LC_NUMERIC` iguais a `C` | FAIL se qualquer dos três ficou fora | runtime (7) |
+| `OMP_NUM_THREADS` | `1` | FAIL se o valor efetivo não é 1 | runtime (7) |
+| `OPENBLAS_NUM_THREADS` | `1` | idem | runtime (7) |
+| `MKL_NUM_THREADS` | `1` | idem | runtime (7) |
+| `VECLIB_MAXIMUM_THREADS` | `1` | idem | runtime (7) |
+| `pool BLAS` | 1 thread | FAIL se o pool BLAS não ficou em 1 | runtime (7) |
+| `versao do R` | `4.5.3` | WARN se a versão é outra (ADR-0036) | — |
+| `docopt`, `yaml`, `jsonlite`, `digest`, `lubridate`, `RhpcBLASctl` | instalado | FAIL se ausente (pacote obrigatório) | bundle (6) |
+| `arrow`, `withr` | instalado | WARN se ausente (pacote opcional) | — |
+| `config.yaml` | válido, ou nenhum (defaults) | FAIL se o arquivo não carrega; `found` traz o id do erro e `effective` diz `defaults + flags` | config (8) |
+| `data_dir` | diretório do store resolvido | WARN se nenhum diretório de dados foi configurado | — |
+
+A linha `locale` mostra em `found` e `effective` só o `LC_CTYPE`, mas o veredito considera os três. O locale UTF-8 esperado é `C.UTF-8` no Linux; no Windows o runtime tenta `.UTF-8` e depois `English_United States.utf8`.
+
+### As linhas do bundle e dos artefatos
+
+Além das 18 linhas fixas, o `doctor` confere o bundle instalado e os artefatos treinados. O bundle conta como instalado quando há um `RUNTIME.json` na raiz do código ou um nível acima. Fora de uma instalação (por exemplo, rodando a partir de uma cópia do código-fonte) não há, e as 7 linhas saem `N/A` com `found=N/A (nao-instalado)`.
+
+| Linha | Confere | Resultado | Classe do FAIL |
+|---|---|---|---|
+| `bundle.plataforma` | `platform` do `RUNTIME.json` igual à do host; no Linux, glibc 2.35 ou mais nova | PASS ou FAIL | bundle (6) |
+| `bundle.r_version` | `r_version` do `RUNTIME.json` igual à do R em execução | PASS ou FAIL | bundle (6) |
+| `bundle.integridade` | os arquivos de `files[]` do `RUNTIME.json` (`prevcarga_runtime_validate`); `found` lista até 3 divergentes | PASS ou FAIL | bundle (6) |
+| `bundle.versao` | versão do bundle; `effective` traz o `runtime_id` | sempre PASS | — |
+| `bundle.current` | o arquivo-ponteiro `current` na raiz da instalação, ao lado de `versions/` | PASS se aponta para esta versão, WARN se aponta para outra, N/A se ausente | — |
+| `artefatos.presenca` | cada `latest.txt` sob `<state_dir>/artifacts/` aponta para um diretório `v_<hash>` existente | PASS ou FAIL; `found` cita o primeiro ausente | state (13) |
+| `artefatos.sha` | o `SHA256SUMS` de cada versão apontada bate com os arquivos | PASS ou FAIL; `found` cita o primeiro arquivo divergente | integrity (9) |
+
+O ponteiro `current` é um arquivo de texto com a versão, não um symlink, no layout criado pelo instalador (ver [Instalação](/execucao/instalacao)). Os artefatos e o `latest.txt` estão em [Ciclo de vida dos artefatos](/execucao/artefatos).
+
+### Como o código de saída é decidido
+
+As classes das linhas em FAIL são combinadas pela precedência do catálogo de erros (ADR-0040, `prevcarga_exit_precedence` em `scripts/lib/errors.R`):
+
+1. Se houver alguma das classes de cabeça, vence a primeira na ordem runtime (7), config (8), contract (2), completude (3), topology (4), window (5).
+2. Senão, vence a de menor código entre as demais. No `doctor` são bundle (6), integrity (9) e state (13).
+3. Sem nenhum FAIL, o código é 0. WARN e N/A nunca mudam o código.
+
+Exemplos que saem do código: um pacote obrigatório ausente junto de um `latest.txt` órfão sai com 6; o mesmo par com o fuso não fixado sai com 7.
+
+### Campos do JSON
+
+Em `--format=json`, o `result` do `doctor` traz `schema_version`, `checks` (as 25 linhas, cada uma com `check`, `status`, `found`, `effective`), `counts` (por status), `offenders`, `runtime_id`, `version`, `platform`, `install_root`, `bundle_root`, `state_dir`, `artefatos` e `state_bytes`.
+
+| Campo | Conteúdo |
+|---|---|
+| `runtime_id` | id content-addressed do `RUNTIME.json`; `null` fora do bundle |
+| `version` | a versão do `RUNTIME.json` quando instalado; senão a versão da árvore |
+| `platform` | a plataforma do host |
+| `install_root` | a raiz da instalação do usuário; fora do layout instalado, a raiz do código |
+| `bundle_root` | o diretório da versão que contém o `RUNTIME.json`; `null` fora do bundle |
+| `artefatos` | um item por `latest.txt` encontrado: `dir`, `versao`, `status` (`ok`, `ausente` ou `sha_divergente`) e, se divergente, `arquivo`; vazio fora do bundle |
+| `state_bytes` | bytes ocupados por subdiretório de primeiro nível do `state_dir` |
+
+O instalador roda o `doctor --format json` no fim da instalação e devolve esse resultado (ver [Instalação](/execucao/instalacao)).
+
+<Pendente titulo="Pendente · Windows">O instalador e o <code>doctor</code> no Windows (PowerShell, saída só ASCII) ainda estão em validação. Se algo divergir do descrito aqui no Windows, registre a saída de <code>prevcarga doctor --format=json</code> ao reportar.</Pendente>
+
+## status
+
+```bash
+prevcarga status
+```
+
+O `status` é a versão curta. Ele roda o mesmo diagnóstico do `doctor` (só as 18 linhas fixas, sem as linhas do bundle), resume as contagens e acrescenta o deck. O código de saída é sempre 0, mesmo com FAIL no ambiente: use o `doctor` quando precisar de um veredito.
+
+A saída de texto tem, nesta ordem:
+
+| Linha | Conteúdo |
+|---|---|
+| `status: prevcarga <versão>` | a versão em uso |
+| `ambiente: PASS=… WARN=… FAIL=… N/A=…` | as contagens das 18 linhas |
+| `ofensores: …` | só se houver FAIL |
+| `deck: …` | o deck, descrito abaixo |
+| `bundle: N/A` | campo fixo; o estado do bundle fica no `doctor` |
+
+O deck é lido sempre pelo leitor único (`prevcarga_deck_manifest`), nunca por caminho literal. A detecção é best-effort:
+
+| Situação | Linha `deck:` |
+|---|---|
+| deck legível | `deck: <caminho> load_label=<end ou start> timezone=<fuso da carga>` |
+| sem diretório de dados, diretório inexistente ou sem `manifest.json` | `deck: sem deck` |
+| `manifest.json` presente mas ilegível | `deck: manifest ilegivel` |
+| leitor do deck não carregado | `deck: leitor do deck indisponivel` |
+
+<Pendente titulo="Pendente · manifest.json do store real">O store local de dados ainda não tem um <code>manifest.json</code>. Até ele ser gravado, o <code>status</code> mostra <code>sem deck</code> para esse diretório. O template e os valores a confirmar estão em <a href="/execucao/configuracao">Configuração</a>.</Pendente>
+
+## models
+
+```bash
+prevcarga models
+prevcarga models --format=json
+```
+
+Lista os membros da topologia (`config/topology.yaml`) com o contrato de cada um, lido do `run.yaml` do seu diretório (`prevcarga_model_spec`). Nenhum valor é literal no verbo: editar um `run.yaml` muda a saída. A primeira linha é `models: <n> membros`, e cada membro ocupa uma linha.
+
+| Campo no texto | Campo no JSON | Origem |
+|---|---|---|
+| sigla | `sigla` | topologia |
+| diretório | `mdir` | topologia (o nome em `models/`) |
+| `split=` | `split` | `run.yaml`: `origin_agnostic` ou `origin_scoped` |
+| `gran=` | `granularity_min` | `run.yaml`, em minutos |
+| `horizonte=` | `horizon_days` | `run.yaml`, em dias |
+| `historico=treino/inferência` | `history_days` | `run.yaml`, em dias |
+| `seed=` | `seed` | `run.yaml` |
+| `modos=` | `modes` | `run.yaml` |
+| `protocolo=` | `protocol_default` | `run.yaml`, protocolo de backtest padrão |
+| `exogena=` | `exogena` | topologia; `-` no texto e `null` no JSON quando o membro não tem |
+
+O que cada campo significa para o modelo está em [Topologia e contrato por modelo](/arquitetura/topologia-run-yaml) e em [Os modelos](/metodologia/modelos-visao-geral).
+
+## areas
+
+```bash
+prevcarga areas
+```
+
+Mostra a hierarquia SIN → subsistemas → áreas, na ordem de subsistemas da topologia, com a perda e a faixa efetiva do k-hat de cada subsistema (`prevcarga_topology`).
+
+```text title="Formato da saída (prevcarga_render_areas)"
+SIN
+  <subsistema>  perda=<perda>  khat_range=<mín>-<máx>
+    areas: <área> <área> ...
+```
+
+No JSON, o `result` traz `sin`, `order` e `subsystems`, cada um com `name`, `loss`, `khat_range` e `areas`. Os campos de lista saem sempre como array, mesmo com um único elemento (ADR-0040). A faixa do k-hat é usada na [Reconciliação](/metodologia/reconciliacao).
+
+## describe
+
+```bash
+prevcarga describe
+prevcarga describe --origin=2026-10-01
+prevcarga describe --origin=2026-10-01 --model=lgbm
+```
+
+Junta topologia, contratos e cortes. O `result` traz `origin`, `topology` (o mesmo conteúdo do `areas`), `models` (o `run.yaml` completo de cada modelo), `member_set_hash` (o hash do conjunto de membros) e `cuts`.
+
+- `--model=<m>` restringe a um modelo. O valor é o diretório do modelo (`random-forest`, `lgbm`, `holt-winters`, `dessem-linear`, `dessem-regdin`). Um valor desconhecido aborta com `config.unknown_model` (exit 8); a dica do catálogo manda rodar `prevcarga models`.
+- `--origin=<data>` é a origem O no formato `AAAA-MM-DD`. Intervalo `A..B` só vale em `backtest` e `plan`; aqui sai com `config.bad_origin` (exit 8).
+
+### Os cortes calculados
+
+Com `--origin`, o `describe` calcula por membro os cortes que uma rodada nessa origem usaria, pelas mesmas funções de `scripts/lib/dates.R` que a rodada usa. A regra está em [Os três cortes de data](/metodologia/tres-cortes).
+
+| Campo por modelo | Regra (código) |
+|---|---|
+| `split`, `horizon_days` | do `run.yaml` |
+| `train_origin` | `origin_agnostic`: O − 1 − H; `origin_scoped`: O (ADR-0023) |
+| `last_data_day` | O − 1 − `data_lag_days` |
+| `data_lag_days` | declarado no descriptor do plugin: 2 no LightGBM e 0 nos demais |
+| `data_lag_source` | `descriptor` quando o plugin declara; `default` (lag 0) quando o plugin não é encontrado |
+
+O campo de rodada `available_until` é o corte intradiário, derivado do próprio dado de carga do deck. O `describe` tenta resolvê-lo por `prevcarga_resolve_cuts`, que lê a carga do dia O pelo leitor único. O resultado depende da origem e do deck:
+
+| Situação | Cortes por membro | `available_until` |
+|---|---|---|
+| sem `--origin` | não calculados; nota `sem --origin: cortes nao calculados` | indisponível |
+| com `--origin`, sem diretório de dados ou com diretório inexistente | calculados (não dependem do dado) | indisponível; nota `sem deck: available_until indisponivel` |
+| com `--origin`, deck com erro de contrato ou de completude | calculados | indisponível; nota `deck ilegivel: available_until indisponivel` |
+| com `--origin` e deck legível | calculados | data e hora no fuso da carga do deck, `AAAA-MM-DD HH:MM` |
+
+Erros de outra classe ao ler o deck não são engolidos: saem pela fachada com o código da classe. No texto, os cortes aparecem sob `cortes por membro:`, uma linha por modelo, seguidos de `available_until: derivado do deck (via validate-deck)` com o valor ou a marca `[indisponivel: <nota>]`.
+
+:::tip Antes de uma rodada
+`prevcarga describe --origin=<O>` é a forma barata de conferir, sem treinar nem inferir, qual `train_origin` e qual `last_data_day` cada membro vai usar e até onde vai a carga do deck. Para validar o deck por inteiro, use [Validar o deck antes de rodar](/execucao/validar-deck).
+:::
+
+## Erros comuns nestes verbos
+
+| Situação | Id | Exit |
+|---|---|---|
+| `--model` não é um diretório de modelo da topologia | `config.unknown_model` | 8 |
+| `--origin` mal formado ou intervalo fora de `backtest`/`plan` | `config.bad_origin` | 8 |
+| runtime não fixado em `models`, `areas` ou `describe` | classe runtime | 7 |
+| `topology.yaml` ou `run.yaml` inválido | classe contract | 2 |
+
+A tabela completa está em [Erros e solução de problemas](/execucao/erros-troubleshooting) e o contrato dos códigos em [Contrato de erros e códigos de saída](/arquitetura/erros-exit).
