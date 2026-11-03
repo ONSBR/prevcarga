@@ -12,7 +12,7 @@ sync para `code\install\`; o `install.ps1` cai no arquivo ao lado dele (mesmo fa
 ## Uso
 `prevcarga-sync --what artifacts|forecasts [--release-base <url>] [--state <dir>] [--model <m>]... [--area <a>]... [--origin <AAAA-MM-DD>] [--format text|json]`
 (ps1: `-What -ReleaseBase -State -Model -Area -Origin -Format`, aceita tambem `--x`). `--state` ausente: `state_dir` de `<R>/config.yaml`, senao `<R>/state`.
-`--release-base` default = o do instalador (`https://prevcarga.s3.amazonaws.com`, [TBD: ADR-0039]); aceita http(s) (os testes usam `http://127.0.0.1`).
+`--release-base` default = o bucket (`https://prevcarga.s3.amazonaws.com`, [TBD: ADR-0039]; o instalador baixa do GitHub Releases, ver `install.md`); aceita http(s) (os testes usam `http://127.0.0.1`).
 - **artifacts**: o conjunto oficial vem do CLI instalado ao lado (`prevcarga models --format json` e `areas --format json`; o bucket NUNCA e listado):
   `artifacts/<mdir>/[<exogena>/]<folha>/`, `artifacts/combina/<folha>/`, `artifacts/reconcile/<ss>/`. `--model` filtra os modelos (combina/reconcile sempre entram, como no
   release-pack); `--area` filtra pelo ULTIMO segmento do prefixo (folha ou subsistema). Filtro que nao casa com nada oficial => `sync.usage`. Um prefixo sem `latest.txt` (404)

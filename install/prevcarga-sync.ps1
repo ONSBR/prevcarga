@@ -337,7 +337,7 @@ function Invoke-PcMain {
     }
   } elseif ($script:Origin) { Write-PcError 'sync.usage' '-Origin' 'so vale com -What forecasts' }
 
-  if (-not $script:ReleaseBase) { $script:ReleaseBase = 'https://prevcarga.s3.amazonaws.com' }   # [TBD: ADR-0039]; o mesmo default do install.ps1
+  if (-not $script:ReleaseBase) { $script:ReleaseBase = 'https://prevcarga.s3.amazonaws.com' }   # [TBD: ADR-0039]; o bucket dos artefatos (o instalador baixa do GitHub Releases)
   $script:ReleaseBase = $script:ReleaseBase.TrimEnd('/')
   if ($script:ReleaseBase -notmatch '^https?://.+') { Write-PcError 'sync.usage' '-ReleaseBase' ('informe uma URL http(s): ' + $script:ReleaseBase) }
   if (-not $script:State) {  # flags > <R>\config.yaml > default

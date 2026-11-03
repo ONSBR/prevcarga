@@ -126,7 +126,7 @@ else
   [ -z "$ORIGIN" ] || pc_die sync.usage "--origin" "so vale com --what forecasts"
 fi
 
-[ -n "$BASE" ] || BASE="https://prevcarga.s3.amazonaws.com"   # [TBD: ADR-0039]; o mesmo default do install.sh
+[ -n "$BASE" ] || BASE="https://prevcarga.s3.amazonaws.com"   # [TBD: ADR-0039]; o bucket dos artefatos (o instalador baixa do GitHub Releases)
 BASE="${BASE%/}"
 case "$BASE" in http://?*|https://?*) ;; *) pc_die sync.usage "--release-base" "informe uma URL http(s): $BASE";; esac
 

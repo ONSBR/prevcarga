@@ -11,6 +11,16 @@ publicado nem baixado nos testes**: o upload e de outro ticket; os testes usam `
 [--skip-platform-check] [--add-to-path] [--profile <arq>] [--format text|json]`; `--rollback`; `--uninstall --yes [--purge]`.
 Sem `--bundle` baixa `<release-base>/releases/<v>/prevcarga-<v>-linux-x86_64.tar.zst` e `SHA256SUMS` (HTTPS; falha => exit 10);
 `latest` le `<release-base>/releases/latest.txt` (1 linha) (publicado pelo `release-pack --what runtime --latest`, M8.5).
+Dois layouts, escolhidos pela `--release-base` (2026-11-03, decisao do Gabriel: o instalador pode vir do GitHub Releases; artefatos
+e inferencias continuam no bucket do `prevcarga-sync`):
+- GitHub Releases, base exatamente `https://github.com/<org>/<repo>`: assets da release de tag `v<v>`
+  (`<base>/releases/download/v<v>/<bundle>` e `.../SHA256SUMS`); `latest` pelo redirect `<base>/releases/latest/download/latest.txt`,
+  entao toda release publica `latest.txt` (1 linha, a propria versao) como asset. Publicar = release de tag `v<v>` com os bundles,
+  o `SHA256SUMS` e o `latest.txt` gerados pelo `release-pack` (mais `install.sh`/`install.ps1` como assets, para o operador baixa-los).
+- Bucket, qualquer outra base (inclusive `github.com` com caminho mais fundo): `<base>/releases/<v>/` e `<base>/releases/latest.txt`.
+Default do instalador: `https://github.com/onsbr/prevcarga` (GitHub Releases); o bucket so por `--release-base`. O `prevcarga-sync`
+mantem o default do bucket (`https://prevcarga.s3.amazonaws.com`). `install.ps1` segue o mesmo par de layouts e o mesmo default.
+Teste: `tests/install/test-install-github-releases.R` (stub de curl no PATH registra as URLs; CONTROL: o install.sh anterior reprova).
 Com `--bundle` a versao vem de `--version` ou do nome `prevcarga-<v>-linux-x86_64.tar.zst`.
 
 ## Layout de `<R>` (gravado pelo instalador)
