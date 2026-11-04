@@ -47,7 +47,7 @@ Validacao unica fora do repo (nao versionada): stage montado no Linux com os 75 
 - **Gate Windows (M8.11)**: os itens Windows deste modulo (build x2/runtime_id, `.ps1` no host Windows, doctor) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W02-W04). Pendente: Gabriel.
 
 ## Build no CI (GitHub Actions)
-`.github/workflows/bundle-windows.yml` roda o `build_bundle_windows.ps1` num runner `windows-2022` hospedado pelo GitHub, em toda tag `v*`
+O job `windows` de `.github/workflows/release.yml` roda o `build_bundle_windows.ps1` num runner `windows-2022` hospedado pelo GitHub, em toda tag `v*`
 ou por `workflow_dispatch` (input `version`, que tem de bater com `config/VERSION`). Depois do build instala o zip com `install/install.ps1 -Bundle`
-numa raiz temporaria e roda `prevcarga.cmd --version` e `doctor`. O zip, o `.sha256` e o `.RUNTIME.json` ficam como artefato do run; anexar a
-release e passo de quem publica (o token do job e so leitura).
+numa raiz temporaria e roda `prevcarga.cmd --version` e `doctor`. O zip, o `.sha256` e o `.RUNTIME.json` ficam como artefato do run, e o job
+`publicar` os anexa a release (ver `docs/estado/m8-bundle.md`, Release no CI).

@@ -16,7 +16,8 @@ e inferencias continuam no bucket do `prevcarga-sync`):
 - GitHub Releases, base exatamente `https://github.com/<org>/<repo>`: assets da release de tag `v<v>`
   (`<base>/releases/download/v<v>/<bundle>` e `.../SHA256SUMS`); `latest` pelo redirect `<base>/releases/latest/download/latest.txt`,
   entao toda release publica `latest.txt` (1 linha, a propria versao) como asset. Publicar = release de tag `v<v>` com os bundles,
-  o `SHA256SUMS` e o `latest.txt` gerados pelo `release-pack` (mais `install.sh`/`install.ps1` como assets, para o operador baixa-los).
+  o `SHA256SUMS` e o `latest.txt` (mais `install.sh`/`install.ps1` como assets, para o operador baixa-los), montados pelo job `publicar`
+  de `.github/workflows/release.yml` (ver `docs/estado/m8-bundle.md`, Release no CI).
 - Bucket, qualquer outra base (inclusive `github.com` com caminho mais fundo): `<base>/releases/<v>/` e `<base>/releases/latest.txt`.
 Default do instalador: `https://github.com/onsbr/prevcarga` (GitHub Releases); o bucket so por `--release-base`. O `prevcarga-sync`
 mantem o default do bucket (`https://prevcarga.s3.amazonaws.com`). `install.ps1` segue o mesmo par de layouts e o mesmo default.

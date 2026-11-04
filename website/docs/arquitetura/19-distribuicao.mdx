@@ -5,6 +5,7 @@ sidebar_position: 19
 slug: /arquitetura/distribuicao
 description: Como o PrevCarga chega ao host do operador como um bundle R 4.5.3 relocável e verificável, instalado sem admin em Linux e Windows, e como releases, artefatos e entregas são publicados num repositório online de chaves imutáveis.
 fontes:
+  - .github/workflows/release.yml
   - docs/estado/m8-bundle.md
   - docs/estado/m8-bundle-windows.md
   - docs/estado/install.md
@@ -42,7 +43,7 @@ fontes:
   - docs/adr/0017-empacotamento-bundle-s3-entrega.md
 adrs: [ADR-0033, ADR-0036, ADR-0038, ADR-0039, ADR-0040, ADR-0017, ADR-0016]
 revisado_em: 2026-11-04
-commit_base: 'a158a54'
+commit_base: "23b4141"
 ---
 
 <span className="pc-overline">Arquitetura · 2.19</span>
@@ -240,6 +241,8 @@ Dos artefatos, só sai a versão apontada pelo `latest.txt` de cada célula do r
 ### Releases no GitHub
 
 O instalador não lê o repositório online. O default de `--release-base` do `install.sh` e do `install.ps1` é `https://github.com/onsbr/prevcarga`, e cada versão é uma release de tag `v<v>` com os assets de `releases/<v>/` mais o `latest.txt`, o `install.sh` e o `install.ps1`. A versão mais recente sai do redirect `<base>/releases/latest/download/latest.txt`, e o bundle de `<base>/releases/download/v<v>/`. Uma base que não seja exatamente `https://github.com/<org>/<repo>` usa o layout do repositório online (`<base>/releases/<v>/`), o que mantém espelhos e testes locais.
+
+A release é montada por `.github/workflows/release.yml` a cada tag `v*`. Os dois bundles são gerados em runners do GitHub, Linux pelo `build_bundle_linux.sh` e Windows pelo `build_bundle_windows.ps1`. Cada um é instalado pelo próprio instalador e passa por `--version` e `doctor` antes de seguir. O último job confere os sha256, monta o `SHA256SUMS` dos dois e publica a release com os bundles, os `RUNTIME-<plataforma>.json`, o `latest.txt` e os instaladores.
 
 <Pendente titulo="Pendente · ADR-0039">O nome do repositório online não está decidido. Ele só existe como <code>--bucket</code> do <code>upload</code>, e o default de <code>--release-base</code> do <code>prevcarga-sync</code> (<code>https://prevcarga.s3.amazonaws.com</code>) é provisório. A retenção do Object Lock (<code>--object-lock-retain-until-date</code>) também depende da política do repositório online.</Pendente>
 

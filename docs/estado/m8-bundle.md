@@ -66,6 +66,15 @@ catalogo, `bundle.package_missing`, tarball). Os bracos que dependem de `dist/` 
   do bundle); `run_all_gates.R --tier fast`: random-forest 25 PASS, holt-winters 44 PASS, lgbm 39 PASS, 0 FAIL. Delta vs host: nenhum.
 - Os pacotes de teste do host (compilados em noble) NAO carregam contra o libstdc++ do jammy do bundle; so afeta o harness de teste.
 
+## Release no CI (`.github/workflows/release.yml`)
+Uma tag `v*` dispara: `versao` (a tag tem de bater com `config/VERSION`), `linux` (este `build_bundle_linux.sh` num runner `ubuntu-22.04`, que ja traz
+Docker; repete ate 3 vezes so quando o log mostra o snapshot.ubuntu.com fora do ar, `50x`/`Unable to locate package`), `windows`
+(`docs/estado/m8-bundle-windows.md`) e `publicar`. Cada build instala o proprio bundle numa raiz temporaria e roda `--version` e `doctor`.
+`publicar` (so em ref de tag, unico job com `contents: write`) confere os `.sha256` do build, monta o layout de `releases/<v>/` do `release-pack`
+(bundles, `RUNTIME-<plataforma>.json`, `SHA256SUMS` em ordem radix) mais `latest.txt` e os dois instaladores, e cria a release `v<v>`
+(`--prerelease` se a versao tem `-`) ou substitui os assets de uma release que ja existe. Rodar o workflow a mao numa tag republica; numa branch, so builda e testa.
+O CI nao passa pelo `prevcarga release-pack`: os recibos que ele exige (`install-e2e-*`, `windows-vm`, `ab-corte`) nao sao gerados no CI.
+
 ## Pendencias
 - [DEFERRED M8.8] tiers de paridade (`--tier parity|parity-full`) e A/B completo Delta=0 contra o oraculo DENTRO do bundle: dono M8.8 ("A/B contra prevcargadessem3").
 - [DEFERRED M8.6] gate `cross_os` (artefato Linux -> Windows) e braco Windows: o verbo `verificar` (M8.7, `docs/estado/verificar.md`) ja compara entre plataformas; falta a execucao no Windows.

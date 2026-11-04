@@ -1,0 +1,172 @@
+# Release do PrevCarga: build dos dois bundles em runners hospedados pelo GitHub e publicacao da GitHub Release da tag.
+#   linux:   scripts/tools/build_bundle_linux.sh (container ubuntu:22.04 pinado) num runner ubuntu-22.04 -> .tar.zst + .sha256 + .RUNTIME.json
+#   windows: scripts/tools/build_bundle_windows.ps1 num runner windows-2022 -> .zip + .sha256 + .RUNTIME.json
+# Cada build instala o proprio bundle com o instalador do repo numa raiz temporaria e roda --version e doctor pelo lancador instalado.
+# publicar (so quando o run e de uma tag v*): junta os dois bundles, os RUNTIME-<plataforma>.json, o SHA256SUMS, o latest.txt e os
+# instaladores e cria a release v<v> (ou substitui os assets de uma release que ja existe). Por workflow_dispatch numa branch, so builda e testa.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versao do bundle (ex.: 0.1.0); vazio = a da tag escolhida'
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  versao:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versao
+        id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          v="${INPUT_VERSION:-}"
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then
+            t="${GITHUB_REF_NAME#v}"
+            [ -z "$v" ] || [ "$v" = "$t" ] || { echo "::error::versao pedida ($v) difere da tag (${GITHUB_REF_NAME})"; exit 1; }
+            v="$t"
+          fi
+          [ -n "$v" ] || { echo "::error::sem tag, informe a versao"; exit 1; }
+          cfg="$(head -n 1 config/VERSION | tr -d '[:space:]')"
+          [ "$cfg" = "$v" ] || { echo "::error::config/VERSION ($cfg) difere da versao pedida ($v)"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: versao
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      V: ${{ needs.versao.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # O snapshot.ubuntu.com as vezes responde 5xx e o apt segue sem indice ("Unable to locate package"): so essa falha e repetida.
+      - name: Build do bundle
+        run: |
+          for i in 1 2 3; do
+            if scripts/tools/build_bundle_linux.sh "$V" --out "$RUNNER_TEMP/dist" 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+              ls -l "$RUNNER_TEMP/dist"; exit 0
+            fi
+            grep -qE ' 50[0-9] |Unable to locate package|has no installation candidate' "$RUNNER_TEMP/build.log" || exit 1
+            echo "::warning::espelho de pacotes indisponivel (tentativa $i); nova tentativa em 120 s"
+            sleep 120
+          done
+          exit 1
+
+      - name: Instalar e conferir
+        run: |
+          tb="$RUNNER_TEMP/dist/prevcarga-$V-linux-x86_64.tar.zst"
+          sha="$(cut -d' ' -f1 "$tb.sha256")"
+          root="$RUNNER_TEMP/pc"
+          sh install/install.sh --bundle "$tb" --sha256 "$sha" --root "$root"
+          "$root/bin/prevcarga" --version
+          "$root/bin/prevcarga" doctor
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prevcarga-${{ env.V }}-linux-x86_64
+          path: |
+            ${{ runner.temp }}/dist/prevcarga-*-linux-x86_64.tar.zst
+            ${{ runner.temp }}/dist/prevcarga-*-linux-x86_64.tar.zst.sha256
+            ${{ runner.temp }}/dist/prevcarga-*-linux-x86_64.RUNTIME.json
+          if-no-files-found: error
+
+  windows:
+    needs: versao
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    env:
+      V: ${{ needs.versao.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build do bundle
+        run: |
+          & .\scripts\tools\build_bundle_windows.ps1 -Version $env:V -Out "$env:RUNNER_TEMP\dist"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem "$env:RUNNER_TEMP\dist" -File | Format-Table Name, Length
+
+      - name: Instalar e conferir
+        run: |
+          $zip = "$env:RUNNER_TEMP\dist\prevcarga-$env:V-windows-x86_64.zip"
+          $sha = ((Get-Content -LiteralPath "$zip.sha256" -TotalCount 1) -split '\s+')[0]
+          $root = "$env:RUNNER_TEMP\pc"
+          & powershell -NoProfile -ExecutionPolicy Bypass -File install\install.ps1 -Bundle $zip -Sha256 $sha -Root $root
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$root\bin\prevcarga.cmd" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$root\bin\prevcarga.cmd" doctor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prevcarga-${{ env.V }}-windows-x86_64
+          path: |
+            ${{ runner.temp }}/dist/prevcarga-*-windows-x86_64.zip
+            ${{ runner.temp }}/dist/prevcarga-*-windows-x86_64.zip.sha256
+            ${{ runner.temp }}/dist/prevcarga-*-windows-x86_64.RUNTIME.json
+          if-no-files-found: error
+
+  publicar:
+    needs: [versao, linux, windows]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      V: ${{ needs.versao.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: prevcarga-${{ env.V }}-*
+          path: dist
+          merge-multiple: true
+
+      # Mesmo layout de releases/<v>/ do release-pack: bundles, RUNTIME-<plataforma>.json e SHA256SUMS (radix, sha256sum -c);
+      # mais latest.txt (o instalador resolve "latest" pelo redirect /releases/latest/download/latest.txt) e os dois instaladores.
+      - name: Montar os assets
+        run: |
+          mkdir rel
+          for p in linux-x86_64.tar.zst windows-x86_64.zip; do
+            f="prevcarga-$V-$p"
+            (cd dist && sha256sum -c "$f.sha256")
+            cp "dist/$f" rel/
+          done
+          cp "dist/prevcarga-$V-linux-x86_64.RUNTIME.json" rel/RUNTIME-linux-x86_64.json
+          cp "dist/prevcarga-$V-windows-x86_64.RUNTIME.json" rel/RUNTIME-windows-x86_64.json
+          (cd rel && sha256sum -- * | LC_ALL=C sort -k2 > SHA256SUMS && sha256sum -c SHA256SUMS)
+          printf '%s\n' "$V" > rel/latest.txt
+          cp install/install.sh install/install.ps1 rel/
+          ls -l rel
+
+      - name: Publicar a release
+        run: |
+          tag="v$V"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" rel/* --clobber
+          else
+            pre=""; case "$V" in *-*) pre="--prerelease";; esac
+            gh release create "$tag" rel/* --verify-tag --title "PrevCarga $V" $pre \
+              --notes "Bundles linux-x86_64 e windows-x86_64 de $tag, instalados e conferidos (--version e doctor) nos runners do build. Instale com install.sh ou install.ps1; o SHA256SUMS cobre os dois bundles."
+          fi
+          gh release view "$tag" --json assets -q '.assets[] | "\(.name) \(.size)"'
