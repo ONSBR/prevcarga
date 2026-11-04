@@ -15,7 +15,7 @@ test_that("curva com exatamente 48 colunas, ASCII, deterministica", {
   expect_equal(length(b), 8L)
   expect_true(all(nchar(b[2:7], type = "bytes") == 48L))
   expect_match(b[8], ver, fixed = TRUE)
-  expect_equal(ver, "0.0.0-dev")
+  expect_equal(ver, readLines(file.path(pc_root(), "config", "VERSION"), warn = FALSE)[1])
   expect_true(all(utf8ToInt(paste(b, collapse = "")) <= 127L))
   expect_identical(b, prevcarga_banner(mk()))
   src <- readBin(file.path(pc_root(), "scripts", "lib", "banner.R"), "raw", 1e5)
