@@ -1,0 +1,272 @@
+---
+title: Erros e solução de problemas
+sidebar_label: Erros e problemas
+sidebar_position: 13
+slug: /execucao/erros-troubleshooting
+description: Como ler um erro do prevcarga, o que fazer diante de cada erro da rodada diária e dos demais verbos, onde consultar o catálogo completo e os problemas conhecidos.
+fontes:
+  - scripts/lib/errors.R
+  - scripts/lib/errors/*.tsv
+  - scripts/lib/errors/forecast.tsv
+  - scripts/lib/errors/export.tsv
+  - scripts/lib/errors/export_key.tsv
+  - scripts/lib/errors/deck_reader.tsv
+  - scripts/lib/errors/store_manifest.tsv
+  - scripts/lib/errors/validation.tsv
+  - scripts/lib/errors/report.tsv
+  - scripts/lib/cli.R
+  - scripts/lib/config.R
+  - scripts/lib/cli/forecast.R
+  - scripts/lib/forecast.R
+  - scripts/lib/exports.R
+  - scripts/lib/deck_reader.R
+  - scripts/lib/validation.R
+  - scripts/lib/reconcile.R
+  - scripts/lib/combination.R
+  - scripts/lib/training.R
+  - scripts/lib/orchestrate.R
+  - scripts/lib/verify_repro.R
+  - scripts/lib/introspect.R
+  - scripts/lib/cli/combine.R
+  - scripts/lib/cli/reconcile.R
+  - scripts/lib/cli/train-models.R
+  - scripts/lib/cli/backtest.R
+  - scripts/lib/cli/verificar.R
+  - scripts/lib/cli/validate-deck.R
+  - scripts/lib/cli/check-coherence.R
+  - scripts/tools/write_store_manifest.R
+  - install/install.sh
+  - install/install.ps1
+  - install/prevcarga-sync.sh
+  - config/deck-manifest.store.json
+  - docs/estado/forecast.md
+  - docs/estado/m6-forecast.md
+  - docs/estado/deck_reader.md
+  - docs/reference/MANUAL-USUARIO.md
+adrs: [ADR-0040, ADR-0027, ADR-0024]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Execução · 3.13</span>
+
+<p className="pc-lead">Todo erro do <code>prevcarga</code> sai com um id estável (<code>classe.motivo</code>), um código de saída fixo pela classe e uma dica de correção. No modo texto, são quatro linhas ASCII no stderr; com <code>--format json</code>, um único JSON no stdout, que traz também os <code>details</code>. Esta página diz como ler a mensagem, o que fazer diante de cada erro da rodada diária e dos outros verbos, onde consultar o catálogo inteiro e quais são os dois problemas conhecidos da V1.</p>
+
+A tabela de códigos 0–15, a precedência entre classes e o formato completo do envelope JSON estão em [Contrato de erros e códigos de saída](/arquitetura/erros-exit). Aqui o foco é o que fazer.
+
+## Lendo uma mensagem de erro
+
+### Texto
+
+O formato texto é o default. O erro tem sempre quatro linhas, em ASCII puro e sem acento, para sair igual no bash, no cmd e no PowerShell:
+
+| Linha | De onde vem | Para que serve |
+|---|---|---|
+| `prevcarga: erro [<classe>] (exit <n>)` | classe do id no catálogo | o código de saída que o shell recebe |
+| `o que: ...` | coluna `message` do catálogo | o defeito, em uma frase |
+| `onde: ...` | o módulo que abortou (um arquivo, uma área, uma flag, uma data) | o ponto exato; `-` quando o módulo não informa |
+| `como corrigir: ...` | coluna `hint` do catálogo | a primeira ação a tentar |
+
+Depois das quatro linhas podem vir linhas `prevcarga: aviso [<id>] <mensagem>`. Num erro, elas são as outras classes que também falharam e perderam a precedência; numa execução bem-sucedida, são avisos do catálogo (por exemplo `warning.outlier` da validação do deck). Num erro em texto, o stdout fica vazio, com uma exceção: o `validate-deck` e o `check-coherence` imprimem o relatório de findings no stdout antes das quatro linhas do erro.
+
+Exemplo: a rodada com `--origin` anterior ao último dia do deck. O dia da origem está completo, e a validação do deck recusa antes de qualquer inferência.
+
+<Terminal title="prevcarga — bash" lines={[
+  {type:'cmd', text:'prevcarga forecast --origin=2026-10-01'},
+  {type:'err', text:'prevcarga: erro [completude] (exit 3)'},
+  {type:'out', text:'o que: o dia da origem esta completo no deck (available_until >= O+1 00:00): nao ha corte entregavel da combina'},
+  {type:'out', text:'onde: 2026-10-01'},
+  {type:'out', text:'como corrigir: rode com o deck vivo do dia O (ate um corte intradiario ou as 00h) ou trunque o deck em O 00:00 (truncate_at/--corte)'}
+]} />
+
+:::tip O texto não mostra os details
+O modo texto imprime só `message`, `where` e `hint`. Os `details` do erro (a lista de findings da validação do deck, o caminho divergente de um `export.key_conflict`, o `available_until` que o deck deu) só aparecem no JSON. Quando a linha `onde` não basta, repita o comando com `--format json`.
+:::
+
+### JSON
+
+Com `--format json` (ou `format: json` no `config.yaml`), sai um único JSON no stdout e, sem `--debug`, o stderr fica vazio. O código de saída é o mesmo do modo texto. Para automação:
+
+1. Ramifique pelo código de saída do processo ou pela chave `exit_code`.
+2. Para distinguir erros da mesma classe, use `error.id`.
+3. Leia `error.details` para o diagnóstico fino.
+4. Não compare `error.message`: é texto para gente e pode mudar.
+
+O `partial.report_failed` (exit 14) é o único erro da rodada que traz `result` preenchido: a entrega foi publicada e o `result` descreve o que saiu.
+
+### `--debug`
+
+A flag global `--debug` escreve no stderr a pilha de chamadas do ponto que falhou, uma chamada por linha, além da mensagem normal. Sem ela, nenhum traceback sai, em nenhum formato. Use-a quando o erro for `generic.unexpected` (exit 1): é um erro R não classificado, a mensagem original vai em `details.original` e a dica do catálogo pede exatamente isso, rodar de novo com `--debug` e reportar.
+
+### Por onde começar
+
+O código de saída já diz onde procurar. Os detalhes de cada classe estão na [tabela 0–15](/arquitetura/erros-exit).
+
+| Códigos | Onde está o problema | Primeiro passo |
+|---|---|---|
+| 2, 3, 4, 5 | no deck, na topologia ou na janela de histórico | `prevcarga validate-deck` (ver [Validar o deck](/execucao/validar-deck)) |
+| 6, 7 | no bundle ou no ambiente do processo | `prevcarga doctor` (ver [Diagnóstico](/execucao/diagnostico)) |
+| 8 | na linha de comando ou no `config.yaml` | `prevcarga <verbo> --help` e a [configuração](/execucao/configuracao) |
+| 9, 10 | em integridade (sha256, cópia, chave de entrega imutável) ou na rede | leia o `id`; nos instaladores e no `prevcarga-sync`, refaça o download ou a sincronização |
+| 11, 12 | na coerência entre níveis ou na reprodutibilidade | `prevcarga check-coherence` ou `prevcarga verificar` (ver [Verificar uma entrega](/execucao/verificar)) |
+| 13 | no estado local: artefato, perfil ou pesos ausentes | treine ou sincronize o que falta (ver [Ciclo de vida dos artefatos](/execucao/artefatos)) |
+| 14 | entrega parcial | a parte publicada vale; refaça só o que falhou |
+| 15 | vazamento detectado em execução por uma guarda de honestidade | não use a saída; reveja o artefato que vazou |
+| 1 | erro não classificado | `--debug` e reporte |
+
+## Erros por verbo
+
+### `forecast`
+
+A rodada diária segue uma ordem fixa, e cada etapa tem os seus erros. Um erro até o reconcile não deixa scratch nem entrega: o reconcile roda em memória, antes de o scratch ser criado. A única gravação antes disso é o treino de um membro `origin_scoped`, quando ele acontece, que vai para o registry de artefatos. A tabela segue a ordem das etapas.
+
+| Etapa | Id | Exit | O que fazer |
+|---|---|---|---|
+| Flags | `config.usage` (`--niveis`, `--report-format`, `--area` junto com `--subsistema`) | 8 | `--niveis` aceita `sin`, `subsistemas` ou `tudo`; `--report-format`, `html` ou `pdf`; use `--area` ou `--subsistema`, não os dois |
+| Flags | `config.usage` (flag desconhecida, como `--corte`) | 8 | o `forecast` não tem flag de corte; `--origin` é a única flag de data. O corte vem do próprio deck (`available_until`) |
+| Flags | `config.bad_origin` | 8 | `--origin` no formato `AAAA-MM-DD` |
+| Flags | `config.bad_format` | 8 | `--format=text` ou `--format=json` |
+| Flags | `config.bad_weather_cutoff` | 8 | `--weather-cutoff` aceita `available_until` ou `origin_midnight_utc` |
+| Deck | `config.data_dir_missing` | 8 | informe `--data=<dir>` ou `data_dir` no `config.yaml` |
+| Deck | `contract.manifest_missing` | 2 | o deck não tem `manifest.json` na raiz; ver os problemas conhecidos abaixo |
+| Deck | `contract.manifest_invalid`, `contract.manifest_unknown_key`, `contract.tz_missing`, `contract.tz_invalid`, `contract.weather_lag_missing` | 2 | corrija o campo que a linha `onde` aponta no `manifest.json` (ver [Dados de entrada](/metodologia/dados-de-entrada)) |
+| Deck | `contract.load_label_conflict` | 2 | `--load-label` contradiz o manifest; remova a flag, o manifest vence |
+| Validação do deck | o id do primeiro erro da classe dominante, como `completude.day_incomplete`, `contract.load_nonpositive`, `window.window_train_deficit` | 2, 3, 4 ou 5 | rode `prevcarga validate-deck` para ver a lista completa de findings, corrija o deck e repita |
+| Validação do deck | `completude.origin_day_gap` | 3 | há buraco no dia da origem antes do último intervalo de carga; reponha o intervalo indicado em `onde` (`area:HH:MM`). `--skip-validate` não contorna este erro |
+| Validação do deck | `completude.forecast_origin_day_complete` | 3 | o deck já tem o dia O inteiro. Acontece com `--origin` anterior ao último dia do deck ou com o deck fechado na meia-noite de O+1. Rode com o deck vivo do dia O, até um corte intradiário ou às 00h. Sem `--origin`, a origem é o dia do último intervalo de carga do deck |
+| Plano | `topology.area_undeclared` | 4 | a área ou o subsistema pedido não está em `config/topology.yaml`; `onde` diz qual. Um `--subsistema` fora da topologia é recusado já no verbo, antes da validação do deck. `prevcarga areas` lista as válidas |
+| Membros | `state.artifact_missing` | 13 | falta o artefato de um membro `origin_agnostic`; a rodada nunca o treina. Rode `prevcarga train-models` para a célula ou sincronize os artefatos oficiais com `prevcarga-sync --what artifacts` |
+| Membros | `window.history_short` | 5 | um membro `origin_scoped` treina na rodada quando não há artefato da origem O, e o histórico do deck não cobre a janela de treino. Complete o histórico do deck |
+| Combina | `state.combina_not_trained` | 13 | não há pesos da combina para a folha em `<state>/artifacts/combina/<area>/`; treine-os com `prevcarga combine --mode=train` |
+| Combina | `contract.member_misaligned` | 2 | a entrega de um membro não casa com a grade comum (início, grade ou fim, pelo `delivery_days`); o `--format json` mostra os `details` |
+| Reconcile | `state.khat_missing` | 13 | não há perfil k-hat ajustado nesta origem. O perfil vale só para `khat_origin == O`: rode `prevcarga reconcile --mode=train` para a mesma origem antes da rodada |
+| Reconcile | `honesty.khat_after_origin` | 15 | o perfil k-hat é de uma origem posterior a O. Não use a saída; reajuste o perfil na origem da rodada |
+| Reconcile | `contract.khat_convention` | 2 | o perfil foi ajustado com outro rótulo de carga ou outro fuso; reajuste com `reconcile --mode=train` |
+| Export | `export.key_conflict` | 9 | a chave de entrega já existe com conteúdo diferente; nada foi sobrescrito. Ver os problemas conhecidos abaixo |
+| Export | `integrity.copy_failed` | 9 | confira espaço e permissão em `--state` e repita; nenhuma entrega parcial ficou |
+| Export | `state.nothing_to_deliver` | 13 | o scratch não tem os arquivos do nível pedido; confira `--niveis` |
+| Relatório | `partial.report_failed` | 14 | a entrega foi publicada e está intacta; só o relatório falhou. Rode de novo com `--report`: com os mesmos insumos a entrega é um no-op (`ja_publicado=sim`) e o relatório é refeito |
+
+Três comportamentos ajudam a ler essa tabela:
+
+1. **A validação do deck cobre o deck inteiro.** A validação da rodada não é restrita por `--area` nem por `--subsistema`: um defeito numa área que você não pediu também reprova. Para isolar, rode `prevcarga validate-deck --area=<a>`.
+2. **`--skip-validate` pula só a validação.** Os cortes (`available_until`, regra do clima, fuso e rótulo) continuam vindo do leitor do deck, e um buraco no dia O continua dando exit 3.
+3. **A rodada das 00h é válida.** Com `available_until` igual a O 00:00, sem nenhum dado do dia O, a rodada entrega a partir de O 00:30. A recusa por dia completo vale só a partir de O+1 00:00 (ver [Rodada diária](/execucao/rodada-diaria)).
+
+Os avisos da rodada (validação do deck, reconcile, export) não mudam o código de saída. Eles saem como linhas de aviso no stderr, ou em `warnings` do JSON.
+
+### Outros verbos
+
+| Verbo | Ids característicos | O que fazer |
+|---|---|---|
+| `validate-deck` | os mesmos ids da validação do deck (classes `contract`, `completude`, `topology`, `window`) | o relatório de findings sai antes do erro; corrija os itens da classe dominante primeiro (ver [Validar o deck](/execucao/validar-deck)) |
+| `train-models` | `config.unknown_model`, `contract.area_selector_conflict`, `topology.area_undeclared`, `window.history_short` | `prevcarga models` lista os modelos; use um só seletor de área (`--area`, `--subsistema` ou `--areas`) |
+| `combine` | `config.bad_mode`, `config.usage` (`--root`, `--out`), `state.combina_not_trained`, `contract.combina_input` | `--mode` é `train`, `apply` ou `full`; `--root` é obrigatório; `apply` e `full` exigem `--out`, com o diretório pai já existente |
+| `reconcile` | `config.bad_mode`, `state.khat_missing`, `honesty.khat_after_origin`, `completude.leaf_missing`, `contract.reconcile_input` | `--mode` é `train` ou `apply`; o perfil k-hat tem de ser da mesma origem |
+| `plan`, `backtest` | `config.origin_range_required`, `config.bad_corte`, `config.bad_protocol`, `state.lock_held`, `partial.backtest_delivery` | `--origin=A..B` (ou uma data); `--corte` na grade de 30 min (`08:00,09:30`); `--protocol` é `fixed`, `daily` ou `retrain_harness`. Só no `backtest`: lock de execução morta sai com `--break-lock`; entrega parcial continua com `--resume` (ver [Backtest](/execucao/backtest)) |
+| `verificar` | `integrity.manifest_sha`, `contract.identity_mismatch`, `contract.pairing`, `repro.key_mismatch`, `repro.value_out_of_tol`, `state.official_forecast_missing` | a fase que falhou diz o caminho: integridade (9), identidade e pareamento (2), valores (12), oficial ausente (13; rode `prevcarga-sync --what forecasts`). Ver [Verificar uma entrega](/execucao/verificar) |
+| `prevcarga-sync` | `sync.usage`, `sync.network`, `sync.sha_mismatch`, `sync.io_failed` | corrija a flag (8), a rede (10), repita o download (9) ou confira permissão e espaço do `--state` (6, `sync.io_failed`); nas falhas de rede e de sha256 nada é gravado no registry local. Ver [Sincronizar](/execucao/sync) |
+| `install.sh`, `install.ps1` | `install.preflight_failed`, `install.sha_mismatch`, `install.sha_missing`, `install.download_failed`, `install.manifest_invalid`, `install.no_previous_version` | plataforma sem suporte ou bundle com `RUNTIME.json` inválido (6), sha256 ausente ou divergente (9), rede (10), sem versão anterior para o rollback (8). Ver [Instalação](/execucao/instalacao) |
+
+Os utilitários de instalação e o `prevcarga-sync` escrevem o mesmo texto de quatro linhas e leem o mesmo catálogo. Eles emitem só as classes `bundle` (6), `config` (8), `integrity` (9) e `network` (10).
+
+## Catálogo completo
+
+O catálogo reúne todos os erros e avisos do `prevcarga`. Na versão documentada aqui são 334 ids. A distribuição por classe é esta:
+
+| Classe | Exit | Ids |
+|---|---|---|
+| `generic` | 1 | 9 |
+| `contract` | 2 | 189 |
+| `completude` | 3 | 22 |
+| `topology` | 4 | 4 |
+| `window` | 5 | 10 |
+| `bundle` | 6 | 9 |
+| `runtime` | 7 | 5 |
+| `config` | 8 | 24 |
+| `integrity` | 9 | 25 |
+| `network` | 10 | 4 |
+| `coherence` | 11 | 4 |
+| `repro` | 12 | 9 |
+| `state` | 13 | 13 |
+| `partial` | 14 | 3 |
+| `honesty` | 15 | 4 |
+
+A contagem inclui os avisos (`warning.*`), que também têm classe da tabela, mas não mudam o código de saída.
+
+### Onde consultar
+
+O catálogo completo vem no bundle, no arquivo `error-catalog.tsv`. Tem as colunas `id`, `class`, `exit_code`, `message` e `hint`, separadas por TAB e ordenadas por id. Numa instalação, ele fica em dois lugares:
+
+| Arquivo | Uso |
+|---|---|
+| `<raiz>/versions/<v>/code/install/error-catalog.tsv` | o catálogo da versão instalada |
+| `<raiz>/bin/error-catalog.tsv` | a cópia que o `prevcarga-sync` lê, ao lado do lançador |
+
+A raiz padrão é `~/.local/share/prevcarga` no Linux e `%LOCALAPPDATA%\prevcarga` no Windows. Para achar um id:
+
+```bash title="Linux"
+grep '^export.key_conflict' ~/.local/share/prevcarga/bin/error-catalog.tsv
+```
+
+```powershell title="Windows"
+Select-String -Path "$env:LOCALAPPDATA\prevcarga\bin\error-catalog.tsv" -Pattern '^export.key_conflict'
+```
+
+<Pendente titulo="Pendente · catálogo completo no site">
+A tabela completa dos 334 ids ainda não está publicada neste site. Até lá, consulte o `error-catalog.tsv` da sua instalação.
+</Pendente>
+
+:::warning Dicas do catálogo a corrigir
+Duas dicas do catálogo estão desatualizadas. A de `config.bad_weather_cutoff` pede um horário, mas `--weather-cutoff` aceita `available_until` ou `origin_midnight_utc`. A de `state.artifact_missing` cita `prevcarga train`, mas o verbo é `train-models`. Siga o que diz esta página.
+:::
+
+## Problemas conhecidos
+
+### Deck sem `manifest.json`
+
+O leitor do deck exige `manifest.json` na raiz do diretório de dados. Sem ele, todo verbo que lê o deck para com `contract.manifest_missing` (exit 2), e o `prevcarga status` mostra `sem deck`. O manifest declara o schema, o rótulo da carga, o fuso de cada coluna de data-hora e o atraso de publicação do clima previsto.
+
+O store real de dados não tem `manifest.json`. O produto nunca escreve no diretório de dados, então a CLI não cria o arquivo. O caminho é gravá-lo numa cópia ou num overlay do store, com o utilitário `scripts/tools/write_store_manifest.R` do repositório, a partir do template versionado `config/deck-manifest.store.json`:
+
+```bash title="gravar o manifest numa cópia do store"
+Rscript --vanilla scripts/tools/write_store_manifest.R --target <copia-do-store>
+```
+
+O utilitário valida o template pelo próprio leitor antes de gravar. Se o alvo já tem um `manifest.json` idêntico, é no-op. Se tem um diferente, sai com `contract.manifest_exists_different` (exit 2) e não toca no arquivo.
+
+```json title="config/deck-manifest.store.json"
+{
+  "schema_version": 1,
+  "load_label": "start",
+  "timezone": {
+    "load": "Etc/GMT+3",
+    "weather_observed": "Etc/GMT+3",
+    "weather_forecast": { "valid_time": "Etc/GMT+3", "issue_time": "UTC" },
+    "holidays": "Etc/GMT+3"
+  },
+  "weather_forecast_publication_lag_hours": 6
+}
+```
+
+<Pendente titulo="Pendente · manifest do store real">
+O store real não tem `manifest.json`, e os valores do template (`load_label: start`, fusos `Etc/GMT+3`, `issue_time` em UTC, atraso de 6 horas) estão registrados como "a confirmar" em `docs/estado/deck_reader.md`. Confira-os contra o seu store antes de usar o overlay.
+</Pendente>
+
+### `export.key_conflict` com outro `--niveis`
+
+A chave de entrega é imutável: `forecasts/<origem>/<available_until>/<versao>/`. A `versao` é um hash dos insumos da rodada (pacote, membros e o que eles entregaram, pesos da combina, perfil k-hat, topologia, rótulo da carga e regra do clima). O conjunto de arquivos pedido não entra nela: `--niveis` e `--incluir-membros` não mudam a `versao`.
+
+Por isso, rodar de novo a mesma origem, com o mesmo deck e os mesmos artefatos, mas com outro `--niveis` ou com `--incluir-membros` ligado ou desligado, cai na mesma chave com outro conjunto de arquivos. O export compara a chave publicada com a nova e sai com `export.key_conflict` (exit 9). O `details.path` do JSON traz o primeiro caminho divergente. Nada é sobrescrito, e a entrega anterior fica como estava.
+
+| Segunda rodada, mesma chave | Resultado |
+|---|---|
+| mesmo `--niveis` e mesmo `--incluir-membros` | no-op: `ja_publicado=sim`, exit 0 |
+| outro `--niveis` ou outro `--incluir-membros` | `export.key_conflict`, exit 9 |
+| deck novo do mesmo dia (outro `available_until`) | outra chave, publicada ao lado |
+
+O que fazer: decida o nível antes da primeira rodada de cada origem e corte, e repita sempre com as mesmas flags. Se a automação precisa de folhas cobertas ou de membros, use `--niveis=tudo` ou `--incluir-membros` desde a primeira rodada.
+
+<Pendente titulo="Pendente · chave e conjunto de arquivos">
+O tratamento não está decidido. As opções registradas em `docs/estado/forecast.md` são incluir `niveis` e `incluir_membros` na `versao` ou fazer o export aceitar um superconjunto e publicar só os arquivos que faltam.
+</Pendente>

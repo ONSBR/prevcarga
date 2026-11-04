@@ -1,0 +1,43 @@
+:root{
+/* Azul primário — derivado do #2B5CE6 do material de referência */
+--blue-50:#EEF3FF;--blue-100:#D9E4FF;--blue-200:#B4C8FF;--blue-300:#86A5FA;--blue-400:#5A82F2;--blue-500:#2B5CE6;--blue-600:#1F48C2;--blue-700:#17379A;--blue-800:#122B75;--blue-900:#0E1F52;--blue-950:#0A1536;
+/* Ciano de dados — linha de previsão (#3EFFFF do gráfico de referência) */
+--cyan-100:#CFFFFF;--cyan-200:#8FFFFF;--cyan-300:#3EFFFF;--cyan-400:#17E4E8;--cyan-500:#0BC5CC;--cyan-600:#0A9BA3;--cyan-700:#0B7378;
+/* Neutros com tom azulado */
+--slate-50:#F5F7FB;--slate-100:#E8ECF4;--slate-200:#D3DAE7;--slate-300:#B3BDD0;--slate-400:#8A97B0;--slate-500:#65738F;--slate-600:#4A5670;--slate-700:#354058;--slate-800:#232C42;--slate-900:#161D30;--slate-950:#0B1120;
+--white:#FFFFFF;--black:#000000;
+/* Semânticas */
+--success-300:#7FE5BE;--success-500:#22C58B;--success-700:#15805A;
+--warning-300:#FBD68F;--warning-500:#F5B544;--warning-700:#A6721A;
+--danger-300:#F7A3AC;--danger-500:#EF5B6B;--danger-700:#B02E3C;
+--info-500:var(--blue-400);
+/* Série de dados (gráficos) */
+--data-forecast:var(--cyan-300);--data-observed:var(--blue-400);--data-previous:var(--blue-200);--data-baseline:var(--slate-400);--data-band:rgba(62,255,255,0.12);--data-grid:rgba(180,200,255,0.12);--data-axis:#999999;
+--series-1:var(--cyan-300);--series-2:var(--blue-400);--series-3:var(--blue-200);--series-4:var(--slate-400);--series-5:var(--white);
+/* Tema escuro (padrão) */
+--bg-app:var(--slate-950);--bg-sunken:#070C18;
+--surface-1:var(--slate-900);--surface-2:var(--slate-800);--surface-3:var(--slate-700);--surface-card:var(--surface-1);--surface-overlay:rgba(7,12,24,0.72);--surface-raised:#1B2439;
+--border-subtle:rgba(180,200,255,0.08);--border-default:rgba(180,200,255,0.16);--border-strong:rgba(180,200,255,0.32);
+--text-primary:#F2F5FB;--text-secondary:var(--slate-300);--text-tertiary:var(--slate-400);--text-disabled:var(--slate-600);--text-inverse:var(--slate-950);--text-link:var(--cyan-300);--text-link-hover:var(--cyan-100);
+--accent:var(--blue-500);--accent-hover:var(--blue-400);--accent-active:var(--blue-600);--accent-fg:var(--white);--accent-soft:rgba(43,92,230,0.18);--accent-soft-hover:rgba(43,92,230,0.28);
+--highlight:var(--cyan-300);--highlight-soft:rgba(62,255,255,0.12);--highlight-fg:var(--slate-950);
+--success-soft:rgba(34,197,139,0.16);--warning-soft:rgba(245,181,68,0.16);--danger-soft:rgba(239,91,107,0.16);
+--field-bg:var(--slate-900);--field-border:var(--border-default);--field-border-hover:var(--border-strong);--field-placeholder:var(--slate-500);
+--focus-ring:0 0 0 3px rgba(62,255,255,0.35);
+--selection:rgba(62,255,255,0.25);
+/* CLI */
+--cli-bg:#070C18;--cli-fg:#D7DEEC;--cli-dim:var(--slate-500);--cli-prompt:var(--cyan-300);--cli-cmd:var(--white);--cli-flag:var(--blue-300);--cli-ok:var(--success-500);--cli-warn:var(--warning-500);--cli-err:var(--danger-500);--cli-bar:var(--blue-500);--cli-bar-track:var(--slate-800);
+}
+[data-theme="light"]{
+--bg-app:var(--slate-50);--bg-sunken:var(--slate-100);
+--surface-1:var(--white);--surface-2:var(--slate-50);--surface-3:var(--slate-100);--surface-card:var(--white);--surface-overlay:rgba(11,17,32,0.48);--surface-raised:var(--white);
+--border-subtle:rgba(22,29,48,0.06);--border-default:rgba(22,29,48,0.12);--border-strong:rgba(22,29,48,0.24);
+--text-primary:var(--slate-950);--text-secondary:var(--slate-600);--text-tertiary:var(--slate-500);--text-disabled:var(--slate-300);--text-inverse:var(--white);--text-link:var(--blue-600);--text-link-hover:var(--blue-700);
+--accent:var(--blue-500);--accent-hover:var(--blue-600);--accent-active:var(--blue-700);--accent-soft:rgba(43,92,230,0.10);--accent-soft-hover:rgba(43,92,230,0.16);
+--highlight:var(--cyan-600);--highlight-soft:rgba(11,197,204,0.12);--highlight-fg:var(--white);
+--data-forecast:var(--cyan-600);--data-observed:var(--blue-500);--data-previous:var(--blue-300);--data-baseline:var(--slate-400);--data-band:rgba(11,197,204,0.14);--data-grid:rgba(22,29,48,0.08);
+--series-1:var(--cyan-600);--series-2:var(--blue-500);--series-3:var(--blue-300);--series-4:var(--slate-400);--series-5:var(--slate-900);
+--field-bg:var(--white);--field-placeholder:var(--slate-400);
+--focus-ring:0 0 0 3px rgba(43,92,230,0.30);
+--selection:rgba(43,92,230,0.18);
+}

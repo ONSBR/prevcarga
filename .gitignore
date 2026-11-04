@@ -77,3 +77,9 @@ renv/staging/
 # --- Bundle (M8.1): saidas do build e recibos de teste, nunca versionados ---
 /dist/
 /tests/.receipts/
+
+# --- Site de documentacao (Docusaurus): saida gerada nao e versionada -------
+/website/node_modules/
+/website/build/
+/website/.docusaurus/
+/website/.cache-loader/

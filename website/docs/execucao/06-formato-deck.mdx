@@ -1,0 +1,345 @@
+---
+title: Formato do deck
+sidebar_label: Formato do deck
+sidebar_position: 6
+slug: /execucao/formato-deck
+description: Guia prático para montar um deck que passa no validate-deck — diretório, manifest.json, os quatro datasets parquet com colunas e tipos exatos, as regras que a validação cobra e as áreas aceitas.
+fontes:
+  - scripts/lib/deck_reader.R
+  - scripts/lib/validation.R
+  - scripts/lib/cli/validate-deck.R
+  - scripts/lib/config.R
+  - scripts/lib/dates.R
+  - scripts/lib/topology.R
+  - scripts/lib/errors.R
+  - scripts/lib/errors/deck_reader.tsv
+  - scripts/lib/errors/validation.tsv
+  - scripts/lib/errors/deck_cut.tsv
+  - scripts/lib/errors/dates.tsv
+  - scripts/lib/errors/topology.tsv
+  - scripts/lib/errors/core.tsv
+  - config/topology.yaml
+  - config/config.yaml
+  - config/deck-manifest.store.json
+  - models/*/run.yaml
+  - models/*/R/register.R
+  - docs/reference/DECK-CANONICO.md
+  - docs/estado/deck_reader.md
+  - docs/estado/validate_deck.md
+  - docs/estado/m2-leitor.md
+adrs: [ADR-0002, ADR-0004, ADR-0023, ADR-0024, ADR-0035, ADR-0037, ADR-0040]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Execução · 3.6</span>
+
+<p className="pc-lead">
+O deck é o diretório de dados que a rodada lê: um <code>manifest.json</code> na raiz e quatro datasets parquet particionados por área e ano. Esta página mostra como montá-lo para que <code>prevcarga validate-deck</code> devolva <code>OK</code>: a árvore de diretórios, cada chave do manifest, cada coluna com o tipo exato, as regras que a validação cobra sobre o dado e as áreas aceitas. A teoria de fuso, rótulo e cortes fica nas páginas de metodologia e arquitetura, ligadas ao longo do texto.
+</p>
+
+## O que é um deck
+
+Um deck é um diretório, o `data_dir`. Ele contém:
+
+- `manifest.json` na raiz, que declara o que o dado não carrega sozinho: o rótulo da carga, o fuso de cada coluna de data-hora e o atraso de publicação do clima previsto;
+- quatro datasets parquet, todos em partição Hive `area_code=<área>/year=<ano>`.
+
+| Dataset | Caminho relativo ao `data_dir` | Conteúdo |
+|---|---|---|
+| `load` | `load/` | carga verificada, semi-horária |
+| `weather_observed` | `weather/observed/` | clima observado |
+| `weather_forecast` | `weather/forecast/` | clima previsto, com todas as emissões |
+| `holidays` | `auxiliary/holidays/` | dias especiais (feriados) |
+
+Os quatro são obrigatórios. Falta de qualquer um reprova com `contract.dataset_missing` (exit 2).
+
+O deck é indicado à CLI de duas formas. A flag vence o arquivo de configuração.
+
+- Flag global `--data=<dir>` em qualquer verbo que lê dado.
+- Chave `data_dir` no `config.yaml` (ver [Configuração](/execucao/configuracao)).
+
+Sem nenhuma das duas, o verbo sai com `config.data_dir_missing` (exit 8). A CLI nunca escreve no `data_dir`: o deck é somente leitura para o produto.
+
+## Árvore de diretórios
+
+```text title="exemplo de deck (um arquivo por área e ano)"
+deck/
+├── manifest.json
+├── load/
+│   ├── area_code=SECO/
+│   │   ├── year=2021/data.parquet
+│   │   ├── ...
+│   │   └── year=2026/data.parquet
+│   ├── area_code=SP/
+│   │   └── ...                      (mesmos anos)
+│   └── ...                          (demais áreas do SECO)
+├── weather/
+│   ├── observed/
+│   │   ├── area_code=SP/
+│   │   │   ├── year=2021/data.parquet
+│   │   │   ├── ...
+│   │   │   └── year=2026/data.parquet
+│   │   └── ...                      (mesmas áreas da carga)
+│   └── forecast/
+│       ├── area_code=SP/
+│       │   └── ...                  (mesmos anos, todas as emissões)
+│       └── ...
+└── auxiliary/
+    └── holidays/
+        ├── area_code=SP/
+        │   └── ...                  (mesmos anos)
+        └── ...
+```
+
+Clima observado, clima previsto e feriados acompanham as áreas e os anos da carga. A carga traz cada área do subsistema e também a série do próprio subsistema (`area_code=SECO`), como explica a seção [Áreas aceitas](#áreas-aceitas).
+
+Regras do layout, conferidas arquivo a arquivo:
+
+- todo `.parquet` de um dataset precisa estar em `<dataset>/area_code=<A>/year=<AAAA>/<arquivo>.parquet`. Um arquivo fora desse molde, ou um dataset sem nenhum parquet, reprova com `contract.hive_layout`;
+- o nome do arquivo é livre (`data.parquet` é só o costume). Pode haver mais de um arquivo por partição;
+- `area_code` é lido como texto e `year` como inteiro, a partir do nome do diretório;
+- grave cada linha na partição `year` do ano do próprio registro (o ano do `timestamp`, do `valid_time` ou da `date`). O leitor seleciona as partições por ano antes de ler as linhas, então uma linha no ano errado pode ficar fora da leitura;
+- um arquivo que o arrow não consegue abrir reprova com `contract.parquet_unreadable`, com o caminho em `where`.
+
+## O manifest.json
+
+O manifest segue um schema fechado, versão 1. Uma chave que não está na tabela abaixo reprova com `contract.manifest_unknown_key`, em qualquer nível (raiz, `timezone` ou `timezone.weather_forecast`). JSON malformado reprova com `contract.manifest_invalid`.
+
+```json title="deck/manifest.json (o template config/deck-manifest.store.json)"
+{
+  "schema_version": 1,
+  "load_label": "start",
+  "timezone": {
+    "load": "Etc/GMT+3",
+    "weather_observed": "Etc/GMT+3",
+    "weather_forecast": { "valid_time": "Etc/GMT+3", "issue_time": "UTC" },
+    "holidays": "Etc/GMT+3"
+  },
+  "weather_forecast_publication_lag_hours": 6
+}
+```
+
+| Chave | Valores | Obrigatória quando | Erro se faltar ou estiver errada |
+|---|---|---|---|
+| `schema_version` | `1` | sempre | outro valor ou ausente: `contract.manifest_invalid` |
+| `load_label` | `"start"` ou `"end"` | opcional | valor fora da lista: `contract.manifest_invalid`. Ausente: o rótulo vem de `--load-label`, depois do `config.yaml`, e por fim `end` |
+| `timezone` | mapa de fusos | sempre | ausente: `contract.tz_missing`. Não é um mapa: `contract.manifest_invalid` |
+| `timezone.load` | nome IANA | sempre (é também o fuso de saída) | ausente: `contract.tz_missing`. Nome fora de `OlsonNames()`: `contract.tz_invalid` |
+| `timezone.weather_observed` | nome IANA | quando existe `weather/observed/` | idem |
+| `timezone.weather_forecast.valid_time` | nome IANA | quando existe `weather/forecast/` | idem |
+| `timezone.weather_forecast.issue_time` | nome IANA | quando existe `weather/forecast/` | idem |
+| `timezone.holidays` | nome IANA | opcional | se presente, nome inválido: `contract.tz_invalid` |
+| `timezone.dst_periods` | nome IANA | opcional | se presente, nome inválido: `contract.tz_invalid` |
+| `weather_forecast_publication_lag_hours` | inteiro ≥ 0, em horas | quando existe `weather/forecast/` | ausente: `contract.weather_lag_missing`. Negativo, fracionário ou texto: `contract.manifest_invalid` |
+
+Como os quatro datasets são obrigatórios, na prática todo deck válido declara `timezone.load`, `timezone.weather_observed`, os dois fusos de `timezone.weather_forecast` e o atraso de publicação.
+
+Dois pontos de uso:
+
+- **Rótulo em conflito.** Se o manifest declara `load_label` e a rodada recebe `--load-label` com outro valor, a validação reprova com `contract.load_label_conflict` (exit 2). O manifest vence: remova a flag. Um `load_label` diferente no `config.yaml` não gera erro; ele só é usado quando o manifest e a flag não dizem nada.
+- **Atraso de publicação.** É o tempo, em horas, entre o `issue_time` de uma emissão e ela estar disponível. O limite de emissão da rodada é o `available_until` menos esse atraso (regra padrão `available_until`, ADR-0024). Ver [Leitor do deck](/arquitetura/leitor-deck).
+
+`timezone.dst_periods` é aceita só como chave de fuso. O dataset de horário de verão não é lido nem validado (ver [o fim desta página](#o-que-a-validação-não-confere)).
+
+<Pendente titulo="Pendente · valores do template">
+O template versionado `config/deck-manifest.store.json` traz rótulo `start`, fusos `Etc/GMT+3`, `issue_time` em `UTC` e atraso de 6 horas. Esses valores ainda aguardam confirmação. Declare no manifest do seu deck o que vale para o seu dado.
+</Pendente>
+
+## Colunas e tipos por dataset
+
+A validação lê o schema de cada dataset sem coletar linhas e compara com o contrato abaixo. Os tipos são os do arrow/parquet, conferidos exatamente: `int32` no lugar de `int64` ou `float` no lugar de `double` reprova com `contract.type_mismatch`. Coluna obrigatória ausente reprova com `contract.schema_missing`. Uma coluna opcional, quando presente, também precisa ter o tipo certo: tipo errado reprova do mesmo jeito.
+
+A sonda lê o schema do primeiro parquet legível de cada dataset. Grave todas as partições com o mesmo schema: uma coluna que falta só em outros arquivos não aparece no contrato.
+
+### Partição (todos os datasets)
+
+| Campo | Tipo | Nota |
+|---|---|---|
+| `area_code` | texto (`utf8`), do diretório `area_code=` | código de área da [topologia](#áreas-aceitas) |
+| `year` | inteiro (`int32`), do diretório `year=` | só dígitos, por exemplo `year=2026` |
+
+### Carga: `load/`
+
+| Coluna | Tipo | Obrigatória | Nota |
+|---|---|---|---|
+| `timestamp` | `timestamp`, sem fuso (o store usa `timestamp[ns]`) | sim | grade semi-horária, `:00` ou `:30` com segundo zero. O significado depende de `load_label` (abaixo) |
+| `load_mwh` | `double` | sim | carga do intervalo de 30 min, em MWmed. Maior que zero |
+
+### Clima previsto: `weather/forecast/`
+
+| Coluna | Tipo | Obrigatória | Nota |
+|---|---|---|---|
+| `issue_time` | `timestamp`, sem fuso | sim | instante de emissão. Guarde o instante real de cada rodada de previsão, não só a data |
+| `valid_time` | `timestamp`, sem fuso | sim | instante a que a previsão se refere |
+| `temperature` | `double` | sim | °C |
+| `heat_index` | `double` | não | conferida por tipo se existir; nenhum modelo lê |
+
+Guarde todas as emissões, uma linha por (`issue_time`, `valid_time`). O leitor escolhe, para cada `valid_time`, a emissão mais recente permitida pelo limite de emissão. RF, LGBM e os dois DESSEM também usam o clima previsto nas origens de treino (`weather_forecast_in_train` no descriptor de cada plugin), então as emissões antigas não podem ser descartadas.
+
+### Clima observado: `weather/observed/`
+
+| Coluna | Tipo | Obrigatória | Nota |
+|---|---|---|---|
+| `timestamp` | `timestamp`, sem fuso | sim | instante da medição |
+| `temperature` | `double` | sim | °C |
+| `heat_index` | `double` | não | conferida por tipo se existir; nenhum modelo lê |
+| `rh` | `double` | não | umidade relativa; conferida por tipo se existir; nenhum modelo lê |
+
+### Feriados: `auxiliary/holidays/`
+
+| Coluna | Tipo | Obrigatória | Nota |
+|---|---|---|---|
+| `date` | `date32` | sim | data civil do dia especial. Sem hora e sem deslocamento |
+| `holiday_type_id` | `int64` | sim | tipo do dia especial; ≥ 0 |
+| `prevcarga_code` | `int64` | sim | código PrevCarga; ≥ 0 |
+| `simplified_code` | `int64` | sim | código simplificado; ≥ 0 |
+
+Os três códigos são obrigatórios porque modelos diferentes leem códigos diferentes. A matriz de quem lê o quê está em [Dados de entrada](/metodologia/dados-de-entrada).
+
+### Timestamps sem fuso e o rótulo da carga
+
+As colunas de data-hora são gravadas **sem fuso** no parquet. O fuso de cada uma vem do manifest. Uma coluna gravada com fuso (por exemplo `timestamp[ns, tz=UTC]`) reprova com `contract.tz_in_parquet`: regrave como timestamp sem fuso e declare o fuso em `timezone`. O leitor interpreta os dígitos gravados no fuso declarado e converte tudo para o fuso da carga.
+
+O rótulo da carga diz a que ponta do intervalo de 30 minutos o `timestamp` se refere:
+
+| `load_label` | `timestamp` gravado | Intervalo que o leitor entende |
+|---|---|---|
+| `start` | `00:00` | de 00:00 a 00:30 |
+| `end` | `00:30` | de 00:00 a 00:30 (o leitor subtrai 30 min) |
+
+O dia é contado pelo início do intervalo. Com `end`, o registro `D 00:00` pertence ao último intervalo do dia anterior, e um dia D completo vai de `D 00:30` a `D+1 00:00`. As regras completas estão em [Tempo, rótulo da carga e fusos](/metodologia/tempo-rotulo-fusos).
+
+## Regras que a validação cobra
+
+Tudo abaixo vem de `prevcarga validate-deck` para uma origem O. Os erros reprovam; os avisos aparecem na tabela de findings e não mudam o exit. A ordem das checagens e a precedência entre classes estão em [Validação do deck](/arquitetura/validacao-deck).
+
+### Sobre a carga
+
+| Regra | Finding | Classe (exit) |
+|---|---|---|
+| Cada intervalo começa em `:00` ou `:30`, com segundo zero | `grid_off` | contract (2) |
+| Uma linha por área e intervalo | `duplicate_interval` | contract (2) |
+| `load_mwh` maior que zero. Zero não marca lacuna: é carga inválida | `load_nonpositive` | contract (2) |
+| Todo dia do histórico relevante, até O−1, tem os 48 intervalos com `load_mwh` não nulo | `day_incomplete` | completude (3) |
+| Há carga em O−1 ou em O | `no_load` | completude (3) |
+| No dia O, os intervalos presentes são contíguos desde 00:00 | `origin_day_gap` | completude (3) |
+| Histórico suficiente para cada membro (tabela abaixo) | `window_train_deficit`, `window_infer_deficit` | window (5) |
+
+Detalhes que costumam pegar quem monta o deck:
+
+- **Nulo é buraco.** Uma linha com `load_mwh` nulo não conta como intervalo. O dia fica incompleto.
+- **O dia tem sempre 48 intervalos.** Não há exceção de horário de verão: um dia com 46 ou 47 intervalos é buraco.
+- **O histórico relevante** começa no início da maior janela entre os membros e vai até O−1. Se a área começa depois desse início, a contagem de completude começa no primeiro dia da área; os dias que faltam antes viram déficit de janela, não `day_incomplete`.
+- **O dia O pode estar parcial.** A carga do dia O vai de 00:00 até onde houver dado contíguo. O fim desse trecho é o `available_until`, o corte intradiário derivado do próprio dado. Sem nenhum intervalo em O, o corte é O 00:00, o que é válido. Um buraco seguido de um intervalo presente reprova com `origin_day_gap`; o `where` traz `área:HH:MM` do primeiro intervalo faltante. Ver [Os três cortes de data](/metodologia/tres-cortes).
+- **O corte é o menor entre as áreas.** Se as áreas terminam em horários diferentes no dia O, o `available_until` global é o mais cedo, e sai o aviso `available_until_spread`.
+
+### Histórico mínimo por membro
+
+A janela conta os dias com algum valor de carga. A de treino termina no `last_data_day` de cada membro; a de inferência termina em O−1. Os tamanhos vêm de `history_days` no `run.yaml` de cada modelo, e o `last_data_day` vem do `data_lag_days` do descriptor.
+
+| Membro | `history_days.train` | `history_days.infer` | Treino termina em |
+|---|---|---|---|
+| `random-forest` | 365 | 45 | O−1 |
+| `lgbm` | 730 | 45 | O−3 |
+| `holt-winters` | 730 | 45 | O−1 |
+| `dessem-linear` | 1825 | 1825 | O−1 |
+| `dessem-regdin` | 1825 | 1825 | O−1 |
+
+Com todos os membros no escopo, a maior janela manda: cada área precisa de 1825 dias completos de carga terminando em O−1. O `where` do déficit aponta o campo do `run.yaml`, por exemplo `models/lgbm/run.yaml:history_days.train`, e o `DETAIL` diz o membro, a janela pedida e quantos dias existem.
+
+### Sobre clima e feriados
+
+| Regra | Finding | Classe (exit) |
+|---|---|---|
+| `temperature` entre −10 e 50 °C, no observado (histórico relevante até O) e no previsto (de O até O mais o maior horizonte) | `temperature_out_of_range` | contract (2) |
+| `holiday_type_id`, `prevcarga_code` e `simplified_code` não negativos. Zero vale; `simplified_code = -1` reprova | `code_negative` | contract (2) |
+| Emissão do dia O com `issue_time` depois do limite de emissão | `climate_after_cut` | aviso |
+
+O `climate_after_cut` não reprova: o leitor já descarta a emissão tardia. Ele só avisa que o deck tem uma emissão que a rodada não vai usar.
+
+### Avisos sobre a carga
+
+| Aviso | Quando |
+|---|---|
+| `outlier` | intervalo fora de 1,5 IQR e com o módulo do z acima de 3 |
+| `flatline` | 6 ou mais intervalos seguidos com o mesmo valor |
+| `available_until_spread` | áreas com `available_until` diferentes |
+
+### O que a validação não confere
+
+A validação não confere se o clima previsto tem todas as emissões esperadas, se ele cobre o horizonte inteiro, nem se os feriados cobrem o horizonte. Também não reprova temperatura ou código de feriado nulos. Esses casos chegam aos modelos, e cada um trata ou reprova no próprio contrato (ver [Dados de entrada](/metodologia/dados-de-entrada)). Os modelos também leem esses dados fora do horizonte (ver a matriz por modelo em [Dados de entrada](/metodologia/dados-de-entrada)). Por isso, para cada área com carga, monte:
+
+- o clima observado e o calendário de feriados em todo o histórico da carga;
+- o clima previsto, com todas as emissões, desde o início do histórico de treino até O+9 dias. Nove dias é o maior `horizon_days` entre os `run.yaml` (RF e DESSEM). RF, LGBM e os dois DESSEM usam as emissões passadas nas origens de treino;
+- o calendário de feriados cobrindo também o horizonte, até O+9.
+
+Os auxiliares `auxiliary/load_tiers/` e `auxiliary/dst_periods/` são opcionais e ignorados: nenhum módulo os lê nem os valida. Podem ficar no deck ou sair dele.
+
+## Áreas aceitas
+
+As áreas válidas vêm de `config/topology.yaml`. Cada subsistema tem as suas áreas e uma área de perda.
+
+| Subsistema | Áreas | Perda |
+|---|---|---|
+| `SECO` | `RJ`, `RO`, `MG`, `ES`, `MT`, `SP`, `AC`, `MS`, `GO`, `DF` | `PESE` |
+| `S` | `RS`, `PR`, `SC` | `PES` |
+| `N` | `PA`, `TON`, `AP`, `AM`, `MA` | `PEN` |
+| `NE` | `ALPE`, `CE`, `PBRN`, `BAOE`, `PI`, `BASE` | `PENE` |
+
+São aceitos como `area_code` as áreas, os códigos dos subsistemas (`SECO`, `S`, `N`, `NE`) e as áreas de perda. Os códigos diferenciam maiúsculas de minúsculas: use `SP`, não `sp`.
+
+Para rodar um subsistema, a carga precisa trazer cada uma das áreas dele e também a série do próprio subsistema (por exemplo, `area_code=SECO`), completas no histórico. A [reconciliação](/metodologia/reconciliacao) compara a carga do subsistema com a soma das áreas nos 730 dias até O−1; sem a série do subsistema, ou com uma área faltando, ela não tem como ajustar. A área de perda não precisa de série. A validação não exige essa série: um deck sem ela pode passar no `validate-deck` e falhar na rodada.
+
+O que acontece em cada caso:
+
+- **Área fora da topologia.** Um diretório `area_code=XX` em qualquer dataset, com `XX` fora da lista, reprova com `topology.area_undeclared` (exit 4).
+- **Área presente.** Toda área que aparece em qualquer um dos quatro datasets entra no escopo da validação e precisa de carga completa. Uma área com clima e sem carga reprova por janela (exit 5). Uma área com linhas de carga nulas reprova por completude (exit 3). Se a área não tem carga, não grave nenhuma partição dela.
+- **Área ausente.** Uma área da topologia que não aparece no deck fica fora do escopo e não gera finding. Se ela for pedida com `--area`, a validação conta zero dias de histórico e reprova por janela (exit 5).
+- **`--area` fora da topologia.** Reprova com `topology.scope_undeclared` (exit 4). Um subsistema em `--area` expande para as suas áreas mais o próprio subsistema.
+
+## Erros mais comuns de montagem
+
+| Sintoma | Id do erro | Exit | O que fazer |
+|---|---|---|---|
+| Esqueceu o manifest | `contract.manifest_missing` | 2 | Crie `manifest.json` na raiz do `data_dir`. |
+| Chave a mais no manifest, por exemplo `corte` | `contract.manifest_unknown_key` | 2 | Remova a chave indicada em `where`. O corte é derivado do dado, não declarado. |
+| Fuso sem declarar ou com nome errado | `contract.tz_missing`, `contract.tz_invalid` | 2 | Declare um nome IANA válido, como `Etc/GMT+3` ou `UTC`. |
+| Deck com clima previsto e sem o atraso | `contract.weather_lag_missing` | 2 | Declare `weather_forecast_publication_lag_hours` em horas inteiras. |
+| Parquet gravado com fuso | `contract.tz_in_parquet` | 2 | Regrave como timestamp sem fuso; o fuso vai no manifest. |
+| Códigos de feriado em `int32`, carga em `float` | `contract.type_mismatch` | 2 | Converta para o tipo exato da tabela da coluna. |
+| Coluna com nome de origem (`val_carga`, `din_referencia`) | `contract.schema_missing` | 2 | Renomeie para o nome canônico (`load_mwh`, `timestamp`). |
+| Parquet direto em `load/`, sem `area_code=`/`year=` | `contract.hive_layout` | 2 | Regrave em `load/area_code=<A>/year=<AAAA>/`. |
+| Pasta de dataset faltando | `contract.dataset_missing` | 2 | Crie o dataset indicado em `where`. |
+| Carga zerada para marcar lacuna | `contract.load_nonpositive` | 2 | Remova a linha. Lacuna é ausência, e reprova por completude até ser reposta. |
+| Mesmo intervalo gravado duas vezes | `contract.duplicate_interval` | 2 | Deixe uma linha por área e intervalo. |
+| Timestamp em `:15` ou `:45` | `contract.grid_off` | 2 | Reamostre para a grade de 30 min. |
+| Código de feriado `-1` | `contract.code_negative` | 2 | Use 0 ou o código correto. |
+| Dia com 46 ou 47 intervalos | `completude.day_incomplete` | 3 | Reponha os intervalos do dia indicado em `DETAIL` (`dia: n/48`). |
+| Buraco no meio do dia O | `completude.origin_day_gap` | 3 | Reponha o intervalo em `where` (`área:HH:MM`). |
+| `--origin` muito à frente do dado | `completude.no_load` | 3 | O deck precisa de carga em O−1 ou em O. Confira `--origin` e `--data`. |
+| Área com nome fora da lista | `topology.area_undeclared` | 4 | Use o código da topologia. |
+| Deck com menos de 5 anos de carga | `window.window_train_deficit`, `window.window_infer_deficit` | 5 | Complete o histórico até o tamanho de `history_days` de cada membro. |
+| `--load-label` diferente do manifest | `contract.load_label_conflict` | 2 | Remova a flag. |
+
+A leitura do relatório, a precedência entre classes e o formato JSON estão em [Validar o deck](/execucao/validar-deck). A lista completa de findings por classe está em [Validação do deck](/arquitetura/validacao-deck).
+
+## Conferir o deck
+
+Rode a validação com a origem da rodada que você vai fazer. O verbo não grava nada no deck.
+
+<Terminal title="prevcarga — bash" lines={[
+  {type:'cmd',text:'prevcarga validate-deck --origin=<O> --data=<dir>'},
+  {type:'out',text:'validate-deck origin=<O> (flag) available_until=<HH:MM> load_label=start (manifest) weather_issue_cutoff=available_until data_hash=<12 hex>'},
+  {type:'dim',text:'MODEL SPLIT GRAN TRAIN_ORIGIN LAST_DATA_DAY INPUT_CUT FIRST_DELIVERY'},
+  {type:'dim',text:'...'},
+  {type:'ok',text:'OK'}
+]} />
+
+Confira três coisas na saída:
+
+1. **O veredito.** `OK` e exit 0 quer dizer que o deck serve para a rodada. Um `FALHA <classe>` traz a tabela de findings com o que corrigir.
+2. **O cabeçalho.** `load_label` e a sua fonte devem ser os que você declarou. O `available_until` deve ser o fim da carga que você gravou no dia O.
+3. **A tabela de cortes.** Ela mostra o `LAST_DATA_DAY` de cada membro, que é o fim da janela de treino da tabela de histórico.
+
+Sem `--origin`, a origem é o dia do último intervalo de carga do deck. `--area=<a>` restringe a completude, a janela de histórico, a temperatura e os códigos de feriado a essa área (um subsistema expande para as suas áreas). O contrato dos arquivos, as áreas fora da topologia e o corte do dia O (`available_until`, `origin_day_gap`) continuam valendo para o deck inteiro.

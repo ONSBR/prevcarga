@@ -1,51 +1,184 @@
-# prevcarga
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="website/static/img/prevcarga-logo-c-dark.svg">
+    <img alt="PrevCarga" src="website/static/img/prevcarga-logo-c-light.svg" width="420">
+  </picture>
+</p>
 
-CLI modular de previsao de carga (R-only, zero-dependencia): um bundle autocontido (R 4.5.3 + bibliotecas + codigo) que se instala
-**sem administrador**, em Linux x86_64 e em Windows nativo (PowerShell; WSL2 nao e requisito, ADR-0038). Manual completo:
-`docs/reference/MANUAL-USUARIO.md`. Estado duravel do bundle: `docs/estado/m8-bundle.md`.
+<p align="center">
+  <b>Previsão de carga semi-horária do Sistema Interligado Nacional</b><br>
+  24 áreas · 8 modelos combinados · reconciliação até os subsistemas e o SIN · D−1 a D+7
+</p>
 
-## Instalar
+<p align="center">
+  <a href="#instalação">Instalação</a> ·
+  <a href="#primeira-rodada">Primeira rodada</a> ·
+  <a href="#atualizar-voltar-e-remover">Atualizar e remover</a> ·
+  <a href="#documentação">Documentação</a>
+</p>
 
-Linux (`install.sh`, POSIX sh; instala em `~/.local/share/prevcarga`, `--root` troca):
+---
+
+O `prevcarga` é uma CLI que prevê a carga de cada uma das 24 áreas do SIN em 48 patamares por dia e compõe os subsistemas (SECO, S, N, NE) e o SIN a partir delas. Cada rodada parte de uma origem O e entrega de D−1 a D+7.
+
+| | |
+|---|---|
+| **Modelos** | Random Forest, LightGBM, Holt-Winters, dessem-linear (3 variantes) e dessem-regdin (2 variantes) |
+| **Combinação** | por área, com pesos convexos e intercepto, aplicados congelados na rodada |
+| **Reconciliação** | Bottom-Up × k-hat por subsistema; o SIN é a soma dos subsistemas |
+| **Distribuição** | um bundle fechado por plataforma, com R 4.5.3 e todas as bibliotecas dentro |
+| **Plataformas** | Linux x86_64 e Windows 64-bit, sem administrador e sem R instalado |
+
+## Instalação
+
+O instalador confere o sha256 do bundle antes de extrair, valida cada arquivo antes de ativar e troca de versão por um ponteiro de uma linha. O diretório de estado nunca é tocado por atualização, rollback ou desinstalação.
+
+### Requisitos
+
+| | Linux | Windows |
+|---|---|---|
+| Sistema | x86_64 com glibc 2.35 ou mais nova (musl não é suportado) | Windows 64-bit |
+| Shell | POSIX `sh` | Windows PowerShell 5.1 ou pwsh 7 |
+| Ferramentas | `tar`, `zstd`, `sha256sum`, `awk` e `curl` ou `wget` | nenhuma além do PowerShell |
+| Espaço | — | 2 GiB livres no volume de instalação |
+| Instala em | `~/.local/share/prevcarga` | `%LOCALAPPDATA%\prevcarga` |
+
+### Linux
 
 ```sh
-sh install.sh --version latest
+# versão mais recente, baixada das GitHub Releases
+sh install.sh --version latest --add-to-path
+
+# ou a partir de um arquivo local, sem rede
 sh install.sh --bundle prevcarga-<v>-linux-x86_64.tar.zst --sha256 <hash>
 ```
 
-Windows nativo (`install.ps1`; Windows PowerShell 5.1 ou pwsh 7; instala em `%LOCALAPPDATA%\prevcarga`, sem administrador):
+`--add-to-path` acrescenta `<raiz>/bin` ao `PATH` num bloco marcado do `~/.profile`. Para apontar o deck e o estado já na instalação, use `--data <dir>` e `--state <dir>`; para outra raiz, `--root <dir>`.
+
+### Windows
 
 ```powershell
+# versão mais recente
 powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Version latest
+
+# ou a partir de um arquivo local
 powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Bundle prevcarga-<v>-windows-x86_64.zip -Sha256 <hash>
 ```
 
-O sha256 do bundle e obrigatorio e conferido antes de extrair. Layout instalado: `<R>/versions/<v>/` (imutavel) e o ponteiro `<R>/current`;
-`--rollback` volta a versao anterior; `--uninstall --yes` remove (o `state/` so sai com `--purge`). Depois: `prevcarga doctor`.
+No Windows o `PATH` é ajustado sempre, só no registro do usuário (`HKCU`). Os parâmetros espelham os do Linux: `-Root`, `-Data`, `-State`, `-Rollback`, `-Uninstall -Yes`, `-Purge`.
 
-## Usar
+> [!WARNING]
+> O instalador Windows ainda está em validação: o `install.ps1` e o lançador `prevcarga.cmd` ainda não foram executados num host Windows. O comportamento descrito é o previsto.
 
-A rodada operacional e o verbo `forecast`; `--origin` (AAAA-MM-DD) e o unico flag de data:
+Os instaladores estão anexados a cada [release](https://github.com/onsbr/prevcarga/releases/latest):
 
 ```sh
-prevcarga forecast --origin 2026-10-15
-prevcarga verificar --saida <entrega> --oficial
+curl -fsSLO https://github.com/onsbr/prevcarga/releases/latest/download/install.sh
 ```
 
-- **Sync**: `prevcarga-sync --what artifacts` e `prevcarga-sync --what forecasts` (`.sh` no Linux, `.ps1`/`.cmd` no Windows) trazem do bucket publico os
-  artefatos e as inferencias oficiais para o estado local; so leitura, sem credencial.
-- **verificar**: compara a entrega com outra (`--referencia`) ou com a oficial (`--oficial`); trilhos `mesma-plataforma` e `entre-plataformas`.
-- **Publicar** (mantenedor, so Linux): `prevcarga release-pack` monta o diretorio no layout do bucket (sem rede) e `scripts/tools/upload` e o unico
-  que envia.
-- Verbos disponiveis: `prevcarga --help` (o catalogo e descoberto de `scripts/lib/cli/`).
+> [!NOTE]
+> O bundle vem das GitHub Releases de `onsbr/prevcarga` (tag `v<v>`). Para um espelho, passe `--release-base <url>` (ou `-ReleaseBase`); fora do `github.com` vale o layout `<base>/releases/<v>/`. Sem rede, instale de um arquivo local com `--bundle`. Os artefatos oficiais continuam vindo do repositório online, pelo `prevcarga-sync`.
+
+### Conferir a instalação
+
+```sh
+prevcarga doctor
+```
+
+O `doctor` mostra a versão ativa, o runtime do bundle, a configuração e o estado. Se algo faltar, ele diz o quê.
+
+## Primeira rodada
+
+A rodada precisa de um **deck canônico** num diretório local: carga verificada, clima previsto e observado, feriados e um `manifest.json` na raiz.
+
+```sh
+# 1. artefatos oficiais: modelos, pesos da combinação e perfis k-hat (em breve)
+prevcarga-sync --what artifacts
+
+# 2. conferir o deck antes de rodar
+prevcarga validate-deck --origin 2026-10-15 --data ./deck
+
+# 3. a rodada: infere os membros, combina, reconcilia e entrega
+prevcarga forecast --origin 2026-10-15 --data ./deck
+```
+
+> [!NOTE]
+> **Em breve:** o repositório online de artefatos ainda não está no ar, então o passo 1 ainda não funciona. Até lá, os artefatos são treinados na própria máquina (`prevcarga train-models`, `combine --mode train` e `reconcile --mode train`).
+
+- `--origin` é o único flag de data. Sem ele, a origem é o último dia de carga do deck.
+- O corte intradiário sai do próprio dado de carga; não há flag de corte.
+- Com `data_dir` no `config.yaml` (ou `--data` na instalação), `--data` pode ser omitido.
+- A entrega fica em `<state>/forecasts/<origem>/…`, com chave imutável. `--report` gera também o relatório da rodada.
+
+Para conferir que a sua entrega reproduz a oficial:
+
+```sh
+prevcarga-sync --what forecasts --origin 2026-10-15 --state /caminho/estado-oficial
+prevcarga verificar --saida <entrega> --oficial --state /caminho/estado-oficial
+```
+
+## Atualizar, voltar e remover
+
+```sh
+sh install.sh --version latest          # atualizar: a versão ativa vira a anterior
+sh install.sh --rollback                # voltar um nível
+sh install.sh --uninstall --yes         # remover; o estado é preservado
+sh install.sh --uninstall --yes --purge # remover também o estado
+```
+
+Ficam retidas duas versões, a atual e a anterior. O rollback vale um nível só.
+
+> [!CAUTION]
+> `--purge` apaga o diretório de estado inteiro: entregas, artefatos treinados, cache e backtest. Não há como desfazer.
+
+### Layout instalado
+
+```text
+<raiz>/
+  current            # 1 linha: a versão ativa
+  previous           # 1 linha: a versão anterior
+  config.yaml        # data_dir, state_dir, format, color
+  bin/               # prevcarga, prevcarga-sync, catálogo de erros
+  versions/<v>/      # imutável: runtime, código e RUNTIME.json
+  state/             # entregas, artefatos, cache (nunca tocado por atualização)
+```
 
 ## Erros
 
-Saida de erro ASCII, uma linha `prevcarga: erro [<classe>] (exit <n>)`; `--format json` da um envelope unico. Classes que o operador encontra:
-6 (bundle), 8 (config), 9 (integrity), 10 (network), 12 (repro), 13 (state). O catalogo completo e `install/error-catalog.tsv` (gerado).
+Toda falha sai como uma linha ASCII, `prevcarga: erro [<classe>] (exit <n>)`, com o código estável e uma dica. Com `--format json`, a saída é um envelope único. Os mais comuns na instalação:
 
-## Excecoes conscientes do A/B
+| Exit | Classe | Quando |
+|---|---|---|
+| 6 | `bundle` | plataforma fora do suportado ou bundle incompleto |
+| 8 | `config` | argumento inválido ou rollback sem versão anterior |
+| 9 | `integrity` | sha256 ausente ou diferente do esperado |
+| 10 | `network` | falha no download |
+| 13 | `state` | artefato ou perfil k-hat ausente para a origem |
 
-O A/B do corte contra o sistema anterior exige Delta = 0, com a lista fechada `tests/ab/ab_excecoes.yaml` (so o Gabriel acrescenta):
-`regdin.versao_pacotes` (R 4.5.3, ADR-0036), `dessem_linear.hora_incompleta_clima_previsto` e `dessem_linear.sp_2024_11_15_residuo_numerico`.
-Veredito atual: **CORTE-BLOQUEADO** (matriz completa e recibos `ab-corte` ainda nao existem); detalhe em `docs/estado/ab.md`.
+## Documentação
+
+O site de documentação mora em [`website/`](website/) e tem três seções:
+
+- **Metodologia** — dados de entrada, cortes de data, os modelos, combinação, reconciliação e avaliação;
+- **Arquitetura** — módulos, CLI, plugins, fluxo de dados, registry, cache e distribuição;
+- **Execução** — instalação, configuração, sync, rodada diária, backtest, verificação e referência da CLI.
+
+Para ver localmente (Node 20 ou mais novo):
+
+```sh
+cd website
+npm ci
+npm run start
+```
+
+## Licença
+
+Copyright 2026 Operador Nacional do Sistema Elétrico - ONS.
+
+Distribuído sob a [Apache License 2.0](LICENSE). Ver também o [`NOTICE`](NOTICE). Os dois arquivos acompanham o bundle, em `code/`.
+
+---
+
+<p align="center">
+  <sub>ONS · Operador Nacional do Sistema Elétrico</sub>
+</p>

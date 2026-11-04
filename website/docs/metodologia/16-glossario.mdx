@@ -1,0 +1,254 @@
+---
+title: Glossário
+sidebar_label: Glossário
+sidebar_position: 16
+slug: /metodologia/glossario
+description: Definição curta de cada termo do PrevCarga, em ordem alfabética, com o link para a página que o explica em detalhe.
+fontes:
+  - CLAUDE.md
+  - scripts/prevcarga
+  - scripts/lib/cli.R
+  - scripts/lib/config.R
+  - scripts/lib/errors.R
+  - scripts/lib/runtime.R
+  - scripts/lib/dates.R
+  - scripts/lib/deck_reader.R
+  - scripts/lib/features.R
+  - scripts/lib/build_long_output.R
+  - scripts/lib/provenance.R
+  - scripts/lib/registry.R
+  - scripts/lib/cache.R
+  - scripts/lib/exports.R
+  - scripts/lib/validation.R
+  - scripts/lib/combination.R
+  - scripts/lib/reconcile.R
+  - scripts/lib/orchestrate.R
+  - scripts/lib/verify_repro.R
+  - scripts/lib/release_pack.R
+  - config/topology.yaml
+  - config/config.yaml
+  - models/*/run.yaml
+  - models/*/R/register.R
+  - install/install.sh
+adrs: []
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Metodologia · 1.17</span>
+
+<p className="pc-lead">Este apêndice define cada termo do PrevCarga em uma ou duas frases e aponta para a página que o explica. A definição segue o código; o detalhe, os erros e as decisões ficam na página dona. Os termos estão em ordem alfabética, agrupados pela primeira letra, sem contar acento nem crase de código.</p>
+
+A notação do código vem primeiro (O, `d_plus`) e a nomenclatura DESSEM entre parênteses (D−1 a D+7). Quando um mesmo nome tem mais de um sentido no código, como `run_id`, célula e registry, a entrada separa os sentidos.
+
+## A
+
+**Área (área-folha).** Nó folha da árvore do SIN, a unidade que os membros preveem. São 24, declaradas em `config/topology.yaml` dentro dos quatro subsistemas. Ver [Visão geral](/metodologia/visao-geral).
+
+**`available_until`.** O corte intradiário: o `interval_end` do último intervalo de 30 min contíguo desde O 00:00, por área, e o mínimo entre áreas no global. Nasce do próprio dado de carga, nunca de flag, manifest ou relógio (`prevcarga_available_until`, `deck_reader.R`). Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+## B
+
+**Backtest.** A rodada diária repetida em várias origens, em sequência, com o tempo truncado pelo `truncate_at`. O código de treino e de inferência é o da produção; depois das células, um REDUCE combina, reconcilia e avalia. Ver [Backtest](/metodologia/backtest).
+
+**Barrel por descoberta.** Regra de que toda coleção alimentada por vários módulos é uma pasta lida por um loader determinístico (`list.files` e `sort(method = "radix")`), nunca uma lista central editada por todos. Vale para verbos da CLI, catálogo de erros e documentos de estado. Ver [Barrel por descoberta](/arquitetura/barrel-descoberta).
+
+**BLF.** Nome, no código do `lgbm`, da inferência em duas passadas e das colunas que ela usa (`CargaGlobal_anterior_BLF`, `min_max_BLF`). A passada 1 completa o dia O com a carga real até o corte e a forma prevista depois dele; a passada 2 usa esse dia como âncora de O+1. Ver [LightGBM](/metodologia/lightgbm).
+
+**Bottom-Up.** Soma das previsões das áreas de um subsistema, por instante. É coerente por construção, mas ignora a perda; por isso é multiplicada pelo k-hat. Ver [Reconciliação](/metodologia/reconciliacao).
+
+**Bundle.** Arquivo fechado por plataforma (`linux-x86_64` ou `windows-x86_64`) com o R, a library do `renv.lock` e o código de produto, descrito por um `RUNTIME.json` com o sha256 de cada arquivo. Ver [Distribuição](/arquitetura/distribuicao).
+
+**`bundle_id`.** Identidade do código que rodou, gravada no `run_manifest.json`: o `runtime_id` quando há bundle instalado e, na árvore de desenvolvimento, o sha256 do mesmo recorte de arquivos (`prevcarga_bundle_id`, `runtime.R`). Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+## C
+
+**`cache_key`.** Nome de uma entrada do cache local: `v_` mais 16 hex, o mesmo hash de versão do `provenance.R`, sobre a identidade da célula com o corte que a classe do kind exige (`prevcarga_cache_key`, `cache.R`). Ver [Cache content-addressed](/arquitetura/cache).
+
+**Célula.** O código usa o termo em três sentidos:
+
+- unidade de cálculo: membro × área × origem × modo, independente e determinística; no backtest ganha o corte intradiário. Ver [Visão geral](/metodologia/visao-geral);
+- célula da combina: (lead, corte, mês de origem), cada uma com os seus pesos. Ver [Combinação convexa](/metodologia/combina);
+- célula do registry: o diretório de um membro × área, da folha da combina ou do subsistema do k-hat, com as suas versões e o seu `latest.txt`. Ver [Registry de artefatos](/arquitetura/registry).
+
+**Combina.** Média convexa das previsões dos membros presentes de uma área: pesos não negativos que somam 1 e um intercepto livre, ajustados por célula (`prevcarga_combina_fit`, `combination.R`). Ver [Combinação convexa](/metodologia/combina).
+
+**Corte de treino.** O par `train_origin` e `last_data_day`, calculado por membro pela classe de split (`prevcarga_train_cut`, `dates.R`). Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+**`current` e `previous`.** Arquivos de uma linha na raiz da instalação: a versão ativa e a que estava ativa antes da última instalação. A troca é por arquivo temporário e rename, nunca por symlink, e a retenção é de duas versões. Ver [Instalação, atualização e remoção](/execucao/instalacao).
+
+## D
+
+**D−1, D, D+k (nomenclatura DESSEM).** Os dias na notação DESSEM. A origem O é o D−1, O+1 é o D e O+8 é o D+7. O código usa O e `d_plus`; a nomenclatura DESSEM fica só na leitura. Ver [Visão geral](/metodologia/visao-geral).
+
+**`d_plus`.** Dia do `interval_start` do alvo menos O. O `d_plus` 0 é o resto do dia O depois do corte (D−1); o alvo O+1 00:00 ainda é `d_plus` 0, porque fecha o intervalo O 23:30–24:00. Ver [Schema LONG](/arquitetura/schema-long).
+
+**`data_hash`.** Identidade do deck inteiro, em 64 hex, independente de modelo (`prevcarga_data_hash`, `provenance.R`). Vai para o `run_manifest.json` da entrega e não se confunde com o `data_fingerprint` do treino. Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+<Pendente titulo="Pendente · data_hash">A receita do `data_hash` é um default de trabalho, ainda sem ADR que a fixe.</Pendente>
+
+**`data_lag_days`.** Defasagem do último dia de dado de treino, declarada no descriptor do plugin; vale 0 quando omitida. O `last_data_day` é O−1−`data_lag_days`; valor negativo aborta com `honesty.data_lag_negative`. Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+**Deck.** O diretório de entrada de toda rodada: um `manifest.json` na raiz e datasets parquet particionados por área e ano, com nomes de coluna canônicos e grade de 48 patamares por dia. Só o leitor único o abre. Ver [Dados de entrada](/metodologia/dados-de-entrada).
+
+**`delivery_days`.** Faixa de entrega do membro, declarada no descriptor: de `first_delivery` até O+`delivery_days` 00:00 (`prevcarga_delivery_grid`, `features.R`). Não confundir com `horizon_days`. Ver [Os modelos](/metodologia/modelos-visao-geral).
+
+**Descriptor.** Lista devolvida por `plugin_descriptor()` em `models/<m>/R/register.R`. Declara o que a fundação precisa saber do plugin além do `run.yaml`: `delivery_days`, `data_lag_days`, `model_time_offset_min`, `reads_day_O`, `native_layout` e as demais flags. Ver [Fundação de plugins](/arquitetura/fundacao-plugins).
+
+**Direto e recursivo.** Duas formas de montar o horizonte. No direto, cada lead tem o seu modelo e nenhum lê a previsão de outro (Random Forest, 216 leads horários). No recursivo, a previsão de um passo vira defasagem do seguinte (LGBM, `dessem-linear` e o perfil do `dessem-regdin`). Ver [Os modelos](/metodologia/modelos-visao-geral).
+
+**DM (demanda média do dia).** A carga média diária, uma das duas peças dos modelos DESSEM; a outra é o perfil horário. A carga prevista é a forma do perfil vezes a DM desnormalizada. Ver [Família DESSEM](/metodologia/dessem-estrutura).
+
+## E
+
+**Entrega.** Diretório imutável de uma rodada em `forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/` sob o `state_dir`. Ver [Entrega e export imutável](/arquitetura/entrega-export).
+
+**Envelope JSON.** O único JSON que um comando imprime com `--format json`, com as mesmas oito chaves no sucesso e no erro: `ok`, `verb`, `exit_code`, `error`, `warnings`, `result`, `run_id` e `version` (`prevcarga_envelope`, `errors.R`). Ver [Contrato de erros e códigos de saída](/arquitetura/erros-exit).
+
+**EQW.** A média simples dos membros presentes, pesos 1/k e intercepto 0. É o fallback de uma célula da combina e uma das referências reportadas na avaliação. Ver [Combinação convexa](/metodologia/combina).
+
+**`exogena`.** Variante de temperatura de um membro DESSEM, declarada na entrada do membro em `config/topology.yaml`: `MED`, `MAX` ou `MXMN`. Ver MED, MAX e MXMN.
+
+**Export.** O passo que publica a entrega: copia os bytes do scratch, confere cada sha256, monta num staging e publica com um único rename. Chave existente com bytes diferentes é recusada com `export.key_conflict`. Ver [Entrega e export imutável](/arquitetura/entrega-export).
+
+## F
+
+**Família.** Grupo de membros com a mesma metodologia. São cinco: Random Forest, LightGBM, Holt-Winters, `dessem-linear` e `dessem-regdin`; os dois DESSEM rodam sobre o motor comum `models/_dessem-engine`, que não é membro. Ver [Os modelos](/metodologia/modelos-visao-geral).
+
+**Fingerprint.** Lista nomeada com exatamente oito chaves (`model_id`, `data_fingerprint`, `cutoff`, `feature_config`, `code_commit`, `renv_lock_hash`, `load_label`, `load_tz`) cujo hash dá a versão de um artefato. Campos laterais, como `trained_at` e `run_id`, são recusados dentro dele. Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+**`first_delivery`.** O primeiro `interval_end` entregue: a próxima fronteira da grade de 30 min depois do `available_until`. Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+**Folha e folha solta.** Folha é uma área. Um subsistema só é reconciliado se todas as suas folhas estão presentes; as folhas de um subsistema que não fecha seguem como folhas soltas e não passam pela reconciliação. Ver [Reconciliação](/metodologia/reconciliacao).
+
+## G
+
+**Guardas de honestidade.** Checagens que abortam a execução quando um cálculo usaria dado posterior ao corte, com códigos da classe `honesty` (saída 15), como `honesty.khat_after_origin` e `honesty.data_lag_negative`. Ver [Os três cortes de data](/metodologia/tres-cortes) e [Contrato de erros e códigos de saída](/arquitetura/erros-exit).
+
+## H
+
+**`horizon_days` (H).** Horizonte declarado no `run.yaml`. Na classe `origin_agnostic` define `train_origin` = O−1−H; na `origin_scoped` não entra no corte. Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+## I
+
+**`input_cut`.** Corte de insumo por membro. Com granularidade 30, é o próprio `available_until`; com granularidade 60, a hora cheia anterior. Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+**Intercepto.** Termo escalar livre da combina, a = média(y) − Σᵢ wᵢ · média(fᵢ). Absorve o viés comum aos membros e permite que a combinada saia da faixa deles. Ver [Combinação convexa](/metodologia/combina).
+
+**`interval_start` e `interval_end`.** As duas pontas do intervalo de 30 min que o leitor único cria a partir do rótulo da fonte. O `interval_start` é chave da carga e define o dia do intervalo; o `interval_end` decide a disponibilidade e é o `target_datetime` do LONG. Ver [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
+
+## K
+
+**k-hat.** Perfil sazonal multiplicativo por subsistema: a média da razão entre a carga verificada do subsistema e a soma verificada das áreas, por hora × mês × dia da semana, nos 730 dias que terminam em O−1 (`prevcarga_khat_fit`, `reconcile.R`). Só pode ser usado na origem em que foi ajustado (`khat_origin` igual a O). Ver [Reconciliação](/metodologia/reconciliacao).
+
+<Pendente titulo="Pendente · ADR-0028">A faixa padrão do k-hat, hoje `[1,00; 1,15]` em `config/topology.yaml`, é um valor de partida ainda não decidido.</Pendente>
+
+## L
+
+**`last_data_day`.** O último dia de dado que o treino de um membro pode ver: O−1−`data_lag_days`. Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+**`latest.txt`, `.history` e `.pin`.** Os ponteiros de uma célula do registry. O `latest.txt` tem uma linha com a versão corrente e é o único arquivo mutável também no repositório online; `.history` acumula uma linha por promoção e é a base do rollback; `.pin` lista as versões protegidas do `gc`. Os dois últimos são só locais. Ver [Registry de artefatos](/arquitetura/registry).
+
+**`lead`.** Posição do alvo no horizonte, contada de O 00:00: `d_plus · 48 + slot`, com `slot` de 1 a 48 dentro do dia. Não reinicia a cada dia. O Random Forest usa, por dentro, 216 leads horários. Ver [Schema LONG](/arquitetura/schema-long).
+
+**`load_label`.** O rótulo da carga na fonte: `end` (o carimbo é o fim do intervalo, o leitor subtrai 30 min) ou `start`. O `manifest.json` do deck tem precedência, e uma flag `--load-label` que o contradiga aborta com `contract.load_label_conflict`; sem a chave no manifest, vale a flag, depois o `config.yaml`, e o padrão é `end` (`prevcarga_resolve_load_label`, `deck_reader.R`). Ver [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
+
+**LONG.** Formato único de 8 colunas da previsão de todo membro, uma linha por área e meia hora, com a data-hora `target_datetime` no fim do intervalo. Um conversor (`prevcarga_build_long`) e um leitor o produzem e o leem. Ver [Schema LONG](/arquitetura/schema-long).
+
+## M
+
+**MAP e REDUCE.** As duas fases de uma origem. No MAP, as células membro × área rodam sem dependência entre si; no REDUCE, depois de todas, vêm a combina por folha e a reconciliação na árvore. Ver [Visão geral](/metodologia/visao-geral).
+
+**`manifest.json` do deck.** Arquivo na raiz do deck que declara o fuso da carga, o `load_label` e o atraso de publicação do clima previsto. Ver [Dados de entrada](/metodologia/dados-de-entrada).
+
+**MED, MAX e MXMN.** As variantes de temperatura dos membros DESSEM: média, máxima ou máxima e mínima do dia. O `dessem-linear` aceita as três; o `dessem-regdin` só `MED` e `MAX`. Ver [Família DESSEM](/metodologia/dessem-estrutura).
+
+**Membro.** Uma entrada da lista `members:` de `config/topology.yaml`, com `sigla`, diretório do modelo (`mdir`) e, quando há variante, `exogena`. São 8 membros: `RF`, `LGBM`, `HW`, `RGD_MED`, `RGD_MAX`, `LIN_MED`, `LIN_MAX` e `LIN_MXMN`. Ver [Os modelos](/metodologia/modelos-visao-geral).
+
+**mm.** Nos plugins DESSEM, a média da carga horária de cada dia nas horas cheias completas até `floor_hour(available_until)`. Com a linha de O presente, alimenta a cabeça de nowcast da DM(O); sem ela, como na rodada das 00h, não há cabeça. Ver [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
+
+**`model_time_offset_min`.** Deslocamento de hora de modelagem declarado no descriptor: 60 nos dois DESSEM, 0 nos demais. Só o despachante o aplica, por `to_model_frame` e `to_display_frame`. Ver [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
+
+## N
+
+**`native_layout`.** Formato da saída nativa do plugin, declarado no descriptor e conferido contra a lista do loader (`prevcarga_native_layouts`, `registry.R`). Os plugins atuais declaram `rf_wide_hourly_216`, `lgbm_day_48`, `hw_matrix_nx48` e `dessem_semihourly_48`; a lista aceita ainda `rf_horizon_list` e `dessem_hourly_24`. Ver [Os modelos](/metodologia/modelos-visao-geral).
+
+## O
+
+**O (origem, forecast-origin).** O dia da rodada, sem hora (D−1 na nomenclatura DESSEM). Vem de `--origin`; omitida, é o dia do último intervalo de carga do deck, nunca o relógio (`prevcarga_resolve_origin`, `dates.R`). Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+**`origin_agnostic` e `origin_scoped`.** As duas classes de split, chave `split` do `run.yaml`. No `origin_agnostic`, `train_origin` = O−1−H e o artefato serve a qualquer origem; no `origin_scoped`, `train_origin` = O e há um treino por origem. Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+## P
+
+**Perda.** O resíduo contábil de um subsistema: a carga verificada menos a soma das áreas. Nunca é prevista; o k-hat a absorve. Ver [Reconciliação](/metodologia/reconciliacao).
+
+**Previsão acoplada.** O modo `forecast` dos membros `origin_scoped` (Holt-Winters e os dois DESSEM), que treina e infere em memória no mesmo painel. É o que o protocolo `retrain_harness` chama. Ver [Os modelos](/metodologia/modelos-visao-geral).
+
+**Protocolo de backtest.** Quando o backtest treina: `fixed` (uma vez), `daily` (por origem) ou `retrain_harness` (pela previsão acoplada). Não é propriedade do modelo; precisa ser compatível com a classe de split (`orchestrate.R`). Ver [Backtest](/metodologia/backtest).
+
+## R
+
+**Reconciliação.** Passagem das previsões das áreas para subsistema e SIN coerentes: Bottom-Up × k-hat por subsistema e soma dos quatro subsistemas no SIN. Ver [Reconciliação](/metodologia/reconciliacao).
+
+**Registry.** Dois sentidos no código. O registry de artefatos é a árvore `<state_dir>/artifacts` com versões imutáveis `v_<hash>/` e ponteiros. O registro Tier A é o registro em memória dos estágios dos plugins, feito pelo loader. Ver [Registry de artefatos](/arquitetura/registry) e Tier A.
+
+**Rodada (rodada diária).** Uma execução do verbo `forecast` para uma origem O: todos os membros em cada folha, combina, reconciliação até o SIN e uma entrega imutável. Ver [Rodada diária](/execucao/rodada-diaria).
+
+**Rodada das 00h.** Rodada com um deck sem nenhuma carga do dia O. O `available_until` vale O 00:00 e a primeira entrega é O 00:30; a recusa só acontece com o dia O completo (`completude.forecast_origin_day_complete`). Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+**`run_id`.** Três identificadores diferentes têm esse nome:
+
+| `run_id` | Formato | O que identifica |
+|---|---|---|
+| do envelope | `AAAAMMDDTHHMMSSZ-<pid>` | o comando, pelo relógio UTC e pelo PID (`prevcarga_run_id`, `config.R`) |
+| da entrega | 12 hex | o scratch e o staging de uma entrega, pelo sha256 da chave da entrega |
+| do backtest | `v_` + 16 hex | a pasta `backtest/<run_id>/`, pela janela de origens, cortes, membros e versão do código |
+
+Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+**`run_manifest.json`.** Manifesto de uma execução, em JSON canônico e sem relógio, que separa as chaves de identidade (`data_hash`, `bundle_id`, `model_versions` e outras) dos campos laterais. Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+**Runtime.** O módulo `scripts/lib/runtime.R`, que roda primeiro em todo comando e fixa TZ, locale e BLAS de uma thread dentro do processo, sem ler variável de ambiente. Ver [Runtime](/arquitetura/runtime).
+
+**`runtime_id`.** Em 64 hex, o sha256 do `RUNTIME.json` canônico do bundle, sem `built_at` (`prevcarga_runtime_id`, `runtime.R`). O `run.json` do scratch e o `manifest.json` da entrega têm um campo de mesmo nome com outro formato, `R<versão>-<plataforma>`. Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+## S
+
+**Safra de clima.** A temperatura prevista como estava disponível numa origem nativa T, montada pelo próprio plugin (descriptor `weather_forecast_in_train`) a partir das emissões até o limite deslocado para T. Ver [Random Forest](/metodologia/random-forest).
+
+**Shim.** O script `scripts/prevcarga`: carrega `errors.R` e `runtime.R`, resolve a raiz da instalação e delega a `prevcarga_main` (`cli.R`). Não conhece nenhum verbo. Ver [Fachada da CLI](/arquitetura/fachada-cli).
+
+**Sigla.** Nome curto de um membro na topologia, usado nas colunas `f_<sigla>` da combina e nas chaves do `run_manifest.json`. Ver Membro.
+
+**SIN.** O Sistema Interligado Nacional, raiz da árvore: a soma dos quatro subsistemas. Não tem previsão nem k-hat próprios. Ver [Visão geral](/metodologia/visao-geral).
+
+**Split (classe de split).** Ver `origin_agnostic` e `origin_scoped`.
+
+**`state_dir`.** Diretório único do estado local (artefatos, cache, backtests, scratch, entregas e relatórios). Vem de `--state`, depois de `state_dir` no `config.yaml`, depois do padrão `<root>/.state`. Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+**Subsistema.** Nó intermediário da árvore do SIN: SECO, S, N e NE, cada um com as suas áreas e o seu nó de perda em `config/topology.yaml`. Ver [Visão geral](/metodologia/visao-geral).
+
+## T
+
+**Tier A.** O contrato verificado em wire-time pelo loader de plugins (`registry.R`): valida o descriptor contra o `run.yaml` e registra a cadeia `requires`/`provides` dos estágios antes de qualquer treino. Ver [Fundação de plugins](/arquitetura/fundacao-plugins).
+
+**`train_origin`.** A origem da última amostra de treino de um membro: O−1−H no `origin_agnostic` e O no `origin_scoped`. Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+**Trilho.** Tolerância de comparação do `verificar`: `mesma-plataforma`, 1e-5 absoluto, ou `entre-plataformas`, 0,1% relativo. Com `--alvo` e `--limiares`, vale o `limiar_mw` do alvo. Ver [Verificar uma entrega](/execucao/verificar).
+
+**`truncate_at`.** Instante O HH:MM, no fuso do deck, com que o backtest trunca o store para simular um corte (`--corte`). O leitor remove a carga depois dele antes de derivar o `available_until`. Ver [Os três cortes de data](/metodologia/tres-cortes).
+
+## V
+
+**Validação do deck.** O passo 1 do `forecast`, que roda antes de qualquer cálculo (`prevcarga_validate_deck`, `validation.R`). Percorre todas as checagens, classifica cada defeito e decide o código de saída pela classe dominante. Ver [Validação do deck](/arquitetura/validacao-deck).
+
+**`v_<hash>`.** Versão de um artefato: `v_` mais os 16 primeiros hex do sha256 do JSON canônico do fingerprint (`prevcarga_version_hash`, `provenance.R`). Mesmos insumos, mesma versão. Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+**`versao`.** Identidade de uma entrega, em 12 hex, calculada dos insumos que a compõem (`prevcarga_forecast_versao`, `exports.R`). É o último segmento da chave em `forecasts/`. Ver [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado).
+
+**Verbo isento.** Verbo com `exempt = TRUE` no seu registro em `scripts/lib/cli/`, que pula o enforce do runtime e o aplica no corpo. Hoje são só `doctor` e `status`. Ver [Fachada da CLI](/arquitetura/fachada-cli).
+
+## W
+
+**`weather_issue_limit`.** Limite de emissão do clima previsto (`prevcarga_weather_issue_limit`, `deck_reader.R`). Na regra padrão, é o `available_until` menos o atraso de publicação declarado no `manifest.json` do deck; a regra se escolhe por `--weather-cutoff` ou `weather_issue_cutoff`. Ver [Os três cortes de data](/metodologia/tres-cortes).

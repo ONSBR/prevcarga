@@ -1,0 +1,176 @@
+/* Tokens do PrevCarga Design System (copiados de tokens/*.css, sem alteracao). */
+@import url('./ds/colors.css');
+@import url('./ds/typography.css');
+@import url('./ds/spacing.css');
+@import url('./ds/effects.css');
+
+/* ---- Mapeamento DS -> Infima (unico lugar onde o Docusaurus encontra o DS) ---- */
+:root {
+  --ifm-font-family-base: var(--font-sans);
+  --ifm-font-family-monospace: var(--font-mono);
+  --ifm-font-size-base: 15px;
+  --ifm-line-height-base: 1.65;
+  --ifm-heading-font-weight: var(--weight-medium);
+  --ifm-font-weight-bold: var(--weight-semibold);
+
+  --ifm-color-primary: var(--blue-400);
+  --ifm-color-primary-dark: var(--blue-500);
+  --ifm-color-primary-darker: var(--blue-600);
+  --ifm-color-primary-darkest: var(--blue-700);
+  --ifm-color-primary-light: var(--blue-300);
+  --ifm-color-primary-lighter: var(--blue-200);
+  --ifm-color-primary-lightest: var(--blue-100);
+
+  --ifm-background-color: var(--bg-app);
+  --ifm-background-surface-color: var(--bg-app);
+  --ifm-font-color-base: var(--text-primary);
+  --ifm-font-color-secondary: var(--text-secondary);
+  --ifm-heading-color: var(--text-primary);
+  --ifm-link-color: var(--text-link);
+  --ifm-link-hover-color: var(--text-link-hover);
+  --ifm-toc-border-color: var(--border-subtle);
+  --ifm-hr-border-color: var(--border-subtle);
+  --ifm-color-emphasis-200: var(--border-subtle);
+  --ifm-color-emphasis-300: var(--border-default);
+
+  --ifm-navbar-height: var(--layout-topbar);
+  --ifm-navbar-background-color: var(--bg-app);
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-link-color: var(--text-secondary);
+  --ifm-navbar-link-hover-color: var(--text-primary);
+  --ifm-navbar-item-padding-horizontal: 12px;
+
+  --doc-sidebar-width: var(--layout-sidebar);
+  --ifm-menu-color: var(--text-secondary);
+  --ifm-menu-color-active: var(--text-primary);
+  --ifm-menu-color-background-active: var(--accent-soft);
+  --ifm-menu-color-background-hover: var(--surface-2);
+  --ifm-menu-link-padding-vertical: 7px;
+  --ifm-menu-link-padding-horizontal: 10px;
+
+  --ifm-code-font-size: 88%;
+  --ifm-code-background: var(--surface-2);
+  --ifm-code-border-radius: var(--radius-sm);
+  --ifm-pre-background: var(--cli-bg);
+  --ifm-global-radius: var(--radius-lg);
+  --ifm-card-background-color: var(--surface-1);
+
+  --ifm-table-border-color: var(--border-default);
+  --ifm-table-head-background: var(--surface-1);
+  --ifm-table-stripe-background: transparent;
+  --ifm-table-head-color: var(--text-secondary);
+
+  --ifm-footer-background-color: var(--bg-sunken);
+  --ifm-footer-color: var(--text-tertiary);
+  --docusaurus-highlighted-code-line-bg: var(--accent-soft);
+}
+
+html, body { background: var(--bg-app); }
+::selection { background: var(--selection); }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+
+/* ---- Navbar: topbar 52px, borda translucida, sem sombra ---- */
+.navbar { border-bottom: 1px solid var(--border-subtle); padding: 0 var(--space-6); }
+.navbar__logo { height: 30px; margin-right: 24px; }
+.navbar__brand { gap: 0; }
+.navbar__title { font: var(--weight-medium) var(--text-xl)/1 var(--font-sans); letter-spacing: -0.03em; margin-right: 20px; }
+.pc-ons { display: flex; align-items: center; height: var(--layout-topbar); padding: 0 16px 0 18px; margin-right: 8px; border-right: 1px solid var(--border-strong); }
+.pc-ons img { height: 18px; width: auto; }
+.pc-ons-dark { display: none; }
+[data-theme='dark'] .pc-ons-dark { display: block; }
+[data-theme='dark'] .pc-ons-light { display: none; }
+.navbar__link { font: var(--type-label); }
+.navbar__link--active { color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--highlight); }
+
+/* ---- Sidebar: bg-sunken, item ativo = accent-soft + barra ciano 2px ---- */
+.theme-doc-sidebar-container { background: var(--bg-sunken); border-right: 1px solid var(--border-subtle) !important; }
+.menu { font: var(--type-label); padding: var(--space-4) var(--space-3) !important; }
+.menu__link { border-radius: var(--radius-control); position: relative; transition: var(--transition-color); }
+.menu__link--active:not(.menu__link--sublist) { background: var(--accent-soft); color: var(--text-primary); }
+.menu__link--active:not(.menu__link--sublist)::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--highlight); }
+.menu__list-item-collapsible:hover { background: var(--surface-2); }
+.menu__caret:before, .menu__link--sublist-caret:after { filter: none; opacity: .6; }
+
+/* ---- Tipografia do conteudo ---- */
+.markdown h1, h1 { font: var(--type-h1); letter-spacing: var(--tracking-tight); }
+.markdown h2 { font: var(--type-h2); letter-spacing: var(--tracking-tight); margin-top: var(--space-10); padding-top: var(--space-6); border-top: 1px solid var(--border-subtle); }
+.markdown h3 { font: var(--type-h3); letter-spacing: var(--tracking-tight); }
+.markdown { color: var(--text-primary); }
+.markdown p, .markdown li { color: var(--text-secondary); }
+.markdown strong { color: var(--text-primary); }
+.pc-overline { font: var(--type-overline); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-tertiary); display: block; margin-bottom: var(--space-2); }
+.pc-lead { font-size: var(--text-lg); color: var(--text-secondary); max-width: 68ch; }
+
+/* ---- Codigo: inline em surface-2; bloco no fundo da CLI ---- */
+code { border: 1px solid var(--border-subtle); padding: 1px 5px; }
+.theme-code-block { border: 1px solid var(--border-default); border-radius: var(--radius-card); box-shadow: var(--shadow-inset); }
+.theme-code-block pre, .theme-code-block code { background: var(--cli-bg) !important; border: 0; }
+.prism-code { font: var(--type-mono); }
+[class*='codeBlockTitle'] { background: var(--slate-900) !important; color: var(--cli-dim) !important; font: var(--type-mono-sm) !important; border-bottom: 1px solid var(--border-subtle) !important; }
+[data-theme='light'] .theme-code-block pre, [data-theme='light'] .theme-code-block code { background: var(--slate-950) !important; }
+
+/* ---- Tabelas: borda 1px, cabecalho overline, numeros tabulares ---- */
+.markdown table { display: table; width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border-default); border-radius: var(--radius-card); overflow: hidden; font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+.markdown table thead tr { background: var(--surface-1); }
+.markdown table th { font: var(--type-overline); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-tertiary); text-align: left; border: 0; border-bottom: 1px solid var(--border-default); padding: 10px 14px; }
+.markdown table td { border: 0; border-bottom: 1px solid var(--border-subtle); padding: 10px 14px; color: var(--text-secondary); }
+.markdown table tr:last-child td { border-bottom: 0; }
+.markdown table tr, .markdown table tr:nth-child(2n) { border: 0; background: transparent; }
+.markdown table tbody tr:hover { background: var(--surface-1); }
+
+/* ---- Admonitions: fundo soft, borda 1px, sem sombra ---- */
+.theme-admonition { border: 1px solid var(--border-default); border-left-width: 3px; border-radius: var(--radius-card); box-shadow: none; background: var(--surface-1); color: var(--text-secondary); }
+.theme-admonition [class*='admonitionHeading'] { font: var(--type-overline); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
+.alert--info { border-left-color: var(--blue-400); background: var(--accent-soft); --ifm-alert-foreground-color: var(--text-primary); }
+.alert--info [class*='admonitionHeading'] { color: var(--blue-300); }
+.alert--secondary { border-left-color: var(--slate-400); }
+.alert--success { border-left-color: var(--success-500); background: var(--success-soft); }
+.alert--success [class*='admonitionHeading'] { color: var(--success-500); }
+.alert--warning { border-left-color: var(--warning-500); background: var(--warning-soft); }
+.alert--warning [class*='admonitionHeading'] { color: var(--warning-500); }
+.alert--danger { border-left-color: var(--danger-500); background: var(--danger-soft); }
+.alert--danger [class*='admonitionHeading'] { color: var(--danger-500); }
+.theme-admonition svg { fill: currentColor; }
+[data-theme='light'] .alert--warning [class*='admonitionHeading'] { color: var(--warning-700); }
+[data-theme='light'] .alert--success [class*='admonitionHeading'] { color: var(--success-700); }
+[data-theme='light'] .alert--danger [class*='admonitionHeading'] { color: var(--danger-700); }
+[data-theme='light'] .alert--info [class*='admonitionHeading'] { color: var(--blue-600); }
+
+/* ---- TOC e paginacao ---- */
+.table-of-contents { font: var(--type-body-sm); }
+.table-of-contents__link--active { color: var(--highlight); }
+.pagination-nav__link { border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--surface-1); transition: var(--transition-color); }
+.pagination-nav__link:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.pagination-nav__sublabel { font: var(--type-overline); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-tertiary); }
+.breadcrumbs__item--active .breadcrumbs__link { background: var(--accent-soft); color: var(--text-primary); }
+
+/* ---- Footer ---- */
+.footer { border-top: 1px solid var(--border-subtle); padding: var(--space-6); font: var(--type-caption); }
+
+/* ---- Mermaid: cores do DS nos dois temas (theme 'base' + CSS) ---- */
+.docusaurus-mermaid-container { background: var(--surface-1); border: 1px solid var(--border-default); border-radius: var(--radius-card); padding: var(--space-5); margin-bottom: var(--space-5); box-shadow: var(--shadow-inset); }
+.docusaurus-mermaid-container svg { font-family: var(--font-sans) !important; }
+.docusaurus-mermaid-container .node rect, .docusaurus-mermaid-container .node polygon, .docusaurus-mermaid-container .node circle, .docusaurus-mermaid-container .node path { fill: var(--surface-2) !important; stroke: var(--border-strong) !important; stroke-width: 1px !important; }
+.docusaurus-mermaid-container .nodeLabel, .docusaurus-mermaid-container .label, .docusaurus-mermaid-container text { fill: var(--text-primary) !important; color: var(--text-primary) !important; }
+.docusaurus-mermaid-container .flowchart-link, .docusaurus-mermaid-container .messageLine0, .docusaurus-mermaid-container .messageLine1 { stroke: var(--slate-400) !important; }
+.docusaurus-mermaid-container marker path, .docusaurus-mermaid-container .arrowheadPath { fill: var(--slate-400) !important; stroke: var(--slate-400) !important; }
+.docusaurus-mermaid-container .edgeLabel, .docusaurus-mermaid-container .edgeLabel rect, .docusaurus-mermaid-container .labelBkg { background: var(--surface-1) !important; fill: var(--surface-1) !important; color: var(--text-secondary) !important; }
+.docusaurus-mermaid-container .cluster rect { fill: transparent !important; stroke: var(--border-default) !important; stroke-dasharray: 4 3; }
+.docusaurus-mermaid-container .cluster-label .nodeLabel { fill: var(--text-tertiary) !important; color: var(--text-tertiary) !important; }
+.docusaurus-mermaid-container .node.dado rect, .docusaurus-mermaid-container .node.dado polygon, .docusaurus-mermaid-container .node.dado path { fill: var(--highlight-soft) !important; stroke: var(--highlight) !important; }
+.docusaurus-mermaid-container .node.acao rect { fill: var(--accent-soft) !important; stroke: var(--accent) !important; }
+.docusaurus-mermaid-container .node.falha rect { fill: var(--danger-soft) !important; stroke: var(--danger-500) !important; }
+.docusaurus-mermaid-container rect.actor { fill: var(--surface-2) !important; stroke: var(--border-strong) !important; }
+.docusaurus-mermaid-container text.actor, .docusaurus-mermaid-container text.actor tspan, .docusaurus-mermaid-container .noteText, .docusaurus-mermaid-container .noteText tspan, .docusaurus-mermaid-container .messageText { fill: var(--text-primary) !important; stroke: none !important; }
+.docusaurus-mermaid-container .actor-line { stroke: var(--border-default) !important; }
+.docusaurus-mermaid-container .note { fill: var(--highlight-soft) !important; stroke: var(--highlight) !important; }
+.docusaurus-mermaid-container .activation0 { fill: var(--accent-soft) !important; stroke: var(--accent) !important; }
+.docusaurus-mermaid-container .edgeLabel p, .docusaurus-mermaid-container .edgeLabel span, .docusaurus-mermaid-container .edgeLabel div { background: var(--surface-1) !important; color: var(--text-secondary) !important; font-size: var(--text-sm); }
+
+/* Classes de figura do plano (aplicadas com A:::classe, sem classDef). */
+.docusaurus-mermaid-container .node.fundacao rect, .docusaurus-mermaid-container .node.fundacao polygon, .docusaurus-mermaid-container .node.fundacao path { fill: var(--accent-soft) !important; stroke: var(--accent) !important; }
+.docusaurus-mermaid-container .node.plugin rect, .docusaurus-mermaid-container .node.plugin polygon, .docusaurus-mermaid-container .node.plugin path { fill: var(--surface-2) !important; stroke: var(--blue-300) !important; }
+.docusaurus-mermaid-container .node.corte rect, .docusaurus-mermaid-container .node.corte polygon, .docusaurus-mermaid-container .node.corte path { fill: var(--highlight-soft) !important; stroke: var(--highlight) !important; }
+.docusaurus-mermaid-container .node.erro rect, .docusaurus-mermaid-container .node.erro polygon, .docusaurus-mermaid-container .node.erro path { fill: var(--danger-soft) !important; stroke: var(--danger-500) !important; }
+.docusaurus-mermaid-container .node.pendente rect, .docusaurus-mermaid-container .node.pendente polygon, .docusaurus-mermaid-container .node.pendente path { fill: var(--warning-soft) !important; stroke: var(--warning-500) !important; stroke-dasharray: 4 3; }
+.markdown table th code { font: inherit; background: none; border: 0; padding: 0; }

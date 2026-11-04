@@ -1,0 +1,257 @@
+---
+title: Topologia e contrato por modelo
+sidebar_label: Topologia e run.yaml
+sidebar_position: 8
+slug: /arquitetura/topologia-run-yaml
+description: Como config/topology.yaml declara a árvore do SIN e os membros, como models/<m>/run.yaml declara o contrato de cada modelo, e como topology.R só carrega e valida os dois.
+fontes:
+  - config/topology.yaml
+  - scripts/lib/topology.R
+  - docs/estado/topology.md
+  - models/*/run.yaml
+  - models/*/R/register.R
+  - docs/adr/0021-run-yaml-contrato-modelo.md
+  - scripts/lib/registry.R
+  - scripts/lib/orchestrate.R
+  - scripts/lib/training.R
+  - scripts/lib/cli/train-models.R
+  - scripts/lib/cli/forecast.R
+  - scripts/lib/cli/score.R
+  - scripts/lib/cli/combine.R
+  - scripts/lib/cli/features.R
+  - scripts/lib/introspect.R
+  - scripts/lib/errors.R
+  - scripts/lib/errors/core.tsv
+  - scripts/lib/errors/topology.tsv
+  - scripts/lib/errors/plugin.tsv
+  - scripts/lib/errors/training.tsv
+  - scripts/lib/errors/orchestrate.tsv
+  - scripts/lib/errors/cli_m6.tsv
+  - scripts/lib/errors/validation.tsv
+  - scripts/lib/deck_reader.R
+  - scripts/lib/forecast.R
+  - scripts/lib/reconcile.R
+  - scripts/lib/combination.R
+  - scripts/lib/validation.R
+  - scripts/lib/evaluation.R
+adrs: [ADR-0001, ADR-0009, ADR-0021, ADR-0023, ADR-0028, ADR-0040]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Arquitetura · 2.8</span>
+
+<p className="pc-lead">Dois arquivos YAML são a fonte única da forma do problema. `config/topology.yaml` declara a árvore do SIN (subsistemas, áreas, nós de perda), a faixa do k-hat e os oito membros da combina. Cada `models/<m>/run.yaml` declara o contrato de modelagem de um modelo: classe de split, granularidade, horizonte, histórico, seed, modos, protocolo de backtest padrão e parâmetros. `scripts/lib/topology.R` só carrega e valida esses arquivos. Ele não contém nenhuma área, faixa ou granularidade literal, e qualquer violação dos arquivos aborta com classe contract (exit 2), sem devolver objeto parcial. Área fora da topologia tem um único código em todo o sistema: `topology.area_undeclared` (exit 4).</p>
+
+## topology.yaml e topology.R: só carregar e validar
+
+### O arquivo da topologia
+
+`config/topology.yaml` tem exatamente cinco chaves de topo: `schema_version`, `khat_range`, `subsystems`, `order` e `members`. Chave a mais aborta com `contract.topology_unknown_key`; chave a menos, com `contract.topology_bad_value`. O arquivo declara 4 subsistemas e 24 áreas.
+
+| Subsistema | Áreas (folhas) | Nó de perda |
+|---|---|---|
+| SECO | RJ, RO, MG, ES, MT, SP, AC, MS, GO, DF | PESE |
+| S | RS, PR, SC | PES |
+| N | PA, TON, AP, AM, MA | PEN |
+| NE | ALPE, CE, PBRN, BAOE, PI, BASE | PENE |
+
+A ordem canônica (`order`) é SECO, S, N, NE. Os membros da combina são declarados no mesmo arquivo, cada um com `sigla`, `mdir` (a pasta do modelo em `models/`) e `exogena`.
+
+| Sigla | mdir | exogena |
+|---|---|---|
+| RF | random-forest | nenhuma |
+| LGBM | lgbm | nenhuma |
+| HW | holt-winters | nenhuma |
+| RGD_MED | dessem-regdin | MED |
+| RGD_MAX | dessem-regdin | MAX |
+| LIN_MED | dessem-linear | MED |
+| LIN_MAX | dessem-linear | MAX |
+| LIN_MXMN | dessem-linear | MXMN |
+
+:::warning O subsistema N precisa de aspas
+O parser YAML 1.1 lê `N` sem aspas como o booleano FALSE. Por isso o arquivo escreve `"N"` entre aspas, tanto na chave de `subsystems` quanto na lista `order`.
+:::
+
+A faixa do k-hat mora só aqui. O valor global é `khat_range: [1.00, 1.15]`, e cada subsistema pode sobrescrevê-lo com a sua própria chave `khat_range`. A faixa efetiva por subsistema é o override, se existir, ou o global. Ela é usada como referência na reconciliação (contagem de valores fora da faixa no resumo do k-hat) e na checagem de coerência.
+
+<Pendente titulo="Pendente · ADR-0028">
+O valor final da faixa do k-hat não está decidido. Quando for, muda só o YAML; nenhum código muda.
+</Pendente>
+
+### As três funções públicas
+
+| Função | O que lê | O que devolve |
+|---|---|---|
+| `prevcarga_topology(path, root)` | `config/topology.yaml` | subsistemas com `areas`, `loss` e `khat_range` efetivo; `leaves` (as folhas na ordem de `order`); `order`; `sin`; `khat_range_default`; os membros crus |
+| `prevcarga_members(path, root)` | a mesma topologia | data frame `sigla`, `mdir`, `exogena` (NA quando nula) |
+| `prevcarga_model_spec(model, root, overrides)` | `models/<model>/run.yaml` | o spec efetivo do modelo, com os overrides aplicados e as chaves em ordem radix |
+
+O caminho chega só por argumento (`path` ou `root`). O pacote não lê variáveis de ambiente.
+
+### O que a validação da topologia confere
+
+1. `schema_version` igual a 1 (`contract.topology_schema_version`).
+2. Cada subsistema só com as chaves `areas`, `loss` e `khat_range` (`contract.topology_unknown_key`).
+3. Todo subsistema tem perda (`contract.topology_loss_missing`), e nenhuma perda se repete (`contract.topology_loss_duplicated`).
+4. A lista de áreas de cada subsistema é de textos não vazios, e nenhuma área se repete na topologia (`contract.topology_area_duplicated`).
+5. `order` tem os mesmos subsistemas de `subsystems`, na mesma ordem e sem repetição (`contract.topology_order_mismatch`).
+6. Cada `khat_range` é um par numérico finito com `0 < inferior < superior` (`contract.khat_range_invalid`).
+7. Em `members`, conferido por `prevcarga_members`: a lista não pode ser vazia (`contract.topology_bad_value`); cada membro só tem `sigla`, `mdir` e `exogena` (`contract.topology_unknown_key`); `sigla` e `mdir` são textos não vazios, `exogena` é nula ou texto não vazio, nenhuma sigla se repete e cada `mdir` tem um `models/<mdir>/run.yaml` no disco (`contract.topology_member_invalid`).
+
+Valor de tipo errado ou ausente cai em `contract.topology_bad_value`. Todos esses ids são da classe contract, e o exit é 2 (tabela única em [Contrato de erros e códigos de saída](/arquitetura/erros-exit)).
+
+### Área nova é edição de YAML
+
+Acrescentar uma área é editar `config/topology.yaml`. Nenhum código muda: uma topologia com uma área extra carrega 25 folhas em vez de 24. Nenhum `.R` de `scripts/lib` contém a faixa do k-hat, e `topology.R` não contém nomes de subsistema, perda ou membro, nem lê variáveis de ambiente.
+
+A identidade da topologia entra na proveniência da rodada: `forecast.R` grava um `topology_hash`, o sha256 do JSON canônico de `subsystems`, `order` e `khat_range_default`.
+
+### Introspecção
+
+Dois verbos expõem o que foi carregado, em texto ou JSON:
+
+<Terminal title="prevcarga — bash" lines={[{type:'cmd',text:'prevcarga areas'},{type:'cmd',text:'prevcarga models'}]} />
+
+`prevcarga areas` lista, por subsistema, a perda, a faixa efetiva do k-hat e as áreas. `prevcarga models` lista, por membro, a sigla, o `mdir`, a exógena e os campos do spec (split, granularidade, horizonte, histórico de treino e de inferência, seed, modos e protocolo padrão). Os dois estão em `scripts/lib/introspect.R`.
+
+## run.yaml: o contrato por modelo
+
+### Chaves aceitas
+
+`models/<m>/run.yaml` carrega só o contrato de modelagem. As chaves aceitas são dez.
+
+| Chave | Obrigatória | Regra de validação |
+|---|---|---|
+| `name` | sim | igual ao nome da pasta (`contract.run_yaml_name_mismatch`) |
+| `split` | sim | `origin_agnostic` ou `origin_scoped` |
+| `granularity_min` | sim | 30 ou 60 |
+| `horizon_days` | sim | inteiro maior ou igual a 1 |
+| `history_days` | sim | só `train` e `infer`, cada um inteiro maior ou igual a 1 |
+| `seed` | sim | inteiro; ausente aborta com `contract.seed_missing` |
+| `modes` | sim | contém `train` e `infer`, só valores de `train`, `infer` e `forecast`, sem repetição |
+| `backtest` | sim | só `protocol_default`, com valor `fixed`, `daily` ou `retrain_harness` |
+| `constraints` | não | mapa nomeado; cada chave tem de existir na tabela `.prevcarga_constraints` |
+| `params` | não | mapa nomeado com os parâmetros de modelagem do plugin |
+
+Chave fora da lista aborta com `contract.run_yaml_unknown_key`, inclusive dentro de `history_days`, `backtest` e `constraints`. Valor inválido ou chave obrigatória ausente aborta com `contract.run_yaml_bad_value`, e o `where` do erro nomeia a chave. Arquivo ausente é `contract.run_yaml_missing`.
+
+A única restrição da tabela é `infer_history_equals_train`: quando ligada, `history_days.infer` tem de ser igual a `history_days.train`, ou o spec aborta com `contract.constraint_violated`.
+
+### Os cinco contratos
+
+| Modelo | split | Granularidade | Horizonte | Histórico treino / inferência | seed | Modos | protocol_default |
+|---|---|---|---|---|---|---|---|
+| random-forest | origin_agnostic | 60 min | 9 dias | 365 / 45 | 123 | train, infer | daily |
+| lgbm | origin_agnostic | 30 min | 1 dia | 730 / 45 | 123 | train, infer | daily |
+| holt-winters | origin_scoped | 30 min | 8 dias | 730 / 45 | 1234 | train, infer, forecast | retrain_harness |
+| dessem-linear | origin_scoped | 60 min | 9 dias | 1.825 / 1.825 | 42 | train, infer, forecast | retrain_harness |
+| dessem-regdin | origin_scoped | 60 min | 9 dias | 1.825 / 1.825 | 42 | train, infer, forecast | retrain_harness |
+
+O dessem-regdin é o único que liga `constraints: {infer_history_equals_train: true}`. Os parâmetros (`params`) são próprios de cada modelo: o RF declara `ntree`, o LGBM declara sete chaves de configuração, lidas do YAML e não de variáveis de ambiente, o HW declara os parâmetros da sua configuração, e os dois DESSEM declaram `exogena`. As páginas de cada modelo descrevem esses parâmetros ([Os modelos](/metodologia/modelos-visao-geral)).
+
+```yaml title="models/lgbm/run.yaml (sem os params)"
+name: lgbm
+split: origin_agnostic
+granularity_min: 30
+horizon_days: 1
+history_days: {train: 730, infer: 45}
+seed: 123
+modes: [train, infer]
+backtest: {protocol_default: daily}
+constraints: {}
+```
+
+### split e backtest.protocol_default
+
+`split` é a propriedade do modelo que define o corte de treino (ADR-0023): `origin_agnostic` treina com `train_origin = O−1−H`; `origin_scoped` treina na própria origem O, com um re-treino por dia. O cálculo mora em `dates.R` e está em [Os três cortes de data](/metodologia/tres-cortes).
+
+`backtest.protocol_default` é só o protocolo que o backtest usa quando o operador não escolhe outro. Protocolo não é atributo do modelo. A orquestração do backtest (`orchestrate.R`) confere a compatibilidade entre os dois e aborta com `contract.protocol_incompatible` quando não há casamento:
+
+| split | Protocolos compatíveis |
+|---|---|
+| origin_agnostic | fixed, daily |
+| origin_scoped | daily, retrain_harness |
+
+O detalhe dos protocolos está em [Backtest](/metodologia/backtest).
+
+### Chaves proibidas
+
+Sete chaves são recusadas com um id próprio, `contract.run_yaml_forbidden_key`, antes da checagem de chave desconhecida:
+
+| Chave | Por que é proibida |
+|---|---|
+| `resources`, `vcpu`, `mem_gb` | dimensionamento de job de nuvem, que é orquestração e não modelagem |
+| `r_deps` | dependências de pacote, que pertencem ao bundle |
+| `entrypoint`, `train_args` | ligação por subprocesso; o módulo é função R importável |
+| `cut_invariant` | o corte não é declarado: ele é derivado da classe de split |
+
+### Spec efetivo: overrides
+
+`prevcarga_model_spec` aceita `overrides`, uma lista de chaves pontilhadas (por exemplo `horizon_days` ou `params.exogena`) que só pode sobrescrever chaves já declaradas no `run.yaml`.
+
+| Situação | Erro | Exit |
+|---|---|---|
+| Chave que não existe no `run.yaml` | `config.override_unknown` | 8 |
+| Valor de tipo ou comprimento diferente do declarado | `config.override_bad_value` | 8 |
+| `horizon_days` que não é inteiro maior ou igual a 1 | `config.override_bad_value` | 8 |
+
+As restrições de `constraints` são aplicadas depois dos overrides, sobre o valor efetivo. O spec sai com as chaves em ordem radix, para que o hash do spec seja estável.
+
+Há duas fontes de override, que `training.R` junta antes de chamar `prevcarga_model_spec`:
+
+1. A flag `--horizon` de `train-models`, que `cli/train-models.R` põe no contexto como `horizon_days`.
+2. A variante do membro: quando o descriptor do plugin declara `variant_param` (os dois DESSEM declaram `exogena`), a `exogena` do membro na topologia vira `params.exogena`. É assim que o mesmo `run.yaml` gera RGD_MED e RGD_MAX, ou LIN_MED, LIN_MAX e LIN_MXMN.
+
+A flag `--exogena` de `train-models` não é override: ela filtra os membros pela variante exógena.
+
+### A segunda leitura, pelo carregador de plugins
+
+O carregador de plugins (`registry.R`) relê o `run.yaml` do plugin com a mesma lista de dez chaves e confere o spec contra o descriptor. Os erros são do catálogo do plugin, todos da classe contract.
+
+| Conferência | Erro |
+|---|---|
+| Chave fora da lista | `plugin.unknown_key` |
+| Valor inválido de `name`, `split`, `granularity_min`, `horizon_days`, `history_days`, `seed`, `modes` ou `params` | `plugin.bad_run_yaml` |
+| `granularity_min` fora de `granularity_supported` do descriptor | `plugin.bad_run_yaml` |
+| Modo fora de `modes_implemented` | `plugin.bad_run_yaml` |
+| `forecast` em `modes` sem `split: origin_scoped`, ou o contrário | `plugin.bad_run_yaml` |
+| Descriptor com `history_infer_equals_train` e históricos diferentes | `plugin.history_window` |
+| `params` com chave a mais ou a menos que o `params_schema`, ou valor fora dele | `plugin.bad_run_yaml` |
+
+A regra de que `forecast` acompanha a classe `origin_scoped` vale nos cinco contratos: só HW e os dois DESSEM declaram `forecast`. O descriptor e o carregador estão em [Fundação de plugins](/arquitetura/fundacao-plugins).
+
+:::note ADR-0021 e o código
+O ADR-0021 define o `run.yaml` e deixa fora dele a orquestração de nuvem. Em três pontos o texto local do ADR difere do código: mostra `protocol` como atributo do modelo, `cut_invariant` como chave e `--exogena` como override de CLI. Vale o código: o modelo declara `split` (ADR-0023) e só um `backtest.protocol_default`, `cut_invariant` é chave proibida, e a exógena chega pela topologia via `variant_param`. O site segue o código.
+:::
+
+## Área fora da topologia: um único código
+
+Pedir uma área que a topologia não declara tem um único id em todo o sistema: `topology.area_undeclared`, classe topology, exit 4.
+
+| Onde | Quando dispara |
+|---|---|
+| `deck_reader.R` (`prevcarga_read_panel`) | área pedida fora das folhas, antes de ler carga e clima |
+| `forecast.R` e `cli/forecast.R` | `--area` fora das folhas, ou `--subsistema` fora dos subsistemas |
+| `training.R` | `--area`, `--areas` ou `--subsistema` fora da topologia |
+| `orchestrate.R` | `--area` do plano ou do backtest (folha ou subsistema) |
+| `combination.R` | área que não é folha nem subsistema, como um nó de perda (PESE) |
+| `reconcile.R` | `--subsistema` fora de `order`, ou arquivo de entrada com área fora |
+| `evaluation.R`, `cli/score.R`, `cli/combine.R` | `--area` fora da topologia, antes de ler o deck |
+| `cli/features.R` | área fora das folhas |
+| `check-coherence` (`evaluation.R`) | área presente na entrega e fora da topologia, como finding |
+
+No `validate-deck`, uma área presente no deck e não declarada vira o finding `area_undeclared` da classe topology, e entra no veredito acumulativo ([Validação do deck](/arquitetura/validacao-deck)). Ali o conjunto declarado inclui folhas, subsistemas e nós de perda.
+
+Dois ids vizinhos, da mesma classe topology (exit 4), cobrem o modelo fora dos membros e o escopo do `validate-deck`:
+
+| Id | Caso |
+|---|---|
+| `topology.model_undeclared` | no verbo `features`, modelo pedido que não é `mdir` de nenhum membro |
+| `topology.scope_undeclared` | item do escopo do `validate-deck` (área ou modelo) fora da topologia, como finding |
+
+Nos verbos de treino e de backtest, um modelo que não é membro aborta com outro id, `config.unknown_model` (exit 8).
+
+:::tip
+Para ver as áreas válidas, rode `prevcarga areas`. Para ver os modelos válidos, `prevcarga models`.
+:::

@@ -1,0 +1,178 @@
+---
+title: Determinismo e reprodutibilidade
+sidebar_label: Determinismo
+sidebar_position: 15
+slug: /metodologia/determinismo
+description: O critério de reprodutibilidade da previsão, com as sementes obrigatórias, as tolerâncias do verificar, o modelo fechado e as verificações transversais que o sustentam.
+fontes:
+  - scripts/lib/runtime.R
+  - scripts/lib/verify_repro.R
+  - scripts/lib/cli/verificar.R
+  - scripts/lib/errors/verificar.tsv
+  - scripts/lib/errors.R
+  - scripts/lib/registry.R
+  - scripts/lib/errors/plugin.tsv
+  - scripts/lib/errors/core.tsv
+  - scripts/lib/topology.R
+  - scripts/lib/provenance.R
+  - scripts/lib/config.R
+  - scripts/lib/forecast.R
+  - scripts/lib/orchestrate.R
+  - scripts/lib/evaluation.R
+  - scripts/lib/errors/evaluation.tsv
+  - scripts/lib/errors/topology.tsv
+  - scripts/lib/exports.R
+  - models/dessem-regdin/R/training.R
+  - models/*/run.yaml
+  - models/*/R/register.R
+  - config/topology.yaml
+  - docs/estado/runtime.md
+  - docs/estado/plugin_dispatch.md
+  - docs/estado/verificar.md
+  - docs/estado/provenance.md
+  - docs/estado/registry_core.md
+  - docs/estado/check_coherence.md
+  - docs/estado/nfr-performance.md
+  - docs/adr/0008-honestidade-determinismo-falsificavel.md
+  - docs/adr/0017-empacotamento-bundle-s3-entrega.md
+adrs: [ADR-0008, ADR-0011, ADR-0017, ADR-0022, ADR-0028, ADR-0036, ADR-0037, ADR-0038, ADR-0040]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Metodologia · 1.16</span>
+
+<p className="pc-lead">A previsão é reprodutível por construção: com o mesmo deck, o mesmo bundle e os mesmos artefatos, duas rodadas dão os mesmos bytes, num shell limpo ou sujo. Isso se apoia em quatro coisas: o runtime fixado dentro do processo, sementes obrigatórias com o gerador isolado por plugin, artefatos imutáveis endereçados pelo conteúdo e guardas do despachante que abortam quando um plugin foge do contrato. Entre máquinas diferentes, o critério não é bytes iguais: é uma tolerância declarada, conferida pelo verbo <code>verificar</code>.</p>
+
+Esta página trata do critério metodológico. A mecânica do runtime (como TZ, locale e BLAS são fixados) está em [Runtime: determinismo fixado no processo](/arquitetura/runtime).
+
+## O que se exige
+
+| Exigência | Critério | O que sustenta |
+|---|---|---|
+| Treino e inferência repetidos, mesma máquina | \|Δ\| ≤ 1e−5 na previsão e o mesmo sha256 do artefato | sementes obrigatórias, gerador isolado por plugin e versão `v_<hash>` pelo fingerprint |
+| Shell sujo × shell limpo | o mesmo resultado; o shell sujo nunca aborta por si | `runtime.R`, que roda primeiro em todo comando |
+| `--jobs 4` × `--jobs 1` | `y_pred` idêntico por `identical()`, não por `all.equal` | semente aplicada por célula, igual no modo serial e nos workers PSOCK |
+| Linux × Windows | dentro do trilho `entre-plataformas` do `verificar` | o verbo `verificar` |
+
+O shell sujo é a situação comum na operação: `TZ=America/Sao_Paulo`, `LC_ALL=pt_BR.UTF-8`, `OMP_NUM_THREADS=4`. O `runtime.R` roda primeiro em todo comando e sobrescreve isso dentro do processo: TZ em UTC, `LC_CTYPE` UTF-8, `LC_COLLATE` e `LC_NUMERIC` em C, os quatro pins de threads em 1 e o BLAS com uma thread. Só aborta, com exit 7, se não conseguir fixar (<Tag>runtime.tz_unfixable</Tag>, <Tag>runtime.locale_unavailable</Tag>, <Tag>runtime.blas_unfixable</Tag>).
+
+O BLAS de uma thread não é detalhe de desempenho. A soma em ponto flutuante não é associativa, e um BLAS paralelo reordena somas. O ADR-0008 registra que o ARIMA do dessem-regdin só se reproduz exatamente com uma thread.
+
+Os bytes iguais valem para o conteúdo. Dois campos laterais não entram nessa conta:
+
+- o `run_id` do treino é o carimbo da invocação (`prevcarga_run_id`, em `config.R`, o único ponto do código de produto que lê o relógio) e fica no `run_manifest.json` do artefato, fora do fingerprint;
+- o `run_id` da rodada (`forecast`) são os 12 primeiros hexadecimais do sha256 da chave da entrega (`exports.R`), não um relógio, e por isso também é determinístico.
+
+Pelo mesmo motivo, a duração da rodada não entra na entrega: o tempo medido fica só no `result` do envelope (`duracao_s`, `passos`), nunca no `run_manifest.json`.
+
+## Sementes e o gerador isolado
+
+### Semente obrigatória
+
+Todo `models/<m>/run.yaml` declara `seed`. O loader do contrato (`topology.R`) recusa o `run.yaml` sem semente com <Tag>contract.seed_missing</Tag> (exit 2), e o loader do registry exige um inteiro finito. Não existe semente default.
+
+| Modelo | `seed` do `run.yaml` | Observação |
+|---|---|---|
+| random-forest | 123 | `set.seed` imediatamente antes do `randomForest` |
+| lgbm | 123 | |
+| holt-winters | 1234 | e `params.kmeans_seed` 123 para o k-means do MO1 |
+| dessem-linear | 42 | |
+| dessem-regdin | 42 | |
+
+As sementes de todos os membros vão para o `run_manifest.json` da rodada (campo `seeds`, por sigla). No backtest, o orquestrador aplica a semente do membro imediatamente antes de cada célula, com o gerador fixado por extenso (`Mersenne-Twister`, `Inversion`, `Rejection`), igual no modo serial e nos workers PSOCK.
+
+### `prevcarga_preserve_rng`
+
+`prevcarga_preserve_rng(expr)` (`registry.R`) avalia a expressão e, na saída, devolve o `.Random.seed` do ambiente global ao estado anterior, inclusive em erro. Se não havia semente antes, a que o plugin criou é removida. O random-forest (no treino) e o LightGBM (no treino e nas features) envolvem o sorteio nessa função, pela fundação. O efeito: o sorteio de um modelo nunca desloca o gerador de quem o chamou nem o do modelo seguinte.
+
+### `uses_rng` e `plugin.global_side_effect`
+
+O despachante executa cada estágio do plugin sob `.prevcarga_plugin_guarded`, o único ponto da fundação que toca o `globalenv()`. A guarda faz três coisas:
+
+1. Isola o gerador com `prevcarga_preserve_rng` e compara o estado antes e depois.
+2. Se o plugin consumiu o gerador sem declarar `uses_rng: TRUE` no descriptor, aborta com <Tag>plugin.rng</Tag> (classe repro, exit 12).
+3. Se o plugin deixou símbolo novo no ambiente global ou anexou um pacote, remove o que foi plantado e aborta com <Tag>plugin.global_side_effect</Tag> (classe contract, exit 2).
+
+Declaram `uses_rng: TRUE` o random-forest, o holt-winters, o dessem-linear e o dessem-regdin. O LightGBM não declara: o sorteio dele fica todo dentro de `prevcarga_preserve_rng`, e o estado global sai intacto. O campo `rng_deviation` do descriptor só é aceito com `uses_rng: TRUE`; nos dois DESSEM ele está `NULL` (o plano B de re-semear não está acionado; ver [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng)).
+
+## Tolerâncias do verificar
+
+O `verificar` compara duas entregas do `forecast` (ou uma entrega e a referência oficial sincronizada, com `--oficial`). O pipeline tem quatro fases, e cada uma aborta antes da seguinte; nenhum valor é lido antes de a integridade passar.
+
+| Fase | O que confere | Falha |
+|---|---|---|
+| 1. Integridade | sha256 de todo arquivo de `arquivos[]` do `manifest.json`; nenhum arquivo fora da lista | <Tag>integrity.manifest_sha</Tag>, exit 9 |
+| 2. Identidade | `data_hash`, `bundle_id` e `model_versions` do `run_manifest.json` iguais e não nulos | <Tag>contract.identity_mismatch</Tag>, exit 2 |
+| 3. Pareamento | os mesmos `path` nos dois lados (`--sem-membros` ignora `membros/`) | <Tag>contract.pairing</Tag>, exit 2 |
+| 4. Valores | `y_pred` por chave `area`, `forecast_origin`, `target_datetime`, `lead`, dentro da tolerância | <Tag>repro.key_mismatch</Tag> ou <Tag>repro.value_out_of_tol</Tag>, exit 12 |
+
+Um `runtime_id` diferente não reprova: a comparação segue e o resultado leva o aviso <Tag>repro.runtime_id_differs</Tag>.
+
+### Dois trilhos
+
+| Trilho | Critério por valor | Uso |
+|---|---|---|
+| `mesma-plataforma` | \|Δ\| ≤ 1e−5, absoluto | duas rodadas na mesma plataforma |
+| `entre-plataformas` | \|Δ\| ≤ 0,001 · \|ref\| (0,1% relativo), com piso absoluto de 1e−5 quando ref = 0 | Linux × Windows, ou plataforma desconhecida |
+
+O trilho default sai do campo `platform` dos dois `run_manifest.json`: plataformas conhecidas e iguais dão `mesma-plataforma`; diferentes ou desconhecidas dão `entre-plataformas`. Forçar `--trilho=entre-plataformas` com plataformas iguais é recusado com <Tag>config.verify_trilho_forced</Tag> (exit 8), para que a folga entre plataformas não esconda uma divergência na mesma máquina.
+
+### Modo alvo
+
+Com `--alvo=<nome>` e `--limiares=<arq>` (as duas flags andam juntas), o `limiar_mw` do alvo, em MW absolutos, substitui a tolerância do trilho em todos os arquivos pareados. O arquivo de limiares é um YAML com a lista `limiares` e o campo `sha256`, que tem de ser o sha256 de `yaml::as.yaml(limiares)`. A assinatura é conferida antes de qualquer valor; se não bater, <Tag>integrity.limiares_signature</Tag> (exit 9). É integridade, não autenticidade: o hash prova que o arquivo não mudou depois de assinado, não quem o assinou.
+
+```bash title="Uso do verbo (scripts/lib/cli/verificar.R)"
+prevcarga verificar --saida=<dir> (--referencia=<dir> | --oficial) [--trilho=<t>] [--alvo=<nome> --limiares=<arq>] [--sem-membros]
+```
+
+:::note Sem tolerância absoluta em MW
+A comparação entre máquinas não usa tolerância absoluta em MW (a de 0,1 MW citada no ADR-0017 não se aplica): os critérios são só os dois trilhos acima e o modo alvo. A flag `--tol` é declarada apenas para que o verbo responda com <Tag>config.verify_tol_removed</Tag> (exit 8) em vez de um erro de uso genérico. O ADR-0008 separa o limiar quase estrito da mesma máquina (1e−5) da folga do produto entre máquinas.
+:::
+
+## Modelo fechado
+
+Treinar e prever são etapas separadas, ligadas por um artefato imutável.
+
+1. O treino produz uma versão `v_<hash>`: os 16 primeiros caracteres hexadecimais do sha256 do JSON canônico do fingerprint (`prevcarga_version_hash`, `provenance.R`).
+2. O fingerprint tem exatamente oito chaves: `model_id`, `data_fingerprint`, `cutoff`, `feature_config`, `code_commit`, `renv_lock_hash`, `load_label` e `load_tz`. Chave a mais, a menos ou lateral (`trained_at`, `package_version`, `run_id`) aborta. Mesmos insumos, mesma versão; qualquer insumo diferente, outra versão.
+3. A versão é publicada no registry local, cujo layout é o mesmo do prefixo `artifacts/` do repositório online: `<state_dir>/artifacts/<mdir>/[<exogena>/]<area>/` com `latest.txt` e a pasta `v_<hash>/` (artefato, manifest do freeze, `run_manifest.json` e `SHA256SUMS`). O `SHA256SUMS` é conferido antes de o artefato ser lido (<Tag>integrity.artifact_hash</Tag>, exit 9).
+4. A inferência só consome o artefato. Um membro `origin_agnostic` sem artefato aborta com <Tag>state.artifact_missing</Tag> (exit 13) e nunca treina. Um membro `origin_scoped` treina uma vez na rodada, pela fachada de treino, só se não houver artefato da origem O.
+
+Daí a propriedade que interessa ao operador: com o deck do dia e os artefatos oficiais da origem (os 8 membros da topologia, os pesos da combina e os perfis k-hat com `khat_origin` igual a O), qualquer máquina reproduz a previsão sem treinar. Os detalhes estão em [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado) e em [Registry de artefatos](/arquitetura/registry).
+
+## Verificações transversais
+
+### Paralelismo
+
+`--jobs 4` tem de dar o mesmo resultado que `--jobs 1`, com `y_pred` idêntico por `identical()` e árvores de artefatos idênticas, descontado o `run_id` do treino. O paralelismo existe no backtest e no `train-models` (workers PSOCK); a rodada diária (`forecast`) não tem `--jobs`. O orquestrador aplica a semente do membro antes de cada célula, com o mesmo gerador no modo serial e nos workers, e não usa fork nem lê variável de ambiente.
+
+### Linux × Windows
+
+O critério entre plataformas é o trilho `entre-plataformas`: a saída Windows comparada com a saída Linux, com |Δ| ≤ 0,1% de |ref|; um `y_pred` fora dessa folga sai com exit 12.
+
+<Pendente titulo="Pendente · Windows">A comparação entre Linux e Windows ainda não foi executada. Nenhum resultado Windows foi obtido.</Pendente>
+
+### Coerência da entrega
+
+O `check-coherence` confere o LONG entregue, por instante (`forecast_origin`, `target_datetime`), contra a topologia. Os achados se acumulam; nenhum para no primeiro.
+
+| Verificação | Id | Classe e exit |
+|---|---|---|
+| Artefatos alinhados no tempo e nas chaves | <Tag>coherence.alignment</Tag> | coherence, 11 |
+| Toda área do LONG declarada na topologia | <Tag>topology.area_undeclared</Tag> | topology, 4 |
+| Nós exigidos pela cobertura comum presentes no instante | <Tag>completude.node_missing</Tag> | completude, 3 |
+| Soma dos subsistemas fecha o SIN | <Tag>coherence.sin_sum</Tag> | coherence, 11 |
+| k-hat coerente entre previsão e topologia | <Tag>coherence.khat</Tag> | coherence, 11 |
+
+Com achados de mais de uma classe, o exit sai pela precedência do contrato de erros: completude (3) vence topologia (4), que vence coerência (11). Ver [Contrato de erros e códigos de saída](/arquitetura/erros-exit).
+
+A faixa do k-hat vem de `khat_range` em `config/topology.yaml`, com override opcional por subsistema.
+
+<Pendente titulo="Pendente · ADR-0028">A faixa default do k-hat (hoje `[1.00, 1.15]` no `config/topology.yaml`) é um default de trabalho; a decisão segue em aberto no ADR-0028.</Pendente>
+
+### O que fica na Execução
+
+Dois requisitos ligados à reprodutibilidade operacional ficam fora desta página. A instalação sem privilégio de administrador a partir do bundle, com o preflight dos pré-requisitos da plataforma, está em [Instalação, atualização e remoção](/execucao/instalacao). O tempo da rodada é o requisito pendente abaixo.
+
+<Pendente titulo="Pendente · NFR de 30 min">O requisito de a rodada caber em 30 minutos ainda não tem medição registrada.</Pendente>

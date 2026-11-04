@@ -1,0 +1,174 @@
+---
+title: Validar o deck antes de rodar
+sidebar_label: Validar o deck
+sidebar_position: 7
+slug: /execucao/validar-deck
+description: Como rodar prevcarga validate-deck, ler o cabeçalho, a tabela de cortes e os findings, e interpretar os códigos de saída 0, 2, 3, 4, 5 e 8.
+fontes:
+  - scripts/lib/cli/validate-deck.R
+  - scripts/lib/validation.R
+  - scripts/lib/errors.R
+  - scripts/lib/cli.R
+  - scripts/lib/forecast.R
+  - scripts/lib/config.R
+  - scripts/lib/dates.R
+  - scripts/lib/provenance.R
+  - scripts/lib/errors/validation.tsv
+  - scripts/lib/errors/deck_reader.tsv
+  - scripts/lib/errors/core.tsv
+  - scripts/lib/errors/topology.tsv
+  - config/topology.yaml
+  - config/config.yaml
+  - config/deck-manifest.store.json
+  - docs/estado/validate_deck.md
+  - docs/estado/m2-leitor.md
+  - docs/estado/deck_reader.md
+adrs: [ADR-0040, ADR-0023, ADR-0024]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Execução · 3.7</span>
+
+<p className="pc-lead">
+<code>prevcarga validate-deck</code> examina o deck antes de qualquer cálculo, sem gravar nada. Ele junta todos os defeitos numa lista de findings e devolve um único veredito. Sai com 0 se o deck serve para a rodada. Sai com 2, 3, 4 ou 5 conforme a classe de defeito que domina. Sai com 8 se o erro é de uso, como flag inválida ou deck não informado. A rodada diária roda a mesma validação como primeiro passo.
+</p>
+
+## O comando
+
+```bash title="uso"
+prevcarga validate-deck [--area=<a>]
+```
+
+O verbo aceita as flags globais da CLI e acrescenta só `--area`. As que importam para a validação estão abaixo.
+
+| Flag | Efeito na validação |
+|---|---|
+| `--data=<dir>` | Deck a validar. Sem ela e sem `data_dir` no `config.yaml`, o verbo sai com `config.data_dir_missing` (exit 8). |
+| `--origin=<data>` | Origem O no formato `YYYY-MM-DD`. Opcional: sem ela, a origem vem do próprio deck (`origin_source` = `deck`). Com ela, `origin_source` = `flag`. |
+| `--area=<a>` | Restringe o escopo a uma área declarada em `config/topology.yaml`. Um subsistema expande para as suas áreas mais o próprio subsistema. Área fora da topologia vira `topology.scope_undeclared` (exit 4). |
+| `--model=<m>` | Restringe os cortes e as janelas a um membro (`mdir`). Modelo fora de `members` vira `topology.scope_undeclared`. |
+| `--load-label=<l>` | Rótulo da carga, `end` ou `start`. Se contradiz o `manifest.json`, o resultado é `contract.load_label_conflict` (exit 2): o manifest vence. |
+| `--weather-cutoff=<w>` | Regra do corte do clima previsto: `available_until` ou `origin_midnight_utc` (ADR-0024). |
+| `--format=<fmt>` | `text` (default) ou `json`. |
+
+A validação é somente leitura: nenhum arquivo do deck é alterado.
+
+```bash
+prevcarga validate-deck --data=./deck
+prevcarga validate-deck --data=./deck --area=SECO
+prevcarga validate-deck --data=./deck --origin=2025-11-21 --format=json
+```
+
+A ordem das checagens (sonda e schema, manifest e rótulo, escopo, cortes, completude, sanidade da carga, janelas, avisos, clima e feriados) e o cálculo do `data_hash` estão em [Validação do deck](/arquitetura/validacao-deck).
+
+## Saída em texto
+
+A saída em texto é ASCII. Ela tem até quatro blocos, nesta ordem, todos em stdout.
+
+1. **Cabeçalho**, uma linha só.
+2. **Tabela de cortes**, uma linha por membro no escopo.
+3. **Tabela de findings**, erros primeiro e, dentro de cada nível, na ordem em que foram encontrados.
+4. **Veredito**: `OK` ou `FALHA <classe>`.
+
+O cabeçalho segue este molde. Os campos ausentes aparecem como `-`.
+
+```text title="molde do cabeçalho (scripts/lib/cli/validate-deck.R)"
+validate-deck origin=<O> (<deck|flag>) available_until=<HH:MM> load_label=<end|start> (<fonte>) weather_issue_cutoff=<regra> data_hash=<12 primeiros hex>
+```
+
+| Campo | O que diz |
+|---|---|
+| `origin` | A origem O e de onde ela veio (`deck` ou `flag`). |
+| `available_until` | Só a hora `HH:MM` do corte intradiário derivado da carga, no fuso da carga. |
+| `load_label` | O rótulo efetivo e a sua fonte (por exemplo `manifest`). |
+| `weather_issue_cutoff` | A regra do corte de emissão do clima previsto. |
+| `data_hash` | Os 12 primeiros caracteres da identidade do deck. Só aparece se o manifest e o rótulo da carga foram lidos. |
+
+A tabela de cortes tem as colunas `MODEL`, `SPLIT`, `GRAN`, `TRAIN_ORIGIN`, `LAST_DATA_DAY`, `INPUT_CUT` e `FIRST_DELIVERY`. É a forma mais direta de conferir, antes da rodada, o corte de treino que cada membro vai usar: por exemplo, o LightGBM com `last_data_day` em O−3 e o Random Forest em O−1, pelos `data_lag_days` dos descriptors. A regra está em [Os três cortes de data](/metodologia/tres-cortes).
+
+A tabela de findings tem as colunas `AREA`, `DATASET`, `WHAT`, `CLASS`, `LEVEL` e `DETAIL`.
+
+### Avisos e erros no terminal
+
+- Com veredito `OK`, cada tipo de aviso sai uma vez em stderr, como `prevcarga: aviso [warning.<what>] <mensagem>`. O exit continua 0.
+- Com veredito reprovado, o relatório completo vai a stdout e o bloco de erro vai a stderr. O bloco tem quatro linhas: `prevcarga: erro [<classe>] (exit <n>)`, `o que:`, `onde:` e `como corrigir:`. Nesse caso os avisos ficam só na tabela de findings, não viram linhas de aviso.
+
+## Saída em JSON
+
+Com `--format=json`, stdout recebe um único documento: o envelope da CLI com `ok`, `verb`, `exit_code`, `error`, `warnings`, `result`, `run_id` e `version` (ADR-0040). Stderr fica vazio.
+
+Com veredito `OK`, `result` traz:
+
+| Campo | Conteúdo |
+|---|---|
+| `schema_version` | 1 |
+| `ok`, `class` | `true` e `ok` |
+| `forecast_origin`, `origin_source` | Origem O (`YYYY-MM-DD`) e `deck` ou `flag` |
+| `available_until` | `YYYY-MM-DD HH:MM` no fuso da carga |
+| `available_until_by_area` | O mesmo corte por área |
+| `load_label`, `load_label_source` | Rótulo efetivo e a sua fonte |
+| `weather_issue_cutoff`, `weather_issue_limit` | Regra do clima e o instante limite de emissão |
+| `timezone` | O mapa de fusos do manifest |
+| `data_hash` | Identidade sha256 do deck (hash de cada parquet, rótulo efetivo, fusos e atraso do clima do manifest), 64 caracteres hex |
+| `scope` | Áreas e modelos validados |
+| `cuts` | Uma entrada por membro: `model`, `split`, `granularity_min`, `horizon_days`, `train_origin`, `last_data_day`, `data_lag_days`, `data_lag_source`, `input_cut`, `first_delivery` |
+| `findings` | A lista completa, avisos incluídos |
+
+Os avisos também aparecem em `warnings` do envelope, cada um com `id` e `message`.
+
+:::warning Findings do veredito reprovado
+Quando o veredito reprova, o envelope de erro sai com `result: null`. Os findings vão em `error.details.items`, não em `result.findings`. `error.details` traz ainda `findings` (o número de erros) e `origin`.
+:::
+
+```bash title="extrair os erros do JSON reprovado"
+prevcarga validate-deck --data=./deck --format=json \
+  | jq '.error.details.items[] | select(.level == "error") | {area, what, detail}'
+```
+
+## Códigos de saída
+
+Cada finding tem uma classe. Os avisos (`level` = `warning`) nunca reprovam. Se há erros, o veredito é a classe dominante pela precedência única de `errors.R`: `contract`, depois `completude`, depois `topology`, depois `window`. O `error.id` é `<classe>.<what>` do primeiro erro dessa classe.
+
+| Exit | Classe | Exemplos de `what` | O que fazer |
+|---|---|---|---|
+| 0 | `ok` | só avisos (`outlier`, `flatline`, `climate_after_cut`) | Pode rodar. Confira os avisos. |
+| 2 | `contract` | `load_nonpositive`, `duplicate_interval`, `grid_off`, `type_mismatch`, `hive_layout`, `manifest_missing`, `load_label_conflict`, `dataset_missing` | O deck viola o contrato de entrada. Corrija o store. |
+| 3 | `completude` | `day_incomplete` | Algum dia do histórico relevante não tem os 48 intervalos. O sistema não preenche buraco. |
+| 4 | `topology` | `area_undeclared`, `scope_undeclared` | Área do deck fora da topologia, ou `--area`/`--model` fora dela. |
+| 5 | `window` | `window_train_deficit`, `window_infer_deficit` | Histórico menor que `history_days` do `run.yaml` de algum membro. |
+| 8 | `config` | `data_dir_missing`, flag mal formada | Erro de uso. Não há relatório de findings. |
+
+O exit 8 não é um finding. Erros das classes `config` e `runtime` sobem direto, sem relatório. Saem com exit 8, por exemplo: falta de `--data`, `--origin=2026-13-45`, `--weather-cutoff=xyz`, `--format=xml`, `--color=xyz` e `--load-label=xyz`.
+
+:::tip A precedência esconde classes
+Um deck pode ter erros de várias classes ao mesmo tempo. O exit mostra só a dominante. Corrigir o erro de `contract` pode revelar um exit 3 ou 5 que já estava na tabela. Leia a tabela inteira, não só o exit. Há um caso em que a tabela não mostra tudo: se o defeito de contrato impede ler a carga (dataset `load` ausente, coluna obrigatória faltando, manifest ou rótulo inválido), as checagens de completude e de janela nem rodam.
+:::
+
+### Na rodada diária
+
+`prevcarga forecast` chama a mesma função de validação (`prevcarga_validate_deck`) antes de planejar. Um veredito reprovado encerra a rodada com o primeiro erro da classe dominante, pela mesma regra deste verbo. `--skip-validate` pula só a validação: os cortes (`available_until`, a regra do clima e o fuso) continuam vindo do leitor. Ver [Rodada diária](/execucao/rodada-diaria).
+
+## Lendo os findings: um exemplo no store real
+
+Uma validação sobre uma cópia do store real, com o manifest de `config/deck-manifest.store.json`, mostra bem como ler um relatório grande.
+
+| O que o relatório trouxe | Classe | Leitura |
+|---|---|---|
+| `origin=2025-11-21 (deck)`, `available_until=08:00`, `load_label=start (manifest)` | — | A origem e o corte vieram do próprio deck. O rótulo veio do manifest. |
+| `load_nonpositive` em GO: 4 linhas, a primeira em 2021-03-28 02:00 | `contract` | Carga menor ou igual a zero no histórico. Zero não é carga válida, e o sistema não preenche com zero. |
+| 7.305 `day_incomplete` | `completude` | PEN, PENE, PES e PESE, as áreas de perda dos quatro subsistemas, não têm carga: dias com 0/48 desde 2020. MA, MS, MT e PA têm dias com 47, 38 e 43 intervalos. |
+| 40 `window_*_deficit` | `window` | Nas mesmas áreas. A janela conta só os dias com algum valor de carga, então uma área sem carga fica abaixo de `history_days`. O `DETAIL` diz o membro, a janela pedida e quantos dias há. |
+| 26 `outlier` | aviso | Não reprovam. |
+| Veredito | — | Exit 2, `contract.load_nonpositive`, `onde: load`. |
+
+O que esse caso ensina:
+
+1. **O exit veio da classe dominante.** Há milhares de findings de `completude`, mas `contract` precede, então o exit é 2 e o `error.id` é o do primeiro erro de contrato.
+2. **O `DETAIL` diz onde olhar.** Para os defeitos de sanidade da carga, o formato é `<n> linhas; primeiro: <YYYY-MM-DD HH:MM>`. Para `day_incomplete`, é `<dia>: <n>/48`, um finding por área e dia.
+3. **Corrigir o GO não basta.** Sem o contrato, o veredito passaria a `completude` (exit 3), por causa das áreas de perda e dos dias curtos.
+4. **A completude é flat-48.** O dia é contado pelo `interval_start` no fuso da carga, e só conta do início do histórico relevante dos membros (ou do primeiro dia da área na carga lida, se for posterior) até O−1. Um dia de 46 ou 47 intervalos é buraco, sem exceção de horário de verão.
+
+<Pendente titulo="Pendente · manifest do store real">
+O store real ainda não tem `manifest.json` próprio. O exemplo acima usou o template `config/deck-manifest.store.json` (`load_label: start`, fusos `Etc/GMT+3`, emissão do clima em `UTC`, atraso de publicação de 6 h). Os valores desse template ainda aguardam confirmação; se o seu deck tiver manifest próprio, é ele que vale.
+</Pendente>

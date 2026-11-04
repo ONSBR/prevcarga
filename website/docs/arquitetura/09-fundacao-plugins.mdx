@@ -1,0 +1,345 @@
+---
+title: Fundação de plugins
+sidebar_label: Fundação de plugins
+sidebar_position: 9
+slug: /arquitetura/fundacao-plugins
+description: Como um modelo vira plugin — a pasta, o descriptor, os 5 estágios com freeze e thaw, o loader com o contrato Tier A em wire-time, a fachada de feature engineering, o motor DESSEM único e o artefato de dado puro.
+fontes:
+  - scripts/lib/registry.R
+  - scripts/lib/features.R
+  - scripts/lib/training.R
+  - scripts/lib/inference.R
+  - scripts/lib/backtest.R
+  - scripts/lib/provenance.R
+  - scripts/lib/cli/features.R
+  - scripts/lib/errors/plugin.tsv
+  - scripts/lib/errors/features_facade.tsv
+  - scripts/lib/errors/core.tsv
+  - scripts/lib/errors/dessem_engine.tsv
+  - models/*/R/register.R
+  - models/*/run.yaml
+  - models/dessem-linear/R/freeze.R
+  - models/random-forest/R/freeze.R
+  - models/_dessem-engine/README.md
+  - models/_dessem-engine/R/manifest.R
+  - models/_dessem-engine/R/engine.R
+  - models/_dessem-engine/R/svm_serial.R
+  - scripts/lib/topology.R
+  - config/topology.yaml
+  - models/_dessem-engine/R/robustez.R
+  - docs/estado/plugins-fundacao.md
+  - docs/estado/features_facade.md
+  - docs/estado/dessem_engine.md
+  - docs/estado/m5-purity.md
+  - docs/estado/plugins_porte_fechamento.md
+  - docs/adr/0010-contrato-features-registry.md
+  - docs/adr/0012-dessem-vendor-wrap-nao-edita.md
+adrs: [ADR-0031, ADR-0010, ADR-0012, ADR-0019, ADR-0023, ADR-0035]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Arquitetura · 2.9</span>
+
+<p className="pc-lead">Um modelo entra no PrevCarga como plugin: uma pasta em <code>models/</code> com um <code>run.yaml</code> e funções R que devolvem um descriptor. O loader da fundação (<code>scripts/lib/registry.R</code>) carrega cada plugin num ambiente isolado, valida o descriptor contra o <code>run.yaml</code> e registra a cadeia <code>requires</code>/<code>provides</code> dos estágios antes de qualquer treino (contrato Tier A, em wire-time). O plugin só calcula; cortes, reamostragem, ajuste de hora, isolamento do RNG e escrita em disco são da fundação. O que o plugin congela é dado puro, sem closure, ambiente, relógio ou caminho.</p>
+
+## Anatomia de um plugin
+
+Cada um dos 5 diretórios de modelo tem a mesma forma. O motor DESSEM, `models/_dessem-engine/`, é a exceção deliberada: não tem `run.yaml` e por isso não é descoberto como modelo.
+
+```text title="models/<m>/"
+models/<m>/
+├── run.yaml              contrato do membro: split, granularidade, horizonte, janelas, semente, modos, params
+├── README.md
+├── R/
+│   ├── register.R        plugin_descriptor() e constantes (só definições)
+│   ├── ingestion.R       um arquivo por estágio
+│   ├── feature_engineering.R
+│   ├── training.R
+│   ├── inference_features.R
+│   ├── inference.R
+│   ├── freeze.R          freeze/thaw do payload
+│   └── helpers_*.R       auxiliares do próprio plugin
+```
+
+O loader exige só `run.yaml` e a pasta `R/`; sem eles aborta com `plugin.not_found`. Os arquivos de `R/` são lidos em ordem radix do nome e cada um pode conter **apenas definições** (`nome <- function(...)`). Qualquer expressão de topo, inclusive uma constante, aborta com `plugin.toplevel_code`, citando `arquivo:linha`. Por isso constantes de plugin e de motor viram funções, como `plugin_constants()`.
+
+Para entrar na combina, o plugin precisa ainda de uma entrada em `members:` de `config/topology.yaml` (ver [Topologia e contrato por modelo](/arquitetura/topologia-run-yaml)). O harness é o mesmo para todo plugin.
+
+### O `run.yaml` como o loader o lê
+
+O loader aceita só as chaves `name`, `split`, `granularity_min`, `horizon_days`, `history_days`, `seed`, `modes`, `backtest`, `constraints` e `params`. Chave fora da lista aborta com `plugin.unknown_key`; valor inválido, com `plugin.bad_run_yaml`.
+
+| Chave | Regra no loader |
+|---|---|
+| `name` | igual ao nome do diretório |
+| `split` | `origin_agnostic` ou `origin_scoped` |
+| `granularity_min` | 30 ou 60 |
+| `horizon_days` | inteiro ≥ 1 |
+| `history_days` | `train` e `infer`, inteiros ≥ 1 |
+| `seed` | inteiro |
+| `modes` | contém `train` e `infer`; aceita também `forecast`; sem repetição |
+| `params` | lista nomeada (conferida contra o `params_schema` do descriptor) |
+
+## Campos do descriptor
+
+`plugin_descriptor()` devolve uma lista. A fundação a normaliza em `.prevcarga_plugin_normalize_descriptor`; os nomes aceitos são exatamente os de `.prevcarga_plugin_fields`. Campo fora da lista aborta com `plugin.unknown_key`; campo inválido, com `plugin.bad_descriptor`, nomeando o campo.
+
+| Campo | Obrigatório | Default | Regra |
+|---|---|---|---|
+| `model_id` | sim | — | igual ao nome do diretório |
+| `contract_version` | sim | — | inteiro ≥ 1 |
+| `granularity_supported` | sim | — | subconjunto de 30 e 60 |
+| `modes_implemented` | sim | — | subconjunto de `train`, `infer`, `forecast`, sem repetição |
+| `params_schema` | não | lista vazia | cada parâmetro com `type` (`integer`, `numeric`, `logical`, `character`) e, opcionalmente, `allowed`, `min`, `max`; `default` é recusado |
+| `variant_param` | não | `NA` | `NA` ou o nome de um parâmetro de `params_schema` |
+| `native_layout` | sim | — | um de `prevcarga_native_layouts` |
+| `semihourly_rule` | se 60 é suportado | — | função se e só se 60 está em `granularity_supported` |
+| `weather_resample` | se 60 é suportado | — | `hourly` ou `raw` quando 60 é suportado; recusado quando o plugin só suporta 30 |
+| `delivery_days` | sim | — | inteiro ≥ 1 |
+| `data_lag_days` | não | 0 | inteiro ≥ 0 |
+| `model_time_offset_min` | não | 0 | inteiro ≥ 0 |
+| `reads_day_O` | não | `FALSE` | lógico |
+| `weather_forecast_in_train` | não | `FALSE` | lógico |
+| `uses_rng` | não | `FALSE` | lógico |
+| `history_infer_equals_train` | não | `FALSE` | lógico |
+| `rng_deviation` | não | `NULL` | texto; só aceito com `uses_rng = TRUE` |
+| `packages` | não | vazio | pacotes exigidos (conferidos por `requireNamespace`) |
+| `attach` | não | vazio | pacotes cujas exportações são copiadas para o ambiente `imports` do plugin |
+| `engine` | não | `NULL` | nome do diretório de um motor, como `_dessem-engine` |
+| `freeze` | sim | — | função com assinatura `freeze(model)` |
+| `thaw` | sim | — | função com assinatura `thaw(payload)` |
+| `stages` | sim | — | os 5 estágios obrigatórios, mais `forecast` se e só se `forecast` está em `modes_implemented` |
+
+`weather_resample` tem erro próprio, `registry.weather_resample`. Ele diz à fundação se, num plugin horário, o clima também é agregado por hora (`hourly`) ou chega cru em 30 min (`raw`). A carga de um plugin horário é sempre agregada por `to_hourly`.
+
+Os layouts nativos aceitos hoje são `lgbm_day_48`, `hw_matrix_nx48`, `rf_horizon_list`, `dessem_hourly_24`, `dessem_semihourly_48` e `rf_wide_hourly_216`.
+
+### O que cada plugin declara
+
+| Campo | `random-forest` | `lgbm` | `holt-winters` | `dessem-linear` | `dessem-regdin` |
+|---|---|---|---|---|---|
+| `granularity_supported` | 60 | 30 | 30 | 60 | 60 |
+| `modes_implemented` | train, infer | train, infer | train, infer, forecast | train, infer, forecast | train, infer, forecast |
+| `weather_resample` | `raw` | — | — | `hourly` | `hourly` |
+| `native_layout` | `rf_wide_hourly_216` | `lgbm_day_48` | `hw_matrix_nx48` | `dessem_semihourly_48` | `dessem_semihourly_48` |
+| `variant_param` | `NA` | `NA` | `NA` | `exogena` | `exogena` |
+| `delivery_days` | 9 | 2 | 9 | 9 | 9 |
+| `data_lag_days` | 0 | 2 | 0 | 0 | 0 |
+| `model_time_offset_min` | 0 | 0 | 0 | 60 | 60 |
+| `reads_day_O` | `FALSE` | `TRUE` | `FALSE` | `TRUE` | `TRUE` |
+| `weather_forecast_in_train` | `TRUE` | `TRUE` | `FALSE` | `TRUE` | `TRUE` |
+| `uses_rng` | `TRUE` | `FALSE` | `TRUE` | `TRUE` | `TRUE` |
+| `history_infer_equals_train` | `FALSE` | `FALSE` | `FALSE` | `TRUE` | `TRUE` |
+| `engine` | — | — | — | `_dessem-engine` | `_dessem-engine` |
+
+Os valores com default (por exemplo, `model_time_offset_min` do RF) vêm da normalização. O que os campos de tempo significam está em [Os três cortes de data](/metodologia/tres-cortes) e em [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
+
+### Cruzamento descriptor × `run.yaml`
+
+Depois de normalizar, o loader confere o `run.yaml` contra o descriptor (`.prevcarga_plugin_check_spec`):
+
+- `granularity_min` está em `granularity_supported`;
+- todo modo de `modes` está em `modes_implemented`;
+- `forecast` está em `modes` se e só se `split` é `origin_scoped`;
+- com `history_infer_equals_train = TRUE`, `history_days.infer` tem de ser igual a `history_days.train` (senão `plugin.history_window`);
+- `params` tem exatamente os nomes de `params_schema`, sem sobra nem falta, e cada valor respeita tipo, `allowed`, `min` e `max`.
+
+## Os 5 estágios, freeze e thaw
+
+Os estágios obrigatórios são `prevcarga_plugin_stages`: `ingestion`, `feature_engineering`, `training`, `inference_features` e `inference`. `forecast` é opcional. Os formais de cada função têm uma fonte única, `prevcarga_plugin_signatures`:
+
+| Estágio | Formais |
+|---|---|
+| `ingestion` | `panel, cuts` |
+| `feature_engineering` | `frame, params` |
+| `training` | `features, params, seed` |
+| `inference_features` | `frame, payload` |
+| `inference` | `payload, inf_features, cuts` |
+| `forecast` | `payload, inf_features, cuts` |
+| `freeze` | `model` |
+| `thaw` | `payload` |
+
+Os nomes e a ordem dos formais têm de bater exatamente. `params` só existe nos estágios de treino: em `inference_features`, `inference` e `forecast` ele é recusado (`plugin.params_formal`), porque na inferência tudo vem do artefato. Fora da forma, o loader aborta com `plugin.bad_signature`.
+
+Os despachantes de treino e inferência compõem os estágios sempre na mesma ordem, sem nenhum desvio pelo nome do modelo:
+
+1. Treino: `ingestion(panel, cuts)` → `feature_engineering(frame, params)` → `training(features, params, seed)` → `freeze(fit)`.
+2. Inferência: `ingestion(panel, cuts)` → `inference_features(frame, payload)` → `inference(payload, inf_features, cuts)`.
+3. Modo forecast: o treino sobre o painel cortado em `last_data_day` (carga e clima observado; clima previsto e feriados intocados), seguido da inferência sobre o painel inteiro.
+
+A função declarada em `stages$forecast` é validada no load, mas o despachante não a chama: o modo forecast é a composição de treino e inferência. Do mesmo modo, o despachante não chama `thaw`. Ele entrega o payload ao estágio, e o plugin desfaz o próprio congelamento quando precisa (`dessem-linear`, `dessem-regdin`, `holt-winters` e `lgbm` fazem isso no estágio de inferência). As conferências, a reamostragem e o deslocamento de hora feitos em volta dos estágios estão em [Despachante de plugin](/arquitetura/despachante).
+
+### `requires` e `provides`
+
+Cada estágio declara `fn`, `requires` e `provides`, os dois últimos como vetores de texto não vazios. Tokens com prefixo `data.` referem colunas do deck, no formato `data.<dataset>.<coluna>`. Os demais tokens são internos do plugin. No registro, eles são qualificados com o nome do modelo (`dessem-linear::frame.deck`), de modo que dois plugins não colidem.
+
+A cadeia do `dessem-linear` mostra a forma:
+
+| Estágio | `requires` | `provides` |
+|---|---|---|
+| `ingestion` | `data.load.load_mwh`, `data.weather_observed.temperature`, `data.weather_forecast.temperature`, `data.holidays.prevcarga_code` | `frame.deck` |
+| `feature_engineering` | `frame.deck` | `feat.series` |
+| `training` | `feat.series` | `artifact.svm` |
+| `inference_features` | `frame.deck`, `artifact.svm` | `inf.feat` |
+| `inference` | `artifact.svm`, `inf.feat` | `forecast.y` |
+| `forecast` | `artifact.svm`, `inf.feat` | `forecast.f` |
+
+O `dessem-regdin` tem a mesma cadeia com `artifact.regdin` no lugar de `artifact.svm`.
+
+## Loader e contrato Tier A em wire-time
+
+`prevcarga_plugin_load(model, root)` é a porta de entrada. `root` é o diretório dos modelos, `models/` sob a raiz do contexto (`prevcarga_models_root(ctx$root)`, em `topology.R`), nunca de variável de ambiente. O loader faz, nesta ordem:
+
+1. Confere os caminhos (`run.yaml` e `R/`) e lê o `run.yaml`.
+2. Cria dois ambientes: `imports`, filho de `baseenv()`, e o ambiente do plugin, filho de `imports`.
+3. Confere que todo arquivo de `R/` só tem definições e os carrega com `sys.source` no ambiente do plugin. Nada vai para `globalenv()` nem para `search()`.
+4. Chama `plugin_descriptor()` e normaliza o resultado.
+5. Confere `packages` e `attach` com `requireNamespace` (falta: `plugin.package_missing`, classe bundle) e copia as exportações dos pacotes de `attach` para `imports`. Não há `library()`.
+6. Se o descriptor declara `engine`, monta uma instância do motor (ver adiante) e a põe entre o plugin e `imports`.
+7. Cruza o descriptor com o `run.yaml`.
+8. Registra os estágios no registry Tier A.
+
+A cadeia de ambientes fica assim: plugin → motor (se houver) → `imports` → `baseenv()`. O plugin enxerga só a base, os pacotes que declarou e o próprio motor.
+
+O resultado é memoizado por diretório de modelos e nome do plugin. Se o registry foi zerado depois (`prevcarga_registry_reset`), o próximo `load` registra a cadeia de novo a partir do descriptor guardado.
+
+### O registro Tier A
+
+O registro é wire-time e atômico. Antes de gravar qualquer coisa, `.prevcarga_plugin_simulate_chain` percorre os estágios na ordem e confere que cada `requires` está disponível. A base de tokens vem do contrato canônico do deck: todo `data.<dataset>.<coluna>` declarado em `validation.R`, mais `data.<dataset>.area_code`. Cada `provides` passa a ficar disponível para os estágios seguintes. O primeiro token sem fonte aborta com `plugin.provides_gap`, nomeando token e estágio. Só depois da simulação limpa cada estágio entra no registry como `<modelo>/<estágio>`, com `tier = "A"`.
+
+`prevcarga_register` mantém as regras gerais do registry: `id` único, tier `A` (o Tier B é reservado e vazio) e `requires` satisfeito. As violações são `contract.registry_*`, classe contract.
+
+:::note Leitura dos ADRs
+O ADR-0010 descreve o Tier A como um registry de classes R6. O código implementa a mesma decisão (todo modelo é contract-verified, Tier B vazio) com listas e funções em `registry.R`, sem R6. O título do ADR-0012 diz "vendorizado byte-idêntico"; o que vale é a premissa registrada no próprio ADR: o motor DESSEM é código nosso.
+:::
+
+### Reconferência da assinatura
+
+`prevcarga_plugin_check_signature(plugin)` é chamada logo depois do load pelas fachadas de treino (`training.R`) e de inferência (`inference.R`), pelo backtest (`backtest.R`) e pelo verbo `features`, antes de qualquer treino. Ela reconfere existência e formais de cada estágio, de `freeze` e de `thaw` contra `prevcarga_plugin_signatures`, acumula todas as lacunas e aborta uma vez com `contract.plugin_signature`. Não é memoizada: uma cópia adulterada do plugin em memória não herda o aceite do load.
+
+<Pendente titulo="Pendente · interino da API da fundação">
+O loader ainda não expõe a API da fundação ao plugin. Enquanto isso, o motor e os plugins DESSEM buscam funções da fundação (<code>prevcarga_abort</code>, <code>prevcarga_condition</code>, <code>prevcarga_warn</code> e, na inferência, funções como <code>to_semihourly</code>) com <code>get0(..., envir = globalenv())</code>. RF, LGBM e HW fazem busca equivalente: primeiro nos ambientes encadeados ao plugin e, na falta, em <code>.GlobalEnv</code>. Também é interino o canal <code>cuts$spec</code>/<code>cuts$phase</code> que o despachante preenche em toda chamada de estágio.
+</Pendente>
+
+## Fachada de feature engineering
+
+A fachada de FE, em `features.R`, é despacho puro. Ela não calcula nenhuma feature e não decide nada pelo nome do modelo.
+
+```r title="scripts/lib/features.R"
+prevcarga_build_features(plugin, frame, cuts, spec, ctx,
+                         stage = c("train", "infer"), artifact = NULL)
+```
+
+- `stage` escolhe o estágio por uma tabela fixa, `prevcarga_fe_stage`: `train` chama `feature_engineering(frame, spec$params)`; `infer` chama `inference_features(frame, artifact)`.
+- Antes da chamada, `prevcarga_assert_stage_requires` confere o `requires` do estágio contra o frame real. Os tokens sem prefixo qualificado (sem `nome.` à frente) são tratados como colunas do frame. As que faltam saem todas juntas em `contract.column_missing`, com a lista em `details$missing`.
+- `infer` sem artefato aborta com `contract.artifact_required`. Um artefato carimbado é desembrulhado, e o estágio recebe só o payload.
+- A fachada não desloca hora: o deslocamento é do despachante.
+
+O consumidor em produção é o verbo `features` (`scripts/lib/cli/features.R`), que materializa a tabela de features de inferência de um modelo numa área, sem treinar nem inferir. Ele chama a fachada dentro da mesma guarda de efeitos e sobre o mesmo frame que o despachante entrega ao plugin.
+
+## O motor `_dessem-engine`
+
+`models/_dessem-engine/` é o motor DESSEM único, compartilhado por `dessem-linear` e `dessem-regdin`. É código nosso, escrito sobre as primitivas `pkgfun_*` do sistema de referência, com os mesmos nomes internos e só o caminho serial de um modelo. Não é cópia byte a byte. O motor só tem primitivas: a cabeça de nowcast fica em cada plugin (`helpers_nowcast.R`).
+
+### Carga por instância
+
+O plugin declara `engine = "_dessem-engine"`. Para cada plugin carregado, o loader monta um ambiente novo do motor, filho do `imports` daquele plugin:
+
+1. Lê `R/manifest.R` primeiro (também só definições) e chama `engine_manifest()`.
+2. Valida o manifest: `contract_version`, `files`, `required_functions` e `packages` (conferidos com `requireNamespace`).
+3. Carrega os 12 arquivos de `files` na ordem declarada. Antes de cada um, confere em `file_requires` as funções de que ele depende.
+4. Grava `.engine_dir` no ambiente e confere as 17 `required_functions`.
+
+Arquivo ausente aborta com `plugin.engine_missing`; função ausente, com `plugin.engine_function_missing`. O motor não guarda estado: duas instâncias na mesma sessão não se enxergam.
+
+O ambiente do motor só vê a base e os pacotes que o plugin anexa. Por isso os plugins DESSEM declaram em `attach` `data.table`, `lubridate`, `jsonlite`, `rlist`, `WeightSVM`, `e1071`, `stats` e `utils`; o `dessem-regdin` soma `tsibble`, `fabletools`, `fable`, `feasts` e `urca`. Esses pacotes de séries temporais ficam em `packages_ts` no manifest, campo que o loader ignora.
+
+### Regras do motor
+
+| Ponto | No motor |
+|---|---|
+| Parâmetros | `getConfig`/`getConfigModel` leem `model_parameters.json` do diretório do motor por `engine_config_path()`, sem `system.file`; chave inexistente aborta com `engine.dessem_unknown_model_key` |
+| Hora | nenhuma aritmética de hora; o deslocamento de 60 min é do despachante (`model_time_offset_min`) e o carimbo de 30 min é do `to_semihourly` |
+| Lags | por índice na grade regular (`obtemLagHora`, `obtemLagSemiHora`); slot faltante aborta com `engine.dessem_lag_grid_gap` |
+| Fuso | `TransformaDeck(..., tz)` aborta com `engine.dessem_tz_mismatch` se o fuso das séries diferir de `cuts$tz` |
+| Robustez do `tune_wsvm` | wrapper no próprio motor, sem patch no ambiente global; chama a função real primeiro e só age no erro, sinalizando `dessem_engine_guard` |
+| Mensagens | sem carimbo de `Sys.time()` |
+
+O mapa função → arquivo do motor → linha correspondente no sistema de referência fica no `README.md` do motor.
+
+### Serializador de SVM
+
+Os modelos `WeightSVM` carregam `call`, `terms` com ambiente e outros resíduos que não podem ir para um artefato puro. `R/svm_serial.R` resolve isso com duas primitivas:
+
+- `engine_svm_freeze(model)`: remove `call`, `fitted`, `residuals` e `decision.values`; troca `terms` por `terms_text` (a fórmula como texto), `term_labels`, `data_classes` e `terms_intercept`; guarda a classe em `svm_class`. Aceita um objeto `tune` (usa o `best.model`) e listas, como os 24 perfis horários.
+- `engine_svm_thaw(x)`: reconstrói `terms` com `env = baseenv()` e devolve o objeto com a classe original, com `predict` idêntico. Campo faltando ou classe desconhecida aborta com `engine.dessem_svm_thaw_failed` (classe integrity, exit 9).
+
+O `freeze` do `dessem-linear` aplica `engine_svm_freeze` a cada SVM de demanda média e a cada SVM de perfil, e o `thaw` faz o inverso.
+
+<Pendente titulo="Pendente · ADR-0031">
+O ADR-0031, que define o motor DESSEM único, a fachada de FE e o infer do DESSEM com refit da cabeça do dia O, está como proposta: a recomendação aguarda ratificação. O código já segue a opção recomendada.
+</Pendente>
+
+A cabeça de nowcast e o uso do RNG nos plugins DESSEM estão em [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
+
+## Artefato de dado puro
+
+O artefato de um plugin é dado: nada nele depende da sessão, da máquina ou do momento em que foi treinado. Dois treinos idênticos geram os mesmos bytes e o mesmo sha256.
+
+### Carimbo
+
+O payload devolvido por `freeze` é embrulhado pelo despachante em `prevcarga_plugin_stamp`, numa lista de classe `prevcarga_plugin_artifact` com `stamp` e `payload`. O carimbo tem:
+
+| Campo | Origem |
+|---|---|
+| `model_id`, `contract_version` | descriptor |
+| `variant` | valor de `params[[variant_param]]`, ou `NA` |
+| `split`, `granularity_min`, `params`, `seed` | spec efetivo (`run.yaml`) |
+| `load_label`, `timezone`, `weather_issue_cutoff` | contexto da rodada |
+| `train_origin` | cortes |
+| `origin_day` | cortes, só em `origin_scoped` |
+
+O carimbo não leva `available_until`, relógio nem host. Na inferência, `prevcarga_plugin_check_artifact` confere o artefato contra o plugin e os cortes: classe, `model_id`, `contract_version`, `granularity_min`, `split`, `origin_day` (em `origin_scoped`) e `train_origin` não posterior ao `train_origin` dos cortes. Divergência aborta com `plugin.artifact_mismatch`.
+
+### Varredura de pureza
+
+`prevcarga_plugin_scan_pure` percorre o objeto recursivamente (listas, atributos e slots S4) e aborta no primeiro achado com `plugin.impure_artifact`, citando o caminho dentro do objeto. Ela recusa:
+
+- ambiente e ponteiro externo;
+- closure (função cujo ambiente não é a base, o vazio ou um namespace);
+- qualquer `POSIXct`, salvo nos caminhos liberados explicitamente pelo chamador (`allow_times`);
+- texto com caminho absoluto (`/...` ou `C:\...`);
+- campo com nome de relógio ou de host: `trained_at`, `created_at`, `created`, `timestamp`, `time_stamp`, `sys_time`, `now`, `hostname`, `host`.
+
+A varredura roda no despachante de treino, sobre o artefato carimbado, e de novo em `prevcarga_artifact_build` (`training.R`), sobre o artefato de treino que vai para o registry. Dados laterais, como `trained_at`, `run_id` e a versão do pacote, ficam no manifest de treino, fora do artefato.
+
+### Bytes e integridade
+
+`prevcarga_plugin_freeze_bytes` varre a pureza e grava com `prevcarga_freeze` (`saveRDS` versão 3, escrita atômica, sidecar com sha256). `prevcarga_plugin_thaw` lê de volta e transforma qualquer falha de leitura, de integridade ou de classe em `plugin.artifact_corrupt` (classe integrity, exit 9). O layout de versões e a publicação estão em [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado) e em [Registry de artefatos](/arquitetura/registry).
+
+## Erros da fundação de plugins
+
+| Id | Classe | Exit | Quando |
+|---|---|---|---|
+| `plugin.not_found` | contract | 2 | pasta sem `run.yaml` ou sem `R/` |
+| `plugin.bad_run_yaml` | contract | 2 | valor inválido no `run.yaml` ou `params` fora do schema |
+| `plugin.unknown_key` | contract | 2 | chave fora da lista no `run.yaml` ou no descriptor |
+| `plugin.toplevel_code` | contract | 2 | expressão de topo num arquivo de `R/` |
+| `plugin.bad_descriptor` | contract | 2 | campo do descriptor ou do manifest do motor inválido |
+| `registry.weather_resample` | contract | 2 | `weather_resample` ausente, inválido ou incompatível com a granularidade |
+| `plugin.bad_signature` | contract | 2 | formais fora da forma canônica |
+| `plugin.params_formal` | contract | 2 | formal `params` em estágio de inferência |
+| `contract.plugin_signature` | contract | 2 | reconferência da assinatura no início do verbo |
+| `plugin.history_window` | contract | 2 | `history_days.infer` diferente de `train` quando o descriptor exige igualdade |
+| `plugin.provides_gap` | contract | 2 | `requires` sem fonte na cadeia |
+| `plugin.engine_missing` | contract | 2 | motor ou arquivo do motor ausente |
+| `plugin.engine_function_missing` | contract | 2 | função exigida pelo manifest ausente |
+| `plugin.package_missing` | bundle | 6 | pacote declarado não instalado |
+| `contract.column_missing` | contract | 2 | coluna do `requires` ausente do frame (fachada de FE) |
+| `contract.artifact_required` | contract | 2 | estágio de inferência sem artefato |
+| `plugin.impure_artifact` | contract | 2 | ambiente, closure, relógio ou caminho no artefato |
+| `plugin.artifact_mismatch` | contract | 2 | artefato incompatível com o plugin ou com os cortes |
+| `plugin.artifact_corrupt` | integrity | 9 | artefato ilegível, com sha256 divergente ou de outra classe |
+
+As conferências feitas durante o despacho (`plugin.cuts_mismatch`, `plugin.train_beyond_cut`, `plugin.global_side_effect`, `plugin.rng` e outras) estão em [Despachante de plugin](/arquitetura/despachante). O contrato geral de erros está em [Contrato de erros e códigos de saída](/arquitetura/erros-exit).

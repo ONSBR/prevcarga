@@ -1,0 +1,167 @@
+---
+title: Schema LONG e o conversor único
+sidebar_label: Schema LONG
+sidebar_position: 14
+slug: /arquitetura/schema-long
+description: O contrato de 8 colunas entre os membros e tudo a jusante, o conversor único que o produz e o leitor único que o confere.
+fontes:
+  - scripts/lib/schema_long.R
+  - scripts/lib/build_long_output.R
+  - scripts/lib/evaluation.R
+  - scripts/lib/features.R
+  - scripts/lib/forecast.R
+  - scripts/lib/backtest.R
+  - scripts/lib/combination.R
+  - scripts/lib/reconcile.R
+  - scripts/lib/errors.R
+  - scripts/lib/errors/build_long.tsv
+  - scripts/lib/errors/evaluation.tsv
+  - scripts/lib/errors/combination.tsv
+  - scripts/lib/errors/core.tsv
+  - models/*/R/register.R
+  - docs/estado/schema_long.md
+  - docs/estado/build_long.md
+  - docs/estado/evaluation.md
+  - docs/adr/0002-grade-semihoraria-schema-long.md
+adrs: [ADR-0002, ADR-0032, ADR-0035]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Arquitetura · 2.14</span>
+
+<p className="pc-lead">Todo membro, de qualquer família, entrega a previsão no mesmo formato: o LONG de 8 colunas, uma linha por área e meia hora. A constante que define nomes, ordem e tipos mora só em `scripts/lib/schema_long.R`. Um único conversor, `prevcarga_build_long`, transforma a entrega do membro em LONG, e um único leitor, `prevcarga_read_long`, o lê do disco e o confere. O par de conversões entre `target_datetime` e `interval_start` também mora só em `schema_long.R`: nenhum consumidor soma ou subtrai 30 min sobre o LONG.</p>
+
+## Por que um contrato único
+
+O LONG é a fronteira entre os membros e tudo o que vem depois: combina, reconciliação, score, backtest e verificação. Cada plugin pode modelar como quiser por dentro, mas a saída que atravessa a fronteira é sempre a mesma. Mexer nas 8 colunas quebra todos os consumidores de uma vez, por isso a constante mora num só arquivo e não é redefinida fora dele.
+
+O ADR-0002 local fundamenta a decisão: grade semi-horária, LONG de 8 colunas, re-ancoragem em O. Onde o texto dele difere da forma vigente, valem o código e os ADR-0032 e ADR-0035 do SpecForge, por exemplo `forecast_origin` como texto e o par único de conversão do rótulo. Ver [Registro de decisões](/arquitetura/adrs).
+
+## As 8 colunas
+
+A constante `prevcarga_schema_long` é um vetor nomeado de nome para tipo lógico. A ordem é parte do contrato.
+
+| Ordem | Coluna | Tipo lógico | Significado |
+|---|---|---|---|
+| 1 | `area` | `character` | Folha da topologia (área) a que a linha pertence |
+| 2 | `forecast_origin` | `character` | Origem O como texto `yyyy-MM-dd`; nunca `Date` |
+| 3 | `target_datetime` | `POSIXct` | Instante-alvo rotulado pelo fim do intervalo (`interval_end`), no fuso da carga |
+| 4 | `lead` | `integer` | Posição no horizonte contada de O 00:00: `d_plus * 48 + slot` |
+| 5 | `y_pred` | `double` | Previsão do membro; não aceita NA |
+| 6 | `y_true` | `double` | Carga verificada do mesmo instante; NA quando não há verdade |
+| 7 | `d_plus` | `integer` | Dia do `interval_start` menos O |
+| 8 | `granularity_min` | `integer` | Sempre 30 |
+
+O `slot` não é coluna. Ele é a meia hora do dia contada pelo `interval_start`, de 1 (00:00–00:30) a 48 (23:30–24:00), calculado como `(hora * 60 + minuto) %/% 30 + 1`.
+
+### Nome e ordem conferidos, coluna extra reprova
+
+`prevcarga_schema_long_check(dt)` compara os nomes de `dt` posição a posição com a constante. Na primeira coluna ausente ou fora de ordem, aborta com `contract.long_schema_constant` e `where` igual ao nome esperado naquela posição. Se todas as 8 batem mas sobra coluna, aborta também, com `where` igual à primeira coluna excedente. A função nunca reordena nem altera `dt`. Ela só confere nomes e ordem; tipos, fuso e `d_plus` são do leitor.
+
+### `d_plus` e a nomenclatura DESSEM
+
+O `d_plus` é contado pelo dia do `interval_start`, não pelo dia do rótulo. Por isso o alvo O+1 00:00, que fecha o intervalo O 23:30–24:00, ainda pertence a `d_plus = 0`.
+
+| `d_plus` | Dia | Nomenclatura DESSEM | Observação |
+|---|---|---|---|
+| 0 | O | D−1 | Resto do dia da rodada depois do corte; único dia que pode ser parcial |
+| 1 | O+1 | D | Primeiro dia cheio |
+| k+1 | O+k+1 | D+k | |
+| 8 | O+8 | D+7 | Último dia da faixa de 9 dias |
+
+Exemplo com `available_until` = O 10:00 e faixa de 9 dias. A primeira linha tem `interval_start` O 10:00, `target_datetime` O 10:30, `d_plus = 0`, `slot = 21` e `lead = 21`. A última tem `interval_start` O+8 23:30, `target_datetime` O+9 00:00, `d_plus = 8`, `slot = 48` e `lead = 432`. São 412 linhas por área. Na rodada das 0h (`available_until` = O 00:00), o dia O sai completo, com `lead` de 1 a 48.
+
+## `build_long_output`: da entrega ao LONG
+
+`prevcarga_build_long(delivery, member, area, origin, available_until, truth, ctx)` em `scripts/lib/build_long_output.R` é o único conversor. É puro: sem I/O, sem variável de ambiente, sem relógio. Os dois chamadores de produção são a rodada (`scripts/lib/forecast.R`, um LONG por membro e folha) e a célula do backtest (`scripts/lib/backtest.R`).
+
+| Argumento | Forma |
+|---|---|
+| `delivery` | Tabela da entrega do membro, já semi-horária: `interval_end` (ou `interval_start`) e `y_pred` |
+| `member` | Lista com `name` e `delivery_days` (do descriptor do plugin) |
+| `area` | Folha da topologia |
+| `origin` | Origem O como `Date` |
+| `available_until` | Corte intradiário (`POSIXct` no fuso da carga) |
+| `truth` | `NULL` ou tabela com `interval_end` e `load_mwh` |
+| `ctx` | Contexto; usa `ctx$tz`, o fuso da carga |
+
+### Os passos
+
+1. **Índice.** Usa a coluna `interval_start` da entrega se existir; senão deriva-a de `interval_end` pela borda de leitura (`prevcarga_long_interval_start`). A coluna tem de ser `POSIXct`, sem NA e no fuso `ctx$tz`; senão aborta com `contract.long_tz`. Calcula `d_plus`, `slot`, `lead` e `target_datetime`, este só pela borda de escrita (`prevcarga_long_target_datetime`). Ordena por `target_datetime`.
+2. **Faixa de entrega.** Descarta as linhas com `target_datetime <= available_until`: o início é comum a todos os membros, em `available_until` + 30 min. O fim é por membro, dado por `prevcarga_delivery_grid(cuts, delivery_days)` em `scripts/lib/features.R`, que gera a grade de `available_until` (exclusive) até O + `delivery_days` às 00:00. O que sobra tem de ser exatamente essa grade; senão aborta com `contract.member_misaligned`, com o membro, o primeiro e o último rótulo obtidos e esperados nos detalhes.
+3. **Verdade.** Anexa `y_true` casando `target_datetime` com o `interval_end` do `truth`, pelo valor numérico do instante. Sem verdade, ou verdade só até o corte, `y_true` fica NA sem erro. O passo opera numa cópia e nunca lê nem escreve `y_pred`.
+4. **Validação.** Confere `lead` único, `d_plus` contíguo com 48 rótulos nos dias depois do primeiro e o casamento de cada `lead` com a grade de 30 min contada de O 00:00 (ver tabela abaixo).
+5. **Colunas fixas.** Preenche `area`, `forecast_origin` (texto `yyyy-MM-dd`) e `granularity_min = 30`.
+6. **Projeção e conferência.** Seleciona as 8 colunas na ordem da constante, o que descarta o `interval_start` interno, e passa por `prevcarga_schema_long_check`.
+
+### Faixa por família
+
+O `delivery_days` vem do descriptor de cada plugin (`models/*/R/register.R`).
+
+| Plugin | `delivery_days` | Dias entregues | Último `target_datetime` | Último `lead` |
+|---|---|---|---|---|
+| `random-forest`, `holt-winters`, `dessem-linear`, `dessem-regdin` | 9 | O..O+8 | O+9 00:00 | 432 |
+| `lgbm` | 2 | O..O+1 | O+2 00:00 | 96 |
+
+Fins diferentes passam pelo conversor. É a combina que lida com membros ausentes em parte da faixa ([Combinação convexa](/metodologia/combina)).
+
+### O que o conversor recusa
+
+| Condição | Erro |
+|---|---|
+| `lead` repetido | `contract.long_duplicate_lead` |
+| `d_plus` com buraco, ou dia depois do primeiro sem os 48 rótulos | `contract.long_grid` |
+| `interval_start` ou `target_datetime` diferente do esperado para o `lead` na grade de 30 min contada de O 00:00 | `contract.long_offbyone` |
+| Entrega fora da faixa do membro | `contract.member_misaligned` |
+| Carimbo de tempo que não é `POSIXct`, tem NA ou está em outro fuso | `contract.long_tz` |
+| Colunas do resultado fora de nome ou ordem | `contract.long_schema_constant` |
+
+Todos são da classe `contract` (exit 2). Os três primeiros são declarados em `scripts/lib/errors/build_long.tsv`. `contract.member_misaligned` e `contract.long_tz` são declarados em `combination.tsv` e `evaluation.tsv`, e `build_long.tsv` não os repete, porque o loader do catálogo exige id único ([Contrato de erros](/arquitetura/erros-exit)).
+
+:::note A verdade na rodada e no backtest
+A rodada e a célula do backtest chamam o conversor com `truth = NULL`: o LONG do membro sai com `y_true` NA. A verdade entra depois, fresca, na montagem do painel da combina (`prevcarga_join_fresh_truth`, `scripts/lib/combination.R`) e no score, pelo mesmo casamento por `interval_end`.
+:::
+
+## Leitor do LONG
+
+`scripts/lib/evaluation.R` tem as duas portas de entrada do LONG. `prevcarga_read_long(path, ctx)` é o leitor único de LONG em disco: combina, backtest, reconciliação, `verify_repro` e os verbos `score` e `check-coherence` leem por ele. `prevcarga_assert_long(long, ctx)` é a conferência de um LONG em memória, que o leitor chama no fim e que a rodada chama logo depois do conversor.
+
+### O que `prevcarga_assert_long` confere
+
+1. Nome e ordem, por `prevcarga_schema_long_check`. O erro `contract.long_schema_constant` é reemitido como `contract.long_schema`, com o mesmo `where`.
+2. Tipos: `area` texto; `forecast_origin` texto no padrão `yyyy-MM-dd`; `target_datetime` `POSIXct`; `y_pred` e `y_true` numéricos, normalizados para `double`; `y_pred` sem NA; `lead`, `d_plus` e `granularity_min` inteiros finitos. Falha aborta com `contract.long_schema` e `where` igual à coluna.
+3. Fuso: `target_datetime` no fuso `ctx$tz`, o fuso da carga; senão `contract.long_tz`.
+4. Anexa `interval_start`.
+5. `d_plus` igual ao dia do `interval_start` menos O; senão `contract.long_dplus_label`, com a primeira linha divergente nos detalhes.
+
+O frame devolvido tem 9 colunas: as 8 do schema e `interval_start` no fim. A função é idempotente. Um frame que já chega com essas 9 colunas, na ordem, é reconferido, e o `interval_start` dele tem de bater com o que a borda recalcula; senão `contract.long_schema` com `where = interval_start`.
+
+### `interval_start` anexado uma vez
+
+A borda do rótulo do LONG são três funções em `scripts/lib/schema_long.R`:
+
+| Função | Sentido | Quem chama |
+|---|---|---|
+| `prevcarga_long_interval_start` | leitura: `target_datetime` − 30 min | conversor, `prevcarga_long_attach_interval_start` e quem precisa do início fora do leitor (combina, k-hat da reconciliação, backtest) |
+| `prevcarga_long_target_datetime` | escrita: `interval_start` + 30 min | conversor e combina (LONG combinado) |
+| `prevcarga_long_attach_interval_start` | anexa a coluna se ainda não existe | só `prevcarga_assert_long` |
+
+As duas conversões exigem `granularity_min` igual a 30 (senão `contract.long_schema`, `where = granularity_min`) e, quando o fuso é dado, conferem o fuso do carimbo (`contract.long_tz`).
+
+Em `evaluation.R`, as métricas, os buckets de hora e dia, a janela de pico e o scorecard leem a coluna `interval_start` que o leitor anexou e não a recalculam. Fora dele, quem precisa do início do intervalo (k-hat da reconciliação, combina, backtest) chama a borda de leitura, nunca soma ou subtrai 30 min. O motor único de score, `prevcarga_scorecard`, exige a coluna e aborta com `contract.long_schema` quando ela falta. A soma ou subtração de 30 min só aparece em `deck_reader.R` (rótulo da carga na entrada), `features.R` (reamostragem) e `schema_long.R` (borda do LONG), e `prevcarga_long_attach_interval_start` só é chamada por `evaluation.R` (leitor) e definida em `schema_long.R`.
+
+É a regra do [rótulo da carga](/metodologia/tempo-rotulo-fusos): o rótulo é operado uma vez na entrada, pelo leitor do deck, e uma vez na saída, pela borda do LONG.
+
+### LONG em disco com `interval_start` é recusado
+
+O `interval_start` existe só em memória. Antes de conferir, `prevcarga_read_long` recusa:
+
+| Condição | Erro |
+|---|---|
+| Caminho inexistente ou inválido | `contract.long_schema`, `where` = caminho |
+| Parquet ilegível | `contract.long_schema`, `where` = caminho |
+| `forecast_origin` gravado como `Date` ou outro tipo, ou texto que não é data | `contract.long_schema`, `where = forecast_origin` |
+| Arquivo que já traz a coluna `interval_start` | `contract.long_schema`, `where = interval_start` |
+
+Só depois disso o frame passa por `prevcarga_assert_long`. Do lado da escrita, o conversor descarta o `interval_start` antes da conferência final, e um LONG gravado com a coluna extra já reprovaria no `prevcarga_schema_long_check`.

@@ -1,0 +1,240 @@
+---
+title: Os três cortes de data
+sidebar_label: Três cortes de data
+sidebar_position: 4
+slug: /metodologia/tres-cortes
+description: A origem O, o corte de treino derivado por modelo pela classe de split e o corte intradiário available_until derivado do dado de carga.
+fontes:
+  - scripts/lib/dates.R
+  - scripts/lib/training.R
+  - scripts/lib/deck_reader.R
+  - scripts/lib/forecast.R
+  - scripts/lib/registry.R
+  - scripts/lib/backtest.R
+  - scripts/lib/cli/validate-deck.R
+  - scripts/lib/introspect.R
+  - scripts/lib/features.R
+  - scripts/lib/inference.R
+  - scripts/lib/config.R
+  - models/holt-winters/R/ingestion.R
+  - models/random-forest/R/ingestion.R
+  - models/dessem-linear/R/training.R
+  - models/dessem-regdin/R/training.R
+  - scripts/lib/errors/forecast.tsv
+  - models/*/run.yaml
+  - models/*/R/register.R
+  - models/holt-winters/README.md
+  - docs/estado/m2-leitor.md
+  - docs/estado/deck_reader.md
+  - docs/estado/forecast.md
+  - docs/estado/training.md
+  - docs/estado/plugin_dispatch.md
+  - docs/adr/0006-backtest-honesto-corte-treino.md
+  - docs/adr/0007-contrato-corte-intradiario.md
+adrs: [ADR-0023, ADR-0024, ADR-0035]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+import FigM04 from '@site/src/components/figuras/FIG-M04';
+import FigM05 from '@site/src/components/figuras/FIG-M05';
+
+<span className="pc-overline">Metodologia · 1.4</span>
+
+<p className="pc-lead">Toda rodada trabalha com três cortes de data distintos, e nunca com um escalar único. A origem O é o único dado que o operador escolhe. O corte de treino é derivado por modelo, pela classe de split declarada no <code>run.yaml</code>. O corte intradiário <code>available_until</code> nasce do próprio dado de carga. Os três são calculados em um só lugar (<code>scripts/lib/dates.R</code> e o leitor único); nenhum plugin os recalcula.</p>
+
+| Corte | O que é | Quem decide | Onde é calculado |
+|---|---|---|---|
+| Origem O (forecast-origin) | O dia da rodada (D−1 na nomenclatura DESSEM) | O operador, por `--origin`; omitida, o último dia de carga do deck | `prevcarga_resolve_origin` (`dates.R`) |
+| Corte de treino | `train_origin` e `last_data_day`, por modelo | A classe de split do `run.yaml` e o `data_lag_days` do descriptor | `prevcarga_train_cut` (`dates.R`) |
+| Corte intradiário | `available_until`: até onde há carga contígua no dia O | O próprio dado de carga | `prevcarga_available_until` (`deck_reader.R`) |
+
+## Origem da previsão (forecast-origin)
+
+A origem O é uma data, sem hora. Ela chega pela flag global `--origin=AAAA-MM-DD`, a única flag de data humana da CLI. Faixas `A..B` só existem em `plan` e `backtest`.
+
+Quando `--origin` é omitida, a origem é o dia, no fuso da carga, do último intervalo de carga presente no deck (`prevcarga_last_load_day`). O relógio da máquina nunca entra. O leitor percorre as partições `year` do store da mais alta para a mais baixa e para na primeira com carga; aborta com `completude.no_load` (exit 3) se não houver carga.
+
+`prevcarga_resolve_origin` devolve também a fonte da origem (`flag` ou `deck`), que aparece no cabeçalho do `validate-deck`.
+
+:::note Nomenclatura
+A rodada de origem O é o D−1 do DESSEM. O−1 (D−2) é o último dia completo, D = O+1 é o primeiro dia cheio previsto e O+8 é o D+7. A tabela completa está na [visão geral](/metodologia/visao-geral).
+:::
+
+## Corte de treino pela classe de split
+
+O corte de treino tem dois campos, ambos calculados por `prevcarga_train_cut(spec, origin, data_lag_days)`:
+
+- `train_origin`: a origem da última amostra de treino;
+- `last_data_day`: o último dia de dado que o treino pode ver.
+
+A regra depende só da chave `split` do `run.yaml` do modelo, nunca do nome do modelo nem do protocolo de backtest (ADR-0023):
+
+| Classe de split | `train_origin` | `last_data_day` | Consequência |
+|---|---|---|---|
+| `origin_agnostic` | O−1−H, com H = `horizon_days` do `run.yaml` | O−1−`data_lag_days` | Artefato reutilizável em qualquer origem; o infer só lê o artefato |
+| `origin_scoped` | O | O−1−`data_lag_days` | Um treino por origem (um re-treino por dia), reutilizado em todas as rodadas do dia O |
+
+`data_lag_days` vem do descriptor do plugin (`models/*/R/register.R`) e vale 0 quando o descriptor não o declara. Um valor negativo aborta com `honesty.data_lag_negative` (exit 15), porque passaria de O−1 e deixaria o dia da origem entrar no treino. Uma classe de split desconhecida aborta com `contract.split_unknown` (exit 2).
+
+### Por modelo
+
+Valores conferidos nos `run.yaml` e nos descriptors dos plugins. A janela de treino é a que a fachada de treino exige (`prevcarga_train_inputs`): na classe `origin_agnostic`, de `train_origin − history_days.train` até `last_data_day`; na `origin_scoped`, os `history_days.train` dias que terminam em `last_data_day`.
+
+| Membro | Split | H | `data_lag_days` | `train_origin` | `last_data_day` | Janela de treino | Lê o dia O no infer |
+|---|---|---|---|---|---|---|---|
+| `random-forest` | `origin_agnostic` | 9 | 0 | O−10 | O−1 (D−2) | 375 dias (365 + 9 + 1) | Não |
+| `lgbm` | `origin_agnostic` | 1 | 2 | O−2 | O−3 (D−4) | 730 dias (730 + 1 + 1 − 2) | Sim, até `available_until` |
+| `holt-winters` | `origin_scoped` | 8 | 0 (padrão) | O | O−1 (D−2) | 730 dias | Não |
+| `dessem-linear` | `origin_scoped` | 9 | 0 | O | O−1 (D−2) | 1.825 dias | Sim, até `available_until` (mm) |
+| `dessem-regdin` | `origin_scoped` | 9 | 0 | O | O−1 (D−2) | 1.825 dias | Sim, até `available_until` (mm) |
+
+Leitura de cada linha:
+
+- **Random Forest.** Cada amostra de treino tem uma origem T e alvos em T+1..T+9. Com `train_origin` = O−10, o alvo mais distante da última amostra cai em O−1, que é o `last_data_day`. Nenhum alvo de treino toca o dia O.
+- **LightGBM.** H = 1 dá `train_origin` = O−2. O `data_lag_days` 2 leva o último dia de dado a O−3: o treino lê a carga só até `train_origin − 1`. No infer, o LGBM completa o dia O com a carga real até `available_until` (`reads_day_O` TRUE no descriptor).
+- **Holt-Winters.** Um treino por origem, com a série até O−1. O infer só lê o artefato (`reads_day_O` FALSE).
+- **DESSEM.** Um treino por origem, com a série até O−1. A carga do dia O entra só no infer, como as médias das horas completas de O (mm) até `available_until`. Os detalhes estão em [DESSEM: cabeça de nowcast](/metodologia/dessem-nowcast-rng).
+
+Se o histórico do deck tem menos dias que a janela exige, o treino aborta com `window.history_short` (exit 5), com os dias disponíveis e os exigidos nos detalhes.
+
+### Exemplo com O = 2026-10-01
+
+| Membro | `train_origin` | `last_data_day` | Primeiro dia da janela |
+|---|---|---|---|
+| `random-forest` | 2026-09-21 | 2026-09-30 | 2025-09-21 |
+| `lgbm` | 2026-09-29 | 2026-09-28 | 2024-09-29 |
+| `holt-winters` | 2026-10-01 | 2026-09-30 | 2024-10-01 |
+| `dessem-linear`, `dessem-regdin` | 2026-10-01 | 2026-09-30 | 2021-10-02 |
+
+<Figura id="FIG-M04" titulo="Os três cortes de data por modelo" natureza="Linha do tempo" fontes={['scripts/lib/dates.R', 'models/*/run.yaml', 'models/*/R/register.R', 'docs/estado/plugin_dispatch.md']} adrs={['ADR-0023']}>
+
+<FigM04 />
+
+</Figura>
+
+Para conferir os cortes de um deck real sem treinar nada, três verbos mostram os cortes por membro:
+
+<Terminal lines={[
+  {type: 'cmd', text: 'prevcarga validate-deck --origin=2026-10-01 --data=./deck'},
+  {type: 'cmd', text: 'prevcarga describe --origin=2026-10-01 --data=./deck'},
+  {type: 'cmd', text: 'prevcarga train-models --origin=2026-10-01 --data=./deck --dry-run --format=json'},
+]} />
+
+O `validate-deck` mostra, por modelo, `TRAIN_ORIGIN`, `LAST_DATA_DAY`, `INPUT_CUT` e `FIRST_DELIVERY`. O `describe` mostra `train_origin`, `last_data_day` e a origem do `data_lag_days` (`descriptor` ou `default`). O `train-models --dry-run` traz `train_origin` e `last_data_day` por célula só no JSON (`--format=json`); o texto lista estado, membro, variante, área, versão e caminho. Sem deck legível, o `describe` ainda calcula o corte de treino, que não depende do dado, e deixa `available_until` indisponível.
+
+## Corte intradiário derivado do dado
+
+O `available_until` é o instante até o qual a carga do dia O está disponível. Ele não vem de flag, de manifest nem do relógio: o leitor único o deriva do próprio dado de carga, sempre que lê com uma origem.
+
+A derivação tem três passos:
+
+1. **Por área.** O leitor ordena os `interval_start` do dia O e conta os intervalos de 30 minutos contíguos desde O 00:00. O `available_until` da área é o `interval_end` do último intervalo dessa sequência. Sem nenhum intervalo em O, vale O 00:00; com os 48 intervalos, vale O+1 00:00.
+2. **Buraco.** Se falta um intervalo e ainda há carga depois dele, a leitura aborta com `completude.origin_day_gap` (exit 3), apontando a área e a hora do buraco. O corte nunca encurta por causa do buraco.
+3. **Global.** O corte da rodada é o mínimo entre as áreas lidas. Quando as áreas divergem, o leitor emite o aviso `warning.available_until_spread`, com o corte de cada área.
+
+Depois disso, o leitor só entrega carga com `interval_end <= available_until`. O clima observado sai com `valid_time <= available_until`.
+
+### Corte de insumo e primeira entrega
+
+Dois campos derivados saem do `available_until`, por modelo:
+
+| Campo | Regra (`dates.R`) | Exemplo com `available_until` 09:30 |
+|---|---|---|
+| `input_cut` | Granularidade 30: o próprio `available_until`. Granularidade 60: a hora cheia anterior (`floor_date` na hora) | 30 min: 09:30. 60 min: 09:00 |
+| `first_delivery` | Próxima fronteira da grade de 30 minutos depois do `available_until` | `interval_end` 10:00 |
+
+A granularidade vem de `granularity_min` no `run.yaml`: 30 no `lgbm` e no `holt-winters`, 60 no `random-forest` e nos dois DESSEM. Qualquer outro valor aborta com `contract.granularity_invalid` (exit 2).
+
+### Faixa aceita na rodada
+
+Na rodada diária (`forecast`), o corte entregável vai de O 00:00 até antes de O+1 00:00:
+
+- `available_until` = O 00:00 é aceito: é a rodada das 00h, sem nenhuma carga do dia O, com primeira entrega em O 00:30;
+- qualquer corte intradiário de O é aceito;
+- `available_until` maior ou igual a O+1 00:00 (dia O completo no deck, ou `--origin` anterior ao último dia de carga) é recusado antes de qualquer infer, com `completude.forecast_origin_day_complete` (exit 3). O corte da combina é uma hora dentro do dia O, e um dia O completo não tem representação nele.
+
+<Figura id="FIG-M05" titulo="available_until: derivação e faixa aceita" natureza="Linha do tempo" fontes={['docs/estado/deck_reader.md', 'scripts/lib/deck_reader.R', 'scripts/lib/dates.R', 'scripts/lib/forecast.R', 'docs/estado/forecast.md']} adrs={['ADR-0035']}>
+
+<FigM05 />
+
+</Figura>
+
+### Emissão do clima previsto
+
+O clima previsto tem um limite de emissão próprio, `weather_issue_limit`, também calculado num só lugar (`prevcarga_weather_issue_limit`, em `deck_reader.R`). A regra é configuração (`--weather-cutoff` ou `weather_issue_cutoff` no `config.yaml`), não uma data (ADR-0024):
+
+| Regra | Limite de emissão |
+|---|---|
+| `available_until` (padrão) | `available_until` menos o atraso de publicação declarado no `manifest.json` do deck (`weather_forecast_publication_lag_hours`), no fuso da carga |
+| `origin_midnight_utc` | O 00:00 UTC, sem atraso |
+
+Na regra `available_until`, um deck sem `weather_forecast_publication_lag_hours` aborta com `contract.weather_lag_missing`. Para cada par (área, `valid_time`), o leitor usa a emissão mais recente com `issue_time` até o limite. A regra pelo `issue_time`, e não pelo `valid_time`, é o que permite usar previsão de clima para o futuro sem vazar informação.
+
+## A rodada das 00h e o truncate_at
+
+A rodada das 00h usa um deck sem nenhuma carga do dia O. A derivação dá `available_until` = O 00:00, e não `completude.no_load`, porque a janela de derivação sempre inclui a véspera de O.
+
+O backtest simula cortes num store que já tem o dia O inteiro. Para isso ele não calcula corte nenhum: o `--corte=HH:MM` vira `truncate_at` = O HH:MM, no fuso declarado pelo deck, e é entregue ao leitor único. O leitor remove `interval_end > truncate_at` antes de derivar o corte. Por isso um store truncado em O 00:00 é equivalente a um deck fisicamente cortado em O 00:00: o mesmo `available_until`, a mesma carga, o mesmo clima.
+
+O mesmo `truncate_at` vai aos três leitores do painel (carga, clima observado e clima previsto), e o `available_until` e o `weather_issue_limit` da célula são os que o painel devolve (`prevcarga_infer_read_panel`, `inference.R`). O corte de treino não muda com o `truncate_at`, porque ele depende só de O.
+
+<Terminal lines={[
+  {type: 'cmd', text: 'prevcarga backtest --origin=2024-10-01..2024-10-31 --data=./deck --corte=00:00,08:00'},
+]} />
+
+Os cortes do `--corte` seguem a grade de 30 minutos (`HH:00` ou `HH:30`); fora dela, `config.bad_corte` (exit 8). O padrão vem de `backtest.corte_default` no `config.yaml` (08:00). Detalhes em [Backtest](/metodologia/backtest).
+
+## horizon_days e delivery_days
+
+São dois números diferentes, e só o primeiro entra no corte de treino:
+
+| Campo | Onde mora | Para que serve |
+|---|---|---|
+| `horizon_days` (H) | `run.yaml` | Na classe `origin_agnostic`, define `train_origin` = O−1−H. Também fixa até onde o leitor lê o clima previsto do painel. Na classe `origin_scoped`, não entra no corte |
+| `delivery_days` | Descriptor do plugin | A faixa de entrega: de `first_delivery` até O+`delivery_days` 00:00 (`prevcarga_delivery_grid`, `features.R`). Define quais leads o membro cobre na saída LONG |
+
+O caso do Holt-Winters mostra a diferença. O `run.yaml` declara `horizon_days` 8 e o descriptor declara `delivery_days` 9 (O..O+8). O dia a mais é o próprio dia O, que vem do passo `$mean[1]` da previsão. A faixa de entrega por membro está em [Os modelos](/metodologia/modelos-visao-geral).
+
+### Exemplo de grade
+
+O primeiro dia da faixa (`d_plus` = 0) é só o resto do dia O depois do corte. Com `available_until` = O 08:00, os 16 primeiros intervalos de O já são conhecidos e a entrega de `d_plus` = 0 vai do patamar 17 (08:00–08:30, `interval_end` 08:30) ao patamar 48 (23:30–24:00). Com corte às 12:00, vai do patamar 25 ao 48; na rodada das 00h, do 1 ao 48.
+
+## Por que um corte uniforme vaza horizonte
+
+Um corte único para todos os modelos, aplicado à origem da amostra ("amostras de treino até O−1"), vaza horizonte num modelo `origin_agnostic`. As amostras de treino com origem T entre O−H e O−1 têm alvos em T+1..T+H, e parte desses alvos cai no dia O ou depois. No backtest, esses alvos existem no store histórico: o modelo treinaria com a verdade do período que vai prever. O −1 de O−1−H fecha o erro de um dia em que o rótulo do primeiro dia previsto ainda entraria no ajuste.
+
+Um corte uniforme também erraria no sentido oposto nos modelos `origin_scoped`: deslocar o treino deles para O−1−H jogaria fora H dias de dado legítimo, já que o treino deles vai até O−1 (ADR-0023).
+
+Por isso o corte é calculado por modelo, num só lugar, e os plugins só o conferem. Nenhum plugin soma ou subtrai dias de corte.
+
+| Conferência | Onde | Erro |
+|---|---|---|
+| `last_data_day` recebido = O−1−`data_lag_days` do descriptor | Despachante de treino (`registry.R`) | `plugin.cuts_mismatch` (exit 2) |
+| Nenhuma carga ou clima observado de treino depois de `last_data_day` | Despachante de treino | `plugin.train_beyond_cut` (exit 2) |
+| Nenhuma carga de infer com `interval_end` depois de `available_until` | Despachante de infer | `plugin.infer_beyond_cut` (exit 2) |
+| Nenhuma emissão de clima previsto depois de `weather_issue_limit` e nenhum clima observado depois de `available_until` | Despachante de infer | `plugin.weather_beyond_limit` (exit 2) |
+| `train_origin` do artefato não maior que o da rodada; no `origin_scoped`, mesma origem | Despachante de infer | `plugin.artifact_mismatch` (exit 2) |
+| `data_lag_days` da linha de corte igual ao do descriptor | Fachada de treino (`training.R`) | `contract.cut_mismatch` (exit 2) |
+
+Os plugins repetem a conferência do lado de dentro, sem recalcular: o Random Forest recusa carga de treino depois de `last_data_day`, o Holt-Winters recusa carga além do corte (`hw.train_day_o`) e exige o `last_data_day` completo, com 48 intervalos (`hw.last_day_incomplete`), e os dois DESSEM recusam o dia O no painel de treino. Todas essas conferências rodam em execução, a cada treino e a cada infer: um dado depois do corte não chega a ser usado, porque a rodada aborta antes de produzir previsão. Junto com a guarda de honestidade `honesty.data_lag_negative` (exit 15), é isso que garante que a previsão nunca usa dado posterior ao corte.
+
+## Onde cada corte é aplicado
+
+| Corte | Calculado em | Aplicado por | Antes de quê |
+|---|---|---|---|
+| Origem O | `prevcarga_resolve_origin` (`dates.R`) | Todos os verbos que leem o deck | Qualquer leitura |
+| `available_until` | `prevcarga_available_until` (`deck_reader.R`) | Leitor único: filtra carga e clima observado | O painel chegar ao despachante |
+| `weather_issue_limit` | `prevcarga_weather_issue_limit` (`deck_reader.R`) | Leitor único: escolhe a emissão do clima previsto | O painel chegar ao despachante |
+| `truncate_at` | `.bt_cut_instant` (`backtest.R`), só no backtest | Leitor único: remove a carga depois do instante | A derivação do `available_until` |
+| `train_origin`, `last_data_day` | `prevcarga_train_cut` (`dates.R`) | Fachada de treino (`prevcarga_train_inputs`, `training.R`): corta o painel em `last_data_day` | O despachante de treino e o plugin verem o dado |
+
+Nenhum desses cortes é uma flag de data. Na rodada, o operador só escolhe O. O dado influencia o corte de treino por dois caminhos apenas: o O padrão (último dia de carga do deck) e a recusa de janela curta (`window.history_short`). O `--corte` do backtest só trunca o deck; o `available_until` continua nascendo no leitor.
+
+A identidade do artefato acompanha essa separação. No `origin_scoped`, o campo de corte da identidade é só a origem, e a rodada reaproveita o artefato já treinado para a origem O, qualquer que seja o `available_until` do deck. No `origin_agnostic`, o campo de corte traz `train_origin` e `last_data_day`. O `available_until` não é campo da identidade de um artefato de treino.
+
+Na rodada, um membro `origin_agnostic` sem artefato aborta com `state.artifact_missing` (exit 13) e nunca treina. Um membro `origin_scoped` treina uma vez, pela fachada de treino, se não houver artefato da origem O.
+
+:::note ADRs
+O corte de treino ramifica pela classe de split (ADR-0023, que substitui o ADR-0006, de corte O−1−H para todos os modelos). O `available_until` é derivado da carga, sem chave no `manifest.json` (ADR-0035, que substitui o ADR-0007). Do ADR-0006 vale o princípio de que o harness de backtest só trunca o tempo.
+:::

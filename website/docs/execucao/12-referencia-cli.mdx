@@ -1,0 +1,279 @@
+---
+title: Referência da CLI (verbos)
+sidebar_label: Referência da CLI
+sidebar_position: 12
+slug: /execucao/referencia-cli
+description: Os verbos de operação da CLI prevcarga por grupo, com a sintaxe registrada no código, as flags principais, as flags de escopo e os códigos de saída característicos, mais o instalador e o prevcarga-sync, que ficam fora da CLI R.
+fontes:
+  - scripts/prevcarga
+  - scripts/lib/cli.R
+  - scripts/lib/cli/*.R
+  - scripts/lib/config.R
+  - scripts/lib/errors.R
+  - scripts/lib/errors/*.tsv
+  - scripts/lib/dates.R
+  - scripts/lib/registry.R
+  - scripts/lib/reconcile.R
+  - scripts/lib/exports.R
+  - scripts/lib/orchestrate.R
+  - scripts/lib/combination.R
+  - scripts/lib/verify_repro.R
+  - install/install.sh
+  - install/install.ps1
+  - install/prevcarga-sync.sh
+  - install/prevcarga-sync.ps1
+  - docs/reference/MANUAL-USUARIO.md
+adrs: [ADR-0016, ADR-0018, ADR-0022, ADR-0038, ADR-0039, ADR-0040]
+revisado_em: 2026-11-03
+commit_base: 37be3dd
+---
+
+<span className="pc-overline">Execução · 3.12</span>
+
+<p className="pc-lead">A CLI <code>prevcarga</code> tem 20 verbos, cada um registrado num arquivo próprio em <code>scripts/lib/cli/&lt;verbo&gt;.R</code>. A gramática, a ajuda e a validação das flags são geradas desses registros, então <code>prevcarga --help</code> é sempre a referência exata da versão instalada. Esta página agrupa por uso os verbos de operação, dá a sintaxe como está no código, as flags principais e os códigos de saída mais comuns de cada um. No fim estão o instalador e o <code>prevcarga-sync</code>, que não são verbos da CLI R.</p>
+
+## Como ler a sintaxe e a saída
+
+### A sintaxe
+
+A sintaxe de cada verbo é o campo `usage` do seu registro (`prevcarga_verb_<verbo>`). A fachada (`scripts/lib/cli.R`) junta todos os `usage` num único texto de ajuda, com o bloco de opções globais e as opções declaradas pelos verbos.
+
+| Notação | Significado |
+|---|---|
+| `--flag=<valor>` | Flag com valor. Também aceita `--flag valor`. |
+| `[ ... ]` | Opcional. |
+| `( a \| b )` | Exatamente uma das alternativas. |
+| `...` depois de um argumento | Pode repetir, como em `--area=<a>...` do `forecast`. |
+| `<model>` sem `--` | Argumento posicional, como nos subcomandos do `registry`. |
+
+Algumas flags valem em vários verbos mas aparecem uma vez só no bloco de opções da ajuda, como `--area` (listada junto do `validate-deck`) e `--out` (listada junto do `combine`). Os outros verbos que a usam só a citam na linha de uso.
+
+### Flags globais
+
+Estas flags valem em qualquer verbo. A precedência é flag, depois `config.yaml`, depois o default do código (`scripts/lib/config.R`). A CLI não lê variáveis de ambiente.
+
+| Flag | Valores | Uso |
+|---|---|---|
+| `--origin=<data>` | `AAAA-MM-DD`; `A..B` só em `plan` e `backtest` | Origem O da previsão. É o único flag de data humano. Faixa fora de `plan`/`backtest` ou data inválida sai com 8 (`config.bad_origin`). |
+| `--data=<dir>` | diretório | Deck canônico. Verbos que leem o deck sem ele saem com 8 (`config.data_dir_missing`). |
+| `--state=<dir>` | diretório | Estado local: artefatos, scratch, entregas. |
+| `--config=<arquivo>` | caminho | `config.yaml` a usar. |
+| `--load-label=<l>` | `end`, `start` | Rótulo da carga, quando o deck não declara. |
+| `--weather-cutoff=<w>` | `available_until`, `origin_midnight_utc` | Regra de corte do clima previsto. |
+| `--format=<fmt>` | `text` (default), `json` | Formato da saída. |
+| `--color=<c>` | `auto` (default), `always`, `never` | Cor no terminal. |
+| `--model=<m>` | nome do modelo | Seletor de modelo, nos verbos que o usam. Em `train-models` aceita uma lista separada por vírgula. |
+| `--debug` | — | Imprime o traceback em stderr quando há erro. |
+| `-h`, `--help` | — | Imprime a ajuda gerada dos registros. |
+| `--version` | — | Imprime `prevcarga <versão>`, lida de `config/VERSION`. |
+
+Sem `--origin`, os verbos que precisam de uma origem a resolvem pelo deck: a origem é o último dia com carga no store (`prevcarga_resolve_origin` em `scripts/lib/dates.R`). O `validate-deck` mostra de onde veio a origem (`flag` ou `deck`).
+
+### Flags de escopo
+
+Algumas flags são de escopo: só valem nos verbos que as declaram no campo `scoped` do registro. Usadas em outro verbo, saem com 8 (`config.usage`) e a dica diz em qual verbo elas valem, mesmo que o docopt as aceite.
+
+| Verbo | Flags de escopo |
+|---|---|
+| `forecast` | `--niveis`, `--incluir-membros`, `--report`, `--report-format` |
+| `export` | `--scratch`, `--niveis`, `--incluir-membros` |
+| `train-models` | `--horizon`, `--exogena` |
+| `reconcile` | `--khat-window`, `--eval`, `--leaves-dir`, `--khat-version` |
+| `plan` | `--corte`, `--protocol`, `--dplus` |
+| `backtest` | `--corte`, `--protocol`, `--dplus`, `--report`, `--report-format`, `--resume`, `--keep-going`, `--break-lock` |
+| `verificar` | `--saida`, `--referencia`, `--oficial`, `--trilho`, `--alvo`, `--limiares`, `--sem-membros`, `--tol` |
+
+Uma flag de escopo de dois verbos, como `--niveis` em `forecast` e `export`, vale nos dois.
+
+### A saída
+
+| Situação | Onde sai | Forma |
+|---|---|---|
+| Sucesso, `--format=text` | stdout | Linhas ASCII sem acento. Vários verbos, como `validate-deck`, `forecast`, `export` e `reconcile`, terminam com `OK`. |
+| Sucesso, `--format=json` | stdout | Um envelope com `ok`, `verb`, `exit_code`, `error`, `warnings`, `result`, `run_id` e `version`. |
+| Aviso | stderr (texto) ou `warnings` do envelope (JSON) | `prevcarga: aviso [<id>] <mensagem>`. Não muda o código de saída. |
+| Erro, texto | stderr | Quatro linhas, abaixo. |
+| Erro, JSON | stdout | O mesmo envelope, com `ok` falso e `error` preenchido com `class`, `id`, `message`, `where`, `hint` e `details`. |
+
+```text title="Erro em texto (prevcarga_render_error_text, scripts/lib/errors.R)"
+prevcarga: erro [<classe>] (exit <n>)
+o que: <mensagem do catalogo>
+onde: <onde>
+como corrigir: <dica do catalogo>
+```
+
+O código de saída vem da classe do erro, pela tabela única de `scripts/lib/errors.R`: 0 ok, 1 generic, 2 contract, 3 completude, 4 topology, 5 window, 6 bundle, 7 runtime, 8 config, 9 integrity, 10 network, 11 coherence, 12 repro, 13 state, 14 partial, 15 honesty. A explicação de cada classe está em [Contrato de erros e códigos de saída](/arquitetura/erros-exit). Um erro não previsto sai com 1 (`generic.unexpected`); com `--debug`, o traceback vai para stderr.
+
+Dois verbos imprimem a tabela de achados em stdout antes do erro quando reprovam em texto: `validate-deck` e `check-coherence`. Em JSON, o `check-coherence` põe os achados no `result` do envelope de falha e o `validate-deck` os põe em `error.details.items`.
+
+### Runtime e verbos isentos
+
+Antes de executar, todo verbo fixa fuso, locale e threads no processo e sai com 7 se não conseguir. As exceções são `doctor` e `status`, isentos (`exempt = TRUE`): eles rodam mesmo com runtime ou `config.yaml` quebrados e mostram o problema como diagnóstico. O porquê está em [Runtime](/arquitetura/runtime).
+
+## Os verbos por grupo
+
+Os códigos de saída nas tabelas são os característicos de cada verbo, não a lista completa. Todo verbo também pode sair com 7 (runtime, exceto os isentos), 8 (uso ou configuração) e 1 (erro inesperado). O catálogo completo está em [Erros e solução de problemas](/execucao/erros-troubleshooting).
+
+### Introspecção
+
+Inspecionam ambiente, membros, topologia e contratos sem produzir previsão. O detalhe de cada linha está em [Diagnóstico e introspecção](/execucao/diagnostico).
+
+```text title="Sintaxe (scripts/lib/cli/doctor.R, status.R, models.R, areas.R, describe.R)"
+prevcarga doctor
+prevcarga status
+prevcarga models
+prevcarga areas
+prevcarga describe [--origin=<data>] [--model=<m>]
+```
+
+| Verbo | O que faz | Flags principais | Saídas características |
+|---|---|---|---|
+| `doctor` | Diagnóstico do ambiente, do bundle instalado e dos artefatos. Isento do runtime estrito. | só globais | 0, ou o código da classe que vence pela precedência entre as linhas em `FAIL` |
+| `status` | Resumo do diagnóstico e do deck. Isento do runtime estrito. | só globais | sempre 0 |
+| `models` | Lista os membros e os contratos por modelo. | só globais | 0 |
+| `areas` | Mostra a topologia: folhas, subsistemas e SIN. | só globais | 0 |
+| `describe` | Contratos por modelo; com `--origin`, os cortes de data que a rodada usaria. | `--origin`, `--model` | 0; 8 com modelo desconhecido |
+
+### Rodada
+
+A rotina diária é `validate-deck` seguido de `forecast`. O passo a passo está em [Validar o deck antes de rodar](/execucao/validar-deck) e [Rodada diária](/execucao/rodada-diaria).
+
+```text title="Sintaxe (scripts/lib/cli/validate-deck.R, forecast.R)"
+prevcarga validate-deck [--area=<a>]
+prevcarga forecast [--area=<a>... | --subsistema=<s>] [--niveis=<n>] [--incluir-membros] [--report]
+                   [--report-format=<f>] [--skip-validate]
+```
+
+| Verbo | O que faz | Flags principais | Saídas características |
+|---|---|---|---|
+| `validate-deck` | Valida o deck na origem e mostra os cortes de cada modelo e os achados. Avisos não reprovam. | `--area` (subsistema expande para as folhas) | 0; 2, 3, 4 ou 5 pelo primeiro erro da classe dominante |
+| `forecast` | Rodada de uma origem: validação do deck, inferência por membro, combina, reconciliação e entrega imutável. | `--area` (repetível) ou `--subsistema` (`all` = todas as folhas), `--niveis` (`sin`, `subsistemas` por default, `tudo`), `--incluir-membros`, `--report`, `--report-format` (`html` por default, `pdf`), `--skip-validate` | 0; 2 a 5 na validação do deck; 3 quando o dia O já está completo; 4 com subsistema fora da topologia; 13 sem artefato; 9 com conflito de chave na entrega; 14 quando o relatório falha depois da entrega gravada |
+
+O `forecast` não tem flag de corte: o corte intradiário sai do próprio dado de carga. `--area` e `--subsistema` são exclusivos (8). Os modelos `origin_scoped` sem artefato da origem O são treinados uma vez dentro da rodada; os `origin_agnostic` só leem o artefato e, se ele faltar, a rodada sai com 13.
+
+### Verificação
+
+Conferem uma entrega ou um LONG já produzido. O `verificar` está detalhado em [Verificar uma entrega](/execucao/verificar).
+
+```text title="Sintaxe (scripts/lib/cli/verificar.R, check-coherence.R, score.R)"
+prevcarga verificar --saida=<dir> (--referencia=<dir> | --oficial) [--trilho=<t>]
+                    [--alvo=<nome> --limiares=<arq>] [--sem-membros]
+prevcarga check-coherence --long=<f>
+prevcarga score --long=<f> [--area=<a>] [--baseline=<b>] [--skip-validate]
+```
+
+| Verbo | O que faz | Flags principais | Saídas características |
+|---|---|---|---|
+| `verificar` | Compara uma entrega local com uma referência: integridade, identidade, pareamento e valores. | `--saida`; `--referencia` ou `--oficial` (exatamente um); `--trilho` (`mesma-plataforma`, `entre-plataformas`; default pela plataforma); `--alvo` com `--limiares`; `--sem-membros` | 0; 2 em identidade ou pareamento; 9 em integridade; 12 com valor fora da tolerância; 13 com saída, referência ou inferência oficial ausente; 8 com `--tol` (`config.verify_tol_removed`) |
+| `check-coherence` | Confere a coerência hierárquica de um LONG reconciliado (soma do SIN, k-hat, completude, escopo, grade). | `--long` | 0; 3 completude; 4 topologia; 11 coerência; 8 com `--area` |
+| `score` | Pontua um LONG publicado contra a carga realizada do deck, com manchete D+1 e tabela por horizonte. | `--long`, `--area`, `--baseline` (`persistence`, `seasonal_naive`), `--skip-validate` | 0 (sem dado a pontuar sai com aviso e 0); 2 a 5 na validação do deck; 2 com modelo desconhecido (sem `run.yaml`) ou `--baseline` inválido; 4 com área fora da topologia |
+
+Os trilhos do `verificar` são `1e-5` absoluto na mesma plataforma e 0,1% relativo entre plataformas (`scripts/lib/verify_repro.R`). A tolerância vem do trilho; para mudar o limite, use `--trilho` ou `--alvo` com `--limiares`. A flag `--tol` está declarada só para sair com um erro específico (`config.verify_tol_removed`) em vez de um erro de uso genérico.
+
+### Artefatos
+
+Produzem e administram os artefatos que a rodada consome. O ciclo completo está em [Ciclo de vida dos artefatos](/execucao/artefatos).
+
+```text title="Sintaxe (scripts/lib/cli/train-models.R, combine.R, reconcile.R, registry.R)"
+prevcarga train-models [--model=<m>] [--area=<a>] [--subsistema=<s>] [--areas=<a,b>]
+                       [--origin=<data>] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force]
+prevcarga combine --mode=<mode> --area=<a> --root=<dir> [--artifact-dir=<dir>] [--cut=<HHMM>] [--out=<path>]
+                  [--origin=<date>]
+prevcarga reconcile --mode=<mode> [--subsistema=<s>] [--khat-window=<n>] [--eval] [--leaves-dir=<dir>]
+                    [--out=<path>] [--khat-version=<v>]
+prevcarga registry (ls|show|promote|rollback|pin|unpin|gc) [<model>] [<area>] [<version>] [--dry-run]
+```
+
+| Verbo | O que faz | Flags principais | Saídas características |
+|---|---|---|---|
+| `train-models` | Treina o subconjunto membros × áreas pedido e publica no registry, promovendo o `latest`. | `--model`, `--area`, `--subsistema` ou `--areas` (exclusivos), `--horizon` (inteiro ≥ 1), `--exogena`, `--dry-run` (só a matriz, nada gravado), `--jobs` (workers PSOCK, default 1), `--force` (retreina mesmo se a versão já existe) | 0; 2 com seletores de área em conflito; 5 com histórico curto; 8 com `--jobs` ou `--horizon` inválidos |
+| `combine` | Combina convexa por folha: ajusta pesos (`train`), aplica pesos congelados (`apply`) ou ajusta e aplica (`full`). | `--mode` (`train`, `apply`, `full`), `--area`, `--root` (runs de membro `_infer_c<HHMM>`), `--artifact-dir` (default `<state>/artifacts/combina`), `--cut`, `--out` (obrigatória em `apply` e `full`), `--origin` | 0 (célula não estacionária gera aviso); 2 com entrada inválida ou corte ambíguo; 4 com área fora da topologia; 8 com `--mode` inválido; 13 sem pesos treinados |
+| `reconcile` | Reconciliação Bottom-Up com k-hat: ajusta o perfil em O (`train`) ou reconcilia as folhas de uma origem (`apply`). | `--mode` (`train`, `apply`), `--subsistema` (default todos), `--khat-window` (dias, default 730), `--leaves-dir` (apply), `--eval` (apply; lê a verdade do deck), `--khat-version` (apply), `--out` (apply; default `<state>/scratch/<run_id>`) | 0; 2 com entrada inválida ou `--origin` diferente da origem das folhas; 3 com folha faltando; 9 com conflito de k-hat; 13 sem k-hat; 15 com k-hat posterior à origem |
+| `registry` | Ciclo de vida das versões `v_<hash>` de uma célula modelo × área. | subcomando; `<model>`, `<area>`, `<version>` posicionais; `--dry-run` no `gc` | 0; 2 com versão malformada; 9 com hash divergente; 13 com célula, versão anterior ou pin ausentes |
+
+Subcomandos do `registry` (`scripts/lib/registry.R`):
+
+| Subcomando | Argumentos | Efeito |
+|---|---|---|
+| `ls` | `[<model>] [<area>]` | Lista as células com `latest`, versões pinadas e versões. |
+| `show` | `<model> <area> [<version>]` | Mostra `version`, `model_id`, os cortes (`train_origin`, `last_data_day`), `load_label`, `timezone`, `weather_issue_cutoff` e `code_commit` de uma versão (default: a `latest`). |
+| `promote` | `<model> <area> <version>` | Aponta o `latest` para a versão. |
+| `rollback` | `<model> <area>` | Volta o `latest` para a versão anterior. |
+| `pin` / `unpin` | `<model> <area> <version>` | Fixa ou solta uma versão da célula. |
+| `gc` | `[<model>] [--dry-run]` | Remove as versões que não são `latest` nem pinadas, e os temporários `.tmp-*`. Célula sem nenhum ponteiro não tem versão removida, só os temporários. Com `--dry-run` só lista. |
+
+No `reconcile`, `khat_origin == O` sempre: `--khat-version` só escolhe entre versões ajustadas na própria origem. As flags `--eval`, `--leaves-dir`, `--khat-version` e `--out` só valem com `--mode=apply`; em `train` saem com 8.
+
+### Backtest
+
+Varrem várias origens em sequência, cada uma com treino e inferência próprios. O uso operacional está em [Backtest e plano](/execucao/backtest).
+
+```text title="Sintaxe (scripts/lib/cli/plan.R, backtest.R)"
+prevcarga plan --origin=<data> [--model=<m>] [--area=<a>] [--corte=<HH:MM,...>] [--protocol=<p>] [--dplus]
+prevcarga backtest --origin=<data> [--model=<m>] [--area=<a>] [--corte=<HH:MM,...>] [--protocol=<p>] [--dplus]
+                   [--baseline=<b>] [--report] [--report-format=<f>] [--resume] [--keep-going] [--break-lock]
+                   [--jobs=<n>] [--dry-run]
+```
+
+| Verbo | O que faz | Flags principais | Saídas características |
+|---|---|---|---|
+| `plan` | Emite a matriz membro × folha × origem × corte, sem treinar, inferir nem criar artefato. | `--origin` (aceita `A..B`), `--corte` (`HH:00` ou `HH:30`, separados por vírgula), `--protocol` (`fixed`, `daily`, `retrain_harness`), `--dplus` | 0; 8 com corte, protocolo ou origem inválidos; 2 com protocolo incompatível com o modelo |
+| `backtest` | Executa a matriz do plano origem a origem, sob `run.lock/`, com ledger local. `--dry-run` é idêntico a `plan`. | as do `plan`, mais `--baseline`, `--report`, `--report-format` (`html`, `pdf`), `--resume`, `--keep-going` (default: fail-fast), `--break-lock`, `--jobs` (cluster PSOCK) | 0; 13 com lock ocupado (`--break-lock` retoma); 14 com entrega parcial |
+
+Os defaults de `--corte` e `--protocol` vêm do `config.yaml` (`backtest.corte_default`) e do `run.yaml` do modelo (`backtest.protocol_default`).
+
+<Pendente titulo="Pendente · nome da flag de corte">
+O `combine` usa `--cut=<HHMM>` (um corte, no formato dos runs `_infer_c<HHMM>`), e `plan`/`backtest` usam `--corte=<HH:MM,...>` (lista com dois-pontos). A uniformização dos dois nomes e formatos não foi decidida. Até lá, use cada um como está na sintaxe acima.
+</Pendente>
+
+### Depuração
+
+Executam um pedaço da rodada isoladamente. Não fazem parte da rotina diária, que é só o `forecast`.
+
+```text title="Sintaxe (scripts/lib/cli/infer-model.R, features.R, export.R)"
+prevcarga infer-model --model=<m> --area=<a> [--variant=<e>] [--artifact-version=<v> | --pin] [--out=<arquivo>]
+prevcarga features --model=<m> --area=<a>
+prevcarga export --scratch=<dir> [--niveis=<n>] [--incluir-membros]
+```
+
+| Verbo | O que faz | Flags principais | Saídas características |
+|---|---|---|---|
+| `infer-model` | Inferência de 1 modelo × 1 área × 1 origem, com os parâmetros do artefato congelado. | `--model`, `--area`, `--variant` (obrigatória se o membro declara exógena), `--artifact-version` (`v_<hash>`; default `latest.txt`) ou `--pin`, `--out` | 0; 2 com modelo desconhecido (sem `run.yaml`) ou com variante exigida ou divergente; 6 com `--out` em diretório ausente; 13 sem artefato |
+| `features` | Materializa a tabela de features de 1 modelo × 1 folha na origem O, sem treinar nem inferir. Grava em `<state>/scratch/features/<m>/<a>/features.parquet`. | `--model`, `--area`, `--origin` | 0; 4 com modelo ou área fora da topologia; 6 com falha de escrita; 13 sem artefato |
+| `export` | Copia um scratch de rodada para a entrega imutável; a chave é reconstruída do `run.json` do scratch, nunca de flag. | `--scratch`, `--niveis` (`sin`, `subsistemas` por default, `tudo`), `--incluir-membros` | 0; 13 com scratch ausente ou `run.json` incompleto; 9 com falha de cópia ou conflito de chave; 3 com arquivo da entrega faltando |
+
+O `infer-model` não aceita `--horizon` nem `--exogena`: o horizonte e a exógena vêm do artefato.
+
+## Utilitários fora da CLI R
+
+Estes programas não são verbos e não passam pela fachada. Do lado de quem executa, os instaladores e o `prevcarga-sync` são os únicos pontos que falam rede; o pacote R nunca fala. Cada um tem seu próprio tratamento de argumentos, mas os códigos de saída seguem a mesma tabela de classes.
+
+| Utilitário | Onde roda | Para que serve | Saídas |
+|---|---|---|---|
+| `install.sh` | Linux x86_64 | Instala, atualiza, volta versão (`--rollback`) e remove (`--uninstall --yes`, com `--purge` para o estado). | 0, 6, 8, 9, 10 |
+| `install.ps1` | Windows (PowerShell nativo) | O mesmo, com parâmetros `-Version`, `-Rollback`, `-Uninstall -Yes`, `-Purge` etc. | idem |
+| `prevcarga-sync` | Linux (`prevcarga-sync.sh`), Windows (`prevcarga-sync.ps1` e `.cmd`) | Baixa do repositório online, só leitura HTTPS, os artefatos oficiais ou as inferências oficiais de uma origem para o estado local. | 0, 6, 8, 9, 10 |
+
+```text title="Sintaxe (cabeçalhos dos utilitários)"
+install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]]
+           [--root <dir>] [--data <dir>] [--state <dir>] [--skip-platform-check] [--add-to-path]
+           [--profile <arq>] [--format text|json]
+install.sh --rollback [--root <dir>] [--format json]
+install.sh --uninstall --yes [--purge] [--root <dir>] [--profile <arq>] [--format json]
+
+prevcarga-sync --what artifacts|forecasts [--release-base <url>] [--state <dir>] [--model <m>]... [--area <a>]...
+               [--origin <AAAA-MM-DD>] [--format text|json]
+```
+
+Observações de cada um:
+
+1. **Instaladores.** O sha256 do bundle é obrigatório e conferido antes de qualquer extração. A raiz default é `~/.local/share/prevcarga` no Linux e `prevcarga` dentro da pasta `LocalApplicationData` do usuário no Windows. Detalhes em [Instalação, atualização e remoção](/execucao/instalacao).
+2. **`prevcarga-sync`.** Em `--what artifacts`, o conjunto oficial vem de `prevcarga models --format json` e `prevcarga areas --format json` da CLI instalada ao lado; o repositório online nunca é listado. Tudo é baixado e conferido num staging antes de qualquer rename, e o `latest.txt` local é regravado por último. Detalhes em [Sincronizar com os artefatos online](/execucao/sync).
+
+<Pendente titulo="Em breve">
+O repositório online de artefatos, lido pelo `prevcarga-sync`, ainda não está no ar. Os instaladores baixam o bundle das GitHub Releases de `onsbr/prevcarga`.
+</Pendente>
+
+:::note Manual do usuário
+`docs/reference/MANUAL-USUARIO.md` resume os comandos do dia a dia, mas não lista todas as flags (por exemplo `--niveis`, `--incluir-membros`, `--skip-validate` e `--report-format` do `forecast`). Esta página segue os registros em `scripts/lib/cli/`, e `prevcarga --help` é a referência da versão instalada.
+:::
