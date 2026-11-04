@@ -22,7 +22,7 @@ param(
 
 Set-StrictMode -Version 3
 $ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest fica lento com a barra; a extracao liga a dela localmente
 
 $script:PcExit = 0
 $script:ShowHelp = $false
@@ -31,6 +31,8 @@ $script:PcTemp = ''
 $script:PcCatalog = Join-Path $PSScriptRoot 'error-catalog.tsv'  # GERADO; no bundle extraido: code\install\
 $script:PcWarnings = New-Object System.Collections.Generic.List[string]
 $script:PcMinFreeBytes = [long]2147483648
+$script:PcProgress = $false   # etapas e barra: so em texto com stderr no terminal (Invoke-PcMain decide)
+$script:PcSteps = 6           # N fixo nos dois fluxos (com e sem -Bundle)
 
 # --- saida ASCII pura (independente de code page) ---------------------------------------------------------------
 function ConvertTo-PcJsonString([string]$Text) {
@@ -64,6 +66,55 @@ function Write-PcStream([string]$Which, [string]$Text) {
 }
 
 function ConvertTo-PcSlash([string]$Path) { return ($Path -replace '\\', '/') }
+
+function Test-PcErrRedirected {  # sem como saber = redirecionado (nada de etapa)
+  try { return [Console]::IsErrorRedirected } catch { return $true }
+}
+
+function Write-PcStep([int]$N, [string]$Text) {  # 'prevcarga: [n/N] ...' em stderr; nunca em json nem com stderr redirecionado
+  if (-not $script:PcProgress) { return }
+  Write-PcStream 'err' (ConvertTo-PcAsciiText ('prevcarga: [' + $N + '/' + $script:PcSteps + '] ' + $Text))
+}
+
+# Banner, explicacoes e proximos passos: a MESMA regra das etapas ($script:PcProgress), tudo em stderr.
+function Write-PcNote([string]$Text) {  # explicacao de uma linha, alinhada sob o texto da etapa
+  if (-not $script:PcProgress) { return }
+  Write-PcStream 'err' (ConvertTo-PcAsciiText ('                 ' + $Text))
+}
+
+# >>> curva do banner: copia LITERAL de .prevcarga_banner_curve() (scripts/lib/banner.R); teste de paridade em tests/install >>>
+$script:PcBannerCurve = @(
+  '                    ______          ____        '
+  '                ____||||||__________||||__      '
+  '              __||||||||||||||||||||||||||__    '
+  '            __||||||||||||||||||||||||||||||__  '
+  '____      __||||||||||||||||||||||||||||||||||__'
+  '||||______||||||||||||||||||||||||||||||||||||||'
+)
+# <<< curva do banner <<<
+
+function Write-PcIntro([string]$V) {  # banner da CLI com o titulo do instalador + o que vai acontecer (antes da etapa 1)
+  if (-not $script:PcProgress) { return }
+  $lines = @('prevcarga - instalador') + $script:PcBannerCurve
+  if ($V) { $lines += ('versao ' + $V) }
+  $lines += ''
+  $lines += ('o que vai acontecer: instala sem administrador em ' + $script:Root)
+  $lines += '  o estado (state_dir) e os dados nao sao alterados; a versao atual so muda no fim, depois de tudo conferido'
+  Write-PcStream 'err' (ConvertTo-PcAsciiText ($lines -join "`n"))
+}
+
+function Write-PcNextSteps([string]$Bin, [bool]$PathUpdated) {  # depois da linha 'prevcarga: instalado ...' (que fica em stdout)
+  if (-not $script:PcProgress) { return }
+  $cfg = Join-Path $script:Root 'config.yaml'
+  $lines = @('', 'proximos passos:')
+  if ($PathUpdated) { $lines += ('  - abra um terminal novo para o PATH valer (' + $Bin + ' entrou no PATH do usuario)') }
+  else { $lines += ('  - ' + $Bin + ' ja esta no PATH do usuario (num terminal aberto antes da instalacao, abra um novo)') }
+  $lines += '  - rode: prevcarga doctor (confere runtime, config e deck)'
+  $d = Get-PcConfigValue 'data_dir'
+  if ($d) { $lines += ('  - deck configurado: data_dir = ' + $d + ' (em ' + $cfg + ')') }
+  else { $lines += ('  - aponte o deck: reinstale com -Data <dir> ou ponha data_dir: <dir> em ' + $cfg) }
+  Write-PcStream 'err' (ConvertTo-PcAsciiText ($lines -join "`n"))
+}
 
 # --- erros (ADR-0040) ----------------------------------------------------------------------------------------------
 function Get-PcExitForClass([string]$Class) {
@@ -359,6 +410,10 @@ function Get-PcVerifiedBundle {  # devolve o caminho do zip (fora de <R>) so se 
   if ($Bundle) {
     $zip = $script:Bundle
     if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) { Write-PcError 'install.usage' '-Bundle' ('arquivo inexistente: ' + $zip) }
+    $bv = $script:Version
+    if (-not $bv -and (Split-Path -Leaf $zip) -match '^prevcarga-(.+)-windows-x86_64\.zip$') { $bv = $Matches[1] }
+    Write-PcIntro $bv
+    Write-PcStep 1 ('bundle local ' + (Split-Path -Leaf $zip) + ' (sem download)')
     $sha = $script:Sha256
     if (-not $sha) { $sha = Get-PcShaFromSums (Join-Path (Split-Path -Parent $zip) 'SHA256SUMS') (Split-Path -Leaf $zip) }
     if (-not $sha) { Write-PcError 'install.sha_missing' $zip }
@@ -380,14 +435,59 @@ function Get-PcVerifiedBundle {  # devolve o caminho do zip (fora de <R>) so se 
     $zip = Join-Path $script:PcTemp $name
     $sums = Join-Path $script:PcTemp 'SHA256SUMS'
     $u = if ($gh) { $base + '/releases/download/v' + $script:Version + '/' } else { $base + '/releases/' + $script:Version + '/' }
+    Write-PcIntro $script:Version
+    Write-PcStep 1 ('baixando ' + $name + ' (sem barra; pode levar alguns minutos)')
     if (-not (Get-PcFile ($u + $name) $zip)) { Write-PcError 'install.download_failed' ($u + $name) }
     if (-not (Get-PcFile ($u + 'SHA256SUMS') $sums)) { Write-PcError 'install.download_failed' ($u + 'SHA256SUMS') }
     $sha = Get-PcShaFromSums $sums $name
     if (-not $sha) { Write-PcError 'install.sha_missing' ($u + 'SHA256SUMS') ($name + ' ausente do SHA256SUMS') }
   }
+  Write-PcStep 2 'conferindo sha256 do bundle'
+  Write-PcNote ('o arquivo inteiro e conferido antes de qualquer escrita em ' + $script:Root)
   $got = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
   if ($got -ne $sha.ToLowerInvariant()) { Write-PcError 'install.sha_mismatch' $zip ('esperado=' + $sha.ToLowerInvariant() + ' obtido=' + $got) }
   return $zip
+}
+
+function Expand-PcZip([string]$Zip, [string]$Dest) {  # ZipFile entrada por entrada (o cmdlet do 5.1 e lento com milhares de arquivos); recusa zip-slip
+  if ($script:PcProgress) { $ProgressPreference = 'Continue' }   # local: o script segue SilentlyContinue
+  $act = 'prevcarga: extraindo o bundle'
+  Add-Type -AssemblyName System.IO.Compression
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $root = [IO.Path]::GetFullPath($Dest).TrimEnd('\', '/') + '\'
+  [void][IO.Directory]::CreateDirectory($root)
+  $za = $null
+  try {
+    $za = [IO.Compression.ZipFile]::OpenRead($Zip)
+    $total = $za.Entries.Count
+    Write-PcStep 3 ('extraindo ' + $total + ' arquivos')
+    Write-PcNote 'no Windows demora: sao milhares de arquivos pequenos e o antivirus examina cada um; a barra mostra o andamento'
+    $every = [Math]::Max(1, [int][Math]::Ceiling($total / 100.0))   # barra a cada ~1%, nao a cada arquivo
+    $i = 0
+    foreach ($e in $za.Entries) {
+      $full = [IO.Path]::GetFullPath([IO.Path]::Combine($root, $e.FullName))
+      # zip-slip: o caminho final tem de ficar dentro do stage (com separador final, sem caixa)
+      if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+        Write-PcError 'install.manifest_invalid' $Zip ('entrada fora do stage: ' + $e.FullName)
+      }
+      if ($e.FullName.EndsWith('/') -or $e.FullName.EndsWith('\')) { [void][IO.Directory]::CreateDirectory($full) }
+      else {
+        [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($full))
+        [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $full, $true)
+      }
+      $i++
+      if ($script:PcProgress -and ($i % $every -eq 0 -or $i -eq $total)) {
+        Write-Progress -Activity $act -Status ([string]$i + ' de ' + $total + ' arquivos') -PercentComplete ([int][Math]::Floor(100 * $i / $total))
+      }
+    }
+  } finally {
+    if ($za) { $za.Dispose() }
+    if ($script:PcProgress) { Write-Progress -Activity $act -Completed }
+  }
+}
+
+function Get-PcManifestCount([string]$Path) {  # quantos files[] o RUNTIME.json lista (so para a etapa; 0 = desconhecido)
+  try { return ([regex]::Matches([IO.File]::ReadAllText($Path), '"path"\s*:')).Count } catch { return 0 }
 }
 
 # --- ciclo de vida ------------------------------------------------------------------------------------------------
@@ -449,8 +549,11 @@ function Invoke-PcInstall {
   try { [void](New-Item -ItemType Directory -Force -Path $versions) } catch { Write-PcError 'install.io_failed' $script:Root $_.Exception.Message }
   $script:PcStage = Join-Path $versions ('.stage-' + $v)
   if (Test-Path -LiteralPath $script:PcStage) { Remove-Item -LiteralPath $script:PcStage -Recurse -Force }
-  try { Expand-Archive -LiteralPath $zip -DestinationPath $script:PcStage -Force }
-  catch { Write-PcError 'install.manifest_invalid' $zip ('falha ao extrair: ' + $_.Exception.Message) }
+  try { Expand-PcZip $zip $script:PcStage }
+  catch {
+    if ($_.Exception.Message -eq 'PCEXIT') { throw }   # zip-slip ja emitido
+    Write-PcError 'install.manifest_invalid' $zip ('falha ao extrair: ' + $_.Exception.Message)
+  }
   $content = $script:PcStage
   $kids = @(Get-ChildItem -LiteralPath $script:PcStage -Force)
   if (-not (Test-Path -LiteralPath (Join-Path $script:PcStage 'RUNTIME.json')) -and $kids.Count -eq 1 -and $kids[0].PSIsContainer) { $content = $kids[0].FullName }
@@ -462,10 +565,17 @@ function Invoke-PcInstall {
   if (-not (Test-Path -LiteralPath $rs) -or -not (Test-Path -LiteralPath (Join-Path $content 'RUNTIME.json'))) {
     Write-PcError 'install.manifest_invalid' (Join-Path $content 'RUNTIME.json') 'bundle incompleto'
   }
+  if ($script:PcProgress) {
+    $nf = Get-PcManifestCount (Join-Path $content 'RUNTIME.json')
+    $what = 'os arquivos'; if ($nf -gt 0) { $what = [string]$nf + ' arquivos' }
+    Write-PcStep 4 ('validando ' + $what + ' do RUNTIME.json (pode levar alguns minutos)')
+    Write-PcNote 'confere o sha256 de cada arquivo do bundle antes de ativar; se algo divergir, nada muda'
+  }
   $rcode = "r <- commandArgs(TRUE)[1]; lib <- file.path(r, 'code/scripts/lib'); options(prevcarga.lib = lib); source(file.path(lib, 'errors.R')); source(file.path(lib, 'runtime.R')); prevcarga_runtime_validate(r, strict = TRUE)"
   $res = Invoke-PcNative $rs @('--vanilla', '-e', $rcode, $content)
   if ($res[0] -ne 0) { Write-PcError 'install.manifest_invalid' (Join-Path $content 'RUNTIME.json') }
 
+  Write-PcStep 5 ('ativando a versao ' + $v)
   $prevCur = Read-PcLine (Join-Path $script:Root 'current')
   $dest = Join-Path $versions $v
   $old = Join-Path $versions ('.old-' + $v)
@@ -525,11 +635,14 @@ function Invoke-PcInstall {
     if ($x -eq $v -or ($prevCur -and $x -eq $prevCur)) { continue }
     Remove-Item -LiteralPath (Join-Path $versions $x) -Recurse -Force -ErrorAction SilentlyContinue
   }
+  if ($prevCur) { Write-PcNote ('a versao anterior (' + $prevCur + ') fica guardada: o instalador com -Rollback volta para ela') }
 
   Write-PcConfig
   try { [void](New-Item -ItemType Directory -Force -Path $script:StateEffective) } catch { Write-PcError 'install.io_failed' $script:StateEffective $_.Exception.Message }
   $pathUpdated = Sync-PcUserPath $bin $false
 
+  Write-PcStep 6 'conferindo a instalacao (doctor)'
+  Write-PcNote "um aviso aqui nao desfaz a instalacao; 'prevcarga doctor' mostra o detalhe"
   $d = Invoke-PcNative (Join-Path $bin 'prevcarga.cmd') @('doctor', '--format', 'json')
   $doctor = $d[1].Trim()
   if (-not $doctor.StartsWith('{')) { $doctor = 'null' } else { $doctor = ($doctor -replace "[`r`n]+", '') }
@@ -540,6 +653,7 @@ function Invoke-PcInstall {
     ',"retained":[' + (($retained | ForEach-Object { ConvertTo-PcJsonString $_ }) -join ',') + ']' +
     ',"state_dir":' + (ConvertTo-PcJsonString (ConvertTo-PcSlash $script:StateEffective)) + ',"path_updated":' + $pj + ',"doctor":' + $doctor
   Write-PcOk 'install' $extra ('prevcarga: instalado ' + $v + ' em ' + $script:Root + ' (bin: ' + (Join-Path $bin 'prevcarga.cmd') + ')')
+  Write-PcNextSteps $bin $pathUpdated
 }
 
 function Invoke-PcMain {
@@ -550,6 +664,7 @@ function Invoke-PcMain {
   }
   if ($script:Format -ne 'json' -and $script:Format -ne 'text') { Write-PcError 'install.usage' '-Format' 'use text ou json' }
   if ($bad) { Write-PcError 'install.usage' $bad[0] $bad[1] }
+  $script:PcProgress = ($script:Format -eq 'text') -and -not (Test-PcErrRedirected)
   if ($Rollback -and $Uninstall) { Write-PcError 'install.usage' '-Rollback -Uninstall' 'opcoes exclusivas' }
   if ($Purge -and -not $Uninstall) { Write-PcError 'install.usage' '-Purge' 'so vale com -Uninstall' }
   if ($Yes -and -not $Uninstall) { Write-PcError 'install.usage' '-Yes' 'so vale com -Uninstall' }

@@ -70,6 +70,67 @@ pc_warn() {
   [ "$PC_FORMAT" = json ] || printf 'prevcarga: aviso: %s\n' "$1" >&2
 }
 
+# --- banner, etapas e mensagens: so em texto com stderr num terminal; tudo em stderr (testes/CI/json: nada) -----------
+pc_ui() { # 0 = mostrar; a mesma regra vale para o banner, as etapas, as explicacoes e os proximos passos
+  [ "$PC_FORMAT" = json ] && return 1
+  [ -t 2 ] || return 1
+  return 0
+}
+
+pc_step() { # pc_step <n> <texto>: etapa 'prevcarga: [n/6] ...'
+  pc_ui || return 0
+  printf 'prevcarga: [%s/6] %s\n' "$1" "$2" >&2
+}
+
+pc_note() { # pc_note <texto>: explicacao de uma linha, alinhada sob o texto da etapa
+  pc_ui || return 0
+  printf '                 %s\n' "$1" >&2
+}
+
+pc_banner() { # pc_banner <versao|vazio>: o banner da CLI (scripts/lib/banner.R) com o titulo do instalador
+  pc_ui || return 0
+  printf '%s\n' 'prevcarga - instalador' >&2
+  # >>> curva do banner: copia LITERAL de .prevcarga_banner_curve() (scripts/lib/banner.R); teste de paridade em tests/install >>>
+  printf '%s\n' \
+    '                    ______          ____        ' \
+    '                ____||||||__________||||__      ' \
+    '              __||||||||||||||||||||||||||__    ' \
+    '            __||||||||||||||||||||||||||||||__  ' \
+    '____      __||||||||||||||||||||||||||||||||||__' \
+    '||||______||||||||||||||||||||||||||||||||||||||' >&2
+  # <<< curva do banner <<<
+  [ -z "$1" ] || printf 'versao %s\n' "$1" >&2
+  printf '\n' >&2
+}
+
+pc_intro() { # pc_intro <versao|vazio>: banner + o que vai acontecer (antes da etapa 1)
+  pc_ui || return 0
+  pc_banner "$1"
+  printf 'o que vai acontecer: instala sem administrador em %s\n' "$ROOT" >&2
+  printf '  o estado (state_dir) e os dados nao sao alterados; a versao atual so muda no fim, depois de tudo conferido\n' >&2
+}
+
+pc_next_steps() { # proximos passos, depois da linha 'prevcarga: instalado ...' (que fica em stdout)
+  pc_ui || return 0
+  d="$(pc_config_get data_dir)"
+  {
+    printf '\nproximos passos:\n'
+    # o bloco marcado no perfil vale tanto desta execucao (--add-to-path) quanto de uma instalacao anterior (upgrade sem a flag)
+    if [ -f "$PROFILE" ] && grep -q '^# >>> prevcarga >>>$' "$PROFILE" && grep -qF "PATH=\"$ROOT/bin:" "$PROFILE"; then
+      printf '  - %s/bin esta no PATH pelo bloco em %s, que o shell so le no login:\n' "$ROOT" "$PROFILE"
+      printf '    neste terminal rode: . %s (ou faca login de novo)\n' "$PROFILE"
+    else
+      printf '  - ponha %s/bin no PATH: export PATH="%s/bin:$PATH" (ou reinstale com --add-to-path)\n' "$ROOT" "$ROOT"
+    fi
+    printf '  - rode: prevcarga doctor (confere runtime, config e deck)\n'
+    if [ -n "$d" ]; then
+      printf '  - deck configurado: data_dir = %s (em %s/config.yaml)\n' "$d" "$ROOT"
+    else
+      printf '  - aponte o deck: reinstale com --data <dir> ou ponha data_dir: <dir> em %s/config.yaml\n' "$ROOT"
+    fi
+  } >&2
+}
+
 pc_usage_text() {
   cat <<'EOF'
 uso: install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]]
@@ -286,6 +347,9 @@ pc_fetch_verified() { # define TARBALL (fora de <raiz>) so se o sha256 conferir
     [ -f "$TARBALL" ] || pc_die install.usage "--bundle" "arquivo inexistente: $TARBALL"
     [ -n "$SHA" ] || SHA="$(pc_sha_from_sums "$(dirname "$TARBALL")/SHA256SUMS" "$(basename "$TARBALL")")"
     [ -n "$SHA" ] || pc_die install.sha_missing "$TARBALL"
+    bv="${VER:-$(basename "$TARBALL" | sed -n 's/^prevcarga-\(.*\)-linux-x86_64\.tar\.zst$/\1/p')}"
+    pc_intro "$bv"
+    pc_step 1 "bundle local $(basename "$TARBALL") (sem download)"
   else
     [ -n "$BASE" ] || BASE="https://github.com/onsbr/prevcarga"   # GitHub Releases; o bucket so por --release-base
     BASE="${BASE%/}"
@@ -298,11 +362,15 @@ pc_fetch_verified() { # define TARBALL (fora de <raiz>) so se o sha256 conferir
     nome="prevcarga-$VER-linux-x86_64.tar.zst"
     TARBALL="$TMPD/$nome"
     u="$(pc_url_release "$VER")"
+    pc_intro "$VER"
+    pc_step 1 "baixando $nome (pode levar alguns minutos)"
     pc_get "$u/$nome" "$TARBALL" || pc_die install.download_failed "$u/$nome"
     pc_get "$u/SHA256SUMS" "$TMPD/SHA256SUMS" || pc_die install.download_failed "$u/SHA256SUMS"
     SHA="$(pc_sha_from_sums "$TMPD/SHA256SUMS" "$nome")"
     [ -n "$SHA" ] || pc_die install.sha_missing "$u/SHA256SUMS" "$nome ausente do SHA256SUMS"
   fi
+  pc_step 2 "conferindo sha256 do bundle"
+  pc_note "o arquivo inteiro e conferido antes de qualquer escrita em $ROOT"
   got="$(sha256sum "$TARBALL" | cut -d' ' -f1)"
   [ "$got" = "$SHA" ] || pc_die install.sha_mismatch "$TARBALL" "esperado=$SHA obtido=$got"
 }
@@ -321,15 +389,22 @@ mkdir -p "$ROOT/versions" || pc_die install.io_failed "$ROOT"
 STAGE="$ROOT/versions/.stage-$VER"
 rm -rf "$STAGE"
 mkdir -p "$STAGE" || pc_die install.io_failed "$STAGE"
+pc_step 3 "extraindo o bundle"
+pc_note "numa area temporaria (versions/.stage-$VER); a versao atual so muda na etapa 5"
 tar --zstd -xf "$TARBALL" -C "$STAGE" --strip-components=1 2>/dev/null || pc_die install.manifest_invalid "$TARBALL" "falha ao extrair"
 [ -f "$STAGE/code/install/error-catalog.tsv" ] && PC_CATALOG="$STAGE/code/install/error-catalog.tsv"
 
 # valida TODO files[] do RUNTIME.json com o Rscript do proprio stage (R_HOME do host nunca vaza)
 [ -x "$STAGE/runtime/bin/Rscript" ] && [ -f "$STAGE/RUNTIME.json" ] || pc_die install.manifest_invalid "$STAGE/RUNTIME.json" "bundle incompleto"
+nf="$(grep -o '"path" *:' "$STAGE/RUNTIME.json" 2>/dev/null | wc -l | tr -d ' ')"
+case "$nf" in ""|0) nf="os";; esac
+pc_step 4 "validando $nf arquivos do RUNTIME.json (pode levar alguns minutos)"
+pc_note "confere o sha256 de cada arquivo do bundle antes de ativar; se algo divergir, nada muda"
 env -u R_HOME "$STAGE/runtime/bin/Rscript" --vanilla -e \
   'r <- commandArgs(TRUE)[1]; lib <- file.path(r, "code/scripts/lib"); options(prevcarga.lib = lib); source(file.path(lib, "errors.R")); source(file.path(lib, "runtime.R")); prevcarga_runtime_validate(r, strict = TRUE)' \
   "$STAGE" >/dev/null 2>&1 || pc_die install.manifest_invalid "$STAGE/RUNTIME.json"
 
+pc_step 5 "ativando a versao $VER"
 prev_cur="$(pc_read_file "$ROOT/current")"
 if [ -d "$ROOT/versions/$VER" ]; then   # reinstalacao da mesma versao: troca o diretorio
   rm -rf "$ROOT/versions/.old-$VER"
@@ -372,14 +447,18 @@ for v in $(pc_installed_versions); do
   [ -n "$prev_cur" ] && [ "$v" = "$prev_cur" ] && continue
   rm -rf "$ROOT/versions/$v"
 done
+[ -z "$prev_cur" ] || pc_note "a versao anterior ($prev_cur) fica guardada: install.sh --rollback volta para ela"
 
 pc_write_config
 mkdir -p "$STATE_EFFECTIVE" || pc_die install.io_failed "$STATE_EFFECTIVE"
 [ "$ADDPATH" = 1 ] && pc_add_to_path
 
+pc_step 6 "conferindo a instalacao (doctor)"
+pc_note "um aviso aqui nao desfaz a instalacao; 'prevcarga doctor' mostra o detalhe"
 doctor="$(env -u R_HOME "$ROOT/bin/prevcarga" doctor --format json 2>/dev/null)"
 case "$doctor" in "{"*) ;; *) doctor="null";; esac
 doctor="$(printf '%s' "$doctor" | tr -d '\n')"
 pc_emit_ok install "\"version\":\"$(pc_json_str "$VER")\",\"current\":\"$(pc_json_str "$VER")\",\"previous\":\"$(pc_json_str "$prev_cur")\",\"state_dir\":\"$(pc_json_str "$STATE_EFFECTIVE")\",\"doctor\":$doctor" \
   "prevcarga: instalado $VER em $ROOT (bin: $ROOT/bin/prevcarga)"
+pc_next_steps
 exit 0

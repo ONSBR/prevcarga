@@ -118,11 +118,52 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
   CONTROLs (variante que troca `current` antes de validar; checksum de `state\` acusa 1 arquivo). Roda instalador em processo filho sob `chcp 850`, em `powershell.exe` e `pwsh`;
   salva/restaura o Path de HKCU.
 - `tests/install/test-install-e2e-windows.R`: ponte (Pester nos dois shells + analyzer; recibo `install-e2e-windows`); fora do Windows `skip` `nao-windows`.
-- `tests/install/test-install-windows-static.R`: checagens estaticas que rodam no Linux (ASCII, sem `$env:`/HKLM, lancador sem `set `, ids no catalogo, ordem hash < `Expand-Archive`, argumentos espelhados).
-- **[DEFERRED M8.6 -> Gabriel, host Windows]** (ainda pendente apos o M8.6; ver `docs/estado/sync.md`) TUDO que executa o `.ps1`/`.cmd` (Pester, analyzer, registro HKCU, `Expand-Archive`, `cmd`, MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`,
+- `tests/install/test-install-windows-static.R`: checagens estaticas que rodam no Linux (ASCII, sem `$env:`/HKLM, lancador sem `set `, ids no catalogo, hash antes da extracao por ZipFile e sem `Expand-Archive`, zip-slip, etapas/barra so sob `IsErrorRedirected` e fora do json, argumentos espelhados).
+- **[DEFERRED M8.6 -> Gabriel, host Windows]** (ainda pendente apos o M8.6; ver `docs/estado/sync.md`) TUDO que executa o `.ps1`/`.cmd` (Pester, analyzer, registro HKCU, extracao por ZipFile, `cmd`, MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`,
   `doctor` no Windows): nao ha host Windows nem `pwsh` nesta maquina de dev; nada foi executado nem simulado.
 - Catalogo: os hints de `install.tsv` (usage, no_previous_version, preflight_failed) agora sao neutros de plataforma; `install.sh` e `install.ps1` embutem o MESMO texto (fallback pre-extracao). `install.ps1 -Help` imprime o uso.
 - **[DEFERRED M8.6]** tambem: aspas do `-e` no PS 5.1, MAX_PATH e falsos positivos do PSScriptAnalyzer (`PSUseDeclaredVarsMoreThanAssignments` nao habilitada).
+
+## Etapas e barra de progresso (2026-11-04, pedido do Gabriel: no Windows a instalacao ficava minutos sem nenhuma saida)
+- Os dois instaladores imprimem, em stderr, linhas `prevcarga: [n/6] <texto>` (ASCII), N fixo nos dois fluxos: 1 `baixando <arquivo>` ou
+  `bundle local <arquivo> (sem download)`; 2 `conferindo sha256 do bundle`; 3 `extraindo <k> arquivos` (sh: `extraindo o bundle`);
+  4 `validando <k> arquivos do RUNTIME.json (pode levar alguns minutos)` (k = ocorrencias de `"path":` no manifesto; sem contagem, `os arquivos`);
+  5 `ativando a versao <v>`; 6 `conferindo a instalacao (doctor)`. Rollback/uninstall nao tem etapa.
+- **So em `--format text` E com stderr num terminal** (`install.ps1`: `-not [Console]::IsErrorRedirected`, excecao = redirecionado; `install.sh`: `[ -t 2 ]`).
+  Com stderr redirecionado (testes, CI, scripts) ou em json nada muda: stderr vazio ou 1a linha `prevcarga: erro [<classe>] (exit <n>)`. Por isso o job
+  windows do `release.yml` (stderr redirecionado) nao mostra etapa nenhuma, de proposito.
+- `install.ps1` extrai com `System.IO.Compression.ZipFile` entrada por entrada (o `Expand-Archive` do 5.1 levava minutos com os milhares de arquivos da
+  library R) e mostra uma barra `Write-Progress` atualizada a cada ~1% das entradas, fechada com `-Completed` no `finally`. O `$ProgressPreference`
+  do script segue `SilentlyContinue` (o `Invoke-WebRequest` fica lento com a barra: o download nao tem barra, so a etapa); a funcao de extracao poe
+  `Continue` LOCAL so quando a barra esta ligada. **Zip-slip** (o `Expand-Archive` recusava): o `GetFullPath` de cada entrada tem de comecar pela raiz do
+  stage com separador final, sem caixa; senao `install.manifest_invalid` (`entrada fora do stage: ...`). Entrada de diretorio (`/` final) so cria o
+  diretorio; o `ZipArchive` e fechado em `finally`; qualquer outra falha segue `install.manifest_invalid` `falha ao extrair: ...`. Hash continua antes.
+- Testes: `tests/install/test-install-etapas-linux.R` (bundle falso minimo, sem dist/: stderr redirecionado em texto e json => nenhuma linha
+  `prevcarga: [`; CONTROL sob pty via `script` => as 6 etapas em ordem, json continua sem etapa) e as checagens estaticas de
+  `test-install-windows-static.R`. **[DEFERRED windows-vm, dono Gabriel]** execucao real da extracao/barra no 5.1 e no pwsh 7 (sem PowerShell aqui).
+
+## Banner e mensagens explicativas (2026-11-04, pedido do Gabriel: "usa o banner do prevcarga, deixa umas mensagens explicativas")
+- **Mesma regra de exibicao das etapas** (`$script:PcProgress` no ps1; `pc_ui` no sh = `--format text` e `[ -t 2 ]`), tudo em stderr. stdout
+  continua so a linha `prevcarga: instalado ...` (texto) ou o JSON unico; com stderr redirecionado o stderr de um install ok fica VAZIO.
+- **Banner** antes da etapa 1, nos dois fluxos: `prevcarga - instalador`, as 6 linhas da curva de carga da CLI e `versao <v>` (com `--bundle`/
+  `-Bundle`: `--version` ou o nome do arquivo; sem: `--version` ou o `latest.txt`; se nao der para inferir, sem a linha de versao). Sem cor.
+  A curva fica **COPIADA literalmente** no `install.ps1` (`$script:PcBannerCurve`) e no `install.sh` (`pc_banner`), entre os marcadores
+  `# >>> curva do banner` / `# <<< curva do banner <<<` (o instalador roda antes de existir bundle/R). Paridade com `.prevcarga_banner_curve()`
+  (`scripts/lib/banner.R`) em `test-install-windows-static.R`, com CONTROL (linha alterada/removida reprova): mudou a curva da CLI, copie nos dois.
+- Depois do banner, `o que vai acontecer: instala sem administrador em <raiz>` + estado/dados intocados e versao atual so troca no fim.
+  Explicacao de uma linha (alinhada sob a etapa) na 2 (hash antes de qualquer escrita), 3 (ps1: por que a extracao demora no Windows; sh: stage
+  temporario), 4 (sha256 de cada arquivo do bundle antes de ativar), 5 (se houver anterior: fica guardada para `--rollback`/`-Rollback`) e 6.
+- Depois da linha final, bloco `proximos passos:` (stderr): Windows = abrir um terminal novo para o PATH valer (ou `bin` ja estava no PATH);
+  Linux = se o perfil (`--profile`, padrao `~/.profile`) ja tem o bloco `# >>> prevcarga >>>` desta raiz (desta execucao com `--add-to-path`
+  ou de uma anterior, num upgrade sem a flag), diz que `<raiz>/bin` esta no PATH por ele, que o perfil so e lido no login, e manda rodar
+  `. <perfil>` neste terminal (ou logar de novo) -- nao promete "terminal novo" (terminal grafico abre bash sem login); sem o bloco,
+  `export PATH="<raiz>/bin:$PATH"` (ou reinstalar com `--add-to-path`);
+  `prevcarga doctor`; e, so se `data_dir` NAO estiver no `<raiz>/config.yaml`, apontar o deck (`--data`/`-Data` ou `data_dir:` no config).
+  Com `data_dir` ja configurado, so informa o valor. Texto pt-BR sem acento (ASCII; `install.sh` entrou no teste de bytes > 127).
+- Testes: `test-install-etapas-linux.R` (redirecionado: stderr vazio, stdout 1 linha; CONTROL sob pty: banner = curva da CLI + `versao 9.9.9`,
+  intro antes da etapa 1, `proximos passos:` depois da linha final, sem/com `--data`, nota de rollback na 2a versao, perfil com o bloco via
+  `--add-to-path` e num upgrade sem a flag, e CONTROL de perfil sem o bloco voltando ao `export`) e as checagens estaticas do
+  ps1 (helpers guardados por `$script:PcProgress`, so `Write-PcStream 'err'`, proximos passos logo apos o `Write-PcOk`).
 
 ## prevcarga-sync (M8.6)
 O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO para `<R>/bin/`; o uninstall remove `bin/`. Detalhe e protocolo: `docs/estado/sync.md`.
