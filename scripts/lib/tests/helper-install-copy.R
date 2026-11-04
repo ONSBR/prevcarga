@@ -66,6 +66,20 @@ pc_cli <- function(root, args = character(), env = character()) {
        raw = c(bytes(tf1), bytes(tf2)), raw_stdout = bytes(tf1), raw_stderr = bytes(tf2))
 }
 
+## Mesma chamada sob um pty (util-linux `script`): stdout e stderr chegam juntos, como num terminal. NULL quando nao ha
+## `script` (Windows, ou Linux sem util-linux): quem usa faz skip explicito. Os \r do pty sao removidos.
+pc_cli_pty <- function(root, args = character()) {
+  if (identical(.Platform$OS.type, "windows") || !nzchar(Sys.which("script"))) return(NULL)
+  cli <- file.path(root, "scripts", "prevcarga")
+  cmd <- paste(c(shQuote(pc_rscript_bin()), "--vanilla", shQuote(cli), vapply(args, shQuote, "")), collapse = " ")
+  tf <- tempfile("pc-pty"); on.exit(unlink(tf), add = TRUE)
+  st <- suppressWarnings(system2("script", c("-qec", shQuote(cmd), "/dev/null"), stdout = tf, stderr = tf))
+  n <- file.info(tf)$size
+  raw <- if (is.na(n) || n == 0) raw() else readBin(tf, "raw", n)
+  raw <- raw[raw != as.raw(13L)]
+  list(status = as.integer(st), raw = raw, lines = strsplit(rawToChar(raw), "\n")[[1L]])
+}
+
 pc_assert_ascii <- function(raw, what = "saida") {
   bad <- which(as.integer(raw) > 127L)
   if (length(bad)) stop(sprintf("%s: %d byte(s) > 127 (1o na posicao %d)", what, length(bad), bad[[1L]]))

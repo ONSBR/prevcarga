@@ -87,19 +87,27 @@ pc_note() { # pc_note <texto>: explicacao de uma linha, alinhada sob o texto da 
   printf '                 %s\n' "$1" >&2
 }
 
-pc_banner() { # pc_banner <versao|vazio>: o banner da CLI (scripts/lib/banner.R) com o titulo do instalador
+pc_banner() { # pc_banner <versao|vazio>: o banner da CLI (blueprint "Banner da CLI"; scripts/lib/banner.R) sem cor
   pc_ui || return 0
-  printf '%s\n' 'prevcarga - instalador' >&2
-  # >>> curva do banner: copia LITERAL de .prevcarga_banner_curve() (scripts/lib/banner.R); teste de paridade em tests/install >>>
+  # >>> banner: copia LITERAL de .prevcarga_banner_static() (scripts/lib/banner.R: nome + curva + eixo + identidade); paridade em tests/install >>>
   printf '%s\n' \
-    '                    ______          ____        ' \
-    '                ____||||||__________||||__      ' \
-    '              __||||||||||||||||||||||||||__    ' \
-    '            __||||||||||||||||||||||||||||||__  ' \
-    '____      __||||||||||||||||||||||||||||||||||__' \
-    '||||______||||||||||||||||||||||||||||||||||||||' >&2
-  # <<< curva do banner <<<
-  [ -z "$1" ] || printf 'versao %s\n' "$1" >&2
+    '   _ __   _ __   ___ __   __  ___   __ _  _ __   __ _   __ _' \
+    '  | '\''_ \ | '\''__| / _ \\ \ / / / __| / _` || '\''__| / _` | / _` |' \
+    '  | |_) || |   |  __/ \ V / | (__ | (_| || |   | (_| || (_| |' \
+    '  | .__/ |_|    \___|  \_/   \___| \__,_||_|    \__, | \__,_|' \
+    '  |_|                                           |___/' \
+    '' \
+    '                      ______-'\'''\'''\'''\''---_   _----_' \
+    '                  _--'\''               '\''-'\''      '\''-_' \
+    '  -_            _'\''                               '\''' \
+    '    '\''--_______--' \
+    '  |-----------+-----------+-----------+-----------|' \
+    '  0h          6h          12h         18h       24h' \
+    '' \
+    '  Previsao de carga do SIN - ONS' >&2
+  # <<< banner <<<
+  if [ -n "$1" ]; then printf '  prevcarga %s | instalador | linux-x86_64\n' "$1" >&2
+  else printf '%s\n' '  prevcarga | instalador | linux-x86_64' >&2; fi
   printf '\n' >&2
 }
 

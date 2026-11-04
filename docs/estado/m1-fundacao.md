@@ -34,7 +34,8 @@ schema long, introspeccao e spike R 4.5.3. Este arquivo e o fechamento do epico;
   (`fixtures/cli_fixture_verbs.R`, um arquivo `cli/fixture-<x>.R` por fixture) + 0/1/2/7/8 pela CLI real, 6 conjuntos de
   precedencia (normal e invertida), `--debug`, sincronia do catalogo, copia quebrada => exit 2 com CONTROL intacta.
 - `scripts/lib/tests/test-ascii-bytes.R`: nenhum byte > 127 em --help/--version/sem verbo/verbos/stubs/ids do catalogo/TSV;
-  banner nos 4 pontos e ausente em `models` e em JSON; ESC so com `--color=always`; CONTROL `fixture-accent` reprova.
+  banner (blueprint, `docs/estado/banner.md`) nunca com stdout redirecionado, em `models` nem em JSON; sob pty (CONTROL) nos 4 pontos,
+  com cor SGR so em `always`/`auto`; CONTROL `fixture-accent` reprova.
 - `scripts/lib/tests/test-static-greps.R`: 14 grep gates sobre o codigo de produto (comentarios removidos, exceto no gate de
   bytes), cada um com CONTROL de isca. Escopos: chamadas de codigo (env, datas, relogio, topologia, k-hat, dessem-switch)
   so em `.R`; `PREVCARGA_*`, unix/rede em `.R`+tsv+yaml. Permitidos: `Sys.setenv/getenv` em `runtime.R`; `now(` em `config.R`;

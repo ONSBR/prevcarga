@@ -82,21 +82,30 @@ function Write-PcNote([string]$Text) {  # explicacao de uma linha, alinhada sob 
   Write-PcStream 'err' (ConvertTo-PcAsciiText ('                 ' + $Text))
 }
 
-# >>> curva do banner: copia LITERAL de .prevcarga_banner_curve() (scripts/lib/banner.R); teste de paridade em tests/install >>>
-$script:PcBannerCurve = @(
-  '                    ______          ____        '
-  '                ____||||||__________||||__      '
-  '              __||||||||||||||||||||||||||__    '
-  '            __||||||||||||||||||||||||||||||__  '
-  '____      __||||||||||||||||||||||||||||||||||__'
-  '||||______||||||||||||||||||||||||||||||||||||||'
+# >>> banner: copia LITERAL de .prevcarga_banner_static() (scripts/lib/banner.R: nome + curva + eixo + identidade); paridade em tests/install >>>
+$script:PcBanner = @(
+  '   _ __   _ __   ___ __   __  ___   __ _  _ __   __ _   __ _'
+  '  | ''_ \ | ''__| / _ \\ \ / / / __| / _` || ''__| / _` | / _` |'
+  '  | |_) || |   |  __/ \ V / | (__ | (_| || |   | (_| || (_| |'
+  '  | .__/ |_|    \___|  \_/   \___| \__,_||_|    \__, | \__,_|'
+  '  |_|                                           |___/'
+  ''
+  '                      ______-''''''''---_   _----_'
+  '                  _--''               ''-''      ''-_'
+  '  -_            _''                               '''
+  '    ''--_______--'
+  '  |-----------+-----------+-----------+-----------|'
+  '  0h          6h          12h         18h       24h'
+  ''
+  '  Previsao de carga do SIN - ONS'
 )
-# <<< curva do banner <<<
+# <<< banner <<<
 
-function Write-PcIntro([string]$V) {  # banner da CLI com o titulo do instalador + o que vai acontecer (antes da etapa 1)
+function Write-PcIntro([string]$V) {  # banner da CLI (blueprint "Banner da CLI", sem cor) + o que vai acontecer (antes da etapa 1)
   if (-not $script:PcProgress) { return }
-  $lines = @('prevcarga - instalador') + $script:PcBannerCurve
-  if ($V) { $lines += ('versao ' + $V) }
+  $lines = @() + $script:PcBanner
+  if ($V) { $lines += ('  prevcarga ' + $V + ' | instalador | windows-x86_64') }
+  else { $lines += '  prevcarga | instalador | windows-x86_64' }
   $lines += ''
   $lines += ('o que vai acontecer: instala sem administrador em ' + $script:Root)
   $lines += '  o estado (state_dir) e os dados nao sao alterados; a versao atual so muda no fim, depois de tudo conferido'

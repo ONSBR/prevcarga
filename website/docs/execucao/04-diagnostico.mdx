@@ -41,7 +41,7 @@ Nenhum dos cinco treina, infere ou grava artefato: eles só leem o ambiente, a c
 
 Os verbos isentos (`exempt = TRUE`, ADR-0022) não abortam quando o runtime não consegue fixar fuso, locale ou threads, nem quando o `config.yaml` está quebrado. Nesse caso o contexto é montado em modo tolerante: o `config.yaml` é ignorado, valem os defaults e as flags, e o erro de configuração vira uma linha do diagnóstico. Os demais verbos rodam o runtime estrito como primeira ação e saem com 7 se ele falhar. O porquê está em [Runtime](/arquitetura/runtime).
 
-Todos aceitam as flags globais, inclusive `--format=json`. Em JSON a saída é o envelope único da CLI, com `ok`, `verb`, `exit_code`, `error`, `warnings`, `result`, `run_id` e `version`. O banner só aparece no texto do `doctor` (e em `--help`, `--version` e sem verbo), nunca em JSON.
+Todos aceitam as flags globais, inclusive `--format=json`. Em JSON a saída é o envelope único da CLI, com `ok`, `verb`, `exit_code`, `error`, `warnings`, `result`, `run_id` e `version`. O banner só aparece no texto do `doctor` (e em `--help`, `--version` e sem verbo), e só quando o stdout é um terminal: nunca em JSON nem com a saída redirecionada.
 
 ## doctor
 

@@ -17,7 +17,7 @@ fontes:
   - docs/reference/MANUAL-USUARIO.md
 adrs: [ADR-0038, ADR-0040, ADR-0036, ADR-0039, ADR-0017]
 revisado_em: 2026-11-04
-commit_base: "e858db4"
+commit_base: "a95f75d"
 ---
 
 <span className="pc-overline">Execução · 3.2</span>
@@ -168,19 +168,26 @@ No modo JSON, o sucesso do `install.ps1` acrescenta `install_root`, `retained` (
 
 ## O que aparece na tela
 
-Num terminal, os dois instaladores mostram o banner do PrevCarga com a versão que está sendo instalada, uma linha com o que vai acontecer e seis etapas numeradas: `prevcarga: [1/6]` a `[6/6]`. As etapas são origem do bundle, sha256, extração, validação dos arquivos, ativação e `doctor`, e as mais demoradas vêm com uma linha de explicação. No Windows a extração tem barra de progresso: são milhares de arquivos pequenos, e o antivírus examina cada um. A validação confere o sha256 de cada arquivo do bundle e pode levar alguns minutos. Depois da linha `prevcarga: instalado ...` vêm os próximos passos: abrir um terminal novo para o `PATH` valer, rodar `prevcarga doctor` e apontar o deck, se o `data_dir` ainda não estiver configurado.
+Num terminal, os dois instaladores mostram o banner do PrevCarga (o mesmo da CLI, sem cor: o nome, a curva de carga de um dia com o eixo de 0h a 24h e a linha `Previsao de carga do SIN - ONS`), seguido de `prevcarga <versão> | instalador | <plataforma>`, uma linha com o que vai acontecer e seis etapas numeradas: `prevcarga: [1/6]` a `[6/6]`. As etapas são origem do bundle, sha256, extração, validação dos arquivos, ativação e `doctor`, e as mais demoradas vêm com uma linha de explicação. No Windows a extração tem barra de progresso: são milhares de arquivos pequenos, e o antivírus examina cada um. A validação confere o sha256 de cada arquivo do bundle e pode levar alguns minutos. Depois da linha `prevcarga: instalado ...` vêm os próximos passos: abrir um terminal novo para o `PATH` valer, rodar `prevcarga doctor` e apontar o deck, se o `data_dir` ainda não estiver configurado.
 
 Saída completa de uma primeira instalação da 0.1.1 a partir de um arquivo local, sem `-Data`/`--data`. No Windows, durante a etapa 3, aparece também a barra de progresso do PowerShell (`prevcarga: extraindo o bundle`, `i de k arquivos`) no topo da janela. Numa atualização, depois da etapa 5 vem a linha `a versao anterior (<v>) fica guardada: o instalador com -Rollback volta para ela` (no Linux, `install.sh --rollback volta para ela`). Com o `data_dir` já configurado, o último passo mostra o valor em vez de pedir para apontar o deck.
 
 ```text title="Windows: install.ps1 -Bundle prevcarga-0.1.1-windows-x86_64.zip"
-prevcarga - instalador
-                    ______          ____        
-                ____||||||__________||||__      
-              __||||||||||||||||||||||||||__    
-            __||||||||||||||||||||||||||||||__  
-____      __||||||||||||||||||||||||||||||||||__
-||||______||||||||||||||||||||||||||||||||||||||
-versao 0.1.1
+   _ __   _ __   ___ __   __  ___   __ _  _ __   __ _   __ _
+  | '_ \ | '__| / _ \\ \ / / / __| / _` || '__| / _` | / _` |
+  | |_) || |   |  __/ \ V / | (__ | (_| || |   | (_| || (_| |
+  | .__/ |_|    \___|  \_/   \___| \__,_||_|    \__, | \__,_|
+  |_|                                           |___/
+
+                      ______-''''---_   _----_
+                  _--'               '-'      '-_
+  -_            _'                               '
+    '--_______--
+  |-----------+-----------+-----------+-----------|
+  0h          6h          12h         18h       24h
+
+  Previsao de carga do SIN - ONS
+  prevcarga 0.1.1 | instalador | windows-x86_64
 
 o que vai acontecer: instala sem administrador em C:\Users\<voce>\AppData\Local\prevcarga
   o estado (state_dir) e os dados nao sao alterados; a versao atual so muda no fim, depois de tudo conferido
@@ -203,14 +210,21 @@ proximos passos:
 ```
 
 ```text title="Linux: sh install.sh --bundle prevcarga-0.1.1-linux-x86_64.tar.zst"
-prevcarga - instalador
-                    ______          ____        
-                ____||||||__________||||__      
-              __||||||||||||||||||||||||||__    
-            __||||||||||||||||||||||||||||||__  
-____      __||||||||||||||||||||||||||||||||||__
-||||______||||||||||||||||||||||||||||||||||||||
-versao 0.1.1
+   _ __   _ __   ___ __   __  ___   __ _  _ __   __ _   __ _
+  | '_ \ | '__| / _ \\ \ / / / __| / _` || '__| / _` | / _` |
+  | |_) || |   |  __/ \ V / | (__ | (_| || |   | (_| || (_| |
+  | .__/ |_|    \___|  \_/   \___| \__,_||_|    \__, | \__,_|
+  |_|                                           |___/
+
+                      ______-''''---_   _----_
+                  _--'               '-'      '-_
+  -_            _'                               '
+    '--_______--
+  |-----------+-----------+-----------+-----------|
+  0h          6h          12h         18h       24h
+
+  Previsao de carga do SIN - ONS
+  prevcarga 0.1.1 | instalador | linux-x86_64
 
 o que vai acontecer: instala sem administrador em /home/<voce>/.local/share/prevcarga
   o estado (state_dir) e os dados nao sao alterados; a versao atual so muda no fim, depois de tudo conferido
