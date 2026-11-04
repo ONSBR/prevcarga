@@ -4,7 +4,7 @@
 e <- bb_env()
 root <- bb_root()
 
-test_that("[FORBIDDEN] [BUNDLE] code/: inclui scripts/prevcarga, scripts/lib/, models/, config/ e renv.lock; exclui tools, tests, *.md, models/*/models", {
+test_that("[FORBIDDEN] [BUNDLE] code/: inclui scripts/prevcarga, scripts/lib/, models/, config/, renv.lock, LICENSE e NOTICE; exclui tools, tests, *.md, models/*/models", {
   st <- bb_stage(e)
   fs <- list.files(file.path(st, "code"), recursive = TRUE, all.files = TRUE)
   expect_true("scripts/prevcarga" %in% fs)
@@ -12,6 +12,8 @@ test_that("[FORBIDDEN] [BUNDLE] code/: inclui scripts/prevcarga, scripts/lib/, m
   expect_true(any(startsWith(fs, "models/")) && "models/random-forest/run.yaml" %in% fs)
   expect_true(any(startsWith(fs, "config/")))
   expect_true("renv.lock" %in% fs)
+  expect_true(all(c("LICENSE", "NOTICE") %in% fs))
+  expect_true(any(grepl("Apache License", readLines(file.path(st, "code", "LICENSE"), n = 5L))))
   expect_false(any(grepl("^scripts/tools/|^scripts/data-prep/", fs)))
   expect_false(any(grepl("(^|/)tests/", fs)))
   expect_false(any(grepl("\\.md$", fs)))
@@ -22,15 +24,15 @@ test_that("[CONTROL] [BUNDLE] code/: iscas (tools, data-prep, tests, README.md, 
   src <- withr::local_tempdir()
   for (d in c("scripts/lib", "scripts/tools", "scripts/data-prep", "scripts/lib/tests", "models/m1/R", "models/m1/tests",
               "models/m1/models", "config")) dir.create(file.path(src, d), recursive = TRUE)
-  writeLines("{}", file.path(src, "renv.lock"))
+  writeLines("{}", file.path(src, "renv.lock")); for (l in c("LICENSE", "NOTICE")) writeLines("x", file.path(src, l))
   keep <- c("scripts/prevcarga", "scripts/lib/a.R", "models/m1/R/b.R", "models/m1/run.yaml", "config/config.yaml")
   drop <- c("scripts/tools/t.R", "scripts/data-prep/d.R", "scripts/lib/tests/test-a.R", "models/m1/tests/t.R",
             "models/m1/models/artefato.rds", "scripts/lib/README.md", "models/m1/README.md")
   for (p in c(keep, drop)) writeLines("x", file.path(src, p))
   dest <- withr::local_tempdir()
   got <- e$pc_code_tree(src, dest)
-  expect_setequal(got, c(keep, "renv.lock"))
-  expect_setequal(list.files(dest, recursive = TRUE), c(keep, "renv.lock"))
+  expect_setequal(got, c(keep, "renv.lock", "LICENSE", "NOTICE"))
+  expect_setequal(list.files(dest, recursive = TRUE), c(keep, "renv.lock", "LICENSE", "NOTICE"))
 })
 
 test_that("[FORBIDDEN] [BUNDLE] bundle.tsv: 3 ids da classe bundle (exit 6), ASCII, LF, ordenado, sem duplicata no catalogo", {

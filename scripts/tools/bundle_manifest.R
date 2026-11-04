@@ -28,7 +28,7 @@ pc_code_tree <- function(src, dest) {
     if (!dir.exists(file.path(src, d))) return(character())
     file.path(d, list.files(file.path(src, d), recursive = TRUE, all.files = TRUE))
   }))
-  fs <- c(fs, "renv.lock")
+  fs <- c(fs, "renv.lock", "LICENSE", "NOTICE")                   # Apache-2.0: a licenca e o NOTICE viajam com o bundle
   drop <- grepl("^scripts/(tools|data-prep)/|(^|/)tests/|\\.md$|^models/[^/]+/models/", fs)
   for (f in fs[!drop]) {
     dir.create(dirname(file.path(dest, f)), recursive = TRUE, showWarnings = FALSE)
