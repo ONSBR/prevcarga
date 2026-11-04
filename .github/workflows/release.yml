@@ -75,6 +75,16 @@ jobs:
           sh "$RUNNER_TEMP/so-instalador/install.sh" --bundle "$tb" --sha256 "$sha" --root "$root"
           "$root/bin/prevcarga" --version
           "$root/bin/prevcarga" doctor
+          # upgrade e rollback (a v0.1.2 do Windows quebrava ao trocar um current que ja existia): a versao instalada vira a "anterior"
+          # 0.0.0-ci, o mesmo bundle e instalado por cima (troca current, previous e config.yaml existentes), depois rollback e de volta
+          mv "$root/versions/$V" "$root/versions/0.0.0-ci" && printf '0.0.0-ci\n' > "$root/current" && printf 'x\n' > "$root/previous"
+          sh "$RUNNER_TEMP/so-instalador/install.sh" --bundle "$tb" --sha256 "$sha" --root "$root"
+          [ "$(cat "$root/current")" = "$V" ] && [ "$(cat "$root/previous")" = 0.0.0-ci ]
+          sh "$RUNNER_TEMP/so-instalador/install.sh" --rollback --root "$root"
+          [ "$(cat "$root/current")" = 0.0.0-ci ]
+          sh "$RUNNER_TEMP/so-instalador/install.sh" --bundle "$tb" --sha256 "$sha" --root "$root"
+          [ "$(cat "$root/current")" = "$V" ]
+          "$root/bin/prevcarga" --version
 
       - uses: actions/upload-artifact@v4
         with:
@@ -118,6 +128,23 @@ jobs:
           & "$root\bin\prevcarga.cmd" --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "$root\bin\prevcarga.cmd" doctor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # upgrade e rollback (a v0.1.2 quebrava ao trocar um current que ja existia: [IO.File]::Replace com $null): a versao instalada vira a
+          # "anterior" 0.0.0-ci, o mesmo bundle e instalado por cima (troca current, previous e config.yaml existentes), depois rollback e de volta
+          $inst = Join-Path $solo 'install.ps1'
+          function Get-Line([string]$n) { (Get-Content -LiteralPath (Join-Path $root $n) -TotalCount 1).Trim() }
+          Rename-Item -LiteralPath "$root\versions\$env:V" -NewName '0.0.0-ci'
+          [IO.File]::WriteAllText("$root\current", "0.0.0-ci`n"); [IO.File]::WriteAllText("$root\previous", "x`n")
+          & powershell -NoProfile -ExecutionPolicy Bypass -File $inst -Bundle $zip -Sha256 $sha -Root $root
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-Line current) -ne $env:V -or (Get-Line previous) -ne '0.0.0-ci') { Write-Error 'upgrade: current/previous errados'; exit 1 }
+          & powershell -NoProfile -ExecutionPolicy Bypass -File $inst -Rollback -Root $root
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-Line current) -ne '0.0.0-ci') { Write-Error 'rollback: current errado'; exit 1 }
+          & powershell -NoProfile -ExecutionPolicy Bypass -File $inst -Bundle $zip -Sha256 $sha -Root $root
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-Line current) -ne $env:V) { Write-Error 'reinstalacao: current errado'; exit 1 }
+          & "$root\bin\prevcarga.cmd" --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - uses: actions/upload-artifact@v4

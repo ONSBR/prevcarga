@@ -278,7 +278,7 @@ function Write-PcFileSwap([string]$Path, [string]$Content) {  # tempfile no mesm
   $tmp = Join-Path (Split-Path -Parent $Path) ('.tmp.' + [guid]::NewGuid().ToString('N'))
   try {
     [IO.File]::WriteAllText($tmp, $Content + "`n", (New-Object Text.UTF8Encoding $false))
-    if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($tmp, $Path, $null) } else { [IO.File]::Move($tmp, $Path) }
+    if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($tmp, $Path, [NullString]::Value) } else { [IO.File]::Move($tmp, $Path) }
   } catch {
     if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
     Write-PcError 'install.io_failed' $Path $_.Exception.Message
@@ -339,7 +339,7 @@ function Write-PcConfig {  # config.yaml da instalacao (schema v1 do M1.4a); pre
   $tmp = Join-Path $script:Root ('.config.' + [guid]::NewGuid().ToString('N'))
   try {
     [IO.File]::WriteAllText($tmp, $text, (New-Object Text.UTF8Encoding $false))
-    if (Test-Path -LiteralPath $cfg) { [IO.File]::Replace($tmp, $cfg, $null) } else { [IO.File]::Move($tmp, $cfg) }
+    if (Test-Path -LiteralPath $cfg) { [IO.File]::Replace($tmp, $cfg, [NullString]::Value) } else { [IO.File]::Move($tmp, $cfg) }
   } catch {
     Write-PcError 'install.io_failed' $cfg $_.Exception.Message
   }
