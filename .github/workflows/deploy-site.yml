@@ -25,6 +25,8 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # o check-sources compara commit_base..HEAD
       - uses: actions/setup-node@v4
         with:
           node-version-file: website/.nvmrc
