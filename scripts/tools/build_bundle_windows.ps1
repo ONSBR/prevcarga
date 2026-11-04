@@ -113,6 +113,10 @@ $CodeDir = Join-Path $Root 'code'
 Run $Rscript @('--vanilla', $BM, 'code-tree', '--src', $ArchSrc, '--dest', $CodeDir)
 New-Item -ItemType Directory -Force -Path (Join-Path $CodeDir 'install') | Out-Null
 Run $Rscript @('--vanilla', (Join-Path $ArchSrc 'scripts\tools\export_error_catalog.R'), '--out', (Join-Path $CodeDir 'install\error-catalog.tsv'))
+# lancador e prevcarga-sync (espelho do build Linux): o install.ps1 os copia de code\install\ para <raiz>\bin
+foreach ($n in 'prevcarga.cmd', 'prevcarga-sync.ps1', 'prevcarga-sync.cmd') {
+  Copy-Item -LiteralPath (Join-Path $ArchSrc ('install\' + $n)) -Destination (Join-Path $CodeDir ('install\' + $n)) -Force
+}
 Run $Rscript @('--vanilla', $BM, 'write', '--root', $Root, '--version', $Version, '--platform', $Platform,
                '--code-commit', $Commit, '--built-at', $BuiltAt, '--compilados-tsv', $Comp)
 

@@ -76,6 +76,46 @@ function Write-PcStep([int]$N, [string]$Text) {  # 'prevcarga: [n/N] ...' em std
   Write-PcStream 'err' (ConvertTo-PcAsciiText ('prevcarga: [' + $N + '/' + $script:PcSteps + '] ' + $Text))
 }
 
+# Banner, explicacoes e proximos passos: a MESMA regra das etapas ($script:PcProgress), tudo em stderr.
+function Write-PcNote([string]$Text) {  # explicacao de uma linha, alinhada sob o texto da etapa
+  if (-not $script:PcProgress) { return }
+  Write-PcStream 'err' (ConvertTo-PcAsciiText ('                 ' + $Text))
+}
+
+# >>> curva do banner: copia LITERAL de .prevcarga_banner_curve() (scripts/lib/banner.R); teste de paridade em tests/install >>>
+$script:PcBannerCurve = @(
+  '                    ______          ____        '
+  '                ____||||||__________||||__      '
+  '              __||||||||||||||||||||||||||__    '
+  '            __||||||||||||||||||||||||||||||__  '
+  '____      __||||||||||||||||||||||||||||||||||__'
+  '||||______||||||||||||||||||||||||||||||||||||||'
+)
+# <<< curva do banner <<<
+
+function Write-PcIntro([string]$V) {  # banner da CLI com o titulo do instalador + o que vai acontecer (antes da etapa 1)
+  if (-not $script:PcProgress) { return }
+  $lines = @('prevcarga - instalador') + $script:PcBannerCurve
+  if ($V) { $lines += ('versao ' + $V) }
+  $lines += ''
+  $lines += ('o que vai acontecer: instala sem administrador em ' + $script:Root)
+  $lines += '  o estado (state_dir) e os dados nao sao alterados; a versao atual so muda no fim, depois de tudo conferido'
+  Write-PcStream 'err' (ConvertTo-PcAsciiText ($lines -join "`n"))
+}
+
+function Write-PcNextSteps([string]$Bin, [bool]$PathUpdated) {  # depois da linha 'prevcarga: instalado ...' (que fica em stdout)
+  if (-not $script:PcProgress) { return }
+  $cfg = Join-Path $script:Root 'config.yaml'
+  $lines = @('', 'proximos passos:')
+  if ($PathUpdated) { $lines += ('  - abra um terminal novo para o PATH valer (' + $Bin + ' entrou no PATH do usuario)') }
+  else { $lines += ('  - ' + $Bin + ' ja esta no PATH do usuario (num terminal aberto antes da instalacao, abra um novo)') }
+  $lines += '  - rode: prevcarga doctor (confere runtime, config e deck)'
+  $d = Get-PcConfigValue 'data_dir'
+  if ($d) { $lines += ('  - deck configurado: data_dir = ' + $d + ' (em ' + $cfg + ')') }
+  else { $lines += ('  - aponte o deck: reinstale com -Data <dir> ou ponha data_dir: <dir> em ' + $cfg) }
+  Write-PcStream 'err' (ConvertTo-PcAsciiText ($lines -join "`n"))
+}
+
 # --- erros (ADR-0040) ----------------------------------------------------------------------------------------------
 function Get-PcExitForClass([string]$Class) {
   switch ($Class) { 'bundle' { return 6 } 'config' { return 8 } 'integrity' { return 9 } 'network' { return 10 } default { return 1 } }
@@ -370,6 +410,9 @@ function Get-PcVerifiedBundle {  # devolve o caminho do zip (fora de <R>) so se 
   if ($Bundle) {
     $zip = $script:Bundle
     if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) { Write-PcError 'install.usage' '-Bundle' ('arquivo inexistente: ' + $zip) }
+    $bv = $script:Version
+    if (-not $bv -and (Split-Path -Leaf $zip) -match '^prevcarga-(.+)-windows-x86_64\.zip$') { $bv = $Matches[1] }
+    Write-PcIntro $bv
     Write-PcStep 1 ('bundle local ' + (Split-Path -Leaf $zip) + ' (sem download)')
     $sha = $script:Sha256
     if (-not $sha) { $sha = Get-PcShaFromSums (Join-Path (Split-Path -Parent $zip) 'SHA256SUMS') (Split-Path -Leaf $zip) }
@@ -392,6 +435,7 @@ function Get-PcVerifiedBundle {  # devolve o caminho do zip (fora de <R>) so se 
     $zip = Join-Path $script:PcTemp $name
     $sums = Join-Path $script:PcTemp 'SHA256SUMS'
     $u = if ($gh) { $base + '/releases/download/v' + $script:Version + '/' } else { $base + '/releases/' + $script:Version + '/' }
+    Write-PcIntro $script:Version
     Write-PcStep 1 ('baixando ' + $name + ' (sem barra; pode levar alguns minutos)')
     if (-not (Get-PcFile ($u + $name) $zip)) { Write-PcError 'install.download_failed' ($u + $name) }
     if (-not (Get-PcFile ($u + 'SHA256SUMS') $sums)) { Write-PcError 'install.download_failed' ($u + 'SHA256SUMS') }
@@ -399,6 +443,7 @@ function Get-PcVerifiedBundle {  # devolve o caminho do zip (fora de <R>) so se 
     if (-not $sha) { Write-PcError 'install.sha_missing' ($u + 'SHA256SUMS') ($name + ' ausente do SHA256SUMS') }
   }
   Write-PcStep 2 'conferindo sha256 do bundle'
+  Write-PcNote ('o arquivo inteiro e conferido antes de qualquer escrita em ' + $script:Root)
   $got = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
   if ($got -ne $sha.ToLowerInvariant()) { Write-PcError 'install.sha_mismatch' $zip ('esperado=' + $sha.ToLowerInvariant() + ' obtido=' + $got) }
   return $zip
@@ -416,6 +461,7 @@ function Expand-PcZip([string]$Zip, [string]$Dest) {  # ZipFile entrada por entr
     $za = [IO.Compression.ZipFile]::OpenRead($Zip)
     $total = $za.Entries.Count
     Write-PcStep 3 ('extraindo ' + $total + ' arquivos')
+    Write-PcNote 'no Windows demora: sao milhares de arquivos pequenos e o antivirus examina cada um; a barra mostra o andamento'
     $every = [Math]::Max(1, [int][Math]::Ceiling($total / 100.0))   # barra a cada ~1%, nao a cada arquivo
     $i = 0
     foreach ($e in $za.Entries) {
@@ -523,6 +569,7 @@ function Invoke-PcInstall {
     $nf = Get-PcManifestCount (Join-Path $content 'RUNTIME.json')
     $what = 'os arquivos'; if ($nf -gt 0) { $what = [string]$nf + ' arquivos' }
     Write-PcStep 4 ('validando ' + $what + ' do RUNTIME.json (pode levar alguns minutos)')
+    Write-PcNote 'confere o sha256 de cada arquivo do bundle antes de ativar; se algo divergir, nada muda'
   }
   $rcode = "r <- commandArgs(TRUE)[1]; lib <- file.path(r, 'code/scripts/lib'); options(prevcarga.lib = lib); source(file.path(lib, 'errors.R')); source(file.path(lib, 'runtime.R')); prevcarga_runtime_validate(r, strict = TRUE)"
   $res = Invoke-PcNative $rs @('--vanilla', '-e', $rcode, $content)
@@ -588,12 +635,14 @@ function Invoke-PcInstall {
     if ($x -eq $v -or ($prevCur -and $x -eq $prevCur)) { continue }
     Remove-Item -LiteralPath (Join-Path $versions $x) -Recurse -Force -ErrorAction SilentlyContinue
   }
+  if ($prevCur) { Write-PcNote ('a versao anterior (' + $prevCur + ') fica guardada: o instalador com -Rollback volta para ela') }
 
   Write-PcConfig
   try { [void](New-Item -ItemType Directory -Force -Path $script:StateEffective) } catch { Write-PcError 'install.io_failed' $script:StateEffective $_.Exception.Message }
   $pathUpdated = Sync-PcUserPath $bin $false
 
   Write-PcStep 6 'conferindo a instalacao (doctor)'
+  Write-PcNote "um aviso aqui nao desfaz a instalacao; 'prevcarga doctor' mostra o detalhe"
   $d = Invoke-PcNative (Join-Path $bin 'prevcarga.cmd') @('doctor', '--format', 'json')
   $doctor = $d[1].Trim()
   if (-not $doctor.StartsWith('{')) { $doctor = 'null' } else { $doctor = ($doctor -replace "[`r`n]+", '') }
@@ -604,6 +653,7 @@ function Invoke-PcInstall {
     ',"retained":[' + (($retained | ForEach-Object { ConvertTo-PcJsonString $_ }) -join ',') + ']' +
     ',"state_dir":' + (ConvertTo-PcJsonString (ConvertTo-PcSlash $script:StateEffective)) + ',"path_updated":' + $pj + ',"doctor":' + $doctor
   Write-PcOk 'install' $extra ('prevcarga: instalado ' + $v + ' em ' + $script:Root + ' (bin: ' + (Join-Path $bin 'prevcarga.cmd') + ')')
+  Write-PcNextSteps $bin $pathUpdated
 }
 
 function Invoke-PcMain {

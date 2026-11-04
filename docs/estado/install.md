@@ -142,6 +142,29 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
   `prevcarga: [`; CONTROL sob pty via `script` => as 6 etapas em ordem, json continua sem etapa) e as checagens estaticas de
   `test-install-windows-static.R`. **[DEFERRED windows-vm, dono Gabriel]** execucao real da extracao/barra no 5.1 e no pwsh 7 (sem PowerShell aqui).
 
+## Banner e mensagens explicativas (2026-11-04, pedido do Gabriel: "usa o banner do prevcarga, deixa umas mensagens explicativas")
+- **Mesma regra de exibicao das etapas** (`$script:PcProgress` no ps1; `pc_ui` no sh = `--format text` e `[ -t 2 ]`), tudo em stderr. stdout
+  continua so a linha `prevcarga: instalado ...` (texto) ou o JSON unico; com stderr redirecionado o stderr de um install ok fica VAZIO.
+- **Banner** antes da etapa 1, nos dois fluxos: `prevcarga - instalador`, as 6 linhas da curva de carga da CLI e `versao <v>` (com `--bundle`/
+  `-Bundle`: `--version` ou o nome do arquivo; sem: `--version` ou o `latest.txt`; se nao der para inferir, sem a linha de versao). Sem cor.
+  A curva fica **COPIADA literalmente** no `install.ps1` (`$script:PcBannerCurve`) e no `install.sh` (`pc_banner`), entre os marcadores
+  `# >>> curva do banner` / `# <<< curva do banner <<<` (o instalador roda antes de existir bundle/R). Paridade com `.prevcarga_banner_curve()`
+  (`scripts/lib/banner.R`) em `test-install-windows-static.R`, com CONTROL (linha alterada/removida reprova): mudou a curva da CLI, copie nos dois.
+- Depois do banner, `o que vai acontecer: instala sem administrador em <raiz>` + estado/dados intocados e versao atual so troca no fim.
+  Explicacao de uma linha (alinhada sob a etapa) na 2 (hash antes de qualquer escrita), 3 (ps1: por que a extracao demora no Windows; sh: stage
+  temporario), 4 (sha256 de cada arquivo do bundle antes de ativar), 5 (se houver anterior: fica guardada para `--rollback`/`-Rollback`) e 6.
+- Depois da linha final, bloco `proximos passos:` (stderr): Windows = abrir um terminal novo para o PATH valer (ou `bin` ja estava no PATH);
+  Linux = se o perfil (`--profile`, padrao `~/.profile`) ja tem o bloco `# >>> prevcarga >>>` desta raiz (desta execucao com `--add-to-path`
+  ou de uma anterior, num upgrade sem a flag), diz que `<raiz>/bin` esta no PATH por ele, que o perfil so e lido no login, e manda rodar
+  `. <perfil>` neste terminal (ou logar de novo) -- nao promete "terminal novo" (terminal grafico abre bash sem login); sem o bloco,
+  `export PATH="<raiz>/bin:$PATH"` (ou reinstalar com `--add-to-path`);
+  `prevcarga doctor`; e, so se `data_dir` NAO estiver no `<raiz>/config.yaml`, apontar o deck (`--data`/`-Data` ou `data_dir:` no config).
+  Com `data_dir` ja configurado, so informa o valor. Texto pt-BR sem acento (ASCII; `install.sh` entrou no teste de bytes > 127).
+- Testes: `test-install-etapas-linux.R` (redirecionado: stderr vazio, stdout 1 linha; CONTROL sob pty: banner = curva da CLI + `versao 9.9.9`,
+  intro antes da etapa 1, `proximos passos:` depois da linha final, sem/com `--data`, nota de rollback na 2a versao, perfil com o bloco via
+  `--add-to-path` e num upgrade sem a flag, e CONTROL de perfil sem o bloco voltando ao `export`) e as checagens estaticas do
+  ps1 (helpers guardados por `$script:PcProgress`, so `Write-PcStream 'err'`, proximos passos logo apos o `Write-PcOk`).
+
 ## prevcarga-sync (M8.6)
 O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO para `<R>/bin/`; o uninstall remove `bin/`. Detalhe e protocolo: `docs/estado/sync.md`.
 

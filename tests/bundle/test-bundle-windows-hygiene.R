@@ -79,3 +79,28 @@ test_that("[FORBIDDEN] [BUNDLE] windows_hygiene: build_bundle_windows.ps1 e ASCI
   expect_true(any(grepl("R-4\\.5\\.3-win\\.exe", l)))
   expect_true(any(grepl("/CURRENTUSER", l, fixed = TRUE)))
 })
+
+## O install.ps1 instala o lancador e o prevcarga-sync a partir de code\install\ do bundle. Na 0.1.0 o build nao os copiava e o CI nao viu:
+## ele rodava o install\install.ps1 do repo, cujo fallback acha install\prevcarga.cmd ao lado. Aqui: o build copia os tres antes do RUNTIME.json.
+bh_win_launchers <- c("prevcarga.cmd", "prevcarga-sync.ps1", "prevcarga-sync.cmd")
+bh_copied_before_write <- function(l) {
+  i_cp <- grep("foreach \\(\\$n in 'prevcarga.cmd', 'prevcarga-sync.ps1', 'prevcarga-sync.cmd'\\)", l)
+  i_do <- grep("Copy-Item -LiteralPath (Join-Path $ArchSrc ('install\\' + $n)) -Destination (Join-Path $CodeDir ('install\\' + $n))", l, fixed = TRUE)
+  i_wr <- grep("$BM, 'write'", l, fixed = TRUE)
+  length(i_cp) == 1L && length(i_do) == 1L && length(i_wr) == 1L && i_cp < i_do && i_do < i_wr
+}
+test_that("[FORBIDDEN] [BUNDLE] windows_hygiene: build_bundle_windows.ps1 poe prevcarga.cmd e prevcarga-sync.{ps1,cmd} em code/install antes do RUNTIME.json; CONTROL sem a copia", {
+  l <- readLines(file.path(root, "scripts", "tools", "build_bundle_windows.ps1"))
+  expect_true(bh_copied_before_write(l))
+  expect_false(bh_copied_before_write(l[!grepl("Copy-Item -LiteralPath (Join-Path $ArchSrc ('install", l, fixed = TRUE)]))   # CONTROL
+  for (n in bh_win_launchers) expect_true(file.exists(file.path(root, "install", n)), info = n)
+  ps1 <- readLines(file.path(root, "install", "install.ps1"))
+  for (n in bh_win_launchers) expect_true(any(grepl(n, ps1, fixed = TRUE)), info = n)   # o instalador procura os mesmos nomes
+})
+
+test_that("[FORBIDDEN] [BUNDLE] windows_hygiene: o zip Windows de dist/ traz o lancador e o prevcarga-sync em code/install", {
+  z <- bh_win_zip()
+  skip_if(is.na(z), "sem zip Windows em dist/")
+  nm <- utils::unzip(z, list = TRUE)$Name
+  for (n in bh_win_launchers) expect_true(paste0("prevcarga/code/install/", n) %in% nm, info = n)
+})

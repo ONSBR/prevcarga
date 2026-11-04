@@ -70,7 +70,9 @@ jobs:
           tb="$RUNNER_TEMP/dist/prevcarga-$V-linux-x86_64.tar.zst"
           sha="$(cut -d' ' -f1 "$tb.sha256")"
           root="$RUNNER_TEMP/pc"
-          sh install/install.sh --bundle "$tb" --sha256 "$sha" --root "$root"
+          # como o operador: o install.sh sozinho numa pasta, sem o resto de install/ ao lado
+          mkdir "$RUNNER_TEMP/so-instalador" && cp install/install.sh "$RUNNER_TEMP/so-instalador/"
+          sh "$RUNNER_TEMP/so-instalador/install.sh" --bundle "$tb" --sha256 "$sha" --root "$root"
           "$root/bin/prevcarga" --version
           "$root/bin/prevcarga" doctor
 
@@ -108,7 +110,10 @@ jobs:
           $zip = "$env:RUNNER_TEMP\dist\prevcarga-$env:V-windows-x86_64.zip"
           $sha = ((Get-Content -LiteralPath "$zip.sha256" -TotalCount 1) -split '\s+')[0]
           $root = "$env:RUNNER_TEMP\pc"
-          & powershell -NoProfile -ExecutionPolicy Bypass -File install\install.ps1 -Bundle $zip -Sha256 $sha -Root $root
+          # como o operador: o install.ps1 sozinho numa pasta (o fallback para install\ ao lado escondeu o lancador ausente do bundle na 0.1.0)
+          $solo = New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\so-instalador"
+          Copy-Item -LiteralPath install\install.ps1 -Destination $solo
+          & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $solo 'install.ps1') -Bundle $zip -Sha256 $sha -Root $root
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "$root\bin\prevcarga.cmd" --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
