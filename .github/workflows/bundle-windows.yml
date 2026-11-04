@@ -1,0 +1,65 @@
+# Build do bundle windows-x86_64 num runner Windows hospedado pelo GitHub (o build so roda em host Windows).
+# Gera prevcarga-<v>-windows-x86_64.zip + .sha256 + .RUNTIME.json com scripts/tools/build_bundle_windows.ps1,
+# instala o zip com install/install.ps1 numa raiz temporaria e roda --version e doctor pelo lancador instalado.
+# O resultado fica como artefato do run; anexar a release e passo de quem publica.
+name: bundle-windows
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versao do bundle (ex.: 0.1.0)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Versao
+        id: v
+        run: |
+          $v = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.version }}' } else { '${{ github.ref_name }}'.TrimStart('v') }
+          $cfg = (Get-Content -LiteralPath config\VERSION -TotalCount 1).Trim()
+          if ($cfg -ne $v) { Write-Error "config/VERSION ($cfg) difere da versao pedida ($v)"; exit 1 }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding ascii -Append
+
+      - name: Build do bundle
+        run: |
+          & .\scripts\tools\build_bundle_windows.ps1 -Version '${{ steps.v.outputs.version }}' -Out "$env:RUNNER_TEMP\dist"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem "$env:RUNNER_TEMP\dist" -File | Format-Table Name, Length
+
+      - name: Instalar e conferir
+        run: |
+          $v = '${{ steps.v.outputs.version }}'
+          $zip = "$env:RUNNER_TEMP\dist\prevcarga-$v-windows-x86_64.zip"
+          $sha = ((Get-Content -LiteralPath "$zip.sha256" -TotalCount 1) -split '\s+')[0]
+          $root = "$env:RUNNER_TEMP\pc"
+          & powershell -NoProfile -ExecutionPolicy Bypass -File install\install.ps1 -Bundle $zip -Sha256 $sha -Root $root
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$root\bin\prevcarga.cmd" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$root\bin\prevcarga.cmd" doctor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prevcarga-${{ steps.v.outputs.version }}-windows-x86_64
+          path: |
+            ${{ runner.temp }}/dist/prevcarga-*-windows-x86_64.zip
+            ${{ runner.temp }}/dist/prevcarga-*-windows-x86_64.zip.sha256
+            ${{ runner.temp }}/dist/prevcarga-*-windows-x86_64.RUNTIME.json
+          if-no-files-found: error
