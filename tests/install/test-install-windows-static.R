@@ -240,3 +240,14 @@ test_that("install.ps1: banner, explicacoes e proximos passos sob $script:PcProg
   # CONTROL: a guarda removida de um helper e detectada
   b <- ps1_fun("Write-PcNote"); expect_false(identical(trimws(b[-2][2]), "if (-not $script:PcProgress) { return }"))
 })
+
+## O PowerShell converte $null em "" ao passar para um parametro string do .NET: [IO.File]::Replace($tmp, $dest, $null) recebe backup ""
+## e lanca excecao sempre que o destino existe (upgrade, reinstalacao, rollback, config.yaml ja gravado). A v0.1.2 saiu assim
+## (install.io_failed em <R>\current no upgrade 0.1.1 -> 0.1.2). Sem backup = [NullString]::Value.
+test_that("nenhuma chamada .NET recebe $null literal (vira \"\"); Replace sem backup usa [NullString]::Value; CONTROL: o detector acusa", {
+  re <- "(::|\\.)[A-Za-z]+\\([^)]*\\$null"
+  expect_length(grep(re, code(ps1)), 0L)
+  expect_length(grep(re, "    [IO.File]::Replace($tmp, $Path, $null)"), 1L)   # CONTROL: a linha da v0.1.2
+  expect_length(grep("[IO.File]::Replace($tmp, $Path, [NullString]::Value)", ps1, fixed = TRUE), 1L)
+  expect_length(grep("[IO.File]::Replace($tmp, $cfg, [NullString]::Value)", ps1, fixed = TRUE), 1L)
+})

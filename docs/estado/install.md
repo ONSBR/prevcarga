@@ -100,6 +100,9 @@ Argumento desconhecido/valor ausente/`-Format` invalido => `install.usage` (exit
 - Runtime = `runtime\R\bin\Rscript.exe` (layout do M8.2; no Linux e `runtime/bin/Rscript`). Validacao: `Rscript.exe --vanilla -e ...` com
   `prevcarga_runtime_validate(strict = TRUE)` (so aspas simples no codigo R: o PS 5.1 estraga aspas duplas em argumentos nativos).
 - Troca de `current`/`previous`/`config.yaml`: tempfile no mesmo diretorio + `[IO.File]::Replace` (ou `Move` se nao existe). Nunca symlink/junction.
+  O 3o argumento do `Replace` (backup) e `[NullString]::Value`, nunca `$null`: o PowerShell converte `$null` em `""` para parametro string do .NET
+  e o `Replace` lanca excecao sempre que o destino existe. A v0.1.2 saiu assim (`install.io_failed` em `<R>\current` em todo upgrade); corrigido
+  na 0.1.3, com teste estatico que proibe `$null` em chamada .NET e o `release.yml` testando upgrade, rollback e reinstalacao nos dois sistemas.
 - PATH: `HKCU\Environment\Path` (REG_EXPAND_SZ preservado, `DoNotExpandEnvironmentNames`), `<R>\bin` acrescentado uma vez (comparacao sem caixa e sem `\` final),
   `WM_SETTINGCHANGE` avisa a sessao (falha vira aviso). Nunca HKLM. O `-Uninstall` remove a entrada. Em `sh` isso e opt-in (`--add-to-path`); aqui e sempre (AC 6).
 - Preflight: SO 64-bit, PowerShell >= 5.1, >= 2 GiB livres no volume de `-Root` (unidade com letra; UNC nao e checada). `-SkipPlatformCheck` vira aviso.
