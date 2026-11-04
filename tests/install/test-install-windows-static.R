@@ -58,10 +58,14 @@ test_that("[AC1/AC7] os error.id emitidos existem no catalogo de install.tsv (se
   expect_setequal(setdiff(sub("^pc_die", "", sh_ids), ""), intersect(sub("^pc_die", "", sh_ids), c(used, "install.usage")))
 })
 
-test_that("[AC1-AC4] semantica espelhada do install.sh: hash antes de Expand-Archive, stage+finally, Replace atomico, N=2, previous", {
+test_that("[AC1-AC4] semantica espelhada do install.sh: hash antes da extracao (ZipFile), stage+finally, Replace atomico, N=2, previous", {
   i_hash <- grep("Get-FileHash -Algorithm SHA256", ps1, fixed = TRUE)[1]
-  i_exp <- grep("Expand-Archive", ps1, fixed = TRUE)[1]
-  expect_true(!is.na(i_hash) && !is.na(i_exp) && i_hash < i_exp)
+  i_call <- grep("^\\s*try \\{ Expand-PcZip ", ps1)                    # a chamada da extracao no Invoke-PcInstall
+  i_inst <- grep("^function Invoke-PcInstall", ps1)
+  i_fetch <- grep("$zip = Get-PcVerifiedBundle", ps1, fixed = TRUE)
+  expect_length(i_call, 1L); expect_length(i_fetch, 1L)
+  expect_true(!is.na(i_hash) && i_hash < i_inst && i_inst < i_fetch && i_fetch < i_call)   # hash (no Get-PcVerifiedBundle) antes de extrair
+  expect_length(grep("Expand-Archive", code(ps1), fixed = TRUE), 0L)      # sem o cmdlet lento do 5.1
   expect_true(any(grepl("prevcarga_runtime_validate(r, strict = TRUE)", ps1, fixed = TRUE)))
   expect_true(any(grepl("-UseBasicParsing", ps1, fixed = TRUE)) && any(grepl("Tls12", ps1, fixed = TRUE)))
   expect_true(any(grepl("[IO.File]::Replace", ps1, fixed = TRUE)))
@@ -93,4 +97,65 @@ test_that("[AC7] install.ps1 le o catalogo GERADO pelo NOME das colunas (id,clas
   expect_false(identical(row[3L], want$message))   # CONTROL: leitura posicional (coluna 3) pegaria exit_code
   expect_true(any(grepl("$col[$f[$i]] = $i", ps1, fixed = TRUE)) || any(grepl("$col[$f[$i]] = $i", gsub("\\s+", " ", ps1), fixed = TRUE)))
   expect_true(any(grepl("$col['message']", ps1, fixed = TRUE)) && any(grepl("$col['hint']", ps1, fixed = TRUE)))
+})
+
+## Extracao por System.IO.Compression.ZipFile (M8 install-progresso): mantem a protecao de zip-slip que o Expand-Archive dava.
+ps1_fun <- function(name) {
+  i <- grep(paste0("^function ", name, "\\b"), ps1); stopifnot(length(i) == 1L)
+  j <- grep("^\\}", ps1); j <- j[j > i][1]
+  ps1[i:j]
+}
+test_that("extracao por ZipFile: zip-slip recusado (GetFullPath + separador final + sem caixa), dir so cria, ZipArchive fechado em finally", {
+  f <- ps1_fun("Expand-PcZip")
+  expect_true(any(grepl("Add-Type -AssemblyName System.IO.Compression.FileSystem", f, fixed = TRUE)))
+  expect_true(any(grepl("[IO.Compression.ZipFile]::OpenRead(", f, fixed = TRUE)))
+  expect_true(any(grepl("GetFullPath($Dest).TrimEnd('\\', '/') + '\\'", f, fixed = TRUE)))        # raiz com separador final
+  expect_true(any(grepl("GetFullPath([IO.Path]::Combine($root, $e.FullName))", f, fixed = TRUE)))
+  # o guard tem de ser a forma negada: entrada que NAO comeca pela raiz -> erro (uma inversao recusaria tudo)
+  slip_re <- "^\\s*if \\(-not \\$full\\.StartsWith\\(\\$root, \\[StringComparison\\]::OrdinalIgnoreCase\\)\\) \\{"
+  slip <- grep(slip_re, f)
+  expect_length(slip, 1L)
+  expect_true(any(grepl("Write-PcError 'install.manifest_invalid'", f[slip:(slip + 2L)], fixed = TRUE)))
+  expect_true(any(grepl("EndsWith('/')", f, fixed = TRUE)))
+  i_fin <- grep("} finally {", f, fixed = TRUE); expect_length(i_fin, 1L)
+  expect_true(any(grepl("$za.Dispose()", f[i_fin:length(f)], fixed = TRUE)))
+  expect_true(any(grepl("Write-Progress -Activity $act -Completed", f[i_fin:length(f)], fixed = TRUE)))
+  expect_true(any(grepl("$ProgressPreference = 'Continue'", f, fixed = TRUE)))   # local, so com a barra ligada
+  expect_true(any(grepl("if ($script:PcProgress) { $ProgressPreference = 'Continue' }", f, fixed = TRUE)))
+  # a falha de extracao continua manifest_invalid 'falha ao extrair' e o PCEXIT do zip-slip nao e emitido 2x
+  expect_true(any(grepl("Write-PcError 'install.manifest_invalid' $zip ('falha ao extrair: '", ps1, fixed = TRUE)))
+  expect_true(any(grepl("if ($_.Exception.Message -eq 'PCEXIT') { throw }", ps1, fixed = TRUE)))
+  # CONTROL: o detector acusa um guard invertido (sem o -not) e um guard removido
+  expect_length(grep(slip_re, sub("-not $full.StartsWith", "$full.StartsWith", f, fixed = TRUE)), 0L)
+  expect_length(grep(slip_re, f[-slip]), 0L)
+})
+
+test_that("etapas e barra so em texto com stderr no terminal: IsErrorRedirected + Format, Write-PcStep guardado, N fixo", {
+  expect_true(any(grepl("[Console]::IsErrorRedirected", ps1, fixed = TRUE)))
+  expect_true(any(grepl("$script:PcProgress = ($script:Format -eq 'text') -and -not (Test-PcErrRedirected)", ps1, fixed = TRUE)))
+  expect_true(any(grepl("$script:PcProgress = $false", ps1, fixed = TRUE)))                       # default desligado
+  st <- ps1_fun("Write-PcStep")
+  expect_true(any(grepl("if (-not $script:PcProgress) { return }", st, fixed = TRUE)))
+  expect_true(any(grepl("Write-PcStream 'err'", st, fixed = TRUE)))
+  # toda etapa passa pelo Write-PcStep e todo Write-Progress fica sob $script:PcProgress (a funcao de extracao)
+  expect_length(grep("prevcarga: \\[[0-9]", code(ps1)), 0L)                                    # nenhuma etapa escrita fora do helper
+  calls <- grep("Write-PcStep [0-9]", ps1, value = TRUE)
+  expect_setequal(as.integer(sub(".*Write-PcStep ([0-9]).*", "\\1", calls)), 1:6)
+  expect_true(any(grepl("$script:PcSteps = 6", ps1, fixed = TRUE)))
+  wp <- grep("Write-Progress", ps1)
+  f <- grep("^function Expand-PcZip", ps1); g <- grep("^\\}", ps1); g <- g[g > f][1]
+  expect_true(all(wp > f & wp < g))
+  # o script segue SilentlyContinue no topo (Invoke-WebRequest)
+  expect_true(any(grepl("^\\$ProgressPreference = 'SilentlyContinue'", ps1)))
+})
+
+test_that("install.sh: etapas so com [ -t 2 ] e fora do json, POSIX (sem bashismo no helper)", {
+  i <- grep("^pc_step\\(\\)", sh); expect_length(i, 1L)
+  body <- sh[i:(i + 4L)]
+  expect_true(any(grepl('[ "$PC_FORMAT" = json ] && return 0', body, fixed = TRUE)))
+  expect_true(any(grepl("[ -t 2 ] || return 0", body, fixed = TRUE)))
+  expect_true(any(grepl(">&2", body, fixed = TRUE)))
+  calls <- grep("pc_step [0-9]", sh, value = TRUE)
+  expect_setequal(as.integer(sub(".*pc_step ([0-9]).*", "\\1", calls)), 1:6)
+  expect_length(grep("\\[\\[|^\\s*(function|local)\\s", code(sh)), 0L)
 })

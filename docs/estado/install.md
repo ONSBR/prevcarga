@@ -118,11 +118,29 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
   CONTROLs (variante que troca `current` antes de validar; checksum de `state\` acusa 1 arquivo). Roda instalador em processo filho sob `chcp 850`, em `powershell.exe` e `pwsh`;
   salva/restaura o Path de HKCU.
 - `tests/install/test-install-e2e-windows.R`: ponte (Pester nos dois shells + analyzer; recibo `install-e2e-windows`); fora do Windows `skip` `nao-windows`.
-- `tests/install/test-install-windows-static.R`: checagens estaticas que rodam no Linux (ASCII, sem `$env:`/HKLM, lancador sem `set `, ids no catalogo, ordem hash < `Expand-Archive`, argumentos espelhados).
-- **[DEFERRED M8.6 -> Gabriel, host Windows]** (ainda pendente apos o M8.6; ver `docs/estado/sync.md`) TUDO que executa o `.ps1`/`.cmd` (Pester, analyzer, registro HKCU, `Expand-Archive`, `cmd`, MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`,
+- `tests/install/test-install-windows-static.R`: checagens estaticas que rodam no Linux (ASCII, sem `$env:`/HKLM, lancador sem `set `, ids no catalogo, hash antes da extracao por ZipFile e sem `Expand-Archive`, zip-slip, etapas/barra so sob `IsErrorRedirected` e fora do json, argumentos espelhados).
+- **[DEFERRED M8.6 -> Gabriel, host Windows]** (ainda pendente apos o M8.6; ver `docs/estado/sync.md`) TUDO que executa o `.ps1`/`.cmd` (Pester, analyzer, registro HKCU, extracao por ZipFile, `cmd`, MAX_PATH ao extrair `runtime\R\library` sob `%LOCALAPPDATA%`,
   `doctor` no Windows): nao ha host Windows nem `pwsh` nesta maquina de dev; nada foi executado nem simulado.
 - Catalogo: os hints de `install.tsv` (usage, no_previous_version, preflight_failed) agora sao neutros de plataforma; `install.sh` e `install.ps1` embutem o MESMO texto (fallback pre-extracao). `install.ps1 -Help` imprime o uso.
 - **[DEFERRED M8.6]** tambem: aspas do `-e` no PS 5.1, MAX_PATH e falsos positivos do PSScriptAnalyzer (`PSUseDeclaredVarsMoreThanAssignments` nao habilitada).
+
+## Etapas e barra de progresso (2026-11-04, pedido do Gabriel: no Windows a instalacao ficava minutos sem nenhuma saida)
+- Os dois instaladores imprimem, em stderr, linhas `prevcarga: [n/6] <texto>` (ASCII), N fixo nos dois fluxos: 1 `baixando <arquivo>` ou
+  `bundle local <arquivo> (sem download)`; 2 `conferindo sha256 do bundle`; 3 `extraindo <k> arquivos` (sh: `extraindo o bundle`);
+  4 `validando <k> arquivos do RUNTIME.json (pode levar alguns minutos)` (k = ocorrencias de `"path":` no manifesto; sem contagem, `os arquivos`);
+  5 `ativando a versao <v>`; 6 `conferindo a instalacao (doctor)`. Rollback/uninstall nao tem etapa.
+- **So em `--format text` E com stderr num terminal** (`install.ps1`: `-not [Console]::IsErrorRedirected`, excecao = redirecionado; `install.sh`: `[ -t 2 ]`).
+  Com stderr redirecionado (testes, CI, scripts) ou em json nada muda: stderr vazio ou 1a linha `prevcarga: erro [<classe>] (exit <n>)`. Por isso o job
+  windows do `release.yml` (stderr redirecionado) nao mostra etapa nenhuma, de proposito.
+- `install.ps1` extrai com `System.IO.Compression.ZipFile` entrada por entrada (o `Expand-Archive` do 5.1 levava minutos com os milhares de arquivos da
+  library R) e mostra uma barra `Write-Progress` atualizada a cada ~1% das entradas, fechada com `-Completed` no `finally`. O `$ProgressPreference`
+  do script segue `SilentlyContinue` (o `Invoke-WebRequest` fica lento com a barra: o download nao tem barra, so a etapa); a funcao de extracao poe
+  `Continue` LOCAL so quando a barra esta ligada. **Zip-slip** (o `Expand-Archive` recusava): o `GetFullPath` de cada entrada tem de comecar pela raiz do
+  stage com separador final, sem caixa; senao `install.manifest_invalid` (`entrada fora do stage: ...`). Entrada de diretorio (`/` final) so cria o
+  diretorio; o `ZipArchive` e fechado em `finally`; qualquer outra falha segue `install.manifest_invalid` `falha ao extrair: ...`. Hash continua antes.
+- Testes: `tests/install/test-install-etapas-linux.R` (bundle falso minimo, sem dist/: stderr redirecionado em texto e json => nenhuma linha
+  `prevcarga: [`; CONTROL sob pty via `script` => as 6 etapas em ordem, json continua sem etapa) e as checagens estaticas de
+  `test-install-windows-static.R`. **[DEFERRED windows-vm, dono Gabriel]** execucao real da extracao/barra no 5.1 e no pwsh 7 (sem PowerShell aqui).
 
 ## prevcarga-sync (M8.6)
 O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO para `<R>/bin/`; o uninstall remove `bin/`. Detalhe e protocolo: `docs/estado/sync.md`.

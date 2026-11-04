@@ -70,6 +70,12 @@ pc_warn() {
   [ "$PC_FORMAT" = json ] || printf 'prevcarga: aviso: %s\n' "$1" >&2
 }
 
+pc_step() { # pc_step <n> <texto>: etapa 'prevcarga: [n/6] ...' em stderr; so em texto e com stderr num terminal (testes/CI: nada)
+  [ "$PC_FORMAT" = json ] && return 0
+  [ -t 2 ] || return 0
+  printf 'prevcarga: [%s/6] %s\n' "$1" "$2" >&2
+}
+
 pc_usage_text() {
   cat <<'EOF'
 uso: install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]]
@@ -286,6 +292,7 @@ pc_fetch_verified() { # define TARBALL (fora de <raiz>) so se o sha256 conferir
     [ -f "$TARBALL" ] || pc_die install.usage "--bundle" "arquivo inexistente: $TARBALL"
     [ -n "$SHA" ] || SHA="$(pc_sha_from_sums "$(dirname "$TARBALL")/SHA256SUMS" "$(basename "$TARBALL")")"
     [ -n "$SHA" ] || pc_die install.sha_missing "$TARBALL"
+    pc_step 1 "bundle local $(basename "$TARBALL") (sem download)"
   else
     [ -n "$BASE" ] || BASE="https://github.com/onsbr/prevcarga"   # GitHub Releases; o bucket so por --release-base
     BASE="${BASE%/}"
@@ -298,11 +305,13 @@ pc_fetch_verified() { # define TARBALL (fora de <raiz>) so se o sha256 conferir
     nome="prevcarga-$VER-linux-x86_64.tar.zst"
     TARBALL="$TMPD/$nome"
     u="$(pc_url_release "$VER")"
+    pc_step 1 "baixando $nome (pode levar alguns minutos)"
     pc_get "$u/$nome" "$TARBALL" || pc_die install.download_failed "$u/$nome"
     pc_get "$u/SHA256SUMS" "$TMPD/SHA256SUMS" || pc_die install.download_failed "$u/SHA256SUMS"
     SHA="$(pc_sha_from_sums "$TMPD/SHA256SUMS" "$nome")"
     [ -n "$SHA" ] || pc_die install.sha_missing "$u/SHA256SUMS" "$nome ausente do SHA256SUMS"
   fi
+  pc_step 2 "conferindo sha256 do bundle"
   got="$(sha256sum "$TARBALL" | cut -d' ' -f1)"
   [ "$got" = "$SHA" ] || pc_die install.sha_mismatch "$TARBALL" "esperado=$SHA obtido=$got"
 }
@@ -321,15 +330,20 @@ mkdir -p "$ROOT/versions" || pc_die install.io_failed "$ROOT"
 STAGE="$ROOT/versions/.stage-$VER"
 rm -rf "$STAGE"
 mkdir -p "$STAGE" || pc_die install.io_failed "$STAGE"
+pc_step 3 "extraindo o bundle"
 tar --zstd -xf "$TARBALL" -C "$STAGE" --strip-components=1 2>/dev/null || pc_die install.manifest_invalid "$TARBALL" "falha ao extrair"
 [ -f "$STAGE/code/install/error-catalog.tsv" ] && PC_CATALOG="$STAGE/code/install/error-catalog.tsv"
 
 # valida TODO files[] do RUNTIME.json com o Rscript do proprio stage (R_HOME do host nunca vaza)
 [ -x "$STAGE/runtime/bin/Rscript" ] && [ -f "$STAGE/RUNTIME.json" ] || pc_die install.manifest_invalid "$STAGE/RUNTIME.json" "bundle incompleto"
+nf="$(grep -o '"path" *:' "$STAGE/RUNTIME.json" 2>/dev/null | wc -l | tr -d ' ')"
+case "$nf" in ""|0) nf="os";; esac
+pc_step 4 "validando $nf arquivos do RUNTIME.json (pode levar alguns minutos)"
 env -u R_HOME "$STAGE/runtime/bin/Rscript" --vanilla -e \
   'r <- commandArgs(TRUE)[1]; lib <- file.path(r, "code/scripts/lib"); options(prevcarga.lib = lib); source(file.path(lib, "errors.R")); source(file.path(lib, "runtime.R")); prevcarga_runtime_validate(r, strict = TRUE)' \
   "$STAGE" >/dev/null 2>&1 || pc_die install.manifest_invalid "$STAGE/RUNTIME.json"
 
+pc_step 5 "ativando a versao $VER"
 prev_cur="$(pc_read_file "$ROOT/current")"
 if [ -d "$ROOT/versions/$VER" ]; then   # reinstalacao da mesma versao: troca o diretorio
   rm -rf "$ROOT/versions/.old-$VER"
@@ -377,6 +391,7 @@ pc_write_config
 mkdir -p "$STATE_EFFECTIVE" || pc_die install.io_failed "$STATE_EFFECTIVE"
 [ "$ADDPATH" = 1 ] && pc_add_to_path
 
+pc_step 6 "conferindo a instalacao (doctor)"
 doctor="$(env -u R_HOME "$ROOT/bin/prevcarga" doctor --format json 2>/dev/null)"
 case "$doctor" in "{"*) ;; *) doctor="null";; esac
 doctor="$(printf '%s' "$doctor" | tr -d '\n')"
