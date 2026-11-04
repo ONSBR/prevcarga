@@ -65,7 +65,8 @@
     um script trivial `scripts/tools/upload`, único ponto com credencial. O requisito de distribuição da spec ainda diz
     "scripts de publicação"; o detalhe do `release-pack` entra no corpo do épico M8 (fase 3).
   - **Banner da CLI:** `prevcarga` + curva de carga diária de 48 intervalos, só ASCII, ≤ 63 colunas; cor opcional
-    (`color: auto|always|never` / `--color`; no Windows `auto` = sem cor); só em `--help`/`--version`/sem verbo/`doctor`.
+    (`color: auto|always|never` / `--color`; no Windows `auto` = sem cor); só em `--help`/`--version`/sem verbo/`doctor`, e só com
+    stdout em terminal. Implementado conforme o blueprint "Banner da CLI" (2026-11-04; `docs/estado/banner.md`, com as pendências).
   - **Contrato de erros (ADR-0040 proposed):** classes novas no fim da tabela do ADR-0020 — `8` config, `9` integridade,
     `10` rede (só utilitários). Toda saída de terminal em **ASCII puro, sem acento** (decisão do Gabriel: compatibilidade
     com cmd/PowerShell 5.1); HTML/PDF podem ter acento. stdout = resultado, stderr = avisos/erros; `--format json` = um

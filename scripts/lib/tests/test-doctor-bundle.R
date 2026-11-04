@@ -33,7 +33,7 @@ put_artifact <- function(missing = FALSE, bad_sha = FALSE) {
   if (missing) unlink(v, recursive = TRUE)
 }
 
-test_that("arvore de dev: itens de bundle N/A (nao-instalado), exit 0, texto ASCII com banner", {
+test_that("arvore de dev: itens de bundle N/A (nao-instalado), exit 0, texto ASCII sem banner (stdout redirecionado)", {
   unlink(file.path(root, "RUNTIME.json"))
   r <- doctor(); j <- parse_json(r)
   expect_identical(r$status, 0L)
@@ -46,7 +46,7 @@ test_that("arvore de dev: itens de bundle N/A (nao-instalado), exit 0, texto ASC
   t <- doctor("text"); expect_identical(t$status, 0L)
   pc_assert_ascii(t$raw)
   expect_true(any(grepl("N/A (nao-instalado)", t$stdout, fixed = TRUE)))
-  expect_true(length(t$stdout) > 3L && any(grepl("prevcarga", t$stdout[1:3], ignore.case = TRUE)))   # banner
+  expect_false(any(grepl("Previsao de carga do SIN - ONS", t$stdout, fixed = TRUE)))   # stdout redirecionado: sem banner (blueprint)
 })
 
 test_that("bundle instalado conforme: campos JSON, itens PASS, exit 0", {

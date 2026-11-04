@@ -145,11 +145,15 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
 ## Banner e mensagens explicativas (2026-11-04, pedido do Gabriel: "usa o banner do prevcarga, deixa umas mensagens explicativas")
 - **Mesma regra de exibicao das etapas** (`$script:PcProgress` no ps1; `pc_ui` no sh = `--format text` e `[ -t 2 ]`), tudo em stderr. stdout
   continua so a linha `prevcarga: instalado ...` (texto) ou o JSON unico; com stderr redirecionado o stderr de um install ok fica VAZIO.
-- **Banner** antes da etapa 1, nos dois fluxos: `prevcarga - instalador`, as 6 linhas da curva de carga da CLI e `versao <v>` (com `--bundle`/
-  `-Bundle`: `--version` ou o nome do arquivo; sem: `--version` ou o `latest.txt`; se nao der para inferir, sem a linha de versao). Sem cor.
-  A curva fica **COPIADA literalmente** no `install.ps1` (`$script:PcBannerCurve`) e no `install.sh` (`pc_banner`), entre os marcadores
-  `# >>> curva do banner` / `# <<< curva do banner <<<` (o instalador roda antes de existir bundle/R). Paridade com `.prevcarga_banner_curve()`
-  (`scripts/lib/banner.R`) em `test-install-windows-static.R`, com CONTROL (linha alterada/removida reprova): mudou a curva da CLI, copie nos dois.
+- **Banner** antes da etapa 1, nos dois fluxos: o banner da CLI do blueprint "Banner da CLI" (2026-11-04; o anterior, `prevcarga -
+  instalador` + curva 6x48 de `_`/`|` + `versao <v>`, foi removido): nome figlet + curva + eixo 0h..24h + `  Previsao de carga do SIN - ONS`
+  (14 linhas) e a linha `  prevcarga <v> | instalador | windows-x86_64` (Linux: `linux-x86_64`); a versao vem de `--version`/`-Version`,
+  do nome do bundle ou do `latest.txt`; sem inferir, `  prevcarga | instalador | <plataforma>`. Sem cor (os instaladores nao tem `--color`).
+  As 14 linhas ficam **COPIADAS literalmente** no `install.ps1` (`$script:PcBanner`, aspas simples, `'` dobrada) e no `install.sh`
+  (`pc_banner`, `printf '%s\n'` com aspas simples, `'` como `'\''`), entre `# >>> banner:` e `# <<< banner <<<` (o instalador roda
+  antes de existir bundle/R). Paridade com `.prevcarga_banner_static()` (`scripts/lib/banner.R`) em `test-install-windows-static.R`
+  (decodifica as aspas de cada linguagem), com CONTROL (curva/eixo alterado, aspa nao dobrada, linha removida reprovam): mudou o
+  banner da CLI, copie nos dois. `test-install-etapas-linux.R` confere as 14 linhas + a linha de versao sob pty.
 - Depois do banner, `o que vai acontecer: instala sem administrador em <raiz>` + estado/dados intocados e versao atual so troca no fim.
   Explicacao de uma linha (alinhada sob a etapa) na 2 (hash antes de qualquer escrita), 3 (ps1: por que a extracao demora no Windows; sh: stage
   temporario), 4 (sha256 de cada arquivo do bundle antes de ativar), 5 (se houver anterior: fica guardada para `--rollback`/`-Rollback`) e 6.
@@ -160,7 +164,7 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
   `export PATH="<raiz>/bin:$PATH"` (ou reinstalar com `--add-to-path`);
   `prevcarga doctor`; e, so se `data_dir` NAO estiver no `<raiz>/config.yaml`, apontar o deck (`--data`/`-Data` ou `data_dir:` no config).
   Com `data_dir` ja configurado, so informa o valor. Texto pt-BR sem acento (ASCII; `install.sh` entrou no teste de bytes > 127).
-- Testes: `test-install-etapas-linux.R` (redirecionado: stderr vazio, stdout 1 linha; CONTROL sob pty: banner = curva da CLI + `versao 9.9.9`,
+- Testes: `test-install-etapas-linux.R` (redirecionado: stderr vazio, stdout 1 linha; CONTROL sob pty: banner = as 14 linhas da CLI + `  prevcarga 9.9.9 | instalador | linux-x86_64`,
   intro antes da etapa 1, `proximos passos:` depois da linha final, sem/com `--data`, nota de rollback na 2a versao, perfil com o bloco via
   `--add-to-path` e num upgrade sem a flag, e CONTROL de perfil sem o bloco voltando ao `export`) e as checagens estaticas do
   ps1 (helpers guardados por `$script:PcProgress`, so `Write-PcStream 'err'`, proximos passos logo apos o `Write-PcOk`).

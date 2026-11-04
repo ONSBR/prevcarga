@@ -215,6 +215,19 @@ prevcarga_runtime_id <- function(path_runtime_json) {
   digest::digest(prevcarga_runtime_json_canonical(x), algo = "sha256", serialize = FALSE)
 }
 
+## RUNTIME.json do bundle instalado (em `root` ou um nivel acima, como no doctor): list(bundle_root, rt = conteudo lido,
+## runtime_id, platform, version) ou NULL fora do bundle (arvore de dev). Unico leitor usado pelo doctor e pelo banner.
+prevcarga_bundle_runtime <- function(root) {
+  if (is.null(root) || !length(root) || is.na(root[[1L]])) return(NULL)
+  cand <- c(root, dirname(root))
+  broot <- cand[file.exists(file.path(cand, "RUNTIME.json"))][1L]
+  if (is.na(broot)) return(NULL)
+  f <- file.path(broot, "RUNTIME.json")
+  rt <- jsonlite::read_json(f, simplifyVector = FALSE)
+  list(bundle_root = broot, rt = rt, runtime_id = prevcarga_runtime_id(f),
+       platform = as.character(rt$platform), version = as.character(rt$version))
+}
+
 ## Identidade do codigo que roda (bundle_id do run_manifest da entrega; chr 64). Bundle instalado (RUNTIME.json em `root` ou um
 ## nivel acima, como no doctor) => o runtime_id. Arvore de dev (sem RUNTIME.json) => sha256 das linhas `<path>\t<sha256>` (radix)
 ## da MESMA selecao do code/ do bundle (scripts/tools/bundle_manifest.R pc_code_tree: scripts, models, config, renv.lock; fora
@@ -326,9 +339,8 @@ prevcarga_bundle_require <- function(pkgs) {
 prevcarga_platform_check <- function(ctx, host = .prevcarga_host_platform(), glibc = .prevcarga_host_glibc(),
                                      r_version = as.character(getRversion())) {
   root <- ctx$root
-  cand <- c(root, dirname(root))
-  broot <- cand[file.exists(file.path(cand, "RUNTIME.json"))][1L]
-  installed <- !is.na(broot)
+  br <- prevcarga_bundle_runtime(root)
+  installed <- !is.null(br)
   ## install_root = raiz da INSTALACAO do usuario (<R>, M8.3: ctx$install_root); fora do layout instalado, a raiz do codigo.
   ## bundle_root = <R>/versions/<v> (onde mora o RUNTIME.json), so quando instalado.
   campos <- list(runtime_id = NULL, version = ctx$version, platform = host,
@@ -340,8 +352,8 @@ prevcarga_platform_check <- function(ctx, host = .prevcarga_host_platform(), gli
     rows <- do.call(rbind, lapply(na_names, function(n) .prevcarga_pc_row(n, "N/A", .prevcarga_pc_na, "-")))
     return(list(rows = rows, classes = rows$class, campos = campos))
   }
-  rt <- jsonlite::read_json(file.path(broot, "RUNTIME.json"), simplifyVector = FALSE)
-  campos$runtime_id <- prevcarga_runtime_id(file.path(broot, "RUNTIME.json"))
+  rt <- br$rt; broot <- br$bundle_root
+  campos$runtime_id <- br$runtime_id
   campos$version <- rt$version
   campos$bundle_root <- broot
   plat_ok <- identical(as.character(rt$platform), host)

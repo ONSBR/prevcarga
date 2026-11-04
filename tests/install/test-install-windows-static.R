@@ -170,31 +170,47 @@ test_that("install.sh: etapas, banner e mensagens so pelo pc_ui ([ -t 2 ] e fora
   expect_length(grep("\\[\\[|^\\s*(function|local)\\s", code(sh)), 0L)
 })
 
-## Banner do instalador = o da CLI (scripts/lib/banner.R): as 6 linhas da curva ficam COPIADAS literalmente no install.ps1 e no
-## install.sh (o instalador roda antes de existir bundle/R). Paridade com .prevcarga_banner_curve(); CONTROL: uma linha alterada reprova.
+## Banner do instalador = o da CLI (scripts/lib/banner.R, blueprint "Banner da CLI"): nome + curva + eixo + identidade (14 linhas)
+## ficam COPIADOS literalmente no install.ps1 e no install.sh (o instalador roda antes de existir bundle/R). Paridade com
+## .prevcarga_banner_static(); CONTROL: uma linha alterada ou removida reprova. A aspa simples e escrita '' no ps1 e '\'' no sh.
 banner_env <- new.env(); sys.source(file.path(root, "scripts", "lib", "banner.R"), envir = banner_env)
-CURVE <- banner_env$.prevcarga_banner_curve()
-copied_curve <- function(x) {
-  a <- grep("^\\s*# >>> curva do banner", x); z <- grep("^\\s*# <<< curva do banner <<<", x)
+STATIC <- banner_env$.prevcarga_banner_static()
+copied_block <- function(x) {
+  a <- grep("^\\s*# >>> banner:", x); z <- grep("^\\s*# <<< banner <<<", x)
   if (length(a) != 1L || length(z) != 1L || z <= a) return(character())
   seg <- x[(a + 1L):(z - 1L)]
-  m <- regmatches(seg, regexec("^\\s*'([^']*)'\\s*(\\\\)?\\s*(>&2)?\\s*$", seg))
-  vapply(Filter(length, m), `[[`, "", 2L)
+  ps <- regmatches(seg, regexec("^\\s*'((?:[^']|'')*)'\\s*$", seg, perl = TRUE))            # ps1: um literal por linha
+  sh <- regmatches(seg, regexec("^\\s*((?:'[^']*'|\\\\')+)\\s*(\\\\)?\\s*(>&2)?\\s*$", seg, perl = TRUE))   # sh: '...' + \'
+  out <- character()
+  for (k in seq_along(seg)) {
+    if (length(ps[[k]])) out <- c(out, gsub("''", "'", ps[[k]][2], fixed = TRUE))
+    else if (length(sh[[k]])) {
+      t <- gsub("'\\''", "'", sh[[k]][2], fixed = TRUE)
+      out <- c(out, substr(t, 2L, nchar(t) - 1L))
+    }
+  }
+  out
 }
-test_that("banner: a curva copiada no install.ps1 e no install.sh e identica a .prevcarga_banner_curve(); CONTROL: linha alterada reprova", {
-  expect_length(CURVE, 6L)
-  for (x in list(ps1 = ps1, sh = sh)) expect_identical(copied_curve(x), CURVE)
-  mut <- ps1; k <- grep("^\\s*'\\|\\|\\|\\|______", mut); expect_length(k, 1L)
+test_that("banner: o bloco copiado no install.ps1 e no install.sh e identico a .prevcarga_banner_static(); CONTROL: linha alterada reprova", {
+  expect_length(STATIC, 14L)
+  expect_identical(STATIC[14], "  Previsao de carga do SIN - ONS")
+  for (x in list(ps1 = ps1, sh = sh)) expect_identical(copied_block(x), STATIC)
+  mut <- ps1; k <- grep("^\\s*'                      ______-", mut); expect_length(k, 1L)
   mut[k] <- sub("______", "_____-", mut[k], fixed = TRUE)
-  expect_false(identical(copied_curve(mut), CURVE))                              # CONTROL ps1
-  mut <- sh; k <- grep("^\\s*'                    ______", mut); expect_length(k, 1L)
-  mut[k] <- sub("______", "_____ ", mut[k], fixed = TRUE)
-  expect_false(identical(copied_curve(mut), CURVE))                              # CONTROL sh
-  expect_false(identical(copied_curve(sh[-grep("^\\s*'____      __", sh)]), CURVE))   # CONTROL: linha removida
-  # titulo e linha de versao no formato da CLI; sem cor (nenhum escape ANSI)
-  expect_true(any(grepl("'prevcarga - instalador'", ps1, fixed = TRUE)) && any(grepl("'prevcarga - instalador'", sh, fixed = TRUE)))
-  expect_true(any(grepl("('versao ' + $V)", ps1, fixed = TRUE)) && any(grepl("printf 'versao %s\\n'", sh, fixed = TRUE)))
-  expect_length(grep("\\[3[0-9]m|\\x1b|\\\\033|\\\\e\\[|`e\\[", c(code(ps1), code(sh))), 0L)
+  expect_false(identical(copied_block(mut), STATIC))                             # CONTROL ps1: curva alterada
+  mut <- ps1; k <- grep("^\\s*'  \\| ''_ ", mut); expect_length(k, 1L)
+  mut[k] <- sub("''_", "'_", mut[k], fixed = TRUE)
+  expect_false(identical(copied_block(mut), STATIC))                             # CONTROL ps1: aspa nao dobrada
+  mut <- sh; k <- grep("^\\s*'  0h ", mut); expect_length(k, 1L)
+  mut[k] <- sub("6h", "6H", mut[k], fixed = TRUE)
+  expect_false(identical(copied_block(mut), STATIC))                             # CONTROL sh: eixo alterado
+  expect_false(identical(copied_block(sh[-grep("^\\s*'  Previsao de carga", sh)]), STATIC))   # CONTROL: linha removida
+  # linha de versao do instalador (antes de extrair: versao do nome do bundle); sem cor (nenhum escape ANSI)
+  expect_true(any(grepl("('  prevcarga ' + $V + ' | instalador | windows-x86_64')", ps1, fixed = TRUE)))
+  expect_true(any(grepl("printf '  prevcarga %s | instalador | linux-x86_64\\n'", sh, fixed = TRUE)))
+  for (old in c("prevcarga - instalador", "('versao ' + $V)", "printf 'versao %s"))                 # banner antigo removido
+    expect_false(any(grepl(old, c(ps1, sh), fixed = TRUE)), info = old)
+  expect_length(grep("\\[3[0-9]m|\\[90m|\\x1b|\\\\033|\\\\e\\[|`e\\[", c(code(ps1), code(sh))), 0L)
 })
 
 test_that("install.ps1: banner, explicacoes e proximos passos sob $script:PcProgress, em stderr; a linha final continua em stdout", {

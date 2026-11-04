@@ -12,7 +12,7 @@
   `where = "<verbo> -> <dono>"`. Cada epico entra criando `scripts/lib/cli/<verbo>.R`; nunca edita cli.R nem o shim.
 - `prevcarga_usage(verbs)` gera o docopt (cada linha ganha `[options]`; flags globais no bloco Options, sem
   `[default:]`: default e do config.R). Verbo/flag/posicional fora da gramatica = exit 8 `config.usage`, `where` = token.
-- `prevcarga_main(argv, verbs, root, runtime, handlers)`: `-h/--help`, `--version`, sem verbo => banner+usage/versao,
+- `prevcarga_main(argv, verbs, root, runtime, handlers)`: `-h/--help`, `--version`, sem verbo => banner (so com stdout em terminal)+usage/versao,
   exit 0, sem runtime. Verbo guardado: `runtime()` e a 1a acao do corpo (ADR-0022), depois `prevcarga_ctx`, `modules`
   (`sys.source` relativo a root) e handler. Isencao fechada: `exempt = TRUE` (doctor/status); config.yaml quebrado
   nesses verbos nao aborta: ctx de defaults+flags com `ctx$config_error`. Handler pode devolver

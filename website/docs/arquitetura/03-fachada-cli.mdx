@@ -24,7 +24,7 @@ fontes:
   - docs/adr/0022-runtime-guard-dispatch.md
 adrs: [ADR-0040, ADR-0022]
 revisado_em: 2026-11-04
-commit_base: "e858db4"
+commit_base: "a95f75d"
 ---
 
 <span className="pc-overline">Arquitetura · 2.3</span>
@@ -93,7 +93,7 @@ Com a tabela, `prevcarga_main` gera o texto de uso (`prevcarga_usage`) e faz o p
 
 | Ramo | Quando | Runtime | ctx | Saída |
 |---|---|---|---|---|
-| Topo | `argv` vazio; `-h` ou `--help` em qualquer posição; `--version` como 1º token; parse válido sem verbo | não roda | `prevcarga_ctx` sem verbo; se ele falhar, ctx tolerante | banner (salvo em `--format json`) e usage ou `prevcarga <versão>` em stdout; exit 0 |
+| Topo | `argv` vazio; `-h` ou `--help` em qualquer posição; `--version` como 1º token; parse válido sem verbo | não roda | `prevcarga_ctx` sem verbo; se ele falhar, ctx tolerante | banner (só com stdout em terminal e fora de `--format json`) e usage ou `prevcarga <versão>` em stdout; exit 0 |
 | Verbo guardado | todo verbo com `exempt = FALSE` | `prevcarga_runtime_enforce()` é a 1ª ação do corpo | `prevcarga_ctx(args, root, verb)`; erro de config aborta | resultado do handler |
 | Verbo isento | `exempt = TRUE`: hoje só `doctor` e `status` | o enforce não roda; o handler chama `prevcarga_runtime_apply()`, que não aborta | ctx normal; se `prevcarga_ctx` falhar, ctx tolerante com `ctx$config_error` | diagnóstico do ambiente; o exit vem do resultado |
 
@@ -218,7 +218,7 @@ Uma flag declarada em dois verbos vale nos dois: `--corte` serve a `backtest` e 
 
 | | `--format text` | `--format json` |
 |---|---|---|
-| Sucesso | banner (só no `doctor`), linhas do render em stdout | um único documento JSON em stdout |
+| Sucesso | banner (só no `doctor`, com stdout em terminal), linhas do render em stdout | um único documento JSON em stdout |
 | Avisos | uma linha por aviso em stderr: `prevcarga: aviso [<id>] <mensagem>` | no array `warnings` do envelope; stderr vazio |
 | Erro | quatro linhas em stderr (mais uma linha de aviso por erro acumulado); stdout vazio | o mesmo envelope em stdout, com `ok = false` e o objeto `error` |
 | Exit | o código da classe | o mesmo código, repetido em `exit_code` |
@@ -269,16 +269,40 @@ A tabela de classes e a precedência entre elas estão em [Contrato de erros e c
 
 ## Banner
 
-`scripts/lib/banner.R` desenha um banner ASCII de oito linhas: o nome, uma curva de carga diária de 6 × 48 caracteres (uma coluna por meia hora, perfil fixo e decorativo, que não lê deck nem relógio) e a linha `versao <versão>`.
+`scripts/lib/banner.R` desenha o banner ASCII do blueprint "Banner da CLI" da spec: 15 linhas de no máximo 63 colunas, só ASCII de 7 bits. São o nome `prevcarga` em letras de figlet, a curva de carga de um dia com 48 colunas (uma por meia hora, em 4 linhas com os níveis `_`, `-` e `'`) sobre o eixo de 0h a 24h, a linha `Previsao de carga do SIN - ONS` e a linha de versão. O desenho é texto fixo no código: não lê deck nem relógio.
+
+```text title="prevcarga --version (árvore de desenvolvimento, num terminal)"
+   _ __   _ __   ___ __   __  ___   __ _  _ __   __ _   __ _
+  | '_ \ | '__| / _ \\ \ / / / __| / _` || '__| / _` | / _` |
+  | |_) || |   |  __/ \ V / | (__ | (_| || |   | (_| || (_| |
+  | .__/ |_|    \___|  \_/   \___| \__,_||_|    \__, | \__,_|
+  |_|                                           |___/
+
+                      ______-''''---_   _----_
+                  _--'               '-'      '-_
+  -_            _'                               '
+    '--_______--
+  |-----------+-----------+-----------+-----------|
+  0h          6h          12h         18h       24h
+
+  Previsao de carga do SIN - ONS
+  prevcarga 0.1.1 | R 4.5.3 | linux-x86_64 | runtime dev
+prevcarga 0.1.1
+```
+
+A linha de versão traz a versão do pacote, a do R, a plataforma e os 8 primeiros caracteres do `runtime_id`. No bundle instalado, a plataforma e o `runtime_id` vêm do `RUNTIME.json`, lido por `prevcarga_bundle_runtime()` de `runtime.R`, a mesma função que o `doctor` usa. Na árvore de desenvolvimento não há `RUNTIME.json`: a plataforma é a do host e a linha diz `runtime dev`.
 
 `prevcarga_banner_wanted(ctx, verb)` decide quando ele aparece:
 
 | Situação | Banner |
 |---|---|
-| sem verbo, `--help`, `--version` | sim |
-| `doctor` | sim |
+| sem verbo, `--help`, `--version` | sim, se o stdout for um terminal |
+| `doctor` em texto | sim, se o stdout for um terminal |
 | qualquer outro verbo, inclusive `status` | não |
 | `--format json` | nunca |
+| stdout redirecionado para arquivo ou outro programa | nunca, nem com `--color=always` |
 | erro | nunca (o erro sai pelo tratador, sem passar pelo banner) |
 
-A cor vem só de `--color` (ou do `config.yaml`), nunca de variável de ambiente. `always` pinta, `never` não pinta, `auto` pinta só se o stdout for um terminal e o sistema não for Windows. A cor (ANSI ciano) se aplica só às linhas da curva.
+A cor vem só de `--color` (ou do `config.yaml`), nunca de variável de ambiente. `always` pinta, `never` não pinta, `auto` pinta só se o stdout for um terminal e o sistema não for Windows. A cor é aplicada por cima do texto puro: o nome em azul (ANSI 34), a curva em amarelo (33), o eixo, a identidade e a versão em cinza (90). Sem cor o texto é o mesmo.
+
+Os instaladores mostram o mesmo banner, sem cor, com a linha de versão trocada por `prevcarga <versão> | instalador | <plataforma>` (veja [Instalação](/execucao/instalacao)).

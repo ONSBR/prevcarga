@@ -268,27 +268,42 @@ test_that("erro inesperado: sem traceback por padrao, com --debug em stderr (ac-
   expect_true(any(grepl("stop(\"boom\")", r$err, fixed = TRUE)))
 })
 
-test_that("banner so nos pontos permitidos e ESC so com --color=always (ac-14)", {
+test_that("banner so nos pontos permitidos, so com stdout em terminal, e ESC so com --color=always (ac-14)", {
   E <- new_env()
+  E$.prevcarga_stdout_tty <- function() TRUE                      # simula stdout em terminal (capture.output nao e TTY)
   tab <- E$prevcarga_verbs_discover(fixture_dir())
   h <- list(models = (function(ctx, args) list(schema_version = 1L)))
   spy <- function() stop("runtime nao deve ser chamado")
   esc <- intToUtf8(27L)
+  ident <- "Previsao de carga do SIN - ONS"
   for (a in list("--help", character(), "--version")) {
     never <- run_main(E, c(a, "--color=never"), tab, handlers = h, runtime = spy)
     expect_identical(never$code, 0L)
-    expect_true(any(grepl("prevcarga - previsao de carga", never$out, fixed = TRUE)))
+    expect_true(any(grepl(ident, never$out, fixed = TRUE)))
+    expect_identical(never$out[1:15], E$prevcarga_banner(list(color = "never", version = E$prevcarga_ctx(list(), pc_root())$version,
+                                                              root = pc_root())))
     expect_false(any(grepl(esc, never$out, fixed = TRUE)))
     if (identical(a, "--version")) expect_true(any(grepl("^prevcarga ", never$out)))
     else expect_true(any(grepl("Usage:", never$out, fixed = TRUE)))
     always <- run_main(E, c(a, "--color=always"), tab, handlers = h, runtime = spy)
     expect_true(any(grepl(esc, always$out, fixed = TRUE)))
+    json <- run_main(E, c(a, "--format=json"), tab, handlers = h, runtime = spy)
+    expect_false(any(grepl(ident, json$out, fixed = TRUE)))
   }
   for (c in c("never", "always")) {
     r <- run_main(E, c("models", paste0("--color=", c)), tab, handlers = h)
     expect_identical(r$code, 0L)
-    expect_false(any(grepl("prevcarga - previsao", r$out, fixed = TRUE)))
+    expect_false(any(grepl(ident, r$out, fixed = TRUE)))
     expect_false(any(grepl(esc, r$out, fixed = TRUE)))
+  }
+  ## CONTROL: stdout redirecionado (nao-TTY) => sem banner nem com --color=always; o uso/versao continua
+  E$.prevcarga_stdout_tty <- function() FALSE
+  for (a in list("--help", character(), "--version")) {
+    r <- run_main(E, c(a, "--color=always"), tab, handlers = h, runtime = spy)
+    expect_identical(r$code, 0L)
+    expect_false(any(grepl(ident, r$out, fixed = TRUE)))
+    expect_false(any(grepl(esc, r$out, fixed = TRUE)))
+    if (identical(a, "--version")) expect_true(any(grepl("^prevcarga ", r$out))) else expect_true(any(grepl("Usage:", r$out, fixed = TRUE)))
   }
 })
 

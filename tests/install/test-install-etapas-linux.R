@@ -22,7 +22,7 @@ fake_bundle <- function(env = parent.frame()) {
 args_for <- function(b, fmt) c("--bundle", b$path, "--sha256", b$sha256, "--root", b$root, "--skip-platform-check", "--format", fmt)
 step_lines <- function(x) grep("^prevcarga: \\[[0-9]/6\\] ", gsub("\r", "", unlist(strsplit(x, "\n", fixed = TRUE))), value = TRUE)
 out_lines <- function(x) gsub("\r", "", unlist(strsplit(x, "\n", fixed = TRUE)))
-CURVE <- local({ e <- new.env(); sys.source(file.path(pci_root(), "scripts", "lib", "banner.R"), envir = e); e$.prevcarga_banner_curve() })
+STATIC <- local({ e <- new.env(); sys.source(file.path(pci_root(), "scripts", "lib", "banner.R"), envir = e); e$.prevcarga_banner_static() })
 
 test_that("stderr redirecionado (texto e json): instala e NENHUMA linha 'prevcarga: [' em stderr", {
   for (fmt in c("text", "json")) {
@@ -36,8 +36,8 @@ test_that("stderr redirecionado (texto e json): instala e NENHUMA linha 'prevcar
     o <- out_lines(r$stdout); o <- o[nzchar(o)]
     expect_length(o, 1L)
     if (fmt == "text") expect_match(o, "^prevcarga: instalado 9\\.9\\.9 em ") else expect_match(o, '^\\{"ok":true')
-    expect_false(any(grepl("proximos passos|o que vai acontecer|prevcarga - instalador", c(r$stdout, r$stderr))), info = fmt)
-    expect_false(any(CURVE %in% out_lines(paste(r$stdout, r$stderr))), info = fmt)
+    expect_false(any(grepl("proximos passos|o que vai acontecer|Previsao de carga do SIN|\\| instalador \\|", c(r$stdout, r$stderr))), info = fmt)
+    expect_false(any(STATIC[nzchar(STATIC)] %in% out_lines(paste(r$stdout, r$stderr))), info = fmt)
     expect_identical(readLines(file.path(b$root, "current"), warn = FALSE), "9.9.9")
   }
 })
@@ -58,10 +58,10 @@ test_that("CONTROL: com stderr num pty (script) o texto mostra as 6 etapas em or
   b2 <- fake_bundle()
   pj <- run_pty(args_for(b2, "json"))
   expect_length(step_lines(pj), 0L)
-  expect_false(grepl("proximos passos|o que vai acontecer|prevcarga - instalador", pj))
+  expect_false(grepl("proximos passos|o que vai acontecer|Previsao de carga do SIN|\\| instalador \\|", pj))
 })
 
-test_that("CONTROL: sob pty o texto mostra o banner (curva da CLI + versao), o que vai acontecer, explicacoes e proximos passos", {
+test_that("CONTROL: sob pty o texto mostra o banner da CLI (nome + curva + eixo + identidade + versao), o que vai acontecer, explicacoes e proximos passos", {
   if (!nzchar(Sys.which("script"))) skip("util-linux script ausente: sem pty para o CONTROL")
   run_pty <- function(a) {
     cmd <- paste("env -i PATH=/usr/local/bin:/usr/bin:/bin sh", shQuote(pci_installer()), paste(vapply(a, shQuote, ""), collapse = " "))
@@ -69,9 +69,9 @@ test_that("CONTROL: sob pty o texto mostra o banner (curva da CLI + versao), o q
   }
   b <- fake_bundle()
   x <- run_pty(args_for(b, "text"))
-  i <- which(x == "prevcarga - instalador"); expect_length(i, 1L)
-  expect_identical(x[i + 1:6], CURVE)                                  # as 6 linhas da curva, na ordem, logo apos o titulo
-  expect_identical(x[i + 7L], "versao 9.9.9")                          # versao inferida do nome do bundle
+  i <- which(x == STATIC[1]); expect_length(i, 1L)
+  expect_identical(x[i + 0:13], STATIC)                                # nome + curva + eixo + identidade, na ordem (banner da CLI)
+  expect_identical(x[i + 14L], "  prevcarga 9.9.9 | instalador | linux-x86_64")   # versao inferida do nome do bundle
   io <- grep("^o que vai acontecer: instala sem administrador em ", x); expect_length(io, 1L)
   expect_true(grepl(b$root, x[io], fixed = TRUE))
   s1 <- grep("^prevcarga: \\[1/6\\]", x); expect_lt(io, s1)                  # banner e intro antes da etapa 1
