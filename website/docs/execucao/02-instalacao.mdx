@@ -170,6 +170,68 @@ No modo JSON, o sucesso do `install.ps1` acrescenta `install_root`, `retained` (
 
 Num terminal, os dois instaladores mostram o banner do PrevCarga com a versão que está sendo instalada, uma linha com o que vai acontecer e seis etapas numeradas: `prevcarga: [1/6]` a `[6/6]`. As etapas são origem do bundle, sha256, extração, validação dos arquivos, ativação e `doctor`, e as mais demoradas vêm com uma linha de explicação. No Windows a extração tem barra de progresso: são milhares de arquivos pequenos, e o antivírus examina cada um. A validação confere o sha256 de cada arquivo do bundle e pode levar alguns minutos. Depois da linha `prevcarga: instalado ...` vêm os próximos passos: abrir um terminal novo para o `PATH` valer, rodar `prevcarga doctor` e apontar o deck, se o `data_dir` ainda não estiver configurado.
 
+Saída completa de uma primeira instalação da 0.1.1 a partir de um arquivo local, sem `-Data`/`--data`. No Windows, durante a etapa 3, aparece também a barra de progresso do PowerShell (`prevcarga: extraindo o bundle`, `i de k arquivos`) no topo da janela. Numa atualização, depois da etapa 5 vem a linha `a versao anterior (<v>) fica guardada: o instalador com -Rollback volta para ela` (no Linux, `install.sh --rollback volta para ela`). Com o `data_dir` já configurado, o último passo mostra o valor em vez de pedir para apontar o deck.
+
+```text title="Windows: install.ps1 -Bundle prevcarga-0.1.1-windows-x86_64.zip"
+prevcarga - instalador
+                    ______          ____        
+                ____||||||__________||||__      
+              __||||||||||||||||||||||||||__    
+            __||||||||||||||||||||||||||||||__  
+____      __||||||||||||||||||||||||||||||||||__
+||||______||||||||||||||||||||||||||||||||||||||
+versao 0.1.1
+
+o que vai acontecer: instala sem administrador em C:\Users\<voce>\AppData\Local\prevcarga
+  o estado (state_dir) e os dados nao sao alterados; a versao atual so muda no fim, depois de tudo conferido
+prevcarga: [1/6] bundle local prevcarga-0.1.1-windows-x86_64.zip (sem download)
+prevcarga: [2/6] conferindo sha256 do bundle
+                 o arquivo inteiro e conferido antes de qualquer escrita em C:\Users\<voce>\AppData\Local\prevcarga
+prevcarga: [3/6] extraindo 21829 arquivos
+                 no Windows demora: sao milhares de arquivos pequenos e o antivirus examina cada um; a barra mostra o andamento
+prevcarga: [4/6] validando 21828 arquivos do RUNTIME.json (pode levar alguns minutos)
+                 confere o sha256 de cada arquivo do bundle antes de ativar; se algo divergir, nada muda
+prevcarga: [5/6] ativando a versao 0.1.1
+prevcarga: [6/6] conferindo a instalacao (doctor)
+                 um aviso aqui nao desfaz a instalacao; 'prevcarga doctor' mostra o detalhe
+prevcarga: instalado 0.1.1 em C:\Users\<voce>\AppData\Local\prevcarga (bin: C:\Users\<voce>\AppData\Local\prevcarga\bin\prevcarga.cmd)
+
+proximos passos:
+  - abra um terminal novo para o PATH valer (C:\Users\<voce>\AppData\Local\prevcarga\bin entrou no PATH do usuario)
+  - rode: prevcarga doctor (confere runtime, config e deck)
+  - aponte o deck: reinstale com -Data <dir> ou ponha data_dir: <dir> em C:\Users\<voce>\AppData\Local\prevcarga\config.yaml
+```
+
+```text title="Linux: sh install.sh --bundle prevcarga-0.1.1-linux-x86_64.tar.zst"
+prevcarga - instalador
+                    ______          ____        
+                ____||||||__________||||__      
+              __||||||||||||||||||||||||||__    
+            __||||||||||||||||||||||||||||||__  
+____      __||||||||||||||||||||||||||||||||||__
+||||______||||||||||||||||||||||||||||||||||||||
+versao 0.1.1
+
+o que vai acontecer: instala sem administrador em /home/<voce>/.local/share/prevcarga
+  o estado (state_dir) e os dados nao sao alterados; a versao atual so muda no fim, depois de tudo conferido
+prevcarga: [1/6] bundle local prevcarga-0.1.1-linux-x86_64.tar.zst (sem download)
+prevcarga: [2/6] conferindo sha256 do bundle
+                 o arquivo inteiro e conferido antes de qualquer escrita em /home/<voce>/.local/share/prevcarga
+prevcarga: [3/6] extraindo o bundle
+                 numa area temporaria (versions/.stage-0.1.1); a versao atual so muda na etapa 5
+prevcarga: [4/6] validando 19084 arquivos do RUNTIME.json (pode levar alguns minutos)
+                 confere o sha256 de cada arquivo do bundle antes de ativar; se algo divergir, nada muda
+prevcarga: [5/6] ativando a versao 0.1.1
+prevcarga: [6/6] conferindo a instalacao (doctor)
+                 um aviso aqui nao desfaz a instalacao; 'prevcarga doctor' mostra o detalhe
+prevcarga: instalado 0.1.1 em /home/<voce>/.local/share/prevcarga (bin: /home/<voce>/.local/share/prevcarga/bin/prevcarga)
+
+proximos passos:
+  - ponha /home/<voce>/.local/share/prevcarga/bin no PATH: export PATH="/home/<voce>/.local/share/prevcarga/bin:$PATH" (ou reinstale com --add-to-path)
+  - rode: prevcarga doctor (confere runtime, config e deck)
+  - aponte o deck: reinstale com --data <dir> ou ponha data_dir: <dir> em /home/<voce>/.local/share/prevcarga/config.yaml
+```
+
 Tudo isso sai em stderr, e só quando o stderr é um terminal e o formato é texto. Com `--format json`, ou com a saída redirecionada para um arquivo ou outro programa, o instalador continua imprimindo só a linha final ou o JSON único.
 
 ## Layout da raiz e troca de versão
