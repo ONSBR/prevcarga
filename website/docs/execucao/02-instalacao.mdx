@@ -17,7 +17,7 @@ fontes:
   - docs/reference/MANUAL-USUARIO.md
 adrs: [ADR-0038, ADR-0040, ADR-0036, ADR-0039, ADR-0017]
 revisado_em: 2026-11-04
-commit_base: "23b4141"
+commit_base: "e858db4"
 ---
 
 <span className="pc-overline">Execução · 3.2</span>
@@ -165,6 +165,12 @@ Os parâmetros são `-Version`, `-ReleaseBase`, `-Bundle`, `-Sha256`, `-Root`, `
 No modo JSON, o sucesso do `install.ps1` acrescenta `install_root`, `retained` (as versões mantidas) e `path_updated` ao `result`.
 
 <Pendente titulo="Pendente · instalador Windows em validação">O instalador Windows ainda está em validação: o <code>install.ps1</code>, o lançador <code>prevcarga.cmd</code> e o bundle Windows ainda não foram executados num host Windows. O comportamento descrito nesta seção (registro do <code>PATH</code> em HKCU, extração do zip, caminhos longos sob <code>%LOCALAPPDATA%</code> e o <code>doctor</code> no Windows) é o previsto, ainda não confirmado na prática.</Pendente>
+
+## O que aparece na tela
+
+Num terminal, os dois instaladores mostram o banner do PrevCarga com a versão que está sendo instalada, uma linha com o que vai acontecer e seis etapas numeradas: `prevcarga: [1/6]` a `[6/6]`. As etapas são origem do bundle, sha256, extração, validação dos arquivos, ativação e `doctor`, e as mais demoradas vêm com uma linha de explicação. No Windows a extração tem barra de progresso: são milhares de arquivos pequenos, e o antivírus examina cada um. A validação confere o sha256 de cada arquivo do bundle e pode levar alguns minutos. Depois da linha `prevcarga: instalado ...` vêm os próximos passos: abrir um terminal novo para o `PATH` valer, rodar `prevcarga doctor` e apontar o deck, se o `data_dir` ainda não estiver configurado.
+
+Tudo isso sai em stderr, e só quando o stderr é um terminal e o formato é texto. Com `--format json`, ou com a saída redirecionada para um arquivo ou outro programa, o instalador continua imprimindo só a linha final ou o JSON único.
 
 ## Layout da raiz e troca de versão
 
