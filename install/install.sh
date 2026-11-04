@@ -271,6 +271,14 @@ pc_get() { # <url> <destino>
 
 pc_sha_from_sums() { awk -v f="$2" '{ n=$2; sub(/^\*/, "", n); if (n==f) { print $1; exit } }' "$1" 2>/dev/null; }
 
+# Dois layouts de release, escolhidos pela --release-base:
+#   GitHub Releases (https://github.com/<org>/<repo>): assets da release de tag v<v>; a mais recente pelo
+#     redirect /releases/latest/download/latest.txt (latest.txt e asset de toda release);
+#   bucket (qualquer outra base): <base>/releases/<v>/ e <base>/releases/latest.txt.
+pc_is_github() { case "$BASE" in https://github.com/*/*/*) return 1;; https://github.com/?*/?*) return 0;; *) return 1;; esac; }
+pc_url_latest() { if pc_is_github; then printf '%s/releases/latest/download/latest.txt' "$BASE"; else printf '%s/releases/latest.txt' "$BASE"; fi; }
+pc_url_release() { if pc_is_github; then printf '%s/releases/download/v%s' "$BASE" "$1"; else printf '%s/releases/%s' "$BASE" "$1"; fi; }
+
 pc_fetch_verified() { # define TARBALL (fora de <raiz>) so se o sha256 conferir
   TMPD="$(mktemp -d)" || pc_die install.preflight_failed mktemp
   if [ -n "$BUNDLE" ]; then
@@ -279,19 +287,21 @@ pc_fetch_verified() { # define TARBALL (fora de <raiz>) so se o sha256 conferir
     [ -n "$SHA" ] || SHA="$(pc_sha_from_sums "$(dirname "$TARBALL")/SHA256SUMS" "$(basename "$TARBALL")")"
     [ -n "$SHA" ] || pc_die install.sha_missing "$TARBALL"
   else
-    [ -n "$BASE" ] || BASE="https://prevcarga.s3.amazonaws.com"
+    [ -n "$BASE" ] || BASE="https://github.com/onsbr/prevcarga"   # GitHub Releases; o bucket so por --release-base
     BASE="${BASE%/}"
     if [ "$VER" = latest ] || [ -z "$VER" ]; then
-      pc_get "$BASE/releases/latest.txt" "$TMPD/latest.txt" || pc_die install.download_failed "$BASE/releases/latest.txt"
+      u="$(pc_url_latest)"
+      pc_get "$u" "$TMPD/latest.txt" || pc_die install.download_failed "$u"
       VER="$(pc_read_file "$TMPD/latest.txt")"
-      [ -n "$VER" ] || pc_die install.download_failed "$BASE/releases/latest.txt" "versao vazia"
+      [ -n "$VER" ] || pc_die install.download_failed "$u" "versao vazia"
     fi
     nome="prevcarga-$VER-linux-x86_64.tar.zst"
     TARBALL="$TMPD/$nome"
-    pc_get "$BASE/releases/$VER/$nome" "$TARBALL" || pc_die install.download_failed "$BASE/releases/$VER/$nome"
-    pc_get "$BASE/releases/$VER/SHA256SUMS" "$TMPD/SHA256SUMS" || pc_die install.download_failed "$BASE/releases/$VER/SHA256SUMS"
+    u="$(pc_url_release "$VER")"
+    pc_get "$u/$nome" "$TARBALL" || pc_die install.download_failed "$u/$nome"
+    pc_get "$u/SHA256SUMS" "$TMPD/SHA256SUMS" || pc_die install.download_failed "$u/SHA256SUMS"
     SHA="$(pc_sha_from_sums "$TMPD/SHA256SUMS" "$nome")"
-    [ -n "$SHA" ] || pc_die install.sha_missing "$BASE/releases/$VER/SHA256SUMS" "$nome ausente do SHA256SUMS"
+    [ -n "$SHA" ] || pc_die install.sha_missing "$u/SHA256SUMS" "$nome ausente do SHA256SUMS"
   fi
   got="$(sha256sum "$TARBALL" | cut -d' ' -f1)"
   [ "$got" = "$SHA" ] || pc_die install.sha_mismatch "$TARBALL" "esperado=$SHA obtido=$got"

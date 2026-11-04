@@ -364,18 +364,22 @@ function Get-PcVerifiedBundle {  # devolve o caminho do zip (fora de <R>) so se 
     if (-not $sha) { Write-PcError 'install.sha_missing' $zip }
   } else {
     $base = $script:ReleaseBase
-    if (-not $base) { $base = 'https://prevcarga.s3.amazonaws.com' }
+    if (-not $base) { $base = 'https://github.com/onsbr/prevcarga' }   # GitHub Releases; o bucket so por -ReleaseBase
     $base = $base.TrimEnd('/')
+    # Dois layouts (o mesmo do install.sh): GitHub Releases (https://github.com/<org>/<repo>, tag v<v>, latest.txt
+    # como asset de toda release, a mais recente por /releases/latest/download/) ou bucket (<base>/releases/<v>/).
+    $gh = $base -match '^https://github\.com/[^/]+/[^/]+$'
     if (-not $script:Version -or $script:Version -eq 'latest') {
+      $lu = if ($gh) { $base + '/releases/latest/download/latest.txt' } else { $base + '/releases/latest.txt' }
       $lt = Join-Path $script:PcTemp 'latest.txt'
-      if (-not (Get-PcFile ($base + '/releases/latest.txt') $lt)) { Write-PcError 'install.download_failed' ($base + '/releases/latest.txt') }
+      if (-not (Get-PcFile $lu $lt)) { Write-PcError 'install.download_failed' $lu }
       $script:Version = Read-PcLine $lt
-      if (-not $script:Version) { Write-PcError 'install.download_failed' ($base + '/releases/latest.txt') 'versao vazia' }
+      if (-not $script:Version) { Write-PcError 'install.download_failed' $lu 'versao vazia' }
     }
     $name = 'prevcarga-' + $script:Version + '-windows-x86_64.zip'
     $zip = Join-Path $script:PcTemp $name
     $sums = Join-Path $script:PcTemp 'SHA256SUMS'
-    $u = $base + '/releases/' + $script:Version + '/'
+    $u = if ($gh) { $base + '/releases/download/v' + $script:Version + '/' } else { $base + '/releases/' + $script:Version + '/' }
     if (-not (Get-PcFile ($u + $name) $zip)) { Write-PcError 'install.download_failed' ($u + $name) }
     if (-not (Get-PcFile ($u + 'SHA256SUMS') $sums)) { Write-PcError 'install.download_failed' ($u + 'SHA256SUMS') }
     $sha = Get-PcShaFromSums $sums $name
