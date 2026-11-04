@@ -1,6 +1,7 @@
 import React from 'react';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
+import useBaseUrl from '@docusaurus/useBaseUrl';
 import { SecaoCard, Terminal } from '@site/src/components/pc';
 import styles from './index.module.css';
 
@@ -12,8 +13,8 @@ export default function Home() {
           <div className={styles.heroText}>
             <span className="pc-overline">ONS · Documentação técnica</span>
             <div className={styles.lockup}>
-              <img className={styles.markDark} src="/img/prevcarga-logo-c-dark.svg" alt="PrevCarga" />
-              <img className={styles.markLight} src="/img/prevcarga-logo-c-light.svg" alt="PrevCarga" />
+              <img className={styles.markDark} src={useBaseUrl('/img/prevcarga-logo-c-dark.svg')} alt="PrevCarga" />
+              <img className={styles.markLight} src={useBaseUrl('/img/prevcarga-logo-c-light.svg')} alt="PrevCarga" />
               <h1 className={styles.srOnly}>PrevCarga</h1>
             </div>
             <p className={styles.sub}>Previsão de carga semi-horária das 24 áreas do SIN, de D−1 a D+7, com combinação dos modelos e reconciliação até os subsistemas e o SIN. CLI <code>prevcarga</code> em R, para Linux e Windows.</p>

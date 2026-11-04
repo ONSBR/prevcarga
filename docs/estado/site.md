@@ -21,3 +21,10 @@ Docusaurus 3.10.2 em `website/` (Node 22, `.nvmrc`); tres secoes autogeradas: Me
   (sidebar visivel, so rolagem horizontal na figura, roda do mouse rola o painel).
 - Estilo: tokens do PrevCarga Design System em `src/css/ds/` mapeados para Infima em `src/css/custom.css`; logo C em `static/img/`.
 - A licenca (Apache-2.0, ONS) mora no repositorio e no bundle, nao no site.
+
+## Publicacao (GitHub Pages)
+`.github/workflows/deploy-site.yml` compila `website/` e publica no Pages a cada push na `main` que toque `website/` (ou por `workflow_dispatch`).
+A fonte do Pages no repositorio tem de ser **GitHub Actions**, nao "Deploy from a branch": o site precisa de build e nao ha `gh-pages`.
+O endereco vem do `actions/configure-pages` (`PC_SITE_URL`, `PC_SITE_BASE`); localmente o `docusaurus.config.js` usa `https://prevcarga.invalid` e `/`.
+Toda imagem ou link absoluto passa pelo `baseUrl` (`useBaseUrl` nas paginas React, `${baseUrl}` no item html da navbar, link markdown nas paginas),
+para o site funcionar numa subpasta (`/prvc-modelo/`). `commit_base` com zero a esquerda vai entre aspas (o YAML le `0172512` como numero).
