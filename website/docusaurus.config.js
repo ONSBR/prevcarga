@@ -1,9 +1,12 @@
 // Site de documentacao do PrevCarga (Metodologia, Arquitetura, Execucao).
+// No GitHub Pages o workflow deploy-site.yml passa o endereco publicado; localmente vale o default.
+const baseUrl = process.env.PC_SITE_BASE || '/';
+
 const config = {
   title: 'PrevCarga',
   tagline: 'Modelo de previsão de carga do Sistema Interligado Nacional',
-  url: 'https://prevcarga.invalid',
-  baseUrl: '/',
+  url: process.env.PC_SITE_URL || 'https://prevcarga.invalid',
+  baseUrl,
   favicon: 'img/favicon.svg',
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
@@ -31,7 +34,7 @@ const config = {
         { type: 'docSidebar', sidebarId: 'metodologia', label: 'Metodologia', position: 'left' },
         { type: 'docSidebar', sidebarId: 'arquitetura', label: 'Arquitetura', position: 'left' },
         { type: 'docSidebar', sidebarId: 'execucao', label: 'Execução', position: 'left' },
-        { type: 'html', position: 'right', value: '<span class="pc-ons"><img class="pc-ons-light" src="/img/logo-ons-preta.png" alt="ONS"/><img class="pc-ons-dark" src="/img/logo-ons-branca.png" alt="ONS"/></span>' },
+        { type: 'html', position: 'right', value: `<span class="pc-ons"><img class="pc-ons-light" src="${baseUrl}img/logo-ons-preta.png" alt="ONS"/><img class="pc-ons-dark" src="${baseUrl}img/logo-ons-branca.png" alt="ONS"/></span>` },
       ],
     },
     footer: {
