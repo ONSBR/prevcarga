@@ -75,6 +75,11 @@ Docker; repete ate 3 vezes so quando o log mostra o snapshot.ubuntu.com fora do 
 (`--prerelease` se a versao tem `-`) ou substitui os assets de uma release que ja existe. Rodar o workflow a mao numa tag republica; numa branch, so builda e testa.
 O CI nao passa pelo `prevcarga release-pack`: os recibos que ele exige (`install-e2e-*`, `windows-vm`, `ab-corte`) nao sao gerados no CI.
 
+Repositorio publico (2026-11-05, decisao do Gabriel): `onsbr/prevcarga` (OSS, publico, default dos instaladores) recebe a `main` com o historico
+completo; a primeira release publica e a v0.1.4. As tags v0.1.0..v0.1.3 ficaram so no `onstec-modelos/prvc-modelo` (repo de teste, privado):
+a 0.1.0 tinha o zip Windows sem o lancador, a 0.1.1 e a 0.1.2 o `install.ps1` que quebrava no upgrade, e a 0.1.3 o `LICENSE` sem o " - ONS".
+Site do repositorio publico: `https://onsbr.github.io/prevcarga/` (Pages por Actions).
+
 ## Pendencias
 - [DEFERRED M8.8] tiers de paridade (`--tier parity|parity-full`) e A/B completo Delta=0 contra o oraculo DENTRO do bundle: dono M8.8 ("A/B contra prevcargadessem3").
 - [DEFERRED M8.6] gate `cross_os` (artefato Linux -> Windows) e braco Windows: o verbo `verificar` (M8.7, `docs/estado/verificar.md`) ja compara entre plataformas; falta a execucao no Windows.
