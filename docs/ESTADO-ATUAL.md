@@ -334,8 +334,8 @@
 
 ## O que já existe no repo (esqueleto)
 - `CLAUDE.md`, `docs/_archive/roadmap/` (OBJETIVO + PLANO + COMBINA-TECNICO-M4), este `ESTADO-ATUAL.md`.
-- `.claude/` (agents prevcarga-*, commands consolidate/tidy, workflows modularize-* e verify/implement-
-  milestone adaptados), `.githooks/` (pre-commit/pre-push).
+- `.githooks/` (pre-commit/pre-push). A pasta `.claude/` (agents, commands, skills e settings do Claude Code) saiu do versionamento
+  em 2026-11-05, quando o repositorio foi aberto em `onsbr/prevcarga` (decisao do Gabriel): fica so local e esta no `.gitignore`.
 - `scripts/lib/` — **stubs** das fundações (runtime/topology/provenance/dates/validation) marcados com o milestone
   que os implementa; `evaluation.R`/`honesty_gate.R` **VERIFY-READY pelo M3**, `combination.R` **VERIFY-READY pelo M4**
   e `features.R`/`training.R`/`inference.R`/`registry.R`-ciclo **VERIFY-READY pelo M5**,

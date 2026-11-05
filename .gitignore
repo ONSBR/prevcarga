@@ -83,3 +83,6 @@ renv/staging/
 /website/build/
 /website/.docusaurus/
 /website/.cache-loader/
+
+# configuracao local do Claude Code (agents, commands, skills, settings): fora do repositorio publico
+.claude/
