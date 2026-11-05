@@ -57,36 +57,43 @@ O instalador confere o sha256 do bundle antes de extrair, valida cada arquivo an
 
 ### Linux
 
+**Em uma linha.** Baixa o instalador da [release mais recente](https://github.com/onsbr/prevcarga/releases/latest) e já o executa:
+
 ```sh
-# versão mais recente, baixada das GitHub Releases
-sh install.sh --version latest --add-to-path
-
-# ou a partir de um arquivo local, sem rede
-sh install.sh --bundle prevcarga-<v>-linux-x86_64.tar.zst --sha256 <hash>
+curl -fsSL https://github.com/onsbr/prevcarga/releases/latest/download/install.sh | sh -s -- --add-to-path
 ```
 
-`--add-to-path` acrescenta `<raiz>/bin` ao `PATH` num bloco marcado do `~/.profile`. Para apontar o deck e o estado já na instalação, use `--data <dir>` e `--state <dir>`; para outra raiz, `--root <dir>`.
-
-### Windows
-
-```powershell
-# versão mais recente
-powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Version latest
-
-# ou a partir de um arquivo local
-powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Bundle prevcarga-<v>-windows-x86_64.zip -Sha256 <hash>
-```
-
-No Windows o `PATH` é ajustado sempre, só no registro do usuário (`HKCU`). Os parâmetros espelham os do Linux: `-Root`, `-Data`, `-State`, `-Rollback`, `-Uninstall -Yes`, `-Purge`.
-
-> [!WARNING]
-> O instalador Windows ainda está em validação: o `install.ps1` e o lançador `prevcarga.cmd` ainda não foram executados num host Windows. O comportamento descrito é o previsto.
-
-Os instaladores estão anexados a cada [release](https://github.com/onsbr/prevcarga/releases/latest):
+**Baixando o arquivo.** Para ler o instalador antes de rodar, guardá-lo ou instalar numa máquina sem rede:
 
 ```sh
 curl -fsSLO https://github.com/onsbr/prevcarga/releases/latest/download/install.sh
+sh install.sh --add-to-path
+
+# sem rede: com o bundle e o SHA256SUMS da release copiados para a mesma pasta
+sh install.sh --bundle prevcarga-<v>-linux-x86_64.tar.zst
 ```
+
+`--add-to-path` acrescenta `<raiz>/bin` ao `PATH` num bloco marcado do `~/.profile`. Para apontar o deck e o estado já na instalação, use `--data <dir>` e `--state <dir>`; para outra raiz, `--root <dir>`. Na forma em uma linha, as opções vão depois de `sh -s --`.
+
+### Windows
+
+**Em uma linha**, no PowerShell. Baixa o instalador da release mais recente para a pasta temporária e já o executa:
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; iwr -useb https://github.com/onsbr/prevcarga/releases/latest/download/install.ps1 -OutFile $env:TEMP\install.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\install.ps1
+```
+
+**Baixando o arquivo.** Pelo navegador, na página da [release](https://github.com/onsbr/prevcarga/releases/latest), ou pelo PowerShell:
+
+```powershell
+iwr -useb https://github.com/onsbr/prevcarga/releases/latest/download/install.ps1 -OutFile install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
+
+# sem rede: com o .zip e o SHA256SUMS da release copiados para a mesma pasta
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Bundle prevcarga-<v>-windows-x86_64.zip
+```
+
+No Windows o `PATH` é ajustado sempre, só no registro do usuário (`HKCU`). Os parâmetros espelham os do Linux: `-Root`, `-Data`, `-State`, `-Rollback`, `-Uninstall -Yes`, `-Purge`; na forma em uma linha, vão depois do `-File ...\install.ps1`. O `Tls12` do começo é para o Windows PowerShell 5.1, que nem sempre oferece TLS 1.2 por padrão.
 
 > [!NOTE]
 > O bundle vem das GitHub Releases de `onsbr/prevcarga` (tag `v<v>`). Para um espelho, passe `--release-base <url>` (ou `-ReleaseBase`); fora do `github.com` vale o layout `<base>/releases/<v>/`. Sem rede, instale de um arquivo local com `--bundle`. Os artefatos oficiais continuam vindo do repositório online, pelo `prevcarga-sync`.

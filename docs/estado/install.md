@@ -178,3 +178,11 @@ O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO pa
 - Decisao (Gabriel, 2026-10-31): os [DEFERRED M8.6] acima ficam para o gate windows-vm do M8 (dono Gabriel); ver `docs/estado/sync.md`.
 
 - **Gate Windows (M8.11)**: os itens Windows deste modulo (Pester, analyzer, HKCU, `cmd`, MAX_PATH, aspas do `-e`, doctor no Windows) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W03-W05, W07-W10). Pendente: Gabriel.
+
+## Instalação em uma linha (2026-11-05)
+- Linux: `curl -fsSL <base>/releases/latest/download/install.sh | sh -s -- [opções]` funciona sem mudança no script (testado com a 0.1.4).
+  Pelo pipe, `$0` é `sh` e `PC_HERE` vira o diretório corrente; ele só serve ao fallback de bundles antigos (lançador e sync ao lado do
+  `install.sh`), e o bundle atual traz tudo em `code/install/`.
+- Windows: o `install.ps1` usa `$PSScriptRoot` (catálogo e fallback de bundles antigos) e termina com `exit`, então `irm | iex` não é
+  suportado (o `Join-Path` com raiz vazia aborta e o `exit` fecharia a janela). A forma documentada baixa para `$env:TEMP` com `iwr` e roda
+  num `powershell -File` filho, com `SecurityProtocol = 'Tls12'` antes (o Windows PowerShell 5.1 pode não oferecer TLS 1.2 por padrão).

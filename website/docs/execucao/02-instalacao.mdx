@@ -24,6 +24,40 @@ commit_base: "2b6c459"
 
 <p className="pc-lead">O prevcarga é distribuído como um bundle fechado por plataforma, com o R 4.5.3 e todos os pacotes R dentro. O instalador (<code>install.sh</code> no Linux, <code>install.ps1</code> no Windows) roda sem administrador, confere o sha256 antes de extrair, valida cada arquivo do bundle antes de ativar e troca de versão por um ponteiro de uma linha, <code>current</code>. Ficam retidas duas versões, a atual e a anterior, o que permite um rollback. O diretório de estado nunca é tocado por upgrade, rollback ou desinstalação; só <code>--purge</code> o remove.</p>
 
+## Instalar
+
+Há duas formas, nos dois sistemas. As duas usam o instalador anexado à [release mais recente](https://github.com/onsbr/prevcarga/releases/latest) e instalam a versão mais recente.
+
+### Em uma linha
+
+O comando baixa o instalador e já o executa.
+
+<Terminal title="prevcarga — bash" lines={[
+  {type:'cmd',text:'curl -fsSL https://github.com/onsbr/prevcarga/releases/latest/download/install.sh | sh -s -- --add-to-path'}
+]} />
+
+<Terminal title="prevcarga — PowerShell" lines={[
+  {type:'cmd',text:"[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; iwr -useb https://github.com/onsbr/prevcarga/releases/latest/download/install.ps1 -OutFile $env:TEMP\\install.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\\install.ps1"}
+]} />
+
+No Linux, as opções vão depois de `sh -s --` (por exemplo `--data /srv/deck`). No Windows, o instalador vai para a pasta temporária e roda num `powershell` filho; as opções vão depois do `-File ...\install.ps1`. O `Tls12` do começo é para o Windows PowerShell 5.1, que nem sempre oferece TLS 1.2 por padrão. `irm | iex` não é suportado: o `install.ps1` precisa rodar como arquivo.
+
+### Baixando o arquivo
+
+Para ler o instalador antes de rodar, guardá-lo ou instalar numa máquina sem rede, baixe-o primeiro, pelo navegador na página da [release](https://github.com/onsbr/prevcarga/releases/latest) ou pelo terminal, e rode com as mesmas opções.
+
+<Terminal title="prevcarga — bash" lines={[
+  {type:'cmd',text:'curl -fsSLO https://github.com/onsbr/prevcarga/releases/latest/download/install.sh'},
+  {type:'cmd',text:'sh install.sh --add-to-path'}
+]} />
+
+<Terminal title="prevcarga — PowerShell" lines={[
+  {type:'cmd',text:'iwr -useb https://github.com/onsbr/prevcarga/releases/latest/download/install.ps1 -OutFile install.ps1'},
+  {type:'cmd',text:'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1'}
+]} />
+
+Sem rede, copie também da release o bundle da plataforma (`prevcarga-<v>-linux-x86_64.tar.zst` ou `prevcarga-<v>-windows-x86_64.zip`) e o `SHA256SUMS` para a mesma pasta e passe o bundle com `--bundle` (ou `-Bundle`). O sha256 é lido do `SHA256SUMS` ao lado; `--sha256` (ou `-Sha256`) o informa direto. As opções de cada instalador estão em [Linux: install.sh](#linux-installsh) e [Windows: install.ps1](#windows-installps1).
+
 ## Bundle zero-dep por plataforma
 
 Cada release tem um bundle por plataforma. O host não precisa de R instalado: o R que roda é o do bundle.
@@ -145,6 +179,7 @@ A linha que valida o stage chama o Rscript do bundle com `env -u R_HOME` e `--va
 O `install.ps1` espelha o `install.sh`: mesmo layout, mesma ordem, mesmos `error.id` e mesmos códigos de saída. Roda em Windows PowerShell 5.1 e em pwsh 7, sem administrador.
 
 <Terminal title="prevcarga — PowerShell" lines={[
+  {type:'dim',text:'# das GitHub Releases, a versão mais recente'},
   {type:'cmd',text:'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Version latest'},
   {type:'cmd',text:'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Bundle prevcarga-<v>-windows-x86_64.zip -Sha256 <hash>'}
 ]} />

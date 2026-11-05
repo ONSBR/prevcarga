@@ -91,13 +91,13 @@ flowchart LR
 O instalador baixa o bundle e o `SHA256SUMS` de `<release-base>/releases/<v>/`. Sem `--version`, ou com `--version latest`, lê a versão de `releases/latest.txt`. O sha256 é obrigatório e conferido antes de qualquer extração. Depois de extrair num diretório de stage, o instalador valida todo arquivo listado no `RUNTIME.json` do bundle com o próprio Rscript do stage e só então troca o ponteiro `current`.
 
 <Terminal title="prevcarga — bash" lines={[
-  {type:'cmd', text:'sh install.sh --add-to-path'},
+  {type:'cmd', text:'curl -fsSL https://github.com/onsbr/prevcarga/releases/latest/download/install.sh | sh -s -- --add-to-path'},
   {type:'dim', text:'# ou, com um bundle já baixado:'},
   {type:'cmd', text:'sh install.sh --bundle ./prevcarga-<v>-linux-x86_64.tar.zst --sha256 <h>'}
 ]} />
 
 <Terminal title="prevcarga — PowerShell" lines={[
-  {type:'cmd', text:'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1'},
+  {type:'cmd', text:"[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; iwr -useb https://github.com/onsbr/prevcarga/releases/latest/download/install.ps1 -OutFile $env:TEMP\\install.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\\install.ps1"},
   {type:'dim', text:'# ou, com um bundle já baixado:'},
   {type:'cmd', text:'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Bundle .\\prevcarga-<v>-windows-x86_64.zip -Sha256 <h>'}
 ]} />
