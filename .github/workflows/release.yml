@@ -52,17 +52,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      # O snapshot.ubuntu.com as vezes responde 5xx e o apt segue sem indice ("Unable to locate package"): so essa falha e repetida.
+      # O snapshot.ubuntu.com as vezes responde 5xx e o apt segue sem indice ("Unable to locate package"): so essa falha e repetida,
+      # com espera crescente (2, 4, 8, 15 e 15 min). shell: bash liga o pipefail: sem ele o status do pipeline era o do tee, e um build
+      # que falhava passava como sucesso sem bundle (v0.1.4 no onsbr). O bundle tem de existir para o passo sair 0.
       - name: Build do bundle
+        shell: bash
         run: |
-          for i in 1 2 3; do
+          tb="$RUNNER_TEMP/dist/prevcarga-$V-linux-x86_64.tar.zst"
+          i=0
+          for espera in 120 240 480 900 900 0; do
+            i=$((i + 1))
             if scripts/tools/build_bundle_linux.sh "$V" --out "$RUNNER_TEMP/dist" 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+              [ -s "$tb" ] || { echo "::error::build saiu 0 sem $tb"; exit 1; }
               ls -l "$RUNNER_TEMP/dist"; exit 0
             fi
             grep -qE ' 50[0-9] |Unable to locate package|has no installation candidate' "$RUNNER_TEMP/build.log" || exit 1
-            echo "::warning::espelho de pacotes indisponivel (tentativa $i); nova tentativa em 120 s"
-            sleep 120
+            [ "$espera" -gt 0 ] || break
+            echo "::warning::espelho de pacotes indisponivel (tentativa $i); nova tentativa em $((espera / 60)) min"
+            sleep "$espera"
           done
+          echo "::error::espelho de pacotes indisponivel depois de $i tentativas"
           exit 1
 
       - name: Instalar e conferir

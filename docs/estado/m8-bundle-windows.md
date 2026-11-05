@@ -3,7 +3,11 @@
 ## O que e
 `scripts/tools/build_bundle_windows.ps1 -Version <v> [-Out dist] [-Rev HEAD] [-SourceDateEpoch <n>]` (dev, host Windows de build, PS 5.1/7,
 sem admin, fora do bundle) gera `prevcarga-<v>-windows-x86_64.zip` + `.sha256` (minusculo, formato `sha256sum`) + `.RUNTIME.json` em `dist/`.
-**Nada e publicado**. A maquina de dev e Linux: o script **nunca foi executado** [DEFERRED M8.4/M8.6: execucao num host Windows]. O que foi
+**Execucao real (2026-11-05):** o script roda no CI (`release.yml`, `windows-2022`), que instala o zip, faz upgrade, rollback e reinstalacao e roda
+`--version` e `doctor`; o Gabriel instalou e atualizou a 0.1.3 num host Windows (PowerShell 5.1) e confirmou que funciona. Os avisos
+"Windows em validacao" do site sobre instalacao e doctor sairam; continuam pendentes o `prevcarga-sync.ps1`, o trilho `entre-plataformas`,
+o `--jobs` do backtest no Windows e a comparacao de `runtime_id` entre dois builds reais.
+Na maquina de dev (Linux) o script nao roda. O que foi
 verificado aqui e tudo o que e portavel: as funcoes de `scripts/tools/bundle_manifest.R` e `bundle_gates.R`, os pinos e os testes `tests/bundle/test-bundle-windows*.R`.
 
 ## Entradas pinadas (todas conferidas por sha256 antes de uso; downloads so de cloud.r-project.org e packagemanager.posit.co)

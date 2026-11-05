@@ -42,8 +42,8 @@ fontes:
   - docs/adr/0016-orquestracao-io-nuvem.md
   - docs/adr/0017-empacotamento-bundle-s3-entrega.md
 adrs: [ADR-0033, ADR-0036, ADR-0038, ADR-0039, ADR-0040, ADR-0017, ADR-0016]
-revisado_em: 2026-11-04
-commit_base: "e858db4"
+revisado_em: 2026-11-05
+commit_base: "fb28da6"
 ---
 
 <span className="pc-overline">Arquitetura · 2.19</span>
@@ -286,4 +286,4 @@ Como cada ponto resolve a portabilidade:
 
 O detalhe operacional da instalação está em [Instalação, atualização e remoção](/execucao/instalacao), e o da sincronização em [Sincronizar com os artefatos online](/execucao/sync).
 
-<Pendente titulo="Pendente · Windows">O build <code>build_bundle_windows.ps1</code> nunca foi executado num host Windows, e nenhum dos <code>.ps1</code> e <code>.cmd</code> rodou de fato: PATH em HKCU, MAX_PATH ao extrair a library, o <code>doctor</code> no Windows e a comparação de <code>runtime_id</code> entre dois builds reais ainda não foram verificados.</Pendente>
+<Pendente titulo="Pendente · Windows">O build <code>build_bundle_windows.ps1</code> roda no CI (<code>windows-2022</code>), e a instalação, a atualização, o rollback, o PATH em HKCU, a extração da library e o <code>doctor</code> já foram confirmados no CI e numa máquina Windows. Falta comparar o <code>runtime_id</code> de dois builds reais.</Pendente>

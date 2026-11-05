@@ -16,8 +16,8 @@ fontes:
   - docs/estado/sync.md
   - docs/reference/MANUAL-USUARIO.md
 adrs: [ADR-0038, ADR-0040, ADR-0036, ADR-0039, ADR-0017]
-revisado_em: 2026-11-04
-commit_base: "a95f75d"
+revisado_em: 2026-11-05
+commit_base: "2b6c459"
 ---
 
 <span className="pc-overline">Execução · 3.2</span>
@@ -164,7 +164,6 @@ Os parâmetros são `-Version`, `-ReleaseBase`, `-Bundle`, `-Sha256`, `-Root`, `
 
 No modo JSON, o sucesso do `install.ps1` acrescenta `install_root`, `retained` (as versões mantidas) e `path_updated` ao `result`.
 
-<Pendente titulo="Pendente · instalador Windows em validação">O instalador Windows ainda está em validação: o <code>install.ps1</code>, o lançador <code>prevcarga.cmd</code> e o bundle Windows ainda não foram executados num host Windows. O comportamento descrito nesta seção (registro do <code>PATH</code> em HKCU, extração do zip, caminhos longos sob <code>%LOCALAPPDATA%</code> e o <code>doctor</code> no Windows) é o previsto, ainda não confirmado na prática.</Pendente>
 
 ## O que aparece na tela
 

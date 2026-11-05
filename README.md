@@ -11,6 +11,16 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/onsbr/prevcarga/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/onsbr/prevcarga?sort=semver&label=release"></a>
+  <a href="https://github.com/onsbr/prevcarga/actions/workflows/release.yml"><img alt="Build dos bundles" src="https://img.shields.io/github/actions/workflow/status/onsbr/prevcarga/release.yml?label=build"></a>
+  <a href="https://github.com/onsbr/prevcarga/actions/workflows/deploy-site.yml"><img alt="Site" src="https://img.shields.io/github/actions/workflow/status/onsbr/prevcarga/deploy-site.yml?branch=main&label=site"></a>
+  <a href="https://onsbr.github.io/prevcarga/"><img alt="Documentação" src="https://img.shields.io/badge/docs-onsbr.github.io%2Fprevcarga-blue"></a>
+  <a href="LICENSE"><img alt="Licença" src="https://img.shields.io/github/license/onsbr/prevcarga?label=licen%C3%A7a"></a>
+  <img alt="R 4.5.3" src="https://img.shields.io/badge/R-4.5.3-276DC3?logo=r&logoColor=white">
+  <img alt="Plataformas" src="https://img.shields.io/badge/plataformas-linux%20%7C%20windows-informational">
+</p>
+
+<p align="center">
   <a href="#instalação">Instalação</a> ·
   <a href="#primeira-rodada">Primeira rodada</a> ·
   <a href="#atualizar-voltar-e-remover">Atualizar e remover</a> ·
@@ -20,6 +30,8 @@
 ---
 
 O `prevcarga` é uma CLI que prevê a carga de cada uma das 24 áreas do SIN em 48 patamares por dia e compõe os subsistemas (SECO, S, N, NE) e o SIN a partir delas. Cada rodada parte de uma origem O e entrega de D−1 a D+7.
+
+📖 **Documentação completa: [onsbr.github.io/prevcarga](https://onsbr.github.io/prevcarga/)**, com a metodologia, a arquitetura e o passo a passo de execução.
 
 | | |
 |---|---|
@@ -157,13 +169,15 @@ Toda falha sai como uma linha ASCII, `prevcarga: erro [<classe>] (exit <n>)`, co
 
 ## Documentação
 
-O site de documentação mora em [`website/`](website/) e tem três seções:
+A documentação está publicada em **[onsbr.github.io/prevcarga](https://onsbr.github.io/prevcarga/)** e tem três seções:
 
-- **Metodologia** — dados de entrada, cortes de data, os modelos, combinação, reconciliação e avaliação;
-- **Arquitetura** — módulos, CLI, plugins, fluxo de dados, registry, cache e distribuição;
-- **Execução** — instalação, configuração, sync, rodada diária, backtest, verificação e referência da CLI.
+- **[Metodologia](https://onsbr.github.io/prevcarga/metodologia/visao-geral/)** — dados de entrada, cortes de data, os modelos, combinação, reconciliação e avaliação;
+- **[Arquitetura](https://onsbr.github.io/prevcarga/arquitetura/principios/)** — módulos, CLI, plugins, fluxo de dados, registry, cache e distribuição;
+- **[Execução](https://onsbr.github.io/prevcarga/execucao/inicio-rapido/)** — instalação, configuração, sync, rodada diária, backtest, verificação e referência da CLI.
 
-Para ver localmente (Node 20 ou mais novo):
+Para começar, veja o [Início rápido](https://onsbr.github.io/prevcarga/execucao/inicio-rapido/) e a página de [Instalação, atualização e remoção](https://onsbr.github.io/prevcarga/execucao/instalacao/).
+
+O código-fonte do site mora em [`website/`](website/). Para ver localmente (Node 20 ou mais novo):
 
 ```sh
 cd website

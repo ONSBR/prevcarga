@@ -21,8 +21,8 @@ fontes:
   - models/lgbm/R/register.R
   - docs/estado/introspect.md
 adrs: [ADR-0022, ADR-0023, ADR-0036, ADR-0040]
-revisado_em: 2026-11-03
-commit_base: 37be3dd
+revisado_em: 2026-11-05
+commit_base: "fb28da6"
 ---
 
 <span className="pc-overline">Execução · 3.4</span>
@@ -130,7 +130,6 @@ Em `--format=json`, o `result` do `doctor` traz `schema_version`, `checks` (as 2
 
 O instalador roda o `doctor --format json` no fim da instalação e devolve esse resultado (ver [Instalação](/execucao/instalacao)).
 
-<Pendente titulo="Pendente · Windows">O instalador e o <code>doctor</code> no Windows (PowerShell, saída só ASCII) ainda estão em validação. Se algo divergir do descrito aqui no Windows, registre a saída de <code>prevcarga doctor --format=json</code> ao reportar.</Pendente>
 
 ## status
 

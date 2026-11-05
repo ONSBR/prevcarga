@@ -5,7 +5,6 @@ sidebar_position: 6
 slug: /arquitetura/barrel-descoberta
 description: Como coleções alimentadas por vários módulos viram pastas lidas por um loader determinístico, sem lista central editada por todos.
 fontes:
-  - CLAUDE.md
   - scripts/lib/cli.R
   - scripts/lib/cli/*.R
   - scripts/lib/errors.R
@@ -22,8 +21,8 @@ fontes:
   - docs/estado/*.md
   - .gitignore
 adrs: [ADR-0040, ADR-0018]
-revisado_em: 2026-11-04
-commit_base: "e858db4"
+revisado_em: 2026-11-05
+commit_base: "2b6c459"
 ---
 
 <span className="pc-overline">Arquitetura · 2.6</span>
@@ -32,7 +31,7 @@ commit_base: "e858db4"
 
 ## A regra e o loader determinístico
 
-O princípio 6 do `CLAUDE.md` diz: barrel por descoberta, nunca lista central editada por todos. A motivação é de processo. Uma lista central que todo módulo precisa tocar vira ponto de conflito de merge e de esquecimento: o módulo existe, mas não foi registrado. Com a pasta, existir é estar registrado.
+O princípio 6 ([Princípios](/arquitetura/principios)) diz: barrel por descoberta, nunca lista central editada por todos. A motivação é de processo. Uma lista central que todo módulo precisa tocar vira ponto de conflito de merge e de esquecimento: o módulo existe, mas não foi registrado. Com a pasta, existir é estar registrado.
 
 Todo loader segue o mesmo padrão:
 
@@ -43,7 +42,7 @@ Todo loader segue o mesmo padrão:
 
 A ordenação radix do R compara bytes, como o locale C, e não depende do locale da sessão. O runtime reforça isso: `scripts/lib/runtime.R` fixa `LC_COLLATE` e `LC_NUMERIC` em `C` antes do handler de todo verbo não isento ([Runtime](/arquitetura/runtime)). O resultado é a mesma ordem em Linux e Windows, em qualquer máquina.
 
-<Figura id="FIG-A05" titulo="Barrel por descoberta: pastas e loaders" natureza="Estrutura" fontes={['CLAUDE.md', 'scripts/lib/cli.R', 'scripts/lib/errors.R', 'scripts/tools/export_error_catalog.R']} adrs={['ADR-0040']}>
+<Figura id="FIG-A05" titulo="Barrel por descoberta: pastas e loaders" natureza="Estrutura" fontes={['scripts/lib/cli.R', 'scripts/lib/errors.R', 'scripts/tools/export_error_catalog.R']} adrs={['ADR-0040']}>
 
 ```mermaid
 flowchart LR
