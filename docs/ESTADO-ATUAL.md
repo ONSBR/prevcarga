@@ -333,7 +333,8 @@
   versão p/ todos). **Nenhuma dep de S3 (paws/aws CLI) entra no pacote** — o produto é S3-agnóstico.
 
 ## O que já existe no repo (esqueleto)
-- `CLAUDE.md`, `docs/_archive/roadmap/` (OBJETIVO + PLANO + COMBINA-TECNICO-M4), este `ESTADO-ATUAL.md`.
+- `docs/_archive/roadmap/` (OBJETIVO + PLANO + COMBINA-TECNICO-M4), este `ESTADO-ATUAL.md`. O `CLAUDE.md` (instrucoes do Claude Code)
+  saiu do versionamento em 2026-11-05, junto com a `.claude/`: fica so local e esta no `.gitignore`.
 - `.githooks/` (pre-commit/pre-push). A pasta `.claude/` (agents, commands, skills e settings do Claude Code) saiu do versionamento
   em 2026-11-05, quando o repositorio foi aberto em `onsbr/prevcarga` (decisao do Gabriel): fica so local e esta no `.gitignore`.
 - `scripts/lib/` — **stubs** das fundações (runtime/topology/provenance/dates/validation) marcados com o milestone

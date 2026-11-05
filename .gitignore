@@ -86,3 +86,5 @@ renv/staging/
 
 # configuracao local do Claude Code (agents, commands, skills, settings): fora do repositorio publico
 .claude/
+# instrucoes locais do Claude Code: fora do repositorio publico
+/CLAUDE.md

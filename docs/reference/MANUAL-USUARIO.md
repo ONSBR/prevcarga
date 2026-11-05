@@ -1,6 +1,6 @@
 # Manual do usuario: prevcarga
 
-Referencia para quem INSTALA e OPERA o produto (bundle R 4.5.3, Linux x86_64 e Windows nativo). Para desenvolver, ver `CLAUDE.md` e `docs/estado/`.
+Referencia para quem INSTALA e OPERA o produto (bundle R 4.5.3, Linux x86_64 e Windows nativo). Para desenvolver, ver `docs/ESTADO-ATUAL.md` e `docs/estado/`.
 O produto nao le variaveis de ambiente: toda configuracao e flag > `config.yaml` > default. WSL2 nao e requisito em nenhum passo (ADR-0038).
 
 ## 1. Instalacao
