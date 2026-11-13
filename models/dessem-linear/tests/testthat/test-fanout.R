@@ -56,8 +56,8 @@ dlf_gate <- function() {
   invisible(TRUE)
 }
 
-dlf_entry <- function(u, r, lock, emu) {
-  e <- dlp_report_entry(u, r, lock, NULL, emu)
+dlf_entry <- function(u, r, lock) {
+  e <- dlp_report_entry(u, r, lock, NULL)
   e$sha256 <- NULL
   e$variant <- u$variant
   e$sha256 <- dlp_sha_obj(e)
@@ -80,7 +80,7 @@ dlf_report_write <- function(entries, found_sha, path = DLF_REPORT()) {
   div <- dlf_divergences(units)
   rep <- list(model = DLP_MODEL, group = DLF_GROUP, tolerance = DLP_TOL, foundation_sha256 = found_sha,
               oracle_commit = jsonlite::read_json(DLP_LOCK())$oracle_commit,
-              all_ok = all(vapply(units, function(e) isTRUE(e$ok) && isTRUE(e$emulated_ok), NA)) && all(vapply(div, function(d) isTRUE(d$isolavel), NA)),
+              all_ok = all(vapply(units, function(e) isTRUE(e$ok), NA)) && !length(div)   # ADR-0041: sem divergencia nomeada contra o golden da v0.1.5,
               units = units, divergences = div)
   rep$sha256 <- dlp_sha_obj(units)
   txt <- jsonlite::toJSON(rep, auto_unbox = TRUE, null = "null", digits = 15, na = "null", pretty = TRUE)
@@ -106,11 +106,11 @@ test_that("[PLUGINS] fanout_parity: MAX/MXMN x SECO e MED/MAX/MXMN x areas repro
     expect_identical(r$day0_source, "native")
     expect_true(isTRUE(r$shape_ok) && isTRUE(r$na_ok), info = u$id)
     expect_identical(dim(run$env$values), c(9L, 48L))
-    expect_identical(dim(gold$native$values), c(10L, 48L))
+    expect_identical(dim(gold$native$values), c(9L, 48L))   # O..O+8 da v0.1.5 (ADR-0041)
     expect_identical(as.integer(r$delivery_missing), 0L)
     expect_true(isTRUE(r$cut_ok), info = u$id)
-    expect_identical(as.integer(r$fora_da_faixa), 48L)
-    expect_identical(as.integer(r$fora_da_faixa_long), 48L)
+    expect_identical(as.integer(r$fora_da_faixa), 0L)
+    expect_identical(as.integer(r$fora_da_faixa_long), 0L)
     expect_identical(run$env$available_until, u$available_until)
     expect_identical(gold$native$meta$exogena, u$variant)                              # o golden e da variante da unidade
     expect_lte(r$max_abs_delta, DLP_TOL)                                               # Delta = 0 (1e-5) fora do intervalo nomeado
@@ -118,9 +118,9 @@ test_that("[PLUGINS] fanout_parity: MAX/MXMN x SECO e MED/MAX/MXMN x areas repro
     expect_true(all(is.finite(run$env$values)) && all(run$env$values > 0), info = u$id)
     emu <- dlp_emulated(run, gold, u)                                                  # CONTROL: com a regra do oraculo a cauda tambem fecha
     expect_gt(emu$added, 0L)
-    expect_lte(emu$r$max_abs_delta, DLP_TOL)
+    ## ADR-0041: o CONTROL de hora parcial do oraculo (fechava a cauda contra o golden do oraculo) saiu; a emulacao so e medida
     cat(sprintf("FANOUT %s max|D|=%.3e nomeada=%.3e emu=%.3e\n", u$id, r$max_abs_delta, r$tail_max_abs_delta, emu$r$max_abs_delta), file = stderr())
-    entries[[u$id]] <- dlf_entry(u, r, lock, emu$r)
+    entries[[u$id]] <- dlf_entry(u, r, lock)
   }
   if (all(vapply(dlp_group_units(DLF_GROUP), `[[`, "", "id") %in% names(entries)) && !length(getOption("prevcarga.parity_only"))) {
     rpt <- dlf_report_write(entries, dl_foundation_sha())

@@ -101,8 +101,8 @@ Site do repositorio publico: `https://onsbr.github.io/prevcarga/` (Pages por Act
 - **NFR de 30 min**: mecanismo e CONTROL no Linux; numeros reais pendentes (`docs/estado/nfr-performance.md`).
 - **Oraculo**: `prevcargadessem3` e validado uma vez no A/B do corte e descartado depois (`docs/estado/ab.md`).
 
-### Excecoes conscientes do A/B (lista fechada `tests/ab/ab_excecoes.yaml`, dono Gabriel; ADR-0034 D23)
-`regdin.versao_pacotes` (ADR-0036), `dessem_linear.hora_incompleta_clima_previsto` (ADR-0035) e `dessem_linear.sp_2024_11_15_residuo_numerico` (ADR-0035).
+### Excecoes conscientes do A/B (lista fechada `tests/ab/ab_excecoes.yaml`, dono Gabriel; ADR-0041, que supera o ADR-0034 D23)
+Lista vazia: `regdin.versao_pacotes`, `dessem_linear.hora_incompleta_clima_previsto` e `dessem_linear.sp_2024_11_15_residuo_numerico` existiam so contra o oraculo e sairam (ADR-0041).
 Nenhuma entrada nova entra por quem implementa.
 
 ### Gates do fechamento (tests/)

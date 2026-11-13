@@ -164,3 +164,44 @@ test_that("[RF.4] golden.lock ocupado por outro escritor: aborta sem apagar o lo
   expect_identical(bad_id(env$pc_golden_lock_update(lk, "m", "u1", c(a = "x"), "c", list(), list())), "generic.unexpected golden.lock ocupado (golden.lock.lck)")
   expect_true(dir.exists(mtx)); expect_false(file.exists(lk))
 })
+
+## --- ADR-0041: fonte clean-room (`--source reference`) -------------------------------------------------------------------
+## Checkout-brinquedo da tag (repo git em tempdir com driver stub; nenhum plugin real roda).
+ref_fixture <- function(tag = "v0.1.5") {
+  ref <- pc_fake_oracle()
+  d <- pc_toy_driver(file.path(ref, "models"), "toy-30")
+  file.rename(file.path(d, "oracle_driver.R"), file.path(d, "reference_driver.R"))
+  git <- function(...) system2("git", c("-C", shQuote(ref), ...), stdout = FALSE, stderr = FALSE)
+  git("add", "-A"); git("commit", "-q", "-m", "driver"); git("tag", tag)
+  ref
+}
+gen_ref <- function(root, ref, out, tag = "v0.1.5", extra = character())
+  pc_rscript(c(GOLDEN, "--model", "toy-30", "--root", root, "--units", units_file(U1), "--source", "reference", "--ref", ref,
+               "--ref-tag", tag, "--out", out, extra))
+
+test_that("[7.4] fonte reference: grava o commit da tag no lock; arvore suja ou HEAD fora da tag => exit 2, lock intacto", {
+  root <- pc_toy_variant("toy-30"); pc_toy_driver(root, "toy-30"); ref <- ref_fixture()
+  lockf <- file.path(root, "toy-30/tests/parity/golden.lock")
+  tag_sha <- system2("git", c("-C", shQuote(ref), "rev-parse", "v0.1.5^{commit}"), stdout = TRUE)
+  ## CONTROL: arvore suja
+  writeLines("x", file.path(ref, "sujo.txt"))
+  r <- gen_ref(root, ref, tempfile("golden-"))
+  expect_identical(r$status, 2L); expect_true(any(grepl("tools.reference_dirty|alteracoes locais", r$stderr)))
+  expect_false(file.exists(lockf))
+  unlink(file.path(ref, "sujo.txt"))
+  ## CONTROL: HEAD fora da tag
+  system2("git", c("-C", shQuote(ref), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "depois"), stdout = FALSE)
+  r <- gen_ref(root, ref, tempfile("golden-"))
+  expect_identical(r$status, 2L); expect_true(any(grepl("difere do commit da tag", r$stderr)))
+  expect_false(file.exists(lockf))
+  ## caminho feliz: checkout na tag
+  system2("git", c("-C", shQuote(ref), "checkout", "-q", "--detach", "v0.1.5"), stdout = FALSE, stderr = FALSE)
+  out <- tempfile("golden-")
+  r <- gen_ref(root, ref, out)
+  expect_identical(r$status, 0L, info = paste(r$stderr, collapse = " | "))
+  lk <- jsonlite::read_json(lockf)
+  expect_identical(lk$oracle_commit, tag_sha); expect_identical(lk$source, "reference"); expect_identical(lk$reference_tag, "v0.1.5")
+  inv <- jsonlite::read_json(file.path(out, "plugins/toy-30/_/SE/2026-10-01/invocation.json"))
+  expect_false(grepl(ref, paste(unlist(inv), collapse = " "), fixed = TRUE))     # o invocation.json nao depende de onde o checkout mora
+  expect_identical(system2("git", c("-C", shQuote(ref), "status", "--porcelain"), stdout = TRUE), character())
+})

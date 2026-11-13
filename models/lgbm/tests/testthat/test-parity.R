@@ -270,20 +270,8 @@ test_that("[PLUGINS] paridade: values 2x48 e delivery O..O+1 vs oraculo, max|d| 
     expect_lte(r$max_abs_delta, LGP_TOL)                                                  # Delta = 0 (limiar fixo)
     expect_true(isTRUE(r$ok), info = lgp_report(r))
     expect_gt(unname(run$art$payload$min_max_BLF$CargaGlobal["max"]), 1000)               # gate02: escala MW do deck real
-    ## G-CAL/G-SAZ: rotulos de calendario e tabela Sazonalidade do artefato do clean-room == os do artefato do oraculo
-    tabs <- gold$native$meta$artifact_tables
-    expect_false(is.null(tabs), info = u$id)
-    mycal <- lgp_calendar(run, u)
-    cal <- lgp_cal_delta(mycal, tabs$calendario)
-    if (identical(u$id, LGP_DEC)) {                                                      # dez/24: vespera/natal presentes e iguais ao oraculo
-      expect_true(all(c("Vespera", "Natal_AnoNovo") %in% mycal$DiaEspecialFimAno))
-      expect_true(all(c("Vespera", "Natal_AnoNovo") %in% tabs$calendario$DiaEspecialFimAno))
-    }
-    expect_gte(cal$n_days, 46L); expect_length(cal$bad, 0L)
-    ad <- lgp_artifact_delta(run, tabs)
-    expect_lte(ad$saz, 1e-9); expect_lte(ad$fallbacks, 1e-9); expect_lte(ad$min_max, 1e-9)
-    expect_true(ad$cols_ok, info = u$id); expect_true(ad$nao_norm_ok, info = u$id)
-    expect_identical(as.integer(ad$best_iter[[1L]]), as.integer(ad$best_iter[[2L]]))
+    ## ADR-0041: G-CAL/G-SAZ (calendario e Sazonalidade contra as tabelas do artefato do oraculo) saem: o golden e a saida da
+    ## v0.1.5 e nao carrega tabelas do oraculo. Calendario e Sazonalidade seguem cobertos por teste de unidade/propriedade do plugin.
     ## o pai nunca ganhou variavel LGBM_*
     expect_false(any(grepl("^LGBM_", names(Sys.getenv()))))
   }
@@ -321,12 +309,7 @@ test_that("[PLUGINS] paridade_control: train_cv false contra o golden de CV acus
   expect_match(m2, LGP_REGEN, fixed = TRUE)
   m3 <- tamper(function(l) { l$units[[u$id]]$files[["native.rds"]] <- strrep("0", 64L); l })
   expect_match(m3, LGP_REGEN, fixed = TRUE)
-  ## oraculo intocado: o codigo (tracked e untracked fora dos planos docs/roadmap) do oraculo real nao foi modificado
-  orc <- "/opt/ons-source/prevcargadessem3"
-  if (dir.exists(file.path(orc, ".git"))) {
-    st <- suppressWarnings(system2("git", c("--no-optional-locks", "-C", shQuote(orc), "status", "--porcelain"), stdout = TRUE, stderr = FALSE))
-    expect_length(st[!grepl("docs/roadmap/", st, fixed = TRUE)], 0L)
-  }
+  ## ADR-0041: a conferencia de "oraculo intocado" saiu (o golden nao vem mais do oraculo)
 })
 
 test_that("[PLUGINS] gate_adequacao_add: oracle_env LGBM_TRAIN_CV 0 contra o clean-room train_cv false, max|d| <= 1e-5 (ex-gate_adequacao_add.sh)", {

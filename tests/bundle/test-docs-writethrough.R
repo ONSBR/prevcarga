@@ -81,8 +81,8 @@ for (f in DW_FILES) {
   })
 }
 
-test_that("[AC] ab_excecoes.yaml tem as 3 entradas e todas citadas (nenhuma entrada acrescentada aqui)", {
-  expect_setequal(dw_ids(), c("regdin.versao_pacotes", "dessem_linear.hora_incompleta_clima_previsto", "dessem_linear.sp_2024_11_15_residuo_numerico"))
+test_that("[AC] ab_excecoes.yaml esta vazio (ADR-0041: as 3 entradas contra o oraculo sairam; nenhuma entrada acrescentada aqui)", {
+  expect_length(dw_ids(), 0L)
 })
 
 test_that("[AC] --origin e citado como o flag de data nos docs de usuario", {
@@ -100,7 +100,7 @@ test_that("[CONTROL] o grep acusa: verbo fora da lista, flag de data, PREVCARGA_
   expect_true("PREVCARGA_" %in% dw_violations(c(base, "defina PREVCARGA_DATA"), vs, ids)$prevcarga_env)
   expect_identical(dw_violations(c(base, "Requer WSL2 instalado."), vs, ids)$wsl2_requisito, "Requer WSL2 instalado.")
   expect_identical(names(dw_violations(c(base, "WSL2 nao e requisito."), vs, ids)), NULL)
-  expect_identical(dw_violations(sub("regdin.versao_pacotes", "x", base, fixed = TRUE), vs, ids)$id_ausente, "regdin.versao_pacotes")
+  expect_identical(dw_violations(base, vs, c(ids, "id.fantasma"))$id_ausente, "id.fantasma")                # id da lista ausente do texto acusa
   expect_identical(dw_violations(gsub("install.ps1", "inst", base, fixed = TRUE), vs, ids)$topico_ausente, "install.ps1")
   expect_true("morning" %in% dw_violations(c(base, "rodada morning"), vs, ids)$vocabulario_antigo)
   expect_true(length(dw_violations(c(base, "acentua\u00e7\u00e3o"), vs, ids)$nao_ascii) > 0L)   # byte nao ASCII plantado

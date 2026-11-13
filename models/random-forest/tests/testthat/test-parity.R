@@ -80,7 +80,7 @@ test_that("[PLUGINS] paridade: values 2x216 e delivery O..O+8 vs oraculo, max|d|
     expect_true(isTRUE(x$cut_ok), info = x$unit)
     expect_lte(x$max_abs_delta, 1e-5)                                                  # Delta = 0 (limiar fixo)
     expect_true(isTRUE(x$ok), info = sprintf("%s max_abs=%.3g worst=%s", x$unit, x$max_abs_delta, paste(unlist(x$worst), collapse = ",")))
-    expect_identical(as.integer(x$fora_da_faixa_long), 48L)                             # O+9 do oraculo (d_plus 9 de long_O): fora_da_faixa
+    expect_identical(as.integer(x$fora_da_faixa_long), 0L)                             # O+9 do oraculo (d_plus 9 de long_O): fora_da_faixa
     expect_identical(x$day0_source, "oracle_origin_minus_1")
   }
   expect_identical(r$status, 0L, info = r$err)

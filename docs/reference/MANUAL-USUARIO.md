@@ -61,8 +61,5 @@ Texto: uma linha `prevcarga: erro [<classe>] (exit <n>)` em ASCII; `--format jso
 | 13 | state | artefato ou entrega oficial ausente no estado |
 
 ## 7. Excecoes conscientes do A/B do corte
-O A/B contra o sistema anterior e Delta = 0 por celula; so divergem as entradas da lista fechada `tests/ab/ab_excecoes.yaml` (dono: Gabriel):
-- `regdin.versao_pacotes`: dessem-regdin, pacotes do R 4.5.3 (ADR-0036), max_rel 1,3e-5;
-- `dessem_linear.hora_incompleta_clima_previsto`: hora incompleta descartada tambem no clima previsto (ultimas ~3 h de O+8; ADR-0035);
-- `dessem_linear.sp_2024_11_15_residuo_numerico`: SP em 2024-11-15, max_abs 0,5 MW e max_rel 5e-5 (ADR-0035).
+O A/B e Delta = 0 por celula contra a referencia da tag v0.1.5 do clean-room (ADR-0041, que supera o ADR-0034); so divergem as entradas da lista fechada `tests/ab/ab_excecoes.yaml` (dono: Gabriel), hoje vazia: as 3 entradas que existiam so contra o oraculo (`regdin.versao_pacotes`, `dessem_linear.hora_incompleta_clima_previsto`, `dessem_linear.sp_2024_11_15_residuo_numerico`) sairam. Uma mudanca deliberada de saida regera o baseline numa tag nova, nunca vira excecao.
 Estado do veredito: CORTE-BLOQUEADO ate a matriz completa e os recibos `ab-corte` existirem (`docs/estado/ab.md`).

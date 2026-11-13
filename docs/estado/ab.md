@@ -68,11 +68,14 @@ corte, e depois descartado: sem periodo paralelo nem comparacao recorrente (ADR-
   (`pc_ab_recibos_collect` le por sha do bundle via `pc_receipt_read`). Senao `CORTE-BLOQUEADO` com os motivos EXATOS. `pc_ab_report_write` grava
   `ab_veredito.json` + `ab_veredito.md` (ASCII) e, so com `bundles`, o recibo `ab-corte` por bundle (`pc_receipt_write`).
 
-## Lista fechada de excecoes (`tests/ab/ab_excecoes.yaml`) -- dono: Gabriel (ADR-0034 D23)
+## Lista fechada de excecoes (`tests/ab/ab_excecoes.yaml`) -- dono: Gabriel (ADR-0041, que supera o ADR-0034 D23)
+> ADR-0041: a referencia do A/B passa a ser a saida da tag v0.1.5 do clean-room (nao mais o oraculo) e a lista esta VAZIA: as 3 entradas abaixo
+> (`regdin.versao_pacotes`, `dessem_linear.hora_incompleta_clima_previsto`, `dessem_linear.sp_2024_11_15_residuo_numerico`) existiam so pela divergencia
+> com o oraculo e sairam. Os mecanismos de `limite` e `janela_final_h` seguem testados com fixture (`ab_fixture_excecoes`). Historico do M8.8:
 Campos obrigatorios `id, membro, estagio, condicao, justificativa, adr`; opcionais `limite {max_abs, max_rel}` (`max_rel = max|D| / max|ref|`),
 `janela_final_h`, `decisao`, `fonte`. Carregador estrito: campo ausente, desconhecido, `condicao` vazia/generica (sem campo do caso, constante) ou com
 funcao fora da whitelist, estagio `E`, id duplicado => `contract.ab_excecoes_bad`. Casa so por membro + estagio + condicao (+ teto/janela).
-Semeada SO com decisoes ja tomadas e citadas (`decisao`, `fonte`):
+Semeada no M8.8 SO com decisoes ja tomadas e citadas (`decisao`, `fonte`) -- REMOVIDAS pelo ADR-0041:
 1. `regdin.versao_pacotes` -- dessem-regdin, A, `max_rel 1.3e-5` (ADR-0036; `docs/estado/m1-spike-r453.md`).
 2. `dessem_linear.hora_incompleta_clima_previsto` -- dessem-linear, A, so as ultimas 3 h da faixa (Gabriel 2026-10-30; `docs/estado/dessem_linear.md`).
 3. `dessem_linear.sp_2024_11_15_residuo_numerico` -- dessem-linear, A, SP em 2024-11-15, tetos `max_abs 0.5`, `max_rel 5e-5` (DL9-GAP-2; medido 0,446 MW).

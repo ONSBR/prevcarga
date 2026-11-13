@@ -3,6 +3,7 @@
 ## fuso, forecast_origin Date, origens O-1 e O) e passa pelo relayout real; o clean-room entra no LONG nativo (interval_end). Cada FORBIDDEN
 ## (Delta <= 1e-5) tem o seu CONTROL (Delta != 0). Rodada real contra o oraculo em R 4.2.3: test-ab-corte.R (skip explicito sem referencia).
 EXC <- AB$pc_ab_load_excecoes(AB_EXC)
+EXF <- AB$pc_ab_load_excecoes(ab_fixture_excecoes())   # mecanismos de limite e janela (a lista real esta vazia: ADR-0041)
 TOL <- AB$pc_ab_load_limiares(file.path(ab_root, "tests", "ab", "limiares_ab.yaml"))$A
 
 test_that("[AB.A] FORBIDDEN: clean-room == oraculo (|D| <= 1e-5) em RF e LGBM, nas duas classes de dia O", {
@@ -99,42 +100,36 @@ test_that("[AB.A] entrada ausente nunca e Delta = 0 silencioso", {
   expect_match(r$detalhe, "entrada ausente")
 })
 
-test_that("[AB.A] excecoes semeadas so casam por membro + estagio + condicao + teto (a lista e fechada)", {
-  at <- function(cs, bump) {
+test_that("[AB.A] a lista real esta vazia (ADR-0041) e a excecao de fixture so casa por membro + estagio + condicao + teto", {
+  expect_length(EXC, 0L)
+  at <- function(cs, bump, exc = EXF) {
     w <- ab_build_world(cs, ref_bump = bump)
-    AB$pc_ab_stage_a(w$clean, w$ref, cs, ab_ctx(), EXC)
+    AB$pc_ab_stage_a(w$clean, w$ref, cs, ab_ctx(), exc)
   }
-  ## regdin (ADR-0036): ate max_rel 1,3e-5; os y_pred sinteticos sobem a ~1.2e3 => 0,010 = 0,8e-5 dentro, 0,05 = 4e-5 fora
   rgd <- ab_case("RGD_MED", "dessem-regdin", exogena = "MED")
-  r <- at(rgd, 0.010); expect_identical(r$status, "EXCECAO"); expect_identical(r$excecao_id, "regdin.versao_pacotes")
+  expect_identical(at(rgd, 0.010, EXC)$status, "FAIL")                                  # lista real vazia: toda divergencia e FAIL
+  ## limite max_rel 1,3e-5: os y_pred sinteticos sobem a ~1.2e3 => 0,010 = 0,8e-5 dentro, 0,05 = 4e-5 fora
+  r <- at(rgd, 0.010); expect_identical(r$status, "EXCECAO"); expect_identical(r$excecao_id, "fixture.limite_relativo")
   r <- at(rgd, 0.050); expect_identical(r$status, "FAIL"); expect_match(r$detalhe, "teto max_rel")
-  ## o mesmo desvio num membro fora da lista (RF) e FAIL: so o regdin tem a excecao
-  expect_identical(at(ab_case("RF", "random-forest"), 0.010)$status, "FAIL")
-  ## dessem-linear sp-2024-11-15 (DL9-GAP-2): teto 0,5 MW e 5e-5 rel, so SP em 2024-11-15
-  sp <- ab_case("LIN_MED", "dessem-linear", "SP", "2024-11-15", "2024-11-15T09:00", exogena = "MED")
-  r <- at(sp, 0.04); expect_identical(r$status, "EXCECAO"); expect_identical(r$excecao_id, "dessem_linear.sp_2024_11_15_residuo_numerico")
-  expect_identical(at(sp, 0.6)$status, "FAIL")                                          # acima do teto max_abs
-  other <- ab_case("LIN_MED", "dessem-linear", "SP", "2026-09-10", "2026-09-10T09:00", exogena = "MED")
-  expect_identical(at(other, 0.04)$status, "FAIL")                                       # outra origem: a condicao nao casa
-  expect_identical(at(ab_case("LIN_MED", "dessem-linear", "RS", "2024-11-15", "2024-11-15T09:00", exogena = "MED"), 0.04)$status, "FAIL")
+  expect_identical(at(ab_case("RF", "random-forest"), 0.010)$status, "FAIL")           # membro fora da lista
 })
 
-test_that("[AB.A] hora incompleta do clima previsto (dessem-linear): so as ultimas 3 h da faixa; divergencia no meio da faixa e FAIL", {
+test_that("[AB.A] janela_final_h (mecanismo, fixture): so as ultimas 3 h da faixa; divergencia no meio da faixa e FAIL", {
   cs <- ab_case("LIN_MED", "dessem-linear", exogena = "MED")
   w <- ab_build_world(cs)
   f <- file.path(w$ref, cs$origem, "membros", cs$sigla, paste0(cs$area, ".parquet"))
   bump_at <- function(pick) {
     x <- arrow::read_parquet(f); i <- pick(x); x$y_pred[i] <- x$y_pred[i] + 50; arrow::write_parquet(x, f); AB$pc_ab_manifest_write(file.path(w$ref, cs$origem))
-    AB$pc_ab_stage_a(w$clean, w$ref, cs, ab_ctx(), EXC)
+    AB$pc_ab_stage_a(w$clean, w$ref, cs, ab_ctx(), EXF)
   }
   end <- as.numeric(lubridate::force_tz(lubridate::as_datetime(as.Date("2026-09-10") + 9L), AB_TZ))   # fim da faixa do RF/dessem (O+9 00:00)
   last <- function(x) { t <- as.numeric(x$target_datetime); x$forecast_origin == "2026-09-10" & t > end - 2 * 3600 & t <= end }
   r <- bump_at(last)
-  expect_identical(r$status, "EXCECAO"); expect_identical(r$excecao_id, "dessem_linear.hora_incompleta_clima_previsto")
+  expect_identical(r$status, "EXCECAO"); expect_identical(r$excecao_id, "fixture.janela_final")
   w2 <- ab_build_world(cs); f <- file.path(w2$ref, cs$origem, "membros", cs$sigla, paste0(cs$area, ".parquet"))
   x <- arrow::read_parquet(f); x$y_pred[x$forecast_origin == "2026-09-10" & x$d_plus == 3L][5L] <- 9999; arrow::write_parquet(x, f)
   AB$pc_ab_manifest_write(file.path(w2$ref, cs$origem))
-  r2 <- AB$pc_ab_stage_a(w2$clean, w2$ref, cs, ab_ctx(), EXC)
+  r2 <- AB$pc_ab_stage_a(w2$clean, w2$ref, cs, ab_ctx(), EXF)
   expect_identical(r2$status, "FAIL"); expect_match(r2$detalhe, "so cobre as ultimas 3 h")
 })
 

@@ -111,7 +111,7 @@ eng_semi_stamp <- function(semi, offset_min = 60L) {
 ## versionado; so o `golden.lock` e versionado). Sem variaveis de ambiente; datas por lubridate com tz explicito.
 ENG_TOL <- 1e-5                                  # MW absoluto (ADR-0017)
 ENG_TZ <- "Etc/GMT+3"
-ENG_ORACLE_RSCRIPT <- "/opt/R/4.4.3/bin/Rscript" # runtime do oraculo (WeightSVM/e1071 na biblioteca do oracle_env)
+ENG_ORACLE_RSCRIPT <- file.path(R.home("bin"), "Rscript") # ADR-0041: o golden e gerado no R da tag (4.5.3)
 eng_parity_dir <- function() file.path(eng_dir(), "tests", "parity")
 eng_golden_root <- function() file.path(eng_root(), ".state", "golden")
 
