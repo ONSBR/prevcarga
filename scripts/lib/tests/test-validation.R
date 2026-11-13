@@ -99,7 +99,7 @@ test_that("validation.tsv carrega pelo loader sem id duplicado e cobre os ids pr
            "contract.duplicate_interval", "contract.load_nonpositive", "contract.temperature_out_of_range",
            "contract.code_negative", "completude.day_incomplete", "topology.scope_undeclared",
            "window.window_train_deficit", "window.window_infer_deficit", "warning.outlier", "warning.flatline",
-           "warning.climate_after_cut")
+           "warning.climate_after_cut", "warning.temperature_jump")
   expect_true(all(own %in% cat$id))
   expect_false(anyDuplicated(cat$id) > 0L)
   tsv <- utils::read.delim(file.path(pc_root(), "scripts", "lib", "errors", "validation.tsv"), quote = "", colClasses = "character")
@@ -500,4 +500,43 @@ test_that("[TBD: ADR-0024] weather_issue_cutoff com regra adicional por modelo",
 })
 test_that("[TBD: ADR-0027] precedencia entre aviso de spread e corte global por area", {
   skip("[TBD: ADR-0027] politica de available_until por area (spread) aguarda decisao; hoje so o aviso")
+})
+
+## --- V2 temperature_jump (aviso) x faixa fisica (erro) ----------------------------------------------------------------
+test_that("V2 temperature_jump observado: 15 C avisa (CONTROL), 9 C nao (FORBIDDEN); ok TRUE", {
+  jump <- function(dT, env = parent.frame()) { d <- vd_deck(env = env); pc_mut_weather(d, "weather_observed", function(dt)
+    dt[area_code == "SECO" & timestamp == stamp("2026-09-25 10:00:00"), temperature := temperature + dT]); d }
+  v <- vd_run(vd_ctx(jump(15), root0), origin = O)
+  expect_true(v$ok); expect_true(has(v, "temperature_jump", "contract", "warning"))
+  expect_identical(unique(v$findings$dataset), "weather_observed"); expect_identical(nrow(v$findings), 1L)
+  expect_false(grepl("[^\x01-\x7F]", v$findings$detail, perl = TRUE)); expect_match(v$findings$detail, "pares; primeiro: 2026-")
+  expect_clean(vd_run(vd_ctx(jump(9), root0), origin = O))
+})
+
+test_that("V2 temperature_jump previsto: salto dentro da emissao avisa; diferenca entre emissoes nao", {
+  iss <- stamp("2026-10-01 12:00:00")
+  one_jump <- vd_deck(); pc_mut_weather(one_jump, "weather_forecast", function(dt) {
+    dt[which(dt$area_code == "SECO" & dt$issue_time == iss)[5L], temperature := temperature + 15]; dt })
+  v <- vd_run(vd_ctx(one_jump, root0), origin = O)
+  expect_true(v$ok); expect_true(has(v, "temperature_jump", "contract", "warning"))
+  expect_identical(unique(v$findings$dataset), "weather_forecast")
+  shift <- vd_deck(); pc_mut_weather(shift, "weather_forecast", function(dt) {
+    dt[dt$area_code == "SECO" & dt$issue_time == iss, temperature := temperature + 15]; dt })
+  expect_false(has(vd_run(vd_ctx(shift, root0), origin = O), "temperature_jump"))
+})
+
+test_that("V2 temperature_jump unidade: par com buraco de 3 h nao e avaliado; grade de 30 min pareia por 1 h", {
+  mk <- function(vt, tp) data.table::data.table(area_code = "A", valid_time = lubridate::ymd_hms(vt, tz = "UTC"), temperature = tp)
+  gap <- mk(c("2026-09-25 10:00:00", "2026-09-25 13:00:00"), c(15, 30))
+  expect_identical(nrow(venv$.prevcarga_check_temperature_jump(gap, "weather_observed")), 0L)
+  g30 <- mk(c("2026-09-25 10:00:00", "2026-09-25 10:30:00", "2026-09-25 11:00:00"), c(15, 40, 30))
+  expect_identical(nrow(venv$.prevcarga_check_temperature_jump(g30, "weather_observed")), 1L)   # so 10:00->11:00 (15 C)
+  expect_identical(nrow(venv$.prevcarga_check_temperature_jump(mk("2026-09-25 10:00:00", NA_real_), "weather_observed")), 0L)
+})
+
+test_that("V2 faixa fisica segue erro contract; vocabulario e catalogo ASCII", {
+  expect_identical(venv$prevcarga_temp_jump_c, 10); expect_identical(venv$prevcarga_temp_range_c, c(-10, 50))
+  cat <- venv$prevcarga_errors_load(); i <- cat$id == "warning.temperature_jump"
+  expect_identical(sum(i), 1L); expect_identical(cat$class[i], "contract")
+  expect_false(grepl("[^\x01-\x7F]", paste(cat$message[i], cat$hint[i]), perl = TRUE))
 })

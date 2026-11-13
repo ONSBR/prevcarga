@@ -10,11 +10,14 @@
 ## contada ate o `last_data_day` de cada membro (O-1, ou O-3 no LGBM via `data_lag_days`) e janela de
 ## INFERENCIA ate O-1, como findings distintos; historicos vem do `run.yaml` (`history_days`).
 ## Classes (ADR-0040): contract, completude, topology, window; avisos (level warning) nao reprovam.
+## O salto de temperatura (> 10 C entre horas consecutivas, observado por area e previsto por emissao) e so aviso;
+## a faixa fisica (temperature_out_of_range) segue erro contract.
 ## O outlier de carga e LOCAL (vizinhos +-2 e mesmo horario em +-7 dias, desvio > 30% nos dois), so aviso.
 ## Requer errors.R, topology.R, config.R, deck_reader.R e dates.R carregados antes. Saida: ASCII puro.
 
 ## --- 1. Vocabulario do veredito -----------------------------------------------------------------------
-prevcarga_temp_range_c <- c(-10, 50)
+prevcarga_temp_range_c <- c(-10, 50)   # faixa fisica: ERRO contract (exit 2)
+prevcarga_temp_jump_c <- 10            # V2: |T(t+1h) - T(t)| > 10 C => aviso temperature_jump
 prevcarga_flatline_min_slots <- 6L
 ## V1 outlier local: +-neigh intervalos vizinhos (sem x) e mesmo interval_start em d+-1..k dias
 prevcarga_outlier_neigh_slots <- 2L
@@ -262,6 +265,22 @@ prevcarga_outlier_min_days <- 3L
   }))
 }
 
+.prevcarga_check_temperature_jump <- function(w, dataset) {
+  if (is.null(w) || !nrow(w) || !"temperature" %in% names(w)) return(NULL)
+  by <- if (dataset == "weather_forecast") c("area_code", "issue_time") else "area_code"
+  a <- w[!is.na(temperature), c(by, "valid_time", "temperature"), with = FALSE]
+  b <- data.table::copy(a)[, valid_time := valid_time - lubridate::hours(1L)]
+  p <- a[b, on = c(by, "valid_time"), nomatch = NULL][, dT := i.temperature - temperature]
+  bad <- p[abs(dT) > prevcarga_temp_jump_c]
+  data.table::setorderv(bad, c("area_code", "valid_time"))
+  .pc_findings_bind(lapply(unique(bad$area_code), function(ar) {
+    x <- bad[bad$area_code == ar]
+    .pc_finding(ar, dataset, "temperature_jump", sprintf("%d pares; primeiro: %s (%+.1f C)", nrow(x),
+      format(x$valid_time[1L], "%Y-%m-%d %H:%M"), x$dT[1L]), "contract", level = "warning",
+      where = paste0(dataset, ".temperature"))
+  }))
+}
+
 .prevcarga_check_holiday_codes <- function(h) {
   if (is.null(h) || !nrow(h)) return(NULL)
   out <- list()
@@ -373,13 +392,16 @@ prevcarga_outlier_min_days <- 3L
       acc$add(.prevcarga_check_heuristics(load))
     }
   }
-  if (!"weather_observed" %in% bad)
-    acc$add(.prevcarga_check_temperature(.pc_read(prevcarga_read_weather(ctx, "observed", areas, from, O),
-                                                  "weather_observed", acc), "weather_observed"))
+  if (!"weather_observed" %in% bad) {
+    wo <- .pc_read(prevcarga_read_weather(ctx, "observed", areas, from, O), "weather_observed", acc)
+    acc$add(.prevcarga_check_temperature(wo, "weather_observed"))
+    acc$add(.prevcarga_check_temperature_jump(wo, "weather_observed"))
+  }
   if (!"weather_forecast" %in% bad) {
     hmax <- if (nrow(cuts)) max(cuts$horizon_days) else 0L
-    acc$add(.prevcarga_check_temperature(.pc_read(prevcarga_read_weather(ctx, "forecast", areas, O, O + hmax),
-                                                  "weather_forecast", acc), "weather_forecast"))
+    wf <- .pc_read(prevcarga_read_weather(ctx, "forecast", areas, O, O + hmax), "weather_forecast", acc)
+    acc$add(.prevcarga_check_temperature(wf, "weather_forecast"))
+    acc$add(.prevcarga_check_temperature_jump(wf, "weather_forecast"))
     raw <- .pc_read(prevcarga_read_weather(ctx, "forecast", areas, O, O), "weather_forecast", acc)
     acc$add(.prevcarga_check_climate_cut(raw, cv$weather_issue_limit, O, tz))
   }
