@@ -263,3 +263,73 @@ test_that("[CONTROL] runtime nao fixavel no pai (copia com setter de TZ quebrado
   expect_length(r$stdout, 0L)
   expect_length(list.files(st, recursive = TRUE), 0L)
 })
+
+## --- --keep-going: entrega parcial (F2.2) -----------------------------------------------------------------------------
+## deck com a area C sem historia suficiente (so os 2 ultimos dias): falha deterministica nos dois modos.
+deck_c <- local({
+  d <- tempfile("tm-deck-c-"); dc <- tempfile("tm-deck-conly-")
+  fx$prevcarga_fixture_deck(d, seed = 11, areas = AREAS, days = seq(O - 29L, O, by = "day"),
+                            load_until = lubridate::ymd_hm("2026-10-01 09:00", tz = TZ))
+  fx$prevcarga_fixture_deck(dc, seed = 11, areas = "C", days = seq(O - 1L, O, by = "day"),
+                            load_until = lubridate::ymd_hm("2026-10-01 09:00", tz = TZ))
+  pc <- list.dirs(dc, recursive = TRUE, full.names = FALSE)
+  pc <- pc[grepl("area_code=C$", pc)]
+  for (rel in pc) { unlink(file.path(d, rel), recursive = TRUE); dir.create(dirname(file.path(d, rel)), recursive = TRUE, showWarnings = FALSE)
+                    file.copy(file.path(dc, rel), dirname(file.path(d, rel)), recursive = TRUE) }
+  d
+})
+tmc <- function(args, ...) {
+  a <- c("train-models", args, paste0("--data=", deck_c))
+  st <- pc5_state_tmp(parent.frame())
+  r <- pc_cli(root_small, c(a, paste0("--state=", st), if (!any(grepl("^--format=", a))) "--format=json"), ...)
+  r$state <- st
+  r$json <- if (length(r$stdout) && any(grepl("^--format=json|^\\{", c(a, r$stdout[[1L]])))) tryCatch(
+    jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE), error = function(e) NULL) else NULL
+  r
+}
+base_args <- c(paste0("--model=", MD), paste0("--origin=", O))
+nopath <- function(cl) lapply(cl, function(c) { c$path <- NULL; c })
+
+test_that("[FORBIDDEN] --keep-going: A, B e D publicam; cells[] traz C failed; exit 14; um unico JSON; jobs=1 == jobs=2", {
+  r1 <- tmc(c("train-models"[0L], base_args, "--keep-going", "--jobs=1"))
+  expect_identical(r1$status, 14L); expect_length(r1$stdout, 1L)
+  expect_identical(r1$json$error$id, "partial.train_models_delivery")
+  res <- r1$json$result
+  expect_setequal(keys_of(r1$state), file.path(MD, c("A", "B", "D")))
+  cc <- Filter(function(c) c$area == "C", res$cells)[[1L]]
+  expect_identical(cc$status, "failed")
+  expect_false(is.null(cc$error_id)); expect_false(is.null(cc$error_class)); expect_false(is.null(cc$mensagem))
+  expect_identical(vapply(Filter(function(c) c$area != "C", res$cells), function(c) c$status, ""), rep("trained", 3L))
+  expect_identical(res$summary$total, 4L); expect_identical(res$summary$trained, 3L)
+  expect_identical(res$summary$failed, 1L); expect_identical(res$summary$skipped, 0L)
+  r2 <- tmc(c(base_args, "--keep-going", "--jobs=2"))
+  expect_identical(r2$status, 14L); expect_length(r2$stdout, 1L)
+  expect_identical(nopath(r2$json$result$cells), nopath(res$cells))
+  expect_identical(r2$json$result$summary, res$summary)
+  expect_identical(vapply(res$cells, function(c) c$area, ""), AREAS)
+  expect_setequal(keys_of(r2$state), file.path(MD, c("A", "B", "D")))
+})
+test_that("[CONTROL] sem --keep-going: fail-fast com a classe do erro e where do membro:area, causa nos details", {
+  for (j in c("--jobs=1", "--jobs=2")) {
+    r <- tmc(c(base_args, j))
+    expect_identical(r$status, 5L, info = j)                       # classe window do erro original
+    expect_identical(r$json$error$where, paste0(MD, ":C"), info = j)
+    expect_false(is.null(r$json$error$details$cause_where)); expect_false(is.null(r$json$error$details$message))
+  }
+})
+test_that("--keep-going so vale em train-models/backtest: no forecast => config.usage (exit 8); opcao unica no usage", {
+  r <- pc_cli(root_small, c("forecast", "--keep-going", "--format=json"))
+  expect_identical(r$status, 8L)
+  e <- new.env(); for (m in c("errors", "cli")) sys.source(file.path(lib, paste0(m, ".R")), envir = e)
+  u <- e$prevcarga_usage(e$prevcarga_verbs_discover(dir = file.path(lib, "cli")))
+  expect_length(gregexpr("--keep-going  ", u, fixed = TRUE)[[1L]], 1L)
+})
+test_that("modo texto com --keep-going e falha: stdout lista as celulas com status; stderr tem a linha ASCII 'falha'", {
+  r <- tmc(c(base_args, "--keep-going", "--format=text"))
+  expect_identical(r$status, 14L)
+  expect_true(any(grepl("^failed .*C .*window", r$stdout)))
+  expect_equal(sum(grepl("^trained", r$stdout)), 3L)
+  fl <- grep(paste0("^falha ", MD, " C "), r$stderr, value = TRUE)
+  expect_length(fl, 1L)
+  expect_true(all(utf8ToInt(paste(r$stderr, collapse = "")) < 128L))
+})

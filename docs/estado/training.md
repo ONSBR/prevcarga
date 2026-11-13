@@ -33,7 +33,7 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
 - Pendencia F1 (despachante): os estagios continuam com formals fixos; o canal INTERINO `cuts$spec`/`cuts$phase` e preenchido pelo despachante (fix/facade-channels); o F1 completo segue adiado.
 
 ## M5.4 -- verbo `train-models` (`scripts/lib/cli/train-models.R`; logica em `training.R`; catalogo `errors/train_models.tsv`; testes `test-train-models.R`)
-- Gramatica: `train-models [--model=<lista>] [--area=<a> | --subsistema=<s> | --areas=<a,b>] [--origin] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force]`
+- Gramatica: `train-models [--model=<lista>] [--area=<a> | --subsistema=<s> | --areas=<a,b>] [--origin] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force] [--keep-going]`
   (+ globais). Handler `cmd_train_models(ctx, args)` (convencao da fachada). `--model/--area/--origin` ja sao flags globais/de outro verbo (nao redeclarados).
 - `prevcarga_resolve_areas(area, subsistema, areas, ctx)` (em `training.R`, nao em `topology.R`: o ticket o listava la, mas `topology.R` e arquivo disputado por outros
   tickets; mover e trivial): >1 seletor => `contract.area_selector_conflict` (exit 2); fora da topologia => `topology.area_undeclared` (exit 4). `--area`/`--areas` aceitam folha ou no de
@@ -45,6 +45,13 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
   (`ctx$lib_dir`/`prevcarga.lib`), roda `prevcarga_runtime_enforce()` in-process e devolve dado (nunca levanta); falha => o pai re-levanta o id original (`runtime.*` => exit 7) ou
   `runtime.worker_unfixable`. Celulas devolvem `prevcarga_cell_error` (id/where/details) re-levantado com a classe original; resultado reordenado pela chave. Semente: spec$seed aplicada pelo plugin no worker.
   Hooks de teste so por `ctx$worker_hooks` (`pre_runtime`/`post_runtime`), nunca por env; a CLI nao os expoe.
+- `--keep-going` (F2.2, fix v0.1.4): `prevcarga_train_models(..., keep_going = FALSE)`. A flag entra so no usage e no `scoped` do train-models (a linha de opcao ja vem do backtest; docopt sem duplicata;
+  em outros verbos => `config.usage`, exit 8). Despacho PSOCK inalterado; so a consolidacao muda: `.prevcarga_tr_consolidate` devolve uma linha por celula com `status` trained|reused|failed|skipped
+  (skipped = nao rodou por fail-fast) e as colunas `error_id`, `error_class`, `mensagem` (NA nas ok). Sem `--keep-going` continua fail-fast, mas o erro re-levantado tem a classe/exit do erro da celula e
+  `where = "<model>[/<variant>]:<area>"` (`.prevcarga_tr_cell_label`), com `details = {cause_where, message, cause}` (where/mensagem originais do plugin). Com `--keep-going` as demais celulas publicam,
+  o result ganha `summary {total, trained, reused, failed, skipped}` (nao no `--dry-run`) e, havendo falha, o verbo sai por `partial.train_models_delivery` (classe partial, exit 14,
+  `where = "failed=<n>/<total>"`) com o result completo no envelope (um unico JSON no stdout). Modo texto: stdout lista as celulas (status e, na failed, o error_id); stderr traz
+  `falha <model>[/<variant>] <area> <error_id>: <mensagem>` (ASCII) por celula falha. `cells[]` e identico entre `--jobs 1` e `--jobs 2` (ordem radix).
 - INTERINO / lacuna conhecida (nao decidida aqui): o RF real (RF.1) nao treina via `prevcarga_train`: (1) [resolvido: o despachante preenche `cuts$spec`/`cuts$phase`, fix/facade-channels];
   (2) a janela de carga do facade e `history_days.train` dias terminando em `last_data_day`, mas o RF exige `[train_origin - history_days.train, last_data_day]` (history_days + H dias). Os testes
   usam o plugin-brinquedo `toy-rng` (toy-30 origin_agnostic que consome o RNG com o seed do spec).

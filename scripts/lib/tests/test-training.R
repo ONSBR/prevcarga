@@ -451,3 +451,53 @@ test_that("errors/training.tsv carrega pelo loader sem id duplicado, ASCII e cla
   raw <- readBin(file.path(pc_root(), "scripts", "lib", "errors", "training.tsv"), "raw", 1e5)
   expect_true(all(as.integer(raw) < 128L)); expect_false(13L %in% as.integer(raw))
 })
+
+## =====================================================================================================
+## --keep-going em prevcarga_train_models (F2.2): 3 celulas de brinquedo, a 2a falhando (in-process, --jobs 1)
+## =====================================================================================================
+tr_fail_2nd <- function(frame = parent.frame()) {   # o 2o plugin_train levanta window.history_short; conta as chamadas
+  spy <- new.env(); spy$n <- 0L
+  orig <- get("prevcarga_plugin_train", envir = env)
+  assign("prevcarga_plugin_train", function(...) {
+    spy$n <- spy$n + 1L
+    if (spy$n == 2L) env$prevcarga_abort("window.history_short", where = "toy-falha", details = list(k = 1L))
+    orig(...)
+  }, envir = env)
+  withr::defer(assign("prevcarga_plugin_train", orig, envir = env), envir = frame)
+  spy
+}
+tr_cells3 <- data.frame(sigla = c("T30", "T30", "T60"), model = c("toy-30", "toy-30", "toy-60"),
+                        variant = NA_character_, area = c("A", "B", "A"), stringsAsFactors = FALSE)
+
+test_that("keep_going = TRUE: 3 linhas, a 2a failed com error_id/error_class/mensagem; nenhuma skipped; ok com NA", {
+  s <- tr_setup("toy-30"); spy <- tr_fail_2nd()
+  out <- suppressWarnings(env$prevcarga_train_models(tr_cells3, s$ctx, origin = O, jobs = 1L, keep_going = TRUE))
+  expect_identical(spy$n, 3L)
+  expect_true(all(c("error_id", "error_class", "mensagem") %in% names(out)))
+  expect_identical(out$status, c("trained", "failed", "trained"))
+  expect_identical(out$error_id[[2L]], "window.history_short"); expect_identical(out$error_class[[2L]], "window")
+  expect_match(out$mensagem[[2L]], "history")
+  expect_true(all(is.na(out$error_id[-2L])) && all(is.na(out$error_class[-2L])) && all(is.na(out$mensagem[-2L])))
+  expect_false("skipped" %in% out$status)
+})
+test_that("[CONTROL] keep_going = FALSE: levanta com where = membro:area e a 3a celula nao roda", {
+  s <- tr_setup("toy-30"); spy <- tr_fail_2nd()
+  e <- tryCatch(suppressWarnings(env$prevcarga_train_models(tr_cells3, s$ctx, origin = O, jobs = 1L)),
+                prevcarga_error = function(e) e)
+  expect_s3_class(e, "prevcarga_error")
+  expect_identical(e$id, "window.history_short"); expect_identical(e$where, "toy-30:B")
+  expect_identical(e$details$cause_where, "toy-falha")
+  expect_identical(spy$n, 2L)
+})
+test_that("rotulo da celula e classe do erro: variant entra no rotulo; sem class_name usa o prefixo ou generic", {
+  c2 <- data.frame(sigla = "X", model = "m", variant = "MED", area = "A", stringsAsFactors = FALSE)
+  expect_identical(env$.prevcarga_tr_cell_label(c2, 1L), "m/MED:A")
+  expect_identical(env$.prevcarga_tr_cell_label(tr_cells3, 1L), "toy-30:A")
+  expect_identical(env$.prevcarga_tr_cell_error(simpleError("[prevcarga/state] x"), "l")$error_class, "state")
+  expect_identical(env$.prevcarga_tr_cell_error(simpleError("boom"), "l")$error_class, "generic")
+})
+test_that("data.frame vazio de celulas ganha as colunas de erro", {
+  e <- env$prevcarga_train_models(tr_cells3[0L, ], tr_setup("toy-30")$ctx, origin = O)
+  expect_identical(nrow(e), 0L)
+  expect_true(all(c("status", "error_id", "error_class", "mensagem") %in% names(e)))
+})
