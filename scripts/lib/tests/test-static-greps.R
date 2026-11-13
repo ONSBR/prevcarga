@@ -189,6 +189,8 @@ eval_r <- "scripts/lib/evaluation.R"; hg_r <- "scripts/lib/honesty_gate.R"
 grep_gates_m3 <- list(
   list(id = "m3_single_wmape", pattern = "prevcarga_wmape <- function", fixed = TRUE,
        files = pc_code_files("r_code"), mode = "exactly1", bait = "prevcarga_wmape <- function(a, b) 0"),
+  list(id = "m3_single_mape", pattern = "prevcarga_mape <- function", fixed = TRUE,
+       files = pc_code_files("r_code"), mode = "exactly1", bait = "prevcarga_mape <- function(a, b) 0"),
   list(id = "m3_sum_abs_only_eval", pattern = "sum(abs(", fixed = TRUE,
        files = setdiff(pc_code_files("r_code"), eval_r), mode = "zero", bait = "x <- sum(abs(1))"),
   ## fix/topology-ids-hour (d8086da): o rotulo de hora e convertido 1x na entrada e 1x na saida, nas bordas
@@ -218,7 +220,7 @@ for (g in grep_gates_m3) local({
     n <- pc_count(g$pattern, b, fixed = isTRUE(g$fixed))
     expect_gte(n, 1L)                                                  # a isca casa o padrao
     if (g$mode == "zero") expect_false(pc_gate_ok(g$mode, n))            # e reprova o gate de contagem zero
-    if (g$mode == "exactly1" && g$id == "m3_single_wmape")               # 2a definicao: a contagem vira 2 e reprova
+    if (g$mode == "exactly1" && g$id %in% c("m3_single_wmape", "m3_single_mape"))               # 2a definicao: a contagem vira 2 e reprova
       expect_false(pc_gate_ok("exactly1", pc_count(g$pattern, c(files, b), fixed = TRUE)))
     if (g$id == "m3_no_minutes30") {                                     # a isca casa as formas de +-30 min
       for (code in c("e <- s + minutes(30L)", "s <- e - 1800")) expect_gte(pc_count(g$pattern, write_bait(code)), 1L)

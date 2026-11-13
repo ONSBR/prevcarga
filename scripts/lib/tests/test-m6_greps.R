@@ -80,8 +80,14 @@ test_that("[AC5] CONTROL: byte > 127 em mensagem e acusado; fora de mensagem e e
 
 test_that("[AC5] compor, nao reimplementar: forecast.R chama o Reconcile/combina/exports e nao os reimplementa", {
   txt <- paste(readLines(m6_paths[1L], warn = FALSE), collapse = "\n")
-  for (fn in c("prevcarga_reconcile_plan", "prevcarga_reconcile_apply", "prevcarga_combina_apply", "prevcarga_build_long", "prevcarga_export"))
+  ## F3.1: o plano por escopo vive em .forecast_plan; o Reconcile entra por UMA chamada de prevcarga_reconcile_apply
+  n_calls <- function(t, fn) lengths(regmatches(t, gregexpr(paste0(fn, "("), t, fixed = TRUE)))
+  expect_identical(n_calls(txt, "prevcarga_reconcile_apply"), 1L)
+  for (fn in c("prevcarga_combina_apply", "prevcarga_build_long", "prevcarga_export"))
     expect_true(grepl(fn, txt, fixed = TRUE), info = fn)
+  ## CONTROL: o texto antigo (so reconcile_plan, sem apply) e o texto com duas chamadas reprovam a checagem de uma chamada
+  expect_false(identical(n_calls("x <- prevcarga_reconcile_plan(a, b)", "prevcarga_reconcile_apply"), 1L))
+  expect_false(identical(n_calls("prevcarga_reconcile_apply(a)\nprevcarga_reconcile_apply(b)", "prevcarga_reconcile_apply"), 1L))
   for (tok in c("artifacts/reconcile", "prevcarga_scorecard", "wmape"))
     expect_false(grepl(tok, txt, fixed = TRUE), info = tok)
 })

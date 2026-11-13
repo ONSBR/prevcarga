@@ -62,15 +62,25 @@ prevcarga_bias <- function(y_true, y_pred) {
 prevcarga_peak_hours <- 18:21  # hour(interval_start) %in% 18:21 -> 18:00 ... 21:30; 22:00-22:30 fica fora
 
 ## Todo bucket hora/dia/pico/d_plus usa a coluna `interval_start` anexada pela borda do LONG (schema_long.R).
+## Comprimentos de interval_start/y_true/y_pred conferidos ANTES da mascara de hora (senao a mascara
+## escondia o descasamento do contrato contract.metric_length).
+.prevcarga_peak_sel <- function(interval_start, y_true, y_pred, hours, what) {
+  .prevcarga_pairs(y_true, y_pred, what)
+  if (length(interval_start) != length(y_true))
+    prevcarga_abort("contract.metric_length", where = what,
+                    details = list(n_true = length(y_true), n_pred = length(interval_start)))
+  lubridate::hour(interval_start) %in% hours
+}
+
 prevcarga_peak_wmape <- function(interval_start, y_true, y_pred, hours = prevcarga_peak_hours) {
-  sel <- lubridate::hour(interval_start) %in% hours
+  sel <- .prevcarga_peak_sel(interval_start, y_true, y_pred, hours, "peak_wmape")
   if (!any(sel)) return(NA_real_)
   prevcarga_wmape(y_true[sel], y_pred[sel])
 }
 
 ## MAPE de ponta: mesma mascara por hora do interval_start; NA se nenhum par cai na janela.
 prevcarga_peak_mape <- function(interval_start, y_true, y_pred, hours = prevcarga_peak_hours) {
-  sel <- lubridate::hour(interval_start) %in% hours
+  sel <- .prevcarga_peak_sel(interval_start, y_true, y_pred, hours, "peak_mape")
   if (!any(sel)) return(NA_real_)
   prevcarga_mape(y_true[sel], y_pred[sel])
 }
