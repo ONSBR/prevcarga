@@ -18,8 +18,8 @@ fontes:
   - docs/estado/score.md
   - docs/estado/backtest.md
 adrs: [ADR-0028]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Metodologia · 1.15</span>
@@ -43,16 +43,17 @@ Com erro e = y_pred − y_true:
 | Viés (MW) | `prevcarga_bias` | média de e, com sinal | Positivo quando a previsão fica acima da carga |
 | Viés (%) | `prevcarga_bias` | 100 · Σe / Σ\|y_true\| | Razão de somas, na mesma base do WMAPE |
 | WMAPE de ponta (%) | `prevcarga_peak_wmape` | WMAPE só nos intervalos da janela de ponta | Ver abaixo |
+| MAPE de ponta (%) | `prevcarga_peak_mape` | MAPE só nos intervalos da janela de ponta | Ver abaixo |
 
-O WMAPE é a métrica principal porque pondera o erro pelo tamanho da carga: um intervalo de madrugada com carga baixa não domina a média como domina no MAPE. O viés com sinal complementa o WMAPE, que só mede magnitude.
+O MAPE e o WMAPE saem sempre juntos, no scorecard, no `score` e no relatório. O WMAPE pondera o erro pelo tamanho da carga: um intervalo de madrugada com carga baixa não domina a média como domina no MAPE. O MAPE dá a leitura percentual média por intervalo. O viés com sinal complementa os dois, que só medem magnitude.
 
 ### Janela de ponta
 
-A janela de ponta é fixa: `prevcarga_peak_hours <- 18:22`, aplicada à hora do `interval_start`. Na grade de 30 minutos, isso seleciona os intervalos que começam de 18:00 a 22:30, ou seja, a carga de 18:00 a 23:00. No scorecard, essa métrica aparece na coluna `peak`.
+A janela de ponta é fixa: `prevcarga_peak_hours <- 18:21`, aplicada à hora do `interval_start`. Na grade de 30 minutos, isso seleciona os intervalos que começam de 18:00 a 21:30, ou seja, a carga de 18:00 a 22:00 (o intervalo que começa às 22:00 já fica fora). No scorecard, o WMAPE de ponta aparece na coluna `peak` e o MAPE de ponta, em `peak_mape`. As duas funções conferem que `interval_start`, `y_true` e `y_pred` têm o mesmo comprimento antes de aplicar a janela, senão aborta <Tag>contract.metric_length</Tag>.
 
 A escolha pelo `interval_start` é deliberada: cada intervalo conta na hora em que começa, e não pelo carimbo de fim.
 
-<Pendente titulo="Pendente · ADR-0028">A janela de ponta de 18:00 a 23:00, a regra dos baselines e o próprio contrato de métrica são o default de trabalho do código, marcado como `[TBD: ADR-0028]`. Ponderação do WMAPE, métricas de rampa e de timing e ponta por regime estão adiadas.</Pendente>
+<Pendente titulo="Pendente · ADR-0028">A janela de ponta de 18:00 a 22:00, a regra dos baselines e o próprio contrato de métrica são o default de trabalho do código, marcado como `[TBD: ADR-0028]`. Ponderação do WMAPE, métricas de rampa e de timing e ponta por regime estão adiadas.</Pendente>
 
 ### Todo agrupamento é por `interval_start`
 
@@ -70,6 +71,7 @@ Na mesma conferência, o leitor recalcula o `d_plus` de cada linha como o dia do
 | `wmape`, `mape`, `mae`, `rmse` | As métricas da tabela acima |
 | `bias`, `bias_pct` | Viés em MW e em % |
 | `peak` | WMAPE de ponta |
+| `peak_mape` | MAPE de ponta |
 | `skill` | Só quando há `baseline_long`: skill score contra o baseline |
 
 O agrupamento por subsistema e por SIN é responsabilidade de quem chama, por meio de `by` e do conjunto de linhas que entrega.
@@ -142,7 +144,7 @@ As áreas pontuáveis são as folhas e os subsistemas da topologia. Os nós de p
 
 O resultado traz o scorecard completo por (área, `d_plus`) e uma manchete com só as linhas de `d_plus = 1`, o dia O+1 (o dia D, na nomenclatura DESSEM). O `d_plus = 0` cobre apenas o resto do dia O depois do corte, por isso é parcial; o O+1 é o primeiro dia inteiro previsto. Na saída de texto, o bloco `MANCHETE D+1` vem antes do bloco `HORIZONTE`, em que a linha de `d_plus = 0` é rotulada `0 resto-do-dia`. O `D+1` desse rótulo é o `d_plus = 1` da notação do código, não a nomenclatura DESSEM.
 
-As colunas da saída de texto são `AREA`, `D_PLUS` (só no horizonte), `OBS`, `WMAPE`, `MAPE`, `MAE`, `RMSE`, `BIAS`, `BIAS%`, `PEAK` e, com `--baseline`, `SKILL`. Nenhuma métrica é calculada no render. Com `--format=json`, o `result` tem `schema_version`, `origins`, `available_until`, `data_hash`, `baseline`, `headline` e `scorecard`.
+As colunas da saída de texto são `AREA`, `D_PLUS` (só no horizonte), `OBS`, `WMAPE`, `MAPE`, `MAE`, `RMSE`, `BIAS`, `BIAS%`, `PEAK`, `PEAK_MAPE` e, com `--baseline`, `SKILL`. Nenhuma métrica é calculada no render. Com `--format=json`, o `result` tem `schema_version`, `origins`, `available_until`, `data_hash`, `baseline`, `headline` e `scorecard`.
 
 O `available_until` do resultado vem do leitor único sobre a última origem pontuada, nunca do relógio. Se nada puder ser pontuado, porque nenhum intervalo do LONG tem carga realizada no deck, o verbo sai com exit 0 e o aviso <Tag>warning.nothing_to_score</Tag>.
 

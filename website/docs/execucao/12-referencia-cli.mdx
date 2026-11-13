@@ -24,8 +24,8 @@ fontes:
   - install/prevcarga-sync.ps1
   - docs/reference/MANUAL-USUARIO.md
 adrs: [ADR-0016, ADR-0018, ADR-0022, ADR-0038, ADR-0039, ADR-0040]
-revisado_em: 2026-11-05
-commit_base: "2b6c459"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Execução · 3.12</span>
@@ -58,13 +58,14 @@ Estas flags valem em qualquer verbo. A precedência é flag, depois `config.yaml
 | `--data=<dir>` | diretório | Deck canônico. Verbos que leem o deck sem ele saem com 8 (`config.data_dir_missing`). |
 | `--state=<dir>` | diretório | Estado local: artefatos, scratch, entregas. |
 | `--config=<arquivo>` | caminho | `config.yaml` a usar. |
+| `--artifacts-dir=<dir>` | caminho | Raiz de artefatos só de leitura (membros, combina, k-hat); também `artifacts_dir` no `config.yaml`. Hoje só o `forecast` a usa. |
 | `--load-label=<l>` | `end`, `start` | Rótulo da carga, quando o deck não declara. |
 | `--weather-cutoff=<w>` | `available_until`, `origin_midnight_utc` | Regra de corte do clima previsto. |
 | `--format=<fmt>` | `text` (default), `json` | Formato da saída. |
 | `--color=<c>` | `auto` (default), `always`, `never` | Cor no terminal. |
 | `--model=<m>` | nome do modelo | Seletor de modelo, nos verbos que o usam. Em `train-models` aceita uma lista separada por vírgula. |
 | `--debug` | — | Imprime o traceback em stderr quando há erro. |
-| `-h`, `--help` | — | Imprime a ajuda gerada dos registros. |
+| `-h`, `--help` | — | Imprime a ajuda gerada dos registros. Depois de um verbo (`prevcarga <verbo> --help`), imprime só a usage dele, as opções comuns e as opções que a usage cita; exit 0. |
 | `--version` | — | Imprime `prevcarga <versão>`, lida de `config/VERSION`. |
 
 Sem `--origin`, os verbos que precisam de uma origem a resolvem pelo deck: a origem é o último dia com carga no store (`prevcarga_resolve_origin` em `scripts/lib/dates.R`). O `validate-deck` mostra de onde veio a origem (`flag` ou `deck`).
@@ -75,15 +76,15 @@ Algumas flags são de escopo: só valem nos verbos que as declaram no campo `sco
 
 | Verbo | Flags de escopo |
 |---|---|
-| `forecast` | `--niveis`, `--incluir-membros`, `--report`, `--report-format` |
-| `export` | `--scratch`, `--niveis`, `--incluir-membros` |
-| `train-models` | `--horizon`, `--exogena` |
+| `forecast` | `--incluir-membros`, `--report`, `--report-format` |
+| `export` | `--scratch`, `--incluir-membros` |
+| `train-models` | `--horizon`, `--exogena`, `--keep-going` |
 | `reconcile` | `--khat-window`, `--eval`, `--leaves-dir`, `--khat-version` |
 | `plan` | `--corte`, `--protocol`, `--dplus` |
 | `backtest` | `--corte`, `--protocol`, `--dplus`, `--report`, `--report-format`, `--resume`, `--keep-going`, `--break-lock` |
 | `verificar` | `--saida`, `--referencia`, `--oficial`, `--trilho`, `--alvo`, `--limiares`, `--sem-membros`, `--tol` |
 
-Uma flag de escopo de dois verbos, como `--niveis` em `forecast` e `export`, vale nos dois.
+Uma flag de escopo de dois verbos, como `--incluir-membros` em `forecast` e `export`, vale nos dois.
 
 ### A saída
 
@@ -152,16 +153,16 @@ A rotina diária é `validate-deck` seguido de `forecast`. O passo a passo está
 
 ```text title="Sintaxe (scripts/lib/cli/validate-deck.R, forecast.R)"
 prevcarga validate-deck [--area=<a>]
-prevcarga forecast [--area=<a>... | --subsistema=<s>] [--niveis=<n>] [--incluir-membros] [--report]
-                   [--report-format=<f>] [--skip-validate]
+prevcarga forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report]
+                   [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]
 ```
 
 | Verbo | O que faz | Flags principais | Saídas características |
 |---|---|---|---|
 | `validate-deck` | Valida o deck na origem e mostra os cortes de cada modelo e os achados. Avisos não reprovam. | `--area` (subsistema expande para as folhas) | 0; 2, 3, 4 ou 5 pelo primeiro erro da classe dominante |
-| `forecast` | Rodada de uma origem: validação do deck, inferência por membro, combina, reconciliação e entrega imutável. | `--area` (repetível) ou `--subsistema` (`all` = todas as folhas), `--niveis` (`sin`, `subsistemas` por default, `tudo`), `--incluir-membros`, `--report`, `--report-format` (`html` por default, `pdf`), `--skip-validate` | 0; 2 a 5 na validação do deck; 3 quando o dia O já está completo; 4 com subsistema fora da topologia; 13 sem artefato; 9 com conflito de chave na entrega; 14 quando o relatório falha depois da entrega gravada |
+| `forecast` | Rodada de uma origem: validação do deck, inferência por membro, combina, reconciliação e entrega imutável. | `--area` (repetível: escopo `area`) ou `--subsistema` (escopo `subsistema`; `all` = SIN), `--incluir-membros`, `--report`, `--report-format` (`html` por default, `pdf`), `--skip-validate`, `--jobs` (workers PSOCK, default 1; a saída é idêntica à serial), `--artifacts-dir` (raiz de artefatos só de leitura, sem treino implícito) | 0; 2 a 5 na validação do deck; 3 quando o dia O já está completo ou uma folha fica sem nenhum membro; 4 com subsistema fora da topologia; 8 com `--jobs` inválido; 9 com conflito de chave na entrega; 14 quando o relatório falha depois da entrega gravada ou uma folha do escopo `area` fica sem membro |
 
-O `forecast` não tem flag de corte: o corte intradiário sai do próprio dado de carga. `--area` e `--subsistema` são exclusivos (8). Os modelos `origin_scoped` sem artefato da origem O são treinados uma vez dentro da rodada; os `origin_agnostic` só leem o artefato e, se ele faltar, a rodada sai com 13.
+O `forecast` não tem flag de corte: o corte intradiário sai do próprio dado de carga. `--area` e `--subsistema` são exclusivos (8). O escopo define a saída: `area` entrega só as folhas, sem reconciliação; `subsistema`, as folhas do subsistema e ele próprio; sem flag ou com `--subsistema=all`, tudo até o SIN. Os modelos `origin_scoped` sem artefato da origem O são treinados uma vez dentro da rodada, salvo com `--artifacts-dir`; os `origin_agnostic` só leem o artefato. Artefato ausente ou erro de um membro não derruba a rodada: o membro fica ausente, com aviso, e a combina renormaliza. Sem pesos treinados, a combinação é a média simples. Detalhes em [Rodada diária](/execucao/rodada-diaria).
 
 ### Verificação
 
@@ -188,7 +189,7 @@ Produzem e administram os artefatos que a rodada consome. O ciclo completo está
 
 ```text title="Sintaxe (scripts/lib/cli/train-models.R, combine.R, reconcile.R, registry.R)"
 prevcarga train-models [--model=<m>] [--area=<a>] [--subsistema=<s>] [--areas=<a,b>]
-                       [--origin=<data>] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force]
+                       [--origin=<data>] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force] [--keep-going]
 prevcarga combine --mode=<mode> --area=<a> --root=<dir> [--artifact-dir=<dir>] [--cut=<HHMM>] [--out=<path>]
                   [--origin=<date>]
 prevcarga reconcile --mode=<mode> [--subsistema=<s>] [--khat-window=<n>] [--eval] [--leaves-dir=<dir>]
@@ -198,8 +199,8 @@ prevcarga registry (ls|show|promote|rollback|pin|unpin|gc) [<model>] [<area>] [<
 
 | Verbo | O que faz | Flags principais | Saídas características |
 |---|---|---|---|
-| `train-models` | Treina o subconjunto membros × áreas pedido e publica no registry, promovendo o `latest`. | `--model`, `--area`, `--subsistema` ou `--areas` (exclusivos), `--horizon` (inteiro ≥ 1), `--exogena`, `--dry-run` (só a matriz, nada gravado), `--jobs` (workers PSOCK, default 1), `--force` (retreina mesmo se a versão já existe) | 0; 2 com seletores de área em conflito; 5 com histórico curto; 8 com `--jobs` ou `--horizon` inválidos |
-| `combine` | Combina convexa por folha: ajusta pesos (`train`), aplica pesos congelados (`apply`) ou ajusta e aplica (`full`). | `--mode` (`train`, `apply`, `full`), `--area`, `--root` (runs de membro `_infer_c<HHMM>`), `--artifact-dir` (default `<state>/artifacts/combina`), `--cut`, `--out` (obrigatória em `apply` e `full`), `--origin` | 0 (célula não estacionária gera aviso); 2 com entrada inválida ou corte ambíguo; 4 com área fora da topologia; 8 com `--mode` inválido; 13 sem pesos treinados |
+| `train-models` | Treina o subconjunto membros × áreas pedido e publica no registry, promovendo o `latest`. | `--model`, `--area`, `--subsistema` ou `--areas` (exclusivos), `--horizon` (inteiro ≥ 1), `--exogena`, `--dry-run` (só a matriz, nada gravado), `--jobs` (workers PSOCK, default 1), `--force` (retreina mesmo se a versão já existe), `--keep-going` (treina as demais células quando uma falha e resume o resultado por célula) | 0; 2 com seletores de área em conflito; 5 com histórico curto; 8 com `--jobs` ou `--horizon` inválidos; 14 (`partial.train_models_delivery`) quando alguma célula falhou com `--keep-going` |
+| `combine` | Combina convexa por folha: ajusta pesos (`train`), aplica pesos congelados (`apply`) ou ajusta e aplica (`full`). | `--mode` (`train`, `apply`, `full`), `--area`, `--root` (runs de membro `_infer_c<HHMM>`), `--artifact-dir` (default `<state>/artifacts/combina`), `--cut`, `--out` (obrigatória em `apply` e `full`), `--origin` | 0 (célula não estacionária gera aviso); 2 com entrada inválida ou corte ambíguo; 4 com área fora da topologia; 8 com `--mode` inválido; 13 sem pesos treinados em `apply` |
 | `reconcile` | Reconciliação Bottom-Up com k-hat: ajusta o perfil em O (`train`) ou reconcilia as folhas de uma origem (`apply`). | `--mode` (`train`, `apply`), `--subsistema` (default todos), `--khat-window` (dias, default 730), `--leaves-dir` (apply), `--eval` (apply; lê a verdade do deck), `--khat-version` (apply), `--out` (apply; default `<state>/scratch/<run_id>`) | 0; 2 com entrada inválida ou `--origin` diferente da origem das folhas; 3 com folha faltando; 9 com conflito de k-hat; 13 sem k-hat; 15 com k-hat posterior à origem |
 | `registry` | Ciclo de vida das versões `v_<hash>` de uma célula modelo × área. | subcomando; `<model>`, `<area>`, `<version>` posicionais; `--dry-run` no `gc` | 0; 2 com versão malformada; 9 com hash divergente; 13 com célula, versão anterior ou pin ausentes |
 
@@ -245,14 +246,14 @@ Executam um pedaço da rodada isoladamente. Não fazem parte da rotina diária, 
 ```text title="Sintaxe (scripts/lib/cli/infer-model.R, features.R, export.R)"
 prevcarga infer-model --model=<m> --area=<a> [--variant=<e>] [--artifact-version=<v> | --pin] [--out=<arquivo>]
 prevcarga features --model=<m> --area=<a>
-prevcarga export --scratch=<dir> [--niveis=<n>] [--incluir-membros]
+prevcarga export --scratch=<dir> [--incluir-membros]
 ```
 
 | Verbo | O que faz | Flags principais | Saídas características |
 |---|---|---|---|
 | `infer-model` | Inferência de 1 modelo × 1 área × 1 origem, com os parâmetros do artefato congelado. | `--model`, `--area`, `--variant` (obrigatória se o membro declara exógena), `--artifact-version` (`v_<hash>`; default `latest.txt`) ou `--pin`, `--out` | 0; 2 com modelo desconhecido (sem `run.yaml`) ou com variante exigida ou divergente; 6 com `--out` em diretório ausente; 13 sem artefato |
 | `features` | Materializa a tabela de features de 1 modelo × 1 folha na origem O, sem treinar nem inferir. Grava em `<state>/scratch/features/<m>/<a>/features.parquet`. | `--model`, `--area`, `--origin` | 0; 4 com modelo ou área fora da topologia; 6 com falha de escrita; 13 sem artefato |
-| `export` | Copia um scratch de rodada para a entrega imutável; a chave é reconstruída do `run.json` do scratch, nunca de flag. | `--scratch`, `--niveis` (`sin`, `subsistemas` por default, `tudo`), `--incluir-membros` | 0; 13 com scratch ausente ou `run.json` incompleto; 9 com falha de cópia ou conflito de chave; 3 com arquivo da entrega faltando |
+| `export` | Copia um scratch de rodada para a entrega imutável; a chave é reconstruída do `run.json` do scratch, nunca de flag. | `--scratch`, `--incluir-membros` (o resto vem do escopo registrado no `run.json`) | 0; 13 com scratch ausente ou `run.json` incompleto; 9 com falha de cópia ou conflito de chave; 3 com arquivo da entrega faltando |
 
 O `infer-model` não aceita `--horizon` nem `--exogena`: o horizonte e a exógena vêm do artefato.
 
@@ -287,5 +288,5 @@ O repositório online de artefatos, lido pelo `prevcarga-sync`, ainda não está
 </Pendente>
 
 :::note Manual do usuário
-`docs/reference/MANUAL-USUARIO.md` resume os comandos do dia a dia, mas não lista todas as flags (por exemplo `--niveis`, `--incluir-membros`, `--skip-validate` e `--report-format` do `forecast`). Esta página segue os registros em `scripts/lib/cli/`, e `prevcarga --help` é a referência da versão instalada.
+`docs/reference/MANUAL-USUARIO.md` resume os comandos do dia a dia, mas não lista todas as flags (por exemplo `--incluir-membros`, `--skip-validate`, `--jobs`, `--artifacts-dir` e `--report-format` do `forecast`). Esta página segue os registros em `scripts/lib/cli/`, e `prevcarga --help` é a referência da versão instalada.
 :::

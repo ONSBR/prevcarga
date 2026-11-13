@@ -14,7 +14,7 @@
 - Plano (`.forecast_plan`): folhas pedidas (NULL = todas; fora da topologia => `topology.area_undeclared`, exit 4, antes do infer). `closed/stray/sin_closed`
   vem do `prevcarga_reconcile_plan`; `covered` = folhas pedidas que fecham algum subsistema (o plano atual nao o devolve: derivado em forecast.R).
 - Membros (`.forecast_members`): por folha x linha de `prevcarga_members()` (sigla/mdir/exogena). origin_agnostic so le o artefato (`prevcarga_infer_cell`;
-  ausente => `state.artifact_missing`, exit 13, nunca treina). origin_scoped: `.forecast_scoped_version` acha o artefato da origem O pelo `origin` do
+  nunca treina; ausente => `state.artifact_missing` dentro da celula, que vira membro ausente, F3.3). origin_scoped: `.forecast_scoped_version` acha o artefato da origem O pelo `origin` do
   `run_manifest.json` de cada versao do registry (proprio ou oficial sincronizado: mesmo layout; `latest` se for dele, senao a ultima em ordem radix);
   sem artefato de O => `prevcarga_train(member, area, O, ctx)` UMA vez (a fachada deriva `train_origin = O` e `last_data_day = O-1` pelo dates.R);
   deck novo do mesmo O (available_until maior) reutiliza o artefato (mesmo `v_<hash>`) e so o infer muda. O infer recebe `version =` explicita.
@@ -66,7 +66,7 @@
 - ESCOPO (F3.1, substitui o teto `--niveis`, removido do forecast e do export): `area` = so as folhas pedidas (`.forecast_plan`: closed vazio, sin_closed FALSE, stray = folhas), NUNCA reconcilia, mesmo quando as folhas fecham um subsistema; `subsistema` (`--subsistema=S`) = todas as filhas de S + reconcile de S (sem SIN); `sin` (`--subsistema=all` ou sem flags) = folhas + subsistemas + SIN (closed = `topo$order`). `--area` com `--subsistema` => exit 8; subsistema fora da topologia => exit 4. O `run.json` e o result trazem `escopo`/`subsistema`; testes em test-forecast_scope.R (FORBIDDEN area x CONTROL subsistema/sin).
 - Chave imutavel x `incluir_membros` (achado do M6.4): a `versao` do M6.7 nao inclui o conjunto de arquivos; a mesma chave com outro `incluir_membros` da `export.key_conflict`
   (exit 9). Opcoes: incluir incluir_membros ordenados na versao, ou o export aceitar superconjunto e publicar so os faltantes. Nao tratado aqui (exports.R e do M6.7).
-- Limitacoes conhecidas (nao tratadas aqui): (1) o verbo `forecast` e a gramatica docopt sao do M6.9 (hoje stub): o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
+- Limitacoes conhecidas (nao tratadas aqui): (1) o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
   HHMM de `available_until` DENTRO do dia da origem: dia O completo ou `--origin` anterior ao ultimo dia do deck e recusado (ver acima); (3) `incluir_membros` nao entra na `versao` (M6.7): a mesma chave com outro conjunto de arquivos e `export.key_conflict`.
 
 ## F3.3 -- tolerancia a membro ausente (celula tolerante)
@@ -77,7 +77,7 @@
   se todas caem, exit 3. Com `dropped` nao vazio a entrega normal acontece e a rodada termina em `partial.forecast_leaf_absent` (exit 14) com o result completo (padrao do `partial.report_failed`).
 - `.forecast_leaf_panel` monta o LONG so dos membros presentes (`members_declared` = todos, `members_present` = presentes, como `.bt_reduce_panel`): `f_<sigla>` fica NA e a combina renormaliza (nucleo da combina intocado).
   Versao e `run_manifest.model_versions` listam so os presentes; `run.json` e `result` ganham `membros_ausentes` ([{folha, membro, error_id}]) e `dropped`. Sem falha (CONTROL) a entrega e igual a de antes.
-- Efeito colateral: origin_agnostic sem artefato em TODAS as folhas deixou de abortar `state.artifact_missing` (exit 13); vira membro ausente com aviso (a media simples sem pesos e o ticket F3.4). Teste: `test-forecast_tolerance.R`.
+- Efeito colateral: origin_agnostic sem artefato em TODAS as folhas deixou de abortar `state.artifact_missing` (exit 13); vira membro ausente com aviso. Teste: `test-forecast_tolerance.R`.
 
 ## F3.5 -- `forecast --jobs=N` (PSOCK, saida identica a serial)
 - `.forecast_members(ctx, plan, g, mem, jobs)` monta a tabela de celulas (folha, membro) em ordem radix pela chave `"<folha>/<sigla>"` e roda `.forecast_run_cell` por posicao: `jobs <= 1` em serie (`lapply`, sem cluster);
@@ -100,7 +100,7 @@
 - Testes: `scripts/lib/tests/test-forecast_artifacts_dir.R`.
 
 ## Verbos da CLI (M6.9; dono M6)
-- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>]`.
+- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]` (`--artifacts-dir` e global, linha de opcao em `cli.R`; `prevcarga forecast --help` imprime so a ajuda do verbo, F2.3, ver `docs/estado/cli.md`).
   `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options
   de outros verbos (duplicata torna o docopt ambiguo): so a usage os cita, e o `scoped` do forecast os admite. `--subsistema all` = todas as folhas; subsistema fora => `topology.area_undeclared` (4).
   O flag `--from` do snippet do ticket NAO foi declarado no forecast: `prevcarga_forecast` nao reaproveita scratch (seria flag morta).

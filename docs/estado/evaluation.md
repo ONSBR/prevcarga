@@ -2,7 +2,7 @@
 
 - `scripts/lib/evaluation.R` e a UNICA definicao de metrica: `prevcarga_wmape` (100*sum|e|/sum|y_true| nos pares
   `is.finite`; unico `sum(abs(` do repo, via `.prevcarga_abs_total`), `mape` (exclui y_true==0), `mae`, `rmse`,
-  `bias` (MW + `bias_pct` ratio-of-sums), `peak_wmape`/`peak_mape` (coluna `peak`/`peak_mape` do scorecard; janela 18:00-22:00 da NT, intervalos com `interval_start` 18:00..21:30; [TBD: ADR-0028]).
+  `bias` (MW + `bias_pct` ratio-of-sums), `peak_wmape`/`peak_mape` (coluna `peak`/`peak_mape` do scorecard; janela 18:00-22:00, `prevcarga_peak_hours <- 18:21`: intervalos com `interval_start` 18:00..21:30; o de 22:00 fica fora; [TBD: ADR-0028], ainda `proposed`). MAPE e WMAPE saem sempre juntos (scorecard, `score`, relatorio); o site mostra os dois e a ponta 18:00-22:00.
   Contrato de comprimento (F4.3): `peak_wmape`/`peak_mape` conferem `interval_start`/`y_true`/`y_pred` ANTES da mascara de hora e abortam `contract.metric_length` (antes a mascara escondia o descasamento).
 - `interval_start` vem da borda do LONG (`schema_long.R`): `prevcarga_assert_long` anexa a coluna UMA vez
   (`prevcarga_long_attach_interval_start`, `granularity_min != 30` => `contract.long_schema`, tz != `ctx$tz` =>

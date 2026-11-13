@@ -44,8 +44,8 @@ fontes:
   - docs/estado/deck_reader.md
   - docs/reference/MANUAL-USUARIO.md
 adrs: [ADR-0040, ADR-0027, ADR-0024]
-revisado_em: 2026-11-05
-commit_base: "2b6c459"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Execução · 3.13</span>
@@ -122,7 +122,8 @@ A rodada diária segue uma ordem fixa, e cada etapa tem os seus erros. Um erro a
 
 | Etapa | Id | Exit | O que fazer |
 |---|---|---|---|
-| Flags | `config.usage` (`--niveis`, `--report-format`, `--area` junto com `--subsistema`) | 8 | `--niveis` aceita `sin`, `subsistemas` ou `tudo`; `--report-format`, `html` ou `pdf`; use `--area` ou `--subsistema`, não os dois |
+| Flags | `config.usage` (`--report-format`, `--area` junto com `--subsistema`) | 8 | `--report-format` aceita `html` ou `pdf`; use `--area` ou `--subsistema`, não os dois. O escopo (`--area`, `--subsistema` ou o SIN) define a saída; não há flag de nível |
+| Flags | `config.bad_type` (`--jobs`) | 8 | `--jobs` é um inteiro maior ou igual a 1 |
 | Flags | `config.usage` (flag desconhecida, como `--corte`) | 8 | o `forecast` não tem flag de corte; `--origin` é a única flag de data. O corte vem do próprio deck (`available_until`) |
 | Flags | `config.bad_origin` | 8 | `--origin` no formato `AAAA-MM-DD` |
 | Flags | `config.bad_format` | 8 | `--format=text` ou `--format=json` |
@@ -135,17 +136,22 @@ A rodada diária segue uma ordem fixa, e cada etapa tem os seus erros. Um erro a
 | Validação do deck | `completude.origin_day_gap` | 3 | há buraco no dia da origem antes do último intervalo de carga; reponha o intervalo indicado em `onde` (`area:HH:MM`). `--skip-validate` não contorna este erro |
 | Validação do deck | `completude.forecast_origin_day_complete` | 3 | o deck já tem o dia O inteiro. Acontece com `--origin` anterior ao último dia do deck ou com o deck fechado na meia-noite de O+1. Rode com o deck vivo do dia O, até um corte intradiário ou às 00h. Sem `--origin`, a origem é o dia do último intervalo de carga do deck |
 | Plano | `topology.area_undeclared` | 4 | a área ou o subsistema pedido não está em `config/topology.yaml`; `onde` diz qual. Um `--subsistema` fora da topologia é recusado já no verbo, antes da validação do deck. `prevcarga areas` lista as válidas |
-| Membros | `state.artifact_missing` | 13 | falta o artefato de um membro `origin_agnostic`; a rodada nunca o treina. Rode `prevcarga train-models` para a célula ou sincronize os artefatos oficiais com `prevcarga-sync --what artifacts` |
+| Membros | `warning.forecast_member_absent` | aviso | uma célula (folha × membro) não entregou, por exemplo `state.artifact_missing` (artefato de membro `origin_agnostic` ausente, ou `origin_scoped` sem versão da origem com `--artifacts-dir`). A rodada segue e a combina renormaliza sobre os presentes; `details` traz a folha, o membro e o `error_id`. Rode `prevcarga train-models` para a célula ou sincronize os artefatos com `prevcarga-sync --what artifacts` |
+| Membros | `completude.weather_forecast_short` | aviso, como membro ausente | o clima previsto não cobre o horizonte de um membro de horizonte fixo (DESSEM, random-forest). O membro fica ausente nesta rodada; complete o clima previsto até O+9 (48 instantes por dia) |
+| Membros | `warning.forecast_weather_horizon_cut` | aviso | o clima previsto está incompleto e o horizonte do LGBM foi cortado no último dia coberto (`details.ate`). Complete o clima até O+9 para o horizonte inteiro |
+| Membros | `completude.forecast_leaf_no_member` | 3 | uma folha ficou sem nenhum membro com entrega, em escopo `subsistema` ou `sin`; nada é entregue. Treine ou sincronize ao menos um membro da folha em `onde`, ou rode em escopo `--area` |
+| Membros | `warning.forecast_leaf_dropped` | aviso | em escopo `--area`, a folha sem nenhum membro saiu da entrega; as demais seguem. Treine ou sincronize um membro da folha |
 | Membros | `window.history_short` | 5 | um membro `origin_scoped` treina na rodada quando não há artefato da origem O, e o histórico do deck não cobre a janela de treino. Complete o histórico do deck |
-| Combina | `state.combina_not_trained` | 13 | não há pesos da combina para a folha em `<state>/artifacts/combina/<area>/`; treine-os com `prevcarga combine --mode=train` |
+| Combina | `warning.combina_eqw` | aviso | não há pesos da combina para a folha em `<state>/artifacts/combina/<area>/`: a combinação é a média simples (EQW) dos membros presentes, com proveniência `pesos=EQW`. Nenhuma ação para a rodada; treine os pesos com `prevcarga combine --mode=train` (retreino mensal) para sair do EQW |
 | Combina | `contract.member_misaligned` | 2 | a entrega de um membro não casa com a grade comum (início, grade ou fim, pelo `delivery_days`); o `--format json` mostra os `details` |
 | Reconcile | `state.khat_missing` | 13 | não há perfil k-hat ajustado nesta origem. O perfil vale só para `khat_origin == O`: rode `prevcarga reconcile --mode=train` para a mesma origem antes da rodada |
 | Reconcile | `honesty.khat_after_origin` | 15 | o perfil k-hat é de uma origem posterior a O. Não use a saída; reajuste o perfil na origem da rodada |
 | Reconcile | `contract.khat_convention` | 2 | o perfil foi ajustado com outro rótulo de carga ou outro fuso; reajuste com `reconcile --mode=train` |
 | Export | `export.key_conflict` | 9 | a chave de entrega já existe com conteúdo diferente; nada foi sobrescrito. Ver os problemas conhecidos abaixo |
 | Export | `integrity.copy_failed` | 9 | confira espaço e permissão em `--state` e repita; nenhuma entrega parcial ficou |
-| Export | `state.nothing_to_deliver` | 13 | o scratch não tem os arquivos do nível pedido; confira `--niveis` |
+| Export | `state.nothing_to_deliver` | 13 | o scratch não tem arquivos do escopo da rodada; confira o `run.json` do scratch |
 | Relatório | `partial.report_failed` | 14 | a entrega foi publicada e está intacta; só o relatório falhou. Rode de novo com `--report`: com os mesmos insumos a entrega é um no-op (`ja_publicado=sim`) e o relatório é refeito |
+| Fim da rodada | `partial.forecast_leaf_absent` | 14 | em escopo `--area`, a entrega saiu sem as folhas que ficaram sem membro (`details.folhas`); o `result` completo vem no envelope. Treine ou sincronize um membro dessas folhas e rode de novo |
 
 Três comportamentos ajudam a ler essa tabela:
 
@@ -153,15 +159,15 @@ Três comportamentos ajudam a ler essa tabela:
 2. **`--skip-validate` pula só a validação.** Os cortes (`available_until`, regra do clima, fuso e rótulo) continuam vindo do leitor do deck, e um buraco no dia O continua dando exit 3.
 3. **A rodada das 00h é válida.** Com `available_until` igual a O 00:00, sem nenhum dado do dia O, a rodada entrega a partir de O 00:30. A recusa por dia completo vale só a partir de O+1 00:00 (ver [Rodada diária](/execucao/rodada-diaria)).
 
-Os avisos da rodada (validação do deck, reconcile, export) não mudam o código de saída. Eles saem como linhas de aviso no stderr, ou em `warnings` do JSON.
+Os avisos da rodada (validação do deck, membros, combina, reconcile, export) não mudam o código de saída. Eles saem como linhas de aviso no stderr, ou em `warnings` do JSON.
 
 ### Outros verbos
 
 | Verbo | Ids característicos | O que fazer |
 |---|---|---|
 | `validate-deck` | os mesmos ids da validação do deck (classes `contract`, `completude`, `topology`, `window`) | o relatório de findings sai antes do erro; corrija os itens da classe dominante primeiro (ver [Validar o deck](/execucao/validar-deck)) |
-| `train-models` | `config.unknown_model`, `contract.area_selector_conflict`, `topology.area_undeclared`, `window.history_short` | `prevcarga models` lista os modelos; use um só seletor de área (`--area`, `--subsistema` ou `--areas`) |
-| `combine` | `config.bad_mode`, `config.usage` (`--root`, `--out`), `state.combina_not_trained`, `contract.combina_input` | `--mode` é `train`, `apply` ou `full`; `--root` é obrigatório; `apply` e `full` exigem `--out`, com o diretório pai já existente |
+| `train-models` | `config.unknown_model`, `contract.area_selector_conflict`, `topology.area_undeclared`, `window.history_short`, `partial.train_models_delivery` | `prevcarga models` lista os modelos; use um só seletor de área (`--area`, `--subsistema` ou `--areas`). Com `--keep-going`, o exit 14 (`partial.train_models_delivery`) diz que alguma célula falhou; `result.cells[]` traz o `error_id` de cada uma e as demais ficaram publicadas |
+| `combine` | `config.bad_mode`, `config.usage` (`--root`, `--out`), `state.combina_not_trained` (só em `apply`), `contract.combina_input` | `--mode` é `train`, `apply` ou `full`; `--root` é obrigatório; `apply` e `full` exigem `--out`, com o diretório pai já existente |
 | `reconcile` | `config.bad_mode`, `state.khat_missing`, `honesty.khat_after_origin`, `completude.leaf_missing`, `contract.reconcile_input` | `--mode` é `train` ou `apply`; o perfil k-hat tem de ser da mesma origem |
 | `plan`, `backtest` | `config.origin_range_required`, `config.bad_corte`, `config.bad_protocol`, `state.lock_held`, `partial.backtest_delivery` | `--origin=A..B` (ou uma data); `--corte` na grade de 30 min (`08:00,09:30`); `--protocol` é `fixed`, `daily` ou `retrain_harness`. Só no `backtest`: lock de execução morta sai com `--break-lock`; entrega parcial continua com `--resume` (ver [Backtest](/execucao/backtest)) |
 | `verificar` | `integrity.manifest_sha`, `contract.identity_mismatch`, `contract.pairing`, `repro.key_mismatch`, `repro.value_out_of_tol`, `state.official_forecast_missing` | a fase que falhou diz o caminho: integridade (9), identidade e pareamento (2), valores (12), oficial ausente (13; rode `prevcarga-sync --what forecasts`). Ver [Verificar uma entrega](/execucao/verificar) |
@@ -253,20 +259,20 @@ O utilitário valida o template pelo próprio leitor antes de gravar. Se o alvo 
 O store real não tem `manifest.json`, e os valores do template (`load_label: start`, fusos `Etc/GMT+3`, `issue_time` em UTC, atraso de 6 horas) estão registrados como "a confirmar" em `docs/estado/deck_reader.md`. Confira-os contra o seu store antes de usar o overlay.
 </Pendente>
 
-### `export.key_conflict` com outro `--niveis`
+### `export.key_conflict` com `--incluir-membros`
 
-A chave de entrega é imutável: `forecasts/<origem>/<available_until>/<versao>/`. A `versao` é um hash dos insumos da rodada (pacote, membros e o que eles entregaram, pesos da combina, perfil k-hat, topologia, rótulo da carga e regra do clima). O conjunto de arquivos pedido não entra nela: `--niveis` e `--incluir-membros` não mudam a `versao`.
+A chave de entrega é imutável: `forecasts/<origem>/<available_until>/<versao>/`. A `versao` é um hash dos insumos da rodada (pacote, membros e o que eles entregaram, pesos da combina, perfil k-hat, topologia, rótulo da carga e regra do clima). O escopo da rodada muda os membros e o k-hat, e portanto a `versao`, mas `--incluir-membros` não a muda.
 
-Por isso, rodar de novo a mesma origem, com o mesmo deck e os mesmos artefatos, mas com outro `--niveis` ou com `--incluir-membros` ligado ou desligado, cai na mesma chave com outro conjunto de arquivos. O export compara a chave publicada com a nova e sai com `export.key_conflict` (exit 9). O `details.path` do JSON traz o primeiro caminho divergente. Nada é sobrescrito, e a entrega anterior fica como estava.
+Por isso, rodar de novo a mesma origem, com o mesmo deck e os mesmos artefatos, mas com `--incluir-membros` ligado ou desligado, cai na mesma chave com outro conjunto de arquivos. O export compara a chave publicada com a nova e sai com `export.key_conflict` (exit 9). O `details.path` do JSON traz o primeiro caminho divergente. Nada é sobrescrito, e a entrega anterior fica como estava.
 
 | Segunda rodada, mesma chave | Resultado |
 |---|---|
-| mesmo `--niveis` e mesmo `--incluir-membros` | no-op: `ja_publicado=sim`, exit 0 |
-| outro `--niveis` ou outro `--incluir-membros` | `export.key_conflict`, exit 9 |
+| mesmo `--incluir-membros` | no-op: `ja_publicado=sim`, exit 0 |
+| outro `--incluir-membros` | `export.key_conflict`, exit 9 |
 | deck novo do mesmo dia (outro `available_until`) | outra chave, publicada ao lado |
 
-O que fazer: decida o nível antes da primeira rodada de cada origem e corte, e repita sempre com as mesmas flags. Se a automação precisa de folhas cobertas ou de membros, use `--niveis=tudo` ou `--incluir-membros` desde a primeira rodada.
+O que fazer: decida antes da primeira rodada de cada origem e corte se os membros entram, e repita sempre com as mesmas flags. Se a automação precisa dos membros, use `--incluir-membros` desde a primeira rodada.
 
 <Pendente titulo="Pendente · chave e conjunto de arquivos">
-O tratamento não está decidido. As opções registradas em `docs/estado/forecast.md` são incluir `niveis` e `incluir_membros` na `versao` ou fazer o export aceitar um superconjunto e publicar só os arquivos que faltam.
+O tratamento não está decidido. As opções registradas em `docs/estado/forecast.md` são incluir `incluir_membros` na `versao` ou fazer o export aceitar um superconjunto e publicar só os arquivos que faltam.
 </Pendente>

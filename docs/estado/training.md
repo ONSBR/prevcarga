@@ -62,3 +62,4 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
   `area|span|horizon_days|weather_forecast_in_train` e valor = painel NAO cortado (o corte por janela segue por celula em `prevcarga_train_inputs`). `prevcarga_train_inputs` ganhou os argumentos opcionais
   `rc`, `read_panel`, `plugin`, `spec`; sem eles o comportamento e o de sempre (`prevcarga_train` e o treino real nao mudam). As versoes `v_<hash>` do plano sao identicas as de `prevcarga_train_models`
   no mesmo deck (FORBIDDEN delta 0); uma linha de carga alterada numa area muda so a versao daquela area (CONTROL). Testes: `test-training.R` (secao F2.4).
+- Publicado no site (F7.2): `website/docs/execucao/09-artefatos.mdx` e `12-referencia-cli.mdx` descrevem `--keep-going` (status `trained|reused|failed|skipped`, `summary`, exit 14 `partial.train_models_delivery`), `--jobs` e `prevcarga train-models --help`.

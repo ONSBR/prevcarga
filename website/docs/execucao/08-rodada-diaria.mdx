@@ -3,7 +3,7 @@ title: Rodada diária (forecast)
 sidebar_label: Rodada diária
 sidebar_position: 8
 slug: /execucao/rodada-diaria
-description: Como rodar o verbo forecast para uma origem O, o que ele exige no estado, onde cada falha encerra a rodada e onde fica a entrega.
+description: Como rodar o verbo forecast para uma origem O, o escopo da entrega, o que ele exige no estado, o que tolera (membro ausente, clima curto, sem pesos), onde cada falha encerra a rodada e onde fica a entrega.
 fontes:
   - scripts/lib/forecast.R
   - scripts/lib/cli/forecast.R
@@ -31,13 +31,13 @@ fontes:
   - docs/estado/m6-forecast.md
   - docs/estado/export.md
 adrs: [ADR-0023, ADR-0024, ADR-0033, ADR-0039, ADR-0040]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Execução · 3.8</span>
 
-<p className="pc-lead">A rodada diária é o verbo <code>prevcarga forecast</code>: uma origem O, todos os membros em cada folha, combina com pesos congelados, reconciliação até o SIN e uma entrega imutável em <code>forecasts/</code>. O verbo só compõe módulos e não treina nada que seja <code>origin_agnostic</code>, nem pesos, nem k-hat: esses artefatos têm de existir antes. A ordem dos passos é fixa, e toda falha antes do export encerra a rodada sem deixar entrega parcial.</p>
+<p className="pc-lead">A rodada diária é o verbo <code>prevcarga forecast</code>: uma origem O, todos os membros em cada folha, combina com pesos congelados, reconciliação até o SIN e uma entrega imutável em <code>forecasts/</code>. O verbo só compõe módulos e não treina nada que seja <code>origin_agnostic</code>, nem pesos, nem k-hat. O escopo (<code>--area</code>, <code>--subsistema</code> ou o SIN inteiro) decide o que entra na entrega. A rodada tolera membro ausente, clima previsto curto e área sem pesos treinados, com aviso classificado. A ordem dos passos é fixa, e toda falha fatal antes do export encerra a rodada sem deixar entrega parcial.</p>
 
 ## Uma origem por rodada
 
@@ -54,22 +54,45 @@ O relógio da máquina nunca entra. Não existe flag de corte no `forecast`: o `
   {type: 'cmd', text: 'prevcarga forecast --data=./deck'},
   {type: 'dim', text: '# origem = último dia de carga do deck'},
   {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data=./deck --report'},
-  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --subsistema=SECO --niveis=tudo --format=json'},
+  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --subsistema=SECO --jobs=4 --format=json'},
+  {type: 'cmd', text: 'prevcarga forecast --help'},
 ]} />
 
 ### Flags do verbo
 
 | Flag | Padrão | Efeito |
 |---|---|---|
-| `--area=<a>...` | todas as folhas | Restringe às folhas pedidas; folha fora da topologia dá `topology.area_undeclared` (exit 4) |
-| `--subsistema=<s>` | — | Expande nas folhas do subsistema pela topologia; `all` = todas as folhas. Exclusiva com `--area` (exit 8) |
-| `--niveis=<n>` | `subsistemas` | Teto dos agregados entregues: `sin`, `subsistemas` ou `tudo`. Outro valor dá `config.usage` (exit 8) |
+| `--area=<a>...` | — | Escopo `area`: só as folhas pedidas, sem reconciliação; folha fora da topologia dá `topology.area_undeclared` (exit 4) |
+| `--subsistema=<s>` | — | Escopo `subsistema`: as folhas do subsistema e a reconciliação dele, sem SIN; `all` = escopo SIN. Exclusiva com `--area` (exit 8) |
 | `--incluir-membros` | desligada | Inclui a previsão de cada membro em cada folha na entrega |
 | `--report` | desligada | Gera o relatório diagnóstico depois da entrega |
 | `--report-format=<f>` | `html` | `html` ou `pdf`; outro valor dá exit 8 |
 | `--skip-validate` | desligada | Pula a validação do deck. Os cortes continuam vindo do leitor |
+| `--jobs=<n>` | `1` | Inteiro maior ou igual a 1 (senão `config.bad_type`, exit 8). Com `n` maior que 1, as células (folha × membro) rodam em workers PSOCK; a entrega, a `versao` e o `run_manifest.json` saem idênticos aos da rodada serial |
+| `--artifacts-dir=<dir>` | `<state_dir>/artifacts` | Raiz, só de leitura, dos artefatos de membros, combina e k-hat (também `artifacts_dir` no `config.yaml`). Com ela o forecast nunca treina; ver [Pré-condições de estado](#pré-condições-de-estado) |
 
-As flags globais (`--data`, `--state`, `--config`, `--format`, `--weather-cutoff`) valem como em qualquer verbo; ver [Configuração](/execucao/configuracao). Sem `--data` nem `data_dir` no `config.yaml`, o verbo para com `config.data_dir_missing` (exit 8).
+`prevcarga forecast --help` imprime só a ajuda do verbo: a usage do `forecast`, as opções comuns e as opções que a usage cita, em ASCII e com exit 0. A ajuda global (`prevcarga --help`) segue listando todas as opções de todos os verbos.
+
+### Escopo da rodada
+
+O escopo vem das flags e define quais etapas rodam e o que é entregue. Não existe teto de níveis: a entrega é a do escopo.
+
+| Escopo | Flag | Etapas executadas | Saída |
+|---|---|---|---|
+| `area` | `--area=<folha>` | membros e combina das folhas pedidas | uma LONG por folha, sem reconciliação, mesmo que as folhas fechem um subsistema |
+| `subsistema` | `--subsistema=<S>` | membros, combina e reconciliação do subsistema `S` | todas as folhas de `S` e o próprio `S` |
+| `sin` | `--subsistema=all` ou nenhuma das duas flags | tudo | todas as folhas, os subsistemas e o SIN (os quatro subsistemas) |
+
+Subsistema fora da topologia dá `topology.area_undeclared` (exit 4); `--area` junto com `--subsistema`, `config.usage` (exit 8).
+
+### Membro ausente, clima curto e área sem pesos
+
+A rodada continua quando uma célula (folha × membro) não entrega, em vez de abortar:
+
+- **Membro ausente.** Se o infer de uma célula falha por um erro que não seja de configuração, topologia, honestidade ou runtime (esses abortam a rodada na hora), a célula vira membro ausente: sai `warning.forecast_member_absent` (com folha, membro e `error_id`), a combina renormaliza sobre os membros presentes e o `result` lista `membros_ausentes`. A rodada só falha quando uma folha fica sem nenhum membro: em escopo `subsistema` ou `sin`, `completude.forecast_leaf_no_member` (exit 3, sem entrega); em escopo `area`, a folha sai do plano com `warning.forecast_leaf_dropped`, as demais são entregues e a rodada termina em `partial.forecast_leaf_absent` (exit 14, com o `result` completo).
+- **Clima previsto curto.** Clima previsto incompleto não bloqueia a rodada, ele corta o horizonte por membro. Um dia só conta como coberto se a emissão vigente traz os 48 instantes dele, e nada é preenchido nem persistido para completar o dia. O LGBM entrega até o último dia coberto, e sai um `warning.forecast_weather_horizon_cut` por folha (`details.ate` traz a data coberta). O DESSEM e o RF só rodam com o horizonte inteiro: com clima curto o membro recusa com `completude.weather_forecast_short` e vira membro ausente. O Holt-Winters não usa clima e entrega o horizonte inteiro. Por lead, a combina usa só os membros que cobrem o lead. O `result` traz `clima_previsto_ate` e `delivery_days_efetivo`. Só a falta do dia O inteiro recusa o membro dependente de clima.
+- **Sem pesos treinados.** Se a folha não tem `latest.txt` em `combina/<folha>/`, a combinação é a média simples dos membros presentes (EQW): sai `warning.combina_eqw` (um por folha), o `run.json` e o `result` registram `pesos=EQW` na proveniência da folha e nada é gravado em `combina/`. Pesos inválidos ou de outro conjunto de membros continuam abortando.
+ (`--data`, `--state`, `--config`, `--format`, `--weather-cutoff`) valem como em qualquer verbo; ver [Configuração](/execucao/configuracao). Sem `--data` nem `data_dir` no `config.yaml`, o verbo para com `config.data_dir_missing` (exit 8).
 
 ## Passos da rodada e onde cada falha encerra
 
@@ -91,8 +114,8 @@ flowchart TB
   F -->|"flag inválida, sem --data, subsistema fora"| X8["exit 8 ou 4"]:::erro
   G -->|"deck reprovado; dia O completo"| X3["exit da classe; 3 no dia O"]:::erro
   P -->|"folha fora da topologia"| X4["exit 4"]:::erro
-  M -->|"sem artefato do membro"| X13["exit 13"]:::erro
-  C -->|"sem pesos; sem o corte nos pesos"| X13b["exit 13 ou 2"]:::erro
+  M -->|"folha sem nenhum membro"| X3b["exit 3 (sin, subsistema) ou 14 (area)"]:::erro
+  C -->|"sem o corte nos pesos"| X13b["exit 2"]:::erro
   R -->|"k-hat de outra origem ou ausente"| X15["exit 15, 13 ou 2"]:::erro
   K -->|"scratch não criado"| X6["exit 6"]:::erro
   E -->|"chave já publicada com outro conteúdo; nada a entregar"| X9["exit 9 ou 13"]:::erro
@@ -103,21 +126,22 @@ flowchart TB
 
 | Passo | O que faz | Falha | Exit |
 |---|---|---|---|
-| Flags | Valida `--niveis`, `--report-format`, a exclusão `--area`/`--subsistema` e exige o diretório de dados | `config.usage`, `config.data_dir_missing` | 8 |
-| Topologia | Expande `--subsistema` em folhas | `topology.area_undeclared` | 4 |
+| Flags | Valida `--report-format`, `--jobs`, a exclusão `--area`/`--subsistema` e exige o diretório de dados | `config.usage`, `config.bad_type`, `config.data_dir_missing` | 8 |
+| Topologia | Resolve o escopo (`--area`, `--subsistema` ou SIN) pela topologia | `topology.area_undeclared` | 4 |
 | Validação do deck | `prevcarga_validate_deck` (salvo `--skip-validate`) e `prevcarga_resolve_cuts`. Deck reprovado aborta com o primeiro erro da classe dominante, a mesma regra do [validate-deck](/execucao/validar-deck) | `<classe>.<what>` do achado; `completude.origin_day_gap`; `completude.forecast_origin_day_complete` | o da classe do achado; 3 nos dois de completude |
-| Plano | Folhas pedidas e o fechamento por subsistema (`prevcarga_reconcile_plan`): folhas cobertas, folhas soltas, subsistemas fechados e se o SIN fecha | `topology.area_undeclared` | 4 |
-| Membros | `prevcarga_infer_cell` por membro e folha; `origin_scoped` sem artefato de O treina antes | `state.artifact_missing` | 13 |
-| LONG e combina | `prevcarga_build_long` por membro, alinhamento, painel e `prevcarga_combina_apply` com os pesos congelados | `state.combina_not_trained` (13); `contract.combina_input`, `contract.combina_artifact_mismatch` (2) | 13 ou 2 |
+| Plano | Folhas do escopo e o que a reconciliação fecha: `area` não fecha nada, `subsistema` fecha `S`, `sin` fecha tudo | `topology.area_undeclared` | 4 |
+| Membros | `prevcarga_infer_cell` por célula (folha × membro), em serial ou com `--jobs`; `origin_scoped` sem artefato de O treina antes, salvo com `--artifacts-dir`. Célula que falha vira membro ausente | `warning.forecast_member_absent`, `warning.forecast_weather_horizon_cut`; sem nenhum membro na folha, `completude.forecast_leaf_no_member` | 3 |
+| LONG e combina | `prevcarga_build_long` por membro, alinhamento, painel e `prevcarga_combina_apply` com os pesos congelados; sem pesos, média simples com `warning.combina_eqw` | `contract.combina_input`, `contract.combina_artifact_mismatch` | 2 |
 | Reconcile | `prevcarga_reconcile_apply` uma vez, em memória, só nas folhas cobertas | `honesty.khat_after_origin` (15); `state.khat_missing` (13); `contract.*` (2) | 15, 13 ou 2 |
 | Chave e scratch | `prevcarga_forecast_versao`, `prevcarga_export_key`, scratch recriado, `run.json` e `run_manifest.json` | `io.out_unwritable` (scratch não criado) | 6 |
 | Export | Copia os bytes do scratch para a chave final, por staging e `file.rename` | `export.key_conflict`, `integrity.copy_failed` (9); `state.nothing_to_deliver` (13) | 9 ou 13 |
 | Relatório | `prevcarga_report`, fora de `forecasts/` | `partial.report_failed` | 14 |
+| Fim da rodada | Entrega publicada com folha de escopo `area` sem nenhum membro | `partial.forecast_leaf_absent` | 14 |
 
 ### O que já está em disco quando a rodada falha
 
 - **Até o reconcile, inclusive**, nada é gravado em `forecasts/` nem em `scratch/`. Um erro do reconcile (15, 13 ou 2) não deixa diretório de entrega.
-- A exceção é o registry: um membro `origin_scoped` sem artefato de O treina no passo de membros e grava o artefato antes de qualquer falha posterior. A próxima rodada da mesma origem o reutiliza.
+- A exceção é o registry: um membro `origin_scoped` sem artefato de O treina no passo de membros (sem `--artifacts-dir`) e grava o artefato antes de qualquer falha posterior. A próxima rodada da mesma origem o reutiliza.
 - **No export**, o scratch `<state_dir>/scratch/<run_id>/` já existe. A cópia vai para um staging no mesmo volume e só vira a chave final por `file.rename`; em erro, o staging é removido e nenhuma entrega parcial fica.
 - **No relatório**, a entrega já foi publicada e não é desfeita.
 
@@ -157,14 +181,16 @@ Na rodada das 00h o deck termina no intervalo O−1 23:30–24:00, então passe 
 
 ## Pré-condições de estado
 
-O `forecast` lê do diretório de estado (`<state_dir>`: `--state`, ou `state_dir` no `config.yaml`, ou `.state` sob a raiz do pacote). Antes de rodar uma origem O, o estado precisa ter:
+O `forecast` lê do diretório de estado (`<state_dir>`: `--state`, ou `state_dir` no `config.yaml`, ou `.state` sob a raiz do pacote). Antes de rodar uma origem O, o estado deve ter:
 
 | Artefato | Quem produz | Onde fica | Sem ele |
 |---|---|---|---|
-| Artefato de cada membro `origin_agnostic` (RF, LGBM) em cada folha | `prevcarga train-models` ou a sincronização dos artefatos oficiais ([prevcarga-sync](/execucao/sync)) | `<state_dir>/artifacts/<modelo>/<folha>/v_<hash>/` | `state.artifact_missing` (exit 13). O forecast nunca treina esses membros |
-| Artefato dos membros `origin_scoped` (HW, RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN) | O próprio forecast, se não houver artefato da origem O | `<state_dir>/artifacts/<modelo>/<exogena>/<folha>/v_<hash>/` (sem `<exogena>` no HW) | Treina uma vez por célula, dentro do passo `infer` |
-| Pesos da combina de cada folha, com o corte HHMM do `available_until` da rodada | `prevcarga combine --mode=train` | `<state_dir>/artifacts/combina/<folha>/` | `state.combina_not_trained` (exit 13); sem o corte, `contract.combina_input` (exit 2) |
+| Artefato de cada membro `origin_agnostic` (RF, LGBM) em cada folha | `prevcarga train-models` ou a sincronização dos artefatos oficiais ([prevcarga-sync](/execucao/sync)) | `<state_dir>/artifacts/<modelo>/<folha>/v_<hash>/` | A célula aborta com `state.artifact_missing` e vira membro ausente (`warning.forecast_member_absent`). O forecast nunca treina esses membros |
+| Artefato dos membros `origin_scoped` (HW, RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN) | O próprio forecast, se não houver artefato da origem O | `<state_dir>/artifacts/<modelo>/<exogena>/<folha>/v_<hash>/` (sem `<exogena>` no HW) | Treina uma vez por célula, dentro do passo `infer`. Com `--artifacts-dir` não treina: a célula vira membro ausente (`state.artifact_missing`) |
+| Pesos da combina de cada folha, com o corte HHMM do `available_until` da rodada | `prevcarga combine --mode=train`, refeito uma vez por mês | `<state_dir>/artifacts/combina/<folha>/` | Opcional: sem `latest.txt`, a folha usa a média simples (EQW) com `warning.combina_eqw`. Com pesos mas sem o corte da rodada, `contract.combina_input` (exit 2) |
 | Perfil k-hat de cada subsistema fechado, ajustado na própria origem O | `prevcarga reconcile --mode=train --origin=O` | `<state_dir>/artifacts/reconcile/<ss>/` | `state.khat_missing` (exit 13) se ausente ou de origem anterior; `honesty.khat_after_origin` (exit 15) se de origem posterior |
+
+Os artefatos de membros, da combina e do k-hat saem de uma raiz só: `<state_dir>/artifacts`, ou a pasta de `--artifacts-dir` (só leitura; o forecast não escreve nela, e `<state_dir>/artifacts` nem é criado). O `result` e o `run.json` trazem `artefatos` com a `raiz` e o `modo` (`registry` ou `apontado`).
 
 A classe de split de cada membro vem do `run.yaml` do modelo (ADR-0023); a lista de membros vem de `config/topology.yaml`. O artefato `origin_scoped` da origem O é achado pelo campo `origin` do `run_manifest.json` de cada versão do registry, do próprio estado ou sincronizado. Um deck novo do mesmo O, com `available_until` maior, reutiliza o mesmo artefato; só o infer muda.
 
@@ -181,26 +207,26 @@ forecasts/
   2026-10-01/                  data da origem O
     20261001T0930/             available_until no fuso da carga
       <versao>/                12 hex de prevcarga_forecast_versao
-        SIN.parquet            só quando as folhas pedidas fecham o SIN
-        subsistemas/<ss>.parquet   com --niveis=subsistemas (padrão) ou tudo
-        folhas/<folha>.parquet     folhas soltas sempre; cobertas só com --niveis=tudo
+        SIN.parquet            só no escopo sin
+        subsistemas/<ss>.parquet   nos escopos subsistema (só o pedido) e sin
+        folhas/<folha>.parquet     as folhas do escopo, sempre
         membros/<sigla>/<folha>.parquet   só com --incluir-membros
         manifest.json          metadados da rodada e arquivos[]
         run_manifest.json      identidade da rodada, lida pelo verificar
 ```
 
-| Nível de `--niveis` | Entrega |
+| Escopo | Entrega |
 |---|---|
-| `sin` | SIN e folhas soltas |
-| `subsistemas` | SIN, subsistemas fechados e folhas soltas |
-| `tudo` | Tudo de `subsistemas` mais as folhas cobertas |
+| `area` | as folhas pedidas |
+| `subsistema` | as folhas do subsistema e o subsistema |
+| `sin` | todas as folhas, os subsistemas e o SIN |
 
-Todos os parquets seguem o [schema LONG](/arquitetura/schema-long). O `manifest.json` traz, em ordem fixa, `produto`, `origem`, `available_until`, `available_until_por_area`, `timezone`, `load_label`, `weather_issue_cutoff`, `khat` (`ss`, `versao`, `khat_origin` por subsistema), `versao`, `version`, `runtime_id`, `niveis`, `schema_long`, `gerado_em` e `arquivos` (`path`, `nivel`, `area`, `linhas`, `sha256`). O único campo não determinístico é `gerado_em`, carimbo lido uma vez pela fachada. O `run_manifest.json` fica fora de `arquivos[]` e é o que o [verificar](/execucao/verificar) lê.
+Todos os parquets seguem o [schema LONG](/arquitetura/schema-long). O `manifest.json` traz, em ordem fixa, `produto`, `origem`, `available_until`, `available_until_por_area`, `timezone`, `load_label`, `weather_issue_cutoff`, `khat` (`ss`, `versao`, `khat_origin` por subsistema), `versao`, `version`, `runtime_id`, `escopo`, `schema_long`, `gerado_em` e `arquivos` (`path`, `nivel`, `area`, `linhas`, `sha256`). O único campo não determinístico é `gerado_em`, carimbo lido uma vez pela fachada. O `run_manifest.json` fica fora de `arquivos[]` e é o que o [verificar](/execucao/verificar) lê.
 
 Rodar de novo a mesma origem com o mesmo deck dá a mesma chave e os mesmos bytes: o export não faz nada e a saída diz `ja_publicado=sim`. Qualquer diferença nos arquivos entregues sob a mesma chave (outro conjunto de arquivos ou outro sha256) dá `export.key_conflict` (exit 9), e nada é sobrescrito. O `manifest.json` e o `run_manifest.json` ficam fora dessa comparação.
 
-<Pendente titulo="Pendente · chave e --niveis">
-`--niveis` e `--incluir-membros` não entram na `versao`. A mesma origem, com o mesmo deck, rodada com outro `--niveis` ou com `--incluir-membros` cai na mesma chave com outro conjunto de arquivos e dá `export.key_conflict` (exit 9). A correção (incluir o conjunto na `versao` ou aceitar superconjunto no export) não foi decidida.
+<Pendente titulo="Pendente · chave e --incluir-membros">
+`--incluir-membros` não entra na `versao`. A mesma origem, com o mesmo deck, rodada com `--incluir-membros` ligado e depois desligado cai na mesma chave com outro conjunto de arquivos e dá `export.key_conflict` (exit 9). A correção (incluir o conjunto na `versao` ou aceitar superconjunto no export) não foi decidida.
 </Pendente>
 
 ### A saída do verbo
@@ -209,14 +235,17 @@ No modo texto, o verbo imprime linhas ASCII neste formato (`.prevcarga_fc_text`,
 
 ```text title="Formato da saída em texto"
 forecast  origem=<O>  available_until=<AAAA-MM-DDTHH:MM>  versao=<versao>
-niveis=<n>  folhas=<n cobertas>  isoladas=<n soltas>  ja_publicado=sim|nao
+escopo=<area|subsistema|sin>  folhas=<n cobertas>  isoladas=<n soltas>  ja_publicado=sim|nao
+ausentes=<membro/folha,...>                  só com membro ausente
+artefatos=<registry|apontado> <raiz>
+folhas fora=<folhas>                         só com folha fora da entrega
 saida: <state_dir>/forecasts/<O>/<AAAAMMDDTHHMM>/<versao>
 arquivo <path>  linhas=<n> sha256=<hex>      uma linha por arquivo entregue
 relatorio: ok <caminho>                      só com --report
 OK
 ```
 
-Com `--format=json`, o `result` do envelope traz `origem`, `available_until`, `available_until_por_area`, `weather_issue_cutoff`, `versao`, `saida`, `niveis`, `covered`, `stray`, `khat` (com `khat_age_days`), `arquivos`, `cobertura_descartada`, `ja_publicado`, `report` e os campos de tempo descritos abaixo. Os avisos do catálogo (validação do deck, reconcile, export) vão em `warnings` do envelope; no modo texto, saem em `stderr`.
+Com `--format=json`, o `result` do envelope traz `origem`, `available_until`, `available_until_por_area`, `weather_issue_cutoff`, `versao`, `saida`, `escopo`, `subsistema`, `covered`, `stray`, `khat` (com `khat_age_days`), `arquivos`, `cobertura_descartada`, `ja_publicado`, `report`, `membros_ausentes`, `dropped`, `clima_previsto_ate`, `delivery_days_efetivo`, `artefatos` e os campos de tempo descritos abaixo. Os avisos do catálogo (validação do deck, reconcile, export) vão em `warnings` do envelope; no modo texto, saem em `stderr`.
 
 ## Relatório
 
@@ -251,7 +280,7 @@ A fachada injeta um relógio (`proc.time`) e a rodada mede cada passo. O tempo v
 |---|---|
 | `passos[]` | `{passo, duracao_s}` para `validate-deck`, `infer`, `combina`, `reconcile`, `export` e, com `--report`, `report` |
 | `duracao_s` | Soma dos passos, em segundos |
-| `jobs` | Sempre 1: o `forecast` não declara `--jobs` |
+| `jobs` | O valor efetivo de `--jobs` (1 em serial); só o `result` o leva, nunca a entrega |
 | `platform`, `runtime_id` | Sistema e arquitetura; versão do R e plataforma |
 
 O que cada passo cobre:

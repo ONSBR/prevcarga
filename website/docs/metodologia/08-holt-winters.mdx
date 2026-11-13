@@ -3,7 +3,7 @@ title: Holt-Winters semi-horário
 sidebar_label: Holt-Winters
 sidebar_position: 8
 slug: /metodologia/holt-winters
-description: O membro Holt-Winters prevê cada um dos 48 patamares de 30 minutos por suavização exponencial multiplicativa com sazonalidade semanal, sobre um histórico até O−1 tratado em sete passos.
+description: O membro Holt-Winters prevê cada um dos 48 patamares de 30 minutos por suavização exponencial multiplicativa com sazonalidade semanal, sobre um histórico até O−1 tratado em seis passos, sem usar temperatura.
 fontes:
   - models/holt-winters/README.md
   - models/holt-winters/run.yaml
@@ -24,13 +24,13 @@ fontes:
   - scripts/lib/errors/training.tsv
   - docs/estado/holt_winters.md
 adrs: [ADR-0021, ADR-0023, ADR-0024]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Metodologia · 1.8</span>
 
-<p className="pc-lead">O Holt-Winters (HW) é o membro univariado do PrevCarga. Para cada origem O, ele trata o histórico de carga até O−1 (D−2) em sete passos, ajusta 49 modelos de suavização exponencial multiplicativa com sazonalidade semanal (um para a média diária e um para cada um dos 48 patamares de 30 minutos) e entrega a previsão do resto do dia O até O+8 (D−1 a D+7). Calendário e temperatura não são regressores: o calendário entra no tratamento do histórico e na modulação de feriado; o valor da temperatura não altera a previsão, só a presença de clima previsto decide o horizonte coberto e se um feriado é modulado.</p>
+<p className="pc-lead">O Holt-Winters (HW) é o membro univariado do PrevCarga. Para cada origem O, ele trata o histórico de carga até O−1 (D−2) em seis passos, ajusta 49 modelos de suavização exponencial multiplicativa com sazonalidade semanal (um para a média diária e um para cada um dos 48 patamares de 30 minutos) e entrega a previsão do resto do dia O até O+8 (D−1 a D+7). O HW não utiliza temperatura: o clima, observado ou previsto, não entra em nenhum passo. O calendário (dia da semana, feriado e tipo) entra no tratamento do histórico e na modulação de feriado, e o horizonte é sempre o inteiro, `n_steps` = `horizon_days`, mesmo com clima previsto curto ou ausente.</p>
 
 ## Entradas e conferências
 
@@ -72,21 +72,20 @@ Os cortes vêm de `scripts/lib/dates.R`: `train_origin` = O e `last_data_day` = 
 
 | Condição | Id | Classe |
 |---|---|---|
-| carga ou clima observado com a coluna crua `timestamp` (só o leitor converte o rótulo) | `hw.raw_timestamp` | contract |
+| carga com a coluna crua `timestamp` (só o leitor converte o rótulo) | `hw.raw_timestamp` | contract |
 | coluna ausente ou `interval_start`/`interval_end` fora do fuso de `cuts$tz` | `hw.input_column` | contract |
 | intervalo de dia posterior a O, ou do dia O depois de `available_until` | `hw.train_day_o` | contract |
 | O−1 sem os 48 intervalos de 30 minutos | `hw.last_day_incomplete` | completude |
-| emissão de clima previsto com `issue_time` depois de `weather_issue_limit` | `hw.weather_beyond_cut` | contract |
 
 O treino confere de novo que não há carga do dia O (`hw.train_day_o`), que a série termina em `last_data_day` (`hw.last_day_incomplete`) e que `train_origin` é O (`hw.bad_cut`). A janela de treino é conferida antes, pela fundação: menos dias que `history_days.train` até `last_data_day` aborta `window.history_short`. O plugin tem a guarda própria `hw.history_short`, mas ela só age quando recebe o spec completo; pelo despachante ele recebe só `params`.
 
-A ingestão monta a tabela diária `CargaTempVer`, com 105 colunas nesta ordem: data, feriado, dia da semana, H01..H48 da carga, temperatura média, T01..T48 do clima observado, carga média, a flag `HV`, as colunas `FHV15` e `DHV15` (sempre NA) e o tipo de feriado. A flag `HV` marca o horário de verão histórico: vale 1 quando o fuso `America/Sao_Paulo`, lido às 06:00 UTC do dia, está em −02:00. O instante é montado com `make_datetime` e o offset é lido por `format(tz =)`, sem aritmética de hora. O passo 3 preenche o NA da flag, mas nenhum ajuste a usa.
+A ingestão monta a tabela diária `CargaTempVer`, com 105 colunas nesta ordem: data, feriado, dia da semana, H01..H48 da carga, temperatura média, T01..T48, carga média, a flag `HV`, as colunas `FHV15` e `DHV15` (sempre NA) e o tipo de feriado. As colunas de temperatura (`TempMedia` e T01..T48) existem só para manter os índices fixos das funções auxiliares e ficam sempre NA. A flag `HV` marca o horário de verão histórico: vale 1 quando o fuso `America/Sao_Paulo`, lido às 06:00 UTC do dia, está em −02:00. O instante é montado com `make_datetime` e o offset é lido por `format(tz =)`, sem aritmética de hora. O passo 3 preenche o NA da flag, mas nenhum ajuste a usa.
 
-Do clima previsto, a ingestão monta as tabelas `TempPre` e `CDDPre` do dia O a O+8. A regra de emissão (`weather_issue_cutoff`, ADR-0024) já foi aplicada pelo leitor; por dia e patamar fica a emissão mais fresca. Sem nenhuma emissão válida, as temperaturas ficam NA, o feriado vem do calendário e a ingestão emite uma vez o aviso `hw.weather_absent`.
+O plugin não lê nenhuma coluna de clima: o painel pode vir sem clima, e o deck da ingestão é idêntico com ou sem ele. Em vez das tabelas de temperatura prevista, a ingestão monta o calendário do horizonte (`horizon_calendar`): para cada dia de O a O+`horizon_days`, a data, a marca de feriado, o tipo de feriado e o dia da semana, só com `Date` e `lubridate::wday`. O número de dias entregues, `n_steps`, é `horizon_days` (8), sem depender de cobertura de clima.
 
-## Feature engineering em 7 passos
+## Feature engineering em 6 passos
 
-`plugin_build_features` aplica os sete passos em ordem fixa e roda uma vez por treino. Os passos 1 e 3 a 6 vêm de `helpers_aux.R`, cópia única das funções auxiliares; os passos 2 e 7 estão em `feature_engineering.R`.
+`plugin_build_features` aplica os seis passos em ordem fixa e roda uma vez por treino. Os passos 1, 3 e 5 vêm de `helpers_aux.R`, cópia única das funções auxiliares; os passos 2 e 6 estão em `feature_engineering.R`.
 
 <Figura id="FIG-M10" titulo="Holt-Winters: tratamento do histórico, treino e inferência" natureza="Fluxo" fontes={['models/holt-winters/R/feature_engineering.R', 'models/holt-winters/R/helpers_aux.R', 'models/holt-winters/R/training.R', 'models/holt-winters/R/inference.R', 'docs/estado/holt_winters.md', 'models/holt-winters/README.md']} adrs={['ADR-0023']}>
 
@@ -99,11 +98,10 @@ flowchart TB
   E --> F["4. MO1 (k-means, 12 classes, kmeans_seed)"]:::plugin
   F --> G["5. Substitui.Feriados"]:::plugin
   F -.->|"cópia antes do passo 5"| S["CargaTempVerFer"]:::plugin
-  G --> H["6. LOESS 0,3 só em T01..T48"]:::plugin
-  H --> I["7. Recomputo da média diária"]:::plugin
+  G --> I["6. Recomputo da média diária"]:::plugin
   I --> J["Treino: 1 hw da média diária + 48 hw por patamar"]:::plugin
   J --> K["Artefato: mean_interval 9 × 48"]:::fundacao
-  K --> L["SemiFer: FER 1 e 2, fora de domingo, com clima previsto"]:::plugin
+  K --> L["SemiFer: FER 1 e 2, fora de domingo"]:::plugin
   S --> L
   L --> M["LOESS 0,13 e entrega de O a O+8"]:::plugin
 ```
@@ -113,12 +111,11 @@ flowchart TB
 | Passo | Função | O que faz |
 |---|---|---|
 | 1 | `Corrige.Dias.Faltantes` | dia repetido sai; dia faltante entra como cópia da linha de 7 posições antes (7 depois, na primeira semana), com a data corrigida; nunca 0 |
-| 2 | `.preconsist_ctm` | na tabela de médias diárias, carga média NA ou fora de 1..999.999 e temperatura média NA ou fora de −10..50 °C recebem o valor de 7 dias antes (na primeira semana, de 7 dias depois ou a média da coluna) |
-| 3 | `Corrige.Dados` | carga ≤ 1, ≥ 9.999.999 ou NA recebe a mediana da coluna do patamar; temperatura ≤ −20, ≥ 50 ou NA recebe a mediana da sua coluna; as médias da linha são recalculadas |
+| 2 | `.preconsist_ctm` | na tabela de médias diárias, carga média NA ou fora de 1..999.999 recebe o valor de 7 dias antes (na primeira semana, de 7 dias depois ou a média da coluna); a coluna de temperatura média fica NA |
+| 3 | `Corrige.Dados` | carga ≤ 1, ≥ 9.999.999 ou NA recebe a mediana da coluna do patamar; a média da linha é recalculada |
 | 4 | `MO1` | imputação de dias atípicos por k-means (detalhe abaixo), semeado por `params.kmeans_seed` |
 | 5 | `Substitui.Feriados` | se `feriado` for verdadeiro, o perfil de cada dia de feriado (1) ou semi-feriado (2) é trocado pelo do dia mais recente do mesmo dia da semana sem feriado, e a marca de feriado vira 0 |
-| 6 | `Suaviza.LOESS` | LOESS com span 0,3, linha a linha, só nas temperaturas T01..T48 (NA vira a média da linha; ajustados arredondados); a carga não é suavizada |
-| 7 | `.hw_recompute_ctm` | quando o número de linhas difere, alinha as duas tabelas pelas datas em comum; recalcula carga média e temperatura média a partir da tabela já tratada |
+| 6 | `.hw_recompute_ctm` | quando o número de linhas difere, alinha as duas tabelas pelas datas em comum; recalcula a carga média a partir da tabela já tratada (a temperatura média não é recalculada) |
 
 ### O passo 4: MO1 com k-means
 
@@ -143,7 +140,7 @@ O HW é a suavização exponencial de Holt-Winters (Winters, 1960) na forma mult
 
 O horizonte de ajuste `h_fit` é fixo em 9 (`horizon_days` + 1). O passo 1 é o dia O e os passos 2 a 9 são O+1 a O+8. O ajuste do `forecast::hw` não depende de `h`. Previsão não finita aborta `hw.non_finite`.
 
-Do ajuste só sobrevivem números: a matriz `mean_interval` (9 × 48), o vetor `mean_daily` (9) e as tabelas que a inferência lê. `plugin_freeze` grava esses campos como dado puro, sem objeto `forecast` ou `ets`, sem relógio, caminho ou closure. A cópia `CargaTempVerFer` entra no artefato só a partir de 2019-01-01.
+Do ajuste só sobrevivem números: a matriz `mean_interval` (9 × 48), o vetor `mean_daily` (9) e as tabelas que a inferência lê. `plugin_freeze` grava esses campos como dado puro, sem objeto `forecast` ou `ets`, sem relógio, caminho ou closure. O artefato tem 14 campos; a cópia `CargaTempVerFer` entra nele só a partir de 2019-01-01. Um artefato antigo, de 16 campos, é recusado na leitura com `hw.bad_artifact`: como o HW é `origin_scoped`, basta treinar de novo na origem.
 
 Os sete parâmetros não têm default no plugin. A fundação confere `params` contra o `params_schema` do descriptor antes do treino: parâmetro ausente, a mais ou fora do schema aborta `plugin.bad_run_yaml`. O feature engineering repete a conferência dos seis parâmetros que lê e aborta `hw.bad_param`: `perfil_mo` só aceita `C` ou `ST`, `classes_mo` ≥ 1, `similar` no intervalo aberto em 0 e fechado em 1.
 
@@ -166,10 +163,10 @@ Um dia do horizonte passa pelo `SemiFer` quando todas as condições valem:
 
 - a marca de feriado do dia é 1 (feriado) ou 2 (semi-feriado);
 - o dia não é domingo;
-- há temperatura prevista para o dia, e o horizonte não está no fallback sem clima;
+- o dia pertence ao calendário do horizonte (`horizon_calendar`);
 - o artefato tem histórico de `CargaTempVerFer`.
 
-O `SemiFer` monta perfis normalizados (cada patamar dividido pela média do conjunto) a partir de `CargaTempVerFer`, usando o mês da origem:
+O `SemiFer` monta perfis normalizados (cada patamar dividido pela média do conjunto) a partir de `CargaTempVerFer`, usando o mês da origem. Não há clima na condição: o `SemiFer` roda em todo dia útil do calendário que seja feriado ou semi-feriado, com o mesmo resultado que havia antes quando o clima existia:
 
 | Tipo | Perfil de feriado | Regressores |
 |---|---|---|
@@ -178,21 +175,14 @@ O `SemiFer` monta perfis normalizados (cada patamar dividido pela média do conj
 
 O perfil do feriado é regredido nos dois perfis de referência, sem intercepto (`lm(fer ~ sab + dom + 0)`). O perfil ajustado é multiplicado pela média diária prevista para o dia (`PrevMedDia`). Os efeitos aditivos de feriado ficam em 0. Se o `SemiFer` falhar, a linha fica com o passo cru e sai o aviso `hw.semifer_failed`.
 
-### O efeitoTemp e a temperatura
-
-`plugin_inference_features` calcula o `efeitoTemp` de cada dia: a posição da temperatura média prevista na distribuição empírica (`stats::ecdf`) das temperaturas médias observadas da tabela já tratada, nos dias do mesmo dia da semana com marca de feriado 0, do mês da origem e do mês de O − 31 dias. A tabela auxiliar é reaproveitada de um dia para o outro sem ser truncada e pode reter linhas de dias anteriores. Sem temperatura prevista, o efeito é 0,5. Para o dia O, o cálculo usa uma tabela própria, para não contaminar O+1.
-
-O `efeitoTemp` entra no `SemiFer` como `p_alfa`, mas o código só usa `p_alfa` num ramo que nunca executa (o modo do `SemiFer` está fixo em sábado e domingo). Por isso o valor da temperatura não altera a previsão: o que o clima previsto decide é o horizonte coberto e se um feriado passa pelo `SemiFer`.
-
 ## Calendário e temperatura no HW
 
-Nenhum dos dois é regressor do ajuste. Os 49 modelos veem só a carga.
+O HW não utiliza temperatura. O calendário não é regressor do ajuste: os 49 modelos veem só a carga.
 
 | Variável | Onde entra |
 |---|---|
 | Calendário (dia da semana) | define a sazonalidade semanal da série (`frequency` 7); orienta a cópia de dia faltante (passo 1) e a troca de feriado (passo 5) |
 | Calendário (feriado e tipo) | passo 5 no histórico; seleção dos perfis e decisão de modular no `SemiFer` |
-| Temperatura observada | limpa à parte (passos 3 e 6) e forma a distribuição empírica do `efeitoTemp` |
-| Temperatura prevista | decide se o dia tem clima (condição do `SemiFer`) e o horizonte coberto; o valor não muda a previsão |
+| Temperatura (observada e prevista) | não utiliza: não é lida pelo plugin e a previsão é a mesma com clima completo, curto ou ausente |
 
 Para a comparação com os outros membros, ver [os modelos](/metodologia/modelos-visao-geral). Para o protocolo de backtest do HW (`retrain_harness`, um treino por origem), ver [backtest](/metodologia/backtest).

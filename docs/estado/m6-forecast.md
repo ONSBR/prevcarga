@@ -19,8 +19,8 @@ forecast.R so COMPOE: nenhum calculo de k-hat/BU/SIN, de pesos, de corte de trei
 
 ## Layout da entrega e dos relatorios
 - `forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/` em `<state_dir>`: data da ORIGEM, hora do `available_until` no fuso da carga, `<versao>` = 12 hex
-  de `prevcarga_forecast_versao`. Dentro: `SIN.parquet`, `subsistemas/<ss>.parquet`, `folhas/<a>.parquet` (folhas soltas sempre; cobertas so com
-  `--niveis=tudo`), `membros/<m>/<a>.parquet` (so com `--incluir-membros`), `manifest.json` (unico campo nao deterministico: `gerado_em`) e
+  de `prevcarga_forecast_versao`. Dentro: `SIN.parquet`, `subsistemas/<ss>.parquet`, `folhas/<a>.parquet` (as folhas do
+  escopo: `area`, `subsistema` ou `sin`, F3.1), `membros/<m>/<a>.parquet` (so com `--incluir-membros`), `manifest.json` (unico campo nao deterministico: `gerado_em`) e
   `run_manifest.json` (identidade da rodada, lido pelo `verificar`; fora de `arquivos[]`).
 - Imutavel: mesma chave + mesmos bytes = no-op (`ja_publicado`); qualquer diferenca = `export.key_conflict` (exit 9). A `versao` carrega o pacote, os membros
   (`v_<hash do artefato>:<sha256 do y_pred entregue>`), os pesos da combina, o perfil k-hat por subsistema, o hash da topologia, o `load_label` e a regra de
@@ -69,11 +69,11 @@ forecast.R so COMPOE: nenhum calculo de k-hat/BU/SIN, de pesos, de corte de trei
 ## Decisoes taticas L2 do epico
 - Rodada diaria = UMA origem O (o backtest e quem itera origens). Gate-0 recusa so `available_until >= O+1 00:00` (`completude.forecast_origin_day_complete`, exit 3);
   `available_until = O 00:00` (rodada das 00h) e qualquer corte intradiario de O sao validos (decisao do Gabriel, 2026-10-30).
-- Horas incompletas sao descartadas em toda serie, clima previsto incluido (divergencia deliberada do oraculo, documentada por plugin).
+- Horas incompletas sao descartadas em toda serie, clima previsto incluido (divergencia deliberada do oraculo, documentada por plugin); hora incompleta do clima previsto corta o horizonte (F3.7: dia coberto = 48 instantes; DESSEM e RF recusam, LGBM corta, HW nao usa clima).
 - Clima: regra `available_until` aplica o lag de publicacao do deck (`weather_forecast_publication_lag_hours`: o store declara 6, decks sinteticos 0), regra
   `origin_midnight_utc` nao tem lag; a regra efetiva vai no manifest e na `versao`.
-- origin_agnostic so le o artefato (ausente => `state.artifact_missing`, exit 13, nunca treina); origin_scoped treina UMA vez por celula quando nao ha artefato da origem.
-- `niveis`/`incluir_membros` nao entram na `versao`: a mesma chave com outro conjunto de arquivos e `export.key_conflict` (aberto desde o M6.4; solucao fica com o dono do M6.7).
+- origin_agnostic so le o artefato (nunca treina; ausente => a celula vira membro ausente com `warning.forecast_member_absent`, F3.3); origin_scoped treina UMA vez por celula quando nao ha artefato da origem, salvo com `--artifacts-dir` (F3.6: sem treino implicito).
+- `incluir_membros` nao entra na `versao` (o escopo entra, via membros e k-hat): a mesma chave com outro conjunto de arquivos e `export.key_conflict` (aberto desde o M6.4; solucao fica com o dono do M6.7).
 - `--scratch` (nao `--from`) no verbo `export`; `--origin` e o unico flag de data; sem `--corte`. Relatorio so depois do commit da entrega; falha => exit 14, entrega mantida.
 - `run_manifest.json` em toda entrega (identidade para o `verificar`); `bundle_id` = `prevcarga_bundle_id`; `runtime_id` = R + plataforma (deterministico).
 - Terminal e mensagens so ASCII; nenhum relogio, variavel de ambiente, S3/HTTP ou `system()` nos 4 arquivos do M6 (greps).

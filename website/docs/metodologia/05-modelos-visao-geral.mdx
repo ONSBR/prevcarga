@@ -53,8 +53,8 @@ fontes:
   - docs/estado/plugins_porte_fechamento.md
   - docs/estado/dessem_regdin.md
 adrs: [ADR-0021, ADR-0023, ADR-0012, ADR-0019, ADR-0032, ADR-0035]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Metodologia · 1.5</span>
@@ -97,7 +97,8 @@ Os atributos vêm de duas fontes. O `run.yaml` de cada diretório traz `split`, 
 |---|---|---|---|---|---|
 | Granularidade interna | horária (216 leads) | semi-horária | semi-horária | horária | horária |
 | Metodologia | 216 `randomForest`, um por lead horário | LightGBM com BLF de duas passadas | `forecast::hw` diário e 48 intervalares | demanda média diária (DM) e perfil horário, ambos por SVM de kernel linear | DM por regressão dinâmica (`ARIMA` do fable) e perfil horário por SVM de kernel radial |
-| Temperatura | prevista: máxima e mínima diárias | prevista, semi-horária (no treino, lead 0) | observada no histórico, prevista no horizonte | observada no histórico, prevista no horizonte | observada no histórico, prevista no horizonte |
+| Temperatura | prevista: máxima e mínima diárias | prevista, semi-horária (no treino, lead 0) | não utiliza | observada no histórico, prevista no horizonte | observada no histórico, prevista no horizonte |
+| Clima previsto curto | membro ausente na rodada | horizonte cortado no último dia coberto | horizonte inteiro (não usa clima) | membro ausente na rodada | membro ausente na rodada |
 | `weather_resample` | `raw` | — | — | `hourly` | `hourly` |
 | Variante | — | — | — | `exogena`: `MED`, `MAX`, `MXMN` | `exogena`: `MED`, `MAX` |
 
@@ -188,7 +189,7 @@ A conta é direta. No corte 09:00 restam 30 meias horas no dia O; somam-se 8 dia
 | RF | máxima e mínima diárias da previsão (`tmax`, `tmin` em `helpers_weather.R`) |
 | DESSEM, DM | diária, agregada pela variante: média (`MED`), máxima (`MAX`) ou máxima e mínima (`MXMN`) |
 | DESSEM, perfil | horária |
-| HW | fora do ajuste: o `forecast::hw` é ajustado só sobre a carga; a temperatura entra depois, no efeito de temperatura (`efeitoTemp`) usado pela modulação de feriado (`SemiFer`) |
+| HW | não utiliza: o `forecast::hw` é ajustado só sobre a carga, e a modulação de feriado (`SemiFer`) usa só o calendário do horizonte |
 
 ### Calendário: variável ou filtro de amostra
 
