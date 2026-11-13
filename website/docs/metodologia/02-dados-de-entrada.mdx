@@ -40,8 +40,8 @@ fontes:
   - models/dessem-regdin/R/ingestion.R
   - models/_dessem-engine/R/exogena.R
 adrs: [ADR-0002, ADR-0004, ADR-0005, ADR-0023, ADR-0024, ADR-0035, ADR-0037, ADR-0040]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "3970d3d"
 ---
 
 <span className="pc-overline">Metodologia · 1.2</span>
@@ -55,7 +55,7 @@ O deck é um diretório (`data_dir`) com um `manifest.json` na raiz e datasets p
 | Dataset | Caminho | Colunas obrigatórias | Uso |
 |---|---|---|---|
 | Carga realizada | `load/` | `timestamp`, `load_mwh` | alvo e histórico de todos os modelos |
-| Clima previsto | `weather/forecast/` | `issue_time`, `valid_time`, `temperature` | exógena do horizonte; todas as emissões ficam guardadas |
+| Clima previsto | `weather/forecast/` | `issue_time`, `valid_time`, `temperature` | exógena do horizonte; todas as emissões ficam guardadas; cada dia até O+9 exige os 48 instantes (00:00 a 23:30) |
 | Clima observado | `weather/observed/` | `timestamp`, `temperature` | exógena do histórico |
 | Dias especiais | `auxiliary/holidays/` | `date`, `holiday_type_id`, `prevcarga_code`, `simplified_code` | calendário de feriados |
 
@@ -80,7 +80,7 @@ Em resumo: os DESSEM usam o clima observado no histórico e o previsto no horizo
 Os três códigos de feriado são obrigatórios no deck porque modelos diferentes consomem códigos diferentes. Para servir todos, o deck carrega todos.
 
 :::info Nunca entra observado além do corte
-Com uma origem, o leitor corta a carga e o clima observado no `available_until`, derivado do próprio dado de carga. O clima previsto entra só com emissões até o limite de emissão (`available_until` menos o atraso de publicação, na regra padrão). Os feriados são calendário conhecido de antemão e não têm corte. Os três cortes estão na [página dos cortes](/metodologia/tres-cortes).
+Com uma origem, o leitor corta a carga e o clima observado no `available_until`, derivado do próprio dado de carga. O clima previsto entra só com emissões até o limite de emissão (`available_until` menos o atraso de publicação, na regra padrão). Um dia do clima previsto só conta como coberto com os 48 instantes de 30 minutos, de 00:00 a 23:30, sem tolerância para o 23:30, até O+9 23:30. Se faltam instantes, o horizonte dos membros que dependem do clima é cortado no último dia coberto, com o aviso `forecast_weather_horizon_cut`, e o dia incompleto não é entregue. Os feriados são calendário conhecido de antemão e não têm corte. Os três cortes estão na [página dos cortes](/metodologia/tres-cortes).
 :::
 
 ## Grade semi-horária flat-48
@@ -103,7 +103,7 @@ O deck chega com nomes canônicos. A tradução dos nomes de origem do ONS para 
 | `load_mwh` | `val_carga` |
 | `temperature` | `val_tmp` |
 | `valid_time` (clima previsto) | `din_referencia` |
-| `issue_time` (clima previsto) | `din_origemprevisaoutc`, preservado no instante |
+| `issue_time` (clima previsto) | `dat_referencia` 00:00 UTC. Exceção medida: de 2018-12-23 a 2021-03-27 o `din_origemprevisaoutc` está um dia adiantado (824 emissões de SP), por isso a origem é `dat_referencia` |
 | `date` (feriados) | `dat_diaespecial` |
 | `holiday_type_id` | `id_tipodiaespecial` |
 | `prevcarga_code` | `cod_prevcarga` |

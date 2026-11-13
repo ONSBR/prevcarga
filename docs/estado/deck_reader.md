@@ -20,6 +20,8 @@
 - Testes: `scripts/lib/tests/test-deck-reader.R`; deck sentinela compartilhado `scripts/lib/tests/helper-deck.R` (`pc_deck_sentinel`, `pc_deck_clean`,
   `pc_deck_manifest`, `pc_ctx_deck`; particoes Hive gravadas com `arrow::write_parquet`, pois `write_dataset` exige dplyr). `until` do sentinela = carga so com `interval_end <= until`.
 - O store real em `data/` ainda nao tem `manifest.json` (o leitor aborta `contract.manifest_missing` ate o store ser regravado).
+- **issue_time do clima previsto (F7.1, docs):** `issue_time` = `dat_referencia` 00:00 UTC do TEMPPREVHIST (nao `din_origemprevisaoutc`); excecao medida: de 2018-12-23 a 2021-03-27 o `din_origemprevisaoutc` esta +1 dia (824 emissoes de SP).
+  O store historico e relogio de parede BRT com horario de verao ate 2019: lido como `Etc/GMT+3`, o `issue_time` do verao 2018-19 erra 1 h. Dia coberto do clima previsto = 48 instantes (00:00..23:30), sem tolerancia; faltando, o forecast corta o horizonte com `warning.forecast_weather_horizon_cut`.
 
 ## M2.2 (parte 2): corte derivado do dado, filtro de saida, clima por regra
 - `prevcarga_available_until(load, origin, areas = NULL)`: por area, `interval_end` do ultimo intervalo contiguo desde `O 00:00` (sem intervalo em O => `O 00:00`;

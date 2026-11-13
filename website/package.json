@@ -7,7 +7,8 @@
     "build": "docusaurus build",
     "serve": "docusaurus serve",
     "check": "node scripts/check-sources.mjs",
-    "check:mdx": "node scripts/check-mdx.mjs"
+    "check:mdx": "node scripts/check-mdx.mjs",
+    "check:terms": "node scripts/check-terms.mjs"
   },
   "dependencies": {
     "@docusaurus/core": "3.10.2",
