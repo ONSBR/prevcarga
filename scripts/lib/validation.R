@@ -279,8 +279,10 @@ prevcarga_outlier_min_days <- 3L
   if (is.null(w) || !nrow(w) || !"temperature" %in% names(w)) return(NULL)
   by <- if (dataset == "weather_forecast") c("area_code", "issue_time") else "area_code"
   a <- w[!is.na(temperature), c(by, "valid_time", "temperature"), with = FALSE]
-  b <- data.table::copy(a)[, valid_time := valid_time - lubridate::hours(1L)]
-  p <- a[b, on = c(by, "valid_time"), nomatch = NULL][, dT := i.temperature - temperature]
+  ## pareamento por diferenca de tempo (3600 s), sem deslocar a coluna valid_time (m2_load_shift)
+  a[, t_s := as.numeric(valid_time)]
+  b <- data.table::copy(a)[, t_s := t_s - 3600]
+  p <- a[b, on = c(by, "t_s"), nomatch = NULL][, dT := i.temperature - temperature]
   bad <- p[abs(dT) > prevcarga_temp_jump_c]
   data.table::setorderv(bad, c("area_code", "valid_time"))
   .pc_findings_bind(lapply(unique(bad$area_code), function(ar) {
@@ -387,8 +389,25 @@ prevcarga_outlier_min_days <- 3L
   .pc_findings_bind(out)
 }
 
+## Cobertura do clima previsto ate O+H (H = maior horizonte do escopo; so folhas). Le com origin = O, como a inferencia
+## (weather_issue_limit + emissao mais fresca), e aplica o predicado unico prevcarga_forecast_coverage_end.
+.prevcarga_check_forecast_coverage <- function(ctx, cv, leaves, cuts, acc) {
+  if (!nrow(cuts) || !length(leaves)) return(NULL)
+  O <- cv$forecast_origin; H <- max(cuts$horizon_days); alvo <- O + H
+  fc <- .pc_read(prevcarga_read_weather(ctx, "forecast", leaves, from = O, to = alvo, origin = O),
+                 "weather_forecast", acc)
+  if (is.null(fc)) return(NULL)
+  ce <- prevcarga_forecast_coverage_end(fc, O, cv$tz)
+  end <- ce$coverage_end[match(leaves, ce$area_code)]
+  .pc_findings_bind(lapply(which(is.na(end) | end < alvo), function(i)
+    .pc_finding(leaves[i], "weather_forecast", "weather_forecast_coverage",
+      if (is.na(end[i])) sprintf("sem clima previsto; alvo %s", format(alvo))
+      else sprintf("clima previsto ate %s; alvo %s", format(end[i]), format(alvo)),
+      "completude", level = "warning", where = "weather_forecast.valid_time")))
+}
+
 ## --- Checagens que leem dados (apos cortes) ---------------------------------------------------------------------
-.prevcarga_check_data <- function(ctx, cv, areas, models, bad, acc) {
+.prevcarga_check_data <- function(ctx, cv, areas, models, bad, acc, leaves = character()) {
   O <- cv$forecast_origin; tz <- cv$tz
   cuts <- cv$cuts[cv$cuts$model %in% models, ]
   from <- if (nrow(cuts)) .prevcarga_relevant_from(cuts, O, ctx$root) else O - 1L
@@ -414,6 +433,7 @@ prevcarga_outlier_min_days <- 3L
     acc$add(.prevcarga_check_temperature_jump(wf, "weather_forecast"))
     raw <- .pc_read(prevcarga_read_weather(ctx, "forecast", areas, O, O), "weather_forecast", acc)
     acc$add(.prevcarga_check_climate_cut(raw, cv$weather_issue_limit, O, tz))
+    acc$add(.prevcarga_check_forecast_coverage(ctx, cv, intersect(areas, leaves), cuts, acc))
   }
   invisible(NULL)
 }
@@ -449,7 +469,7 @@ prevcarga_validate_deck <- function(ctx, origin = NULL, scope = NULL, data_lag_d
     acc$add(cr$finding)
     cv <- cr$value
   }
-  if (!is.null(cv)) .prevcarga_check_data(ctx, cv, sc$areas, sc$models, ct$bad, acc)
+  if (!is.null(cv)) .prevcarga_check_data(ctx, cv, sc$areas, sc$models, ct$bad, acc, leaves = sc$leaves)
 
   if (!"holidays" %in% ct$bad && length(sc$areas)) {
     h <- .pc_read(prevcarga_read_holiday_codes(ctx, sc$areas), "holidays", acc)
@@ -490,4 +510,26 @@ prevcarga_day_complete <- function(load) {
            by = list(area_code, date = lubridate::as_date(interval_start, tz = tz))]
   out[, complete := n_slots == prevcarga_slots_per_day]
   out[]
+}
+
+## --- Predicado unico de cobertura do clima previsto (consumido pelo validate-deck e pelo corte do forecast) ---------
+## Ultimo dia civil coberto (os 48 instantes de 30 min, sem tolerancia para o 23:30) em sequencia continua a partir
+## de `origin`, por area. `fc`: previsto JA reduzido a emissao usada (prevcarga_read_weather com origin); `tz`: fuso da
+## carga (manifest). Puro: nao le disco, nao le env e nao escolhe emissao. NA = o dia `origin` nao esta coberto.
+## -> data.table(area_code chr, coverage_end Date | NA)
+prevcarga_forecast_coverage_end <- function(fc, origin, tz) {
+  origin <- lubridate::as_date(origin)
+  if (is.null(fc) || !nrow(fc))
+    return(data.table::data.table(area_code = character(), coverage_end = lubridate::as_date(character())))
+  v <- fc[lubridate::minute(valid_time) %in% c(0L, 30L) & lubridate::second(valid_time) == 0]
+  n <- v[, list(n = data.table::uniqueN(valid_time)), by = list(area_code, d = lubridate::as_date(valid_time, tz = tz))]
+  cov <- n[n == prevcarga_slots_per_day]
+  areas <- sort(unique(fc$area_code), method = "radix")
+  ends <- lapply(areas, function(a) {
+    ds <- cov$d[cov$area_code == a]; d <- origin
+    if (!d %in% ds) return(lubridate::as_date(NA))
+    while ((d + 1L) %in% ds) d <- d + 1L
+    d
+  })
+  data.table::data.table(area_code = areas, coverage_end = do.call(c, ends))
 }
