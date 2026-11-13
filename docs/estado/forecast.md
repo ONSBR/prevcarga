@@ -66,6 +66,16 @@
 - Limitacoes conhecidas (nao tratadas aqui): (1) o verbo `forecast` e a gramatica docopt sao do M6.9 (hoje stub): o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
   HHMM de `available_until` DENTRO do dia da origem: dia O completo ou `--origin` anterior ao ultimo dia do deck e recusado (ver acima); (3) `incluir_membros` nao entra na `versao` (M6.7): a mesma chave com outro conjunto de arquivos e `export.key_conflict`.
 
+## F3.3 -- tolerancia a membro ausente (celula tolerante)
+- `.forecast_cell_safe` roda cada celula (membro x folha) dentro de `tryCatch(prevcarga_error)`: `status = "ok"` (delivery, member, version) ou `"absent"` (error_id, where, message; o formato de `.prevcarga_tr_cell_error`).
+  Ids `config.`, `topology.`, `honesty.` e `runtime.` (`.FORECAST_FATAL`) sobem intactos e abortam a rodada na hora (nunca viram membro ausente). Sem flag nem chave de config.
+- `.forecast_triage` (depois do infer, antes de combina/reconcile/scratch): `warning.forecast_member_absent` por celula ausente (where = folha; details folha/membro/error_id). Folha sem nenhum membro:
+  subsistema/SIN => `completude.forecast_leaf_no_member` (exit 3, where = folha; sem scratch nem `forecasts/`, nada parcial); escopo area => a folha sai do plano (`plan$dropped`, `warning.forecast_leaf_dropped`) e as demais seguem;
+  se todas caem, exit 3. Com `dropped` nao vazio a entrega normal acontece e a rodada termina em `partial.forecast_leaf_absent` (exit 14) com o result completo (padrao do `partial.report_failed`).
+- `.forecast_leaf_panel` monta o LONG so dos membros presentes (`members_declared` = todos, `members_present` = presentes, como `.bt_reduce_panel`): `f_<sigla>` fica NA e a combina renormaliza (nucleo da combina intocado).
+  Versao e `run_manifest.model_versions` listam so os presentes; `run.json` e `result` ganham `membros_ausentes` ([{folha, membro, error_id}]) e `dropped`. Sem falha (CONTROL) a entrega e igual a de antes.
+- Efeito colateral: origin_agnostic sem artefato em TODAS as folhas deixou de abortar `state.artifact_missing` (exit 13); vira membro ausente com aviso (a media simples sem pesos e o ticket F3.4). Teste: `test-forecast_tolerance.R`.
+
 ## Verbos da CLI (M6.9; dono M6)
 - `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate]`.
   `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options
