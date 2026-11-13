@@ -118,3 +118,11 @@ test_that("[AC5] template, VERSION, gitignore; sem leitura de env", {
   src <- readLines(file.path(pc_root(), "scripts", "lib", "config.R"), warn = FALSE)
   expect_false(any(grepl("Sys.getenv|Sys.setenv", src)))
 })
+
+test_that("[F3.6] artifacts_dir: chave do schema, default NULL e valor texto nao vazio", {
+  expect_true("artifacts_dir" %in% names(.prevcarga_config_schema))
+  expect_null(.prevcarga_config_defaults()$artifacts_dir)
+  f <- withr::local_tempfile(fileext = ".yaml")
+  writeLines(c("schema_version: 1", "artifacts_dir: ''"), f)
+  expect_abort(prevcarga_config_load(f), "config.bad_type")
+})

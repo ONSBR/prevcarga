@@ -18,3 +18,8 @@ irmao + file.rename; `force` move o antigo para `.tmp-old-*` e o restaura se o r
 Decisoes: o sidecar `artifact.rds.manifest.json` do `prevcarga_freeze` e parte da versao e entra no SHA256SUMS;
 falha de publicar/promover = `state.promote_failed`; `.tmp-*` orfaos ficam para o `registry gc` (M5.7). `ctx`
 opcional nas funcoes de leitura/escrita verifica o contido em `<state_dir>/artifacts`.
+
+## F3.6 -- raiz efetiva
+- `prevcarga_registry_root(ctx)` devolve `ctx$artifacts_dir` normalizado quando presente (raiz apontada, so leitura) e senao
+  `<state_dir>/artifacts`; contain/key valem sobre a raiz efetiva (membros, `combina/<folha>`, `reconcile/<ss>` do k-hat). A raiz default segue inalterada.
+- `prevcarga_registry_mode(ctx)`: `"apontado"` | `"registry"`. A identidade e a integridade (sha) das versoes valem iguais fora do dir default.

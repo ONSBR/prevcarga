@@ -52,6 +52,7 @@
             if (isTRUE(r$ja_publicado)) "sim" else "nao"),
     if (length(r$membros_ausentes))
       sprintf("ausentes=%s", paste(vapply(r$membros_ausentes, function(x) paste0(x$membro, "/", x$folha), ""), collapse = ",")),
+    if (!is.null(r$artefatos)) sprintf("artefatos=%s %s", r$artefatos$modo, r$artefatos$raiz),
     if (length(r$dropped)) sprintf("folhas fora=%s", paste(unlist(r$dropped), collapse = ",")),
     paste0("saida: ", r$saida),
     vapply(r$arquivos, function(a) sprintf("arquivo %-32s linhas=%d sha256=%s", a$path, a$linhas, a$sha256), ""),
@@ -89,7 +90,7 @@ cmd_forecast <- function(ctx, args) {
 prevcarga_verb_forecast <- list(
   name    = "forecast",
   usage   = paste("prevcarga forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report]",
-                  "[--report-format=<f>] [--skip-validate] [--jobs=<n>]"),
+                  "[--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]"),
   options = c(
     "--incluir-membros       Inclui membros/<m>/<a>.parquet na entrega"),
   scoped  = c("--incluir-membros", "--report", "--report-format"),   # cli.R .prevcarga_check_scoped

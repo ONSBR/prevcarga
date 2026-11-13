@@ -127,6 +127,9 @@
     ver <- NULL
     if (identical(split, "origin_scoped")) {
       ver <- .forecast_scoped_version(ctx, m, a, g$origin)
+      if (is.null(ver) && identical(prevcarga_registry_mode(ctx), "apontado"))
+        prevcarga_abort("state.artifact_missing", where = paste0(sigla, "/", a),
+                        details = list(reason = "sem versao da origem na raiz apontada (somente leitura)"))
       if (is.null(ver)) ver <- as.character(prevcarga_train(m, a, g$origin, ctx)$version)
     }
     res <- prevcarga_infer_cell(m, a, g$origin, ctx, version = ver)
@@ -353,7 +356,8 @@
               membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,
               runtime_id = paste0("R", as.character(getRversion()), "-", R.version$platform),
-              code_commit = ctx$code_commit)
+              code_commit = ctx$code_commit,
+              artefatos = list(raiz = prevcarga_registry_root(ctx), modo = prevcarga_registry_mode(ctx)))
   .export_write_json(run, file.path(scratch, "run.json"))
 }
 
@@ -391,13 +395,14 @@
   m
 }
 
-.forecast_result <- function(g, plan, rec, key, versao, exp, report, ausentes = list()) {
+.forecast_result <- function(ctx, g, plan, rec, key, versao, exp, report, ausentes = list()) {
   list(origem = format(g$origin), available_until = .forecast_iso_min(g$cuts$available_until, g$cuts$tz),
        available_until_por_area = .forecast_au_by_area(g$cuts), weather_issue_cutoff = g$cuts$weather_issue_cutoff,
        versao = versao, saida = exp$saida, escopo = plan$escopo, subsistema = plan$subsistema, covered = plan$covered, stray = plan$stray,
        khat = .forecast_khat_rows(rec$khat), arquivos = exp$arquivos, cobertura_descartada = rec$cobertura_descartada,
        ja_publicado = isTRUE(exp$ja_publicado), report = report,
-       membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped))
+       membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
+       artefatos = list(raiz = prevcarga_registry_root(ctx), modo = prevcarga_registry_mode(ctx)))
 }
 
 ## Cronometro por passo (NFR de 30 min, M8.10). O relogio e INJETADO pela fachada (`ctx$step_clock`, segundos); forecast.R nao le relogio.
@@ -509,7 +514,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   for (w in rec$warnings) sink$add(w$id, w$message)
   rep <- if (isTRUE(report)) .forecast_report_step(rctx, g, plan, key, lv, rec, report_format) else list(status = "skipped", path = NULL)
   if (isTRUE(report)) tk$lap("report")
-  result <- .forecast_result(g, plan, rec, key, versao, exp, unclass(rep)[c("status", "path")], tri$membros_ausentes)
+  result <- .forecast_result(ctx, g, plan, rec, key, versao, exp, unclass(rep)[c("status", "path")], tri$membros_ausentes)
   result <- c(result, tk$timing())
   ## falha do report apos a entrega (M6.10): a chave forecasts/ ja foi commitada e nao e desfeita; sobe exit 14 com o result completo
   if (identical(rep$status, "failed"))
