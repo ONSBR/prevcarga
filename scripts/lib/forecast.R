@@ -133,14 +133,28 @@
       if (is.null(ver)) ver <- as.character(prevcarga_train(m, a, g$origin, ctx)$version)
     }
     res <- prevcarga_infer_cell(m, a, g$origin, ctx, version = ver)
+    ## F3.7: dias entregues EFETIVOS do despachante (clima previsto curto corta o horizonte); sem corte = o do descriptor
+    if (!is.null(res$delivery_days_efetivo)) dd <- as.integer(res$delivery_days_efetivo)
     list(status = "ok", folha = a, sigla = sigla,
          delivery = data.table::data.table(interval_end = res$predictions$target_datetime, y_pred = res$predictions$y_pred),
          member = list(name = sigla, delivery_days = dd, split = split),
-         version = as.character(res$version))
+         version = as.character(res$version), weather_forecast_until = res$weather_forecast_until)
   }, prevcarga_error = function(e) {
     if (grepl(.FORECAST_FATAL, e$id)) stop(e)
     list(status = "absent", folha = a, sigla = sigla, error_id = e$id, where = e$where, message = conditionMessage(e))
   })
+}
+
+## Captura os prevcarga_warning da celula (inclusive no worker PSOCK, onde o handler do pai nao alcanca) e os devolve em
+## `cell$warnings` para o pai re-emitir no sink, na ordem fixa das celulas. Os fatais continuam subindo intactos.
+.forecast_cell_capture <- function(ctx, m, a, g) {
+  acc <- list()
+  cell <- withCallingHandlers(.forecast_cell_safe(ctx, m, a, g), prevcarga_warning = function(w) {
+    acc[[length(acc) + 1L]] <<- list(id = w$id, message = conditionMessage(w), where = w$where, details = w$details)
+    invokeRestart("muffleWarning")
+  })
+  cell$warnings <- acc
+  cell
 }
 
 ## --- despacho por celula (--jobs, F3.5) -----------------------------------------------------------------------
@@ -165,7 +179,7 @@
 ## Uma celula pela posicao k da tabela. No worker o aborto fatal vira dado (a condicao perde a classe ao cruzar o PSOCK);
 ## o pai o re-levanta com o id original. Serial: o aborto sobe intacto.
 .forecast_run_cell <- function(k, cells, ctx, g, mem, fatal_as_data = FALSE) {
-  run <- function() .forecast_cell_safe(ctx, mem[cells$i[[k]], , drop = FALSE], cells$folha[[k]], g)
+  run <- function() .forecast_cell_capture(ctx, mem[cells$i[[k]], , drop = FALSE], cells$folha[[k]], g)
   if (!isTRUE(fatal_as_data)) return(run())
   tryCatch(run(), prevcarga_error = function(e)
     structure(list(error_id = e$id, where = e$where, details = e$details, message = conditionMessage(e)), class = "forecast_cell_fatal"))
@@ -197,6 +211,31 @@
 }
 
 .forecast_cell_ok <- function(cell) !identical(cell$status, "absent")
+
+## Re-emite no sink os avisos capturados nas celulas (ordem radix "<folha>/<sigla>"). warning.forecast_weather_horizon_cut sai UM por
+## folha e data coberta, com a lista dos membros cortados e a mensagem com a data; os demais saem como o handler do pai os emitia.
+.forecast_emit_cell_warnings <- function(cells, plan, sink) {
+  cut <- list()
+  for (a in plan$leaves) for (sg in names(cells[[a]])) for (w in cells[[a]][[sg]]$warnings) {
+    if (!identical(w$id, "warning.forecast_weather_horizon_cut")) { sink$add(w$id, w$message, where = w$where); next }
+    k <- paste(a, w$details$ate, sep = "/")
+    cut[[k]] <- list(folha = a, ate = w$details$ate, membros = c(cut[[k]]$membros, w$details$membro))
+  }
+  for (c1 in cut)
+    sink$add("warning.forecast_weather_horizon_cut",
+             message = sprintf("[prevcarga/completude] clima previsto ate %s; a inferencia sera feita ate essa data", c1$ate),
+             where = c1$folha, details = list(folha = c1$folha, ate = c1$ate, membros = as.list(c1$membros)))
+  invisible(NULL)
+}
+
+## Ultimo dia com clima previsto completo (minimo entre as folhas) e dias entregues efetivos por folha x membro (run.json/result).
+.forecast_weather_cover <- function(members) {
+  ate <- unlist(lapply(members, function(l) lapply(l, function(m) m$weather_forecast_until)))
+  ate <- ate[!is.na(ate)]
+  eff <- lapply(members, function(l) lapply(l, function(m) as.integer(m$member$delivery_days)))
+  list(clima_previsto_ate = if (length(ate)) min(ate) else NULL,
+       delivery_days_efetivo = if (length(eff)) eff else structure(list(), names = character()))
+}
 
 ## Decisao por folha: aviso por celula ausente e folha sem nenhum membro. Subsistema/SIN com folha vazia aborta ANTES de combina,
 ## reconcile e scratch (nao sai subsistema/SIN parcial); escopo area tira a folha do plano (plan$dropped) e segue com as demais.
@@ -341,7 +380,7 @@
   stats::setNames(lapply(seq_len(nrow(b)), function(i) .forecast_iso_min(b$until[[i]], cuts$tz)), as.character(b$area_code))
 }
 
-.forecast_write_run_json <- function(ctx, scratch, g, plan, lv, rec, versao, sc, incluir_membros, ausentes = list()) {
+.forecast_write_run_json <- function(ctx, scratch, g, plan, lv, rec, versao, sc, incluir_membros, ausentes = list(), cover = list()) {
   mem_areas <- structure(list(), names = character())
   if (isTRUE(incluir_membros))
     mem_areas <- stats::setNames(lapply(names(lv$members), function(s) as.list(names(lv$members[[s]]))), names(lv$members))
@@ -354,6 +393,7 @@
               closed = as.list(plan$closed), sin_closed = plan$sin_closed, members = mem_areas,
               combina_pesos = lv$weights_version,
               membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
+              clima_previsto_ate = cover$clima_previsto_ate, delivery_days_efetivo = cover$delivery_days_efetivo,
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,
               runtime_id = paste0("R", as.character(getRversion()), "-", R.version$platform),
               code_commit = ctx$code_commit,
@@ -395,13 +435,14 @@
   m
 }
 
-.forecast_result <- function(ctx, g, plan, rec, key, versao, exp, report, ausentes = list()) {
+.forecast_result <- function(ctx, g, plan, rec, key, versao, exp, report, ausentes = list(), cover = list()) {
   list(origem = format(g$origin), available_until = .forecast_iso_min(g$cuts$available_until, g$cuts$tz),
        available_until_por_area = .forecast_au_by_area(g$cuts), weather_issue_cutoff = g$cuts$weather_issue_cutoff,
        versao = versao, saida = exp$saida, escopo = plan$escopo, subsistema = plan$subsistema, covered = plan$covered, stray = plan$stray,
        khat = .forecast_khat_rows(rec$khat), arquivos = exp$arquivos, cobertura_descartada = rec$cobertura_descartada,
        ja_publicado = isTRUE(exp$ja_publicado), report = report,
        membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
+       clima_previsto_ate = cover$clima_previsto_ate, delivery_days_efetivo = cover$delivery_days_efetivo,
        artefatos = list(raiz = prevcarga_registry_root(ctx), modo = prevcarga_registry_mode(ctx)))
 }
 
@@ -492,9 +533,11 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   rctx$load_label <- g$cuts$load_label
   withCallingHandlers({
     cells <- .forecast_members(ctx, plan, g, mem, jobs)
+    .forecast_emit_cell_warnings(cells, plan, sink)
     tri <- .forecast_triage(cells, plan, sink)          # folha vazia aborta aqui (subsistema/SIN), antes de combina/reconcile/scratch
     plan <- tri$plan
     members <- tri$members
+    cover <- .forecast_weather_cover(members)
     tk$lap("infer")
     lv <- .forecast_leaves(rctx, members, g, plan, mem)
     tk$lap("combina")
@@ -503,7 +546,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
     versao <- prevcarga_forecast_versao(.forecast_versao_parts(ctx, members, lv, rec, g, plan))
     key <- prevcarga_export_key(g$origin, g$cuts$available_until, versao, g$cuts$tz)
     sc <- .forecast_write_scratch(rctx, key, plan, incluir_membros, lv, rec)
-    .forecast_write_run_json(ctx, sc$dir, g, plan, lv, rec, versao, sc, incluir_membros, tri$membros_ausentes)
+    .forecast_write_run_json(ctx, sc$dir, g, plan, lv, rec, versao, sc, incluir_membros, tri$membros_ausentes, cover)
     prevcarga_write_run_manifest(.forecast_run_manifest(ctx, g, members, lv, rec, mem, key), sc$dir)
     exp <- prevcarga_export(sc$dir, key, incluir_membros = incluir_membros, ctx = ctx)
     tk$lap("export")
@@ -514,7 +557,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   for (w in rec$warnings) sink$add(w$id, w$message)
   rep <- if (isTRUE(report)) .forecast_report_step(rctx, g, plan, key, lv, rec, report_format) else list(status = "skipped", path = NULL)
   if (isTRUE(report)) tk$lap("report")
-  result <- .forecast_result(ctx, g, plan, rec, key, versao, exp, unclass(rep)[c("status", "path")], tri$membros_ausentes)
+  result <- .forecast_result(ctx, g, plan, rec, key, versao, exp, unclass(rep)[c("status", "path")], tri$membros_ausentes, cover)
   result <- c(result, tk$timing())
   ## falha do report apos a entrega (M6.10): a chave forecasts/ ja foi commitada e nao e desfeita; sobe exit 14 com o result completo
   if (identical(rep$status, "failed"))

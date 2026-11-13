@@ -4,3 +4,4 @@ completude.forecast_leaf_no_member	completude	folha sem nenhum membro com entreg
 warning.forecast_member_absent	completude	membro ausente na folha; a combinacao renormaliza sobre os presentes	veja details (folha, membro, error_id) e treine/sincronize o artefato do membro
 warning.forecast_leaf_dropped	completude	folha sem nenhum membro ficou fora da entrega do escopo --area	treine ou sincronize um membro da folha citada
 partial.forecast_leaf_absent	partial	entrega parcial: folha pedida sem nenhum membro	as demais folhas foram entregues; veja os avisos e rode de novo depois de treinar a folha
+warning.forecast_weather_horizon_cut	completude	clima previsto incompleto no deck; a inferencia dos membros que dependem de clima sera feita so ate a data coberta (details.ate)	complete o clima previsto ate O+9 (emissao com os 48 instantes de cada dia) para restaurar o horizonte inteiro; o horizonte entregue ja foi cortado

@@ -99,6 +99,7 @@ plugin_descriptor <- function() {
     params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key))),
     variant_param = "exogena",
     native_layout = "dessem_semihourly_48", semihourly_rule = rd_semihourly_rule,
+    weather_cut = "absent",   # F3.7: DESSEM so com horizonte inteiro; clima previsto curto => completude.weather_forecast_short (membro ausente)
     delivery_days = 9L, data_lag_days = 0L, model_time_offset_min = 60L,
     reads_day_O = TRUE, weather_forecast_in_train = TRUE, uses_rng = TRUE,   # mm do dia O ate available_until (oraculo data_adapter.R)
     history_infer_equals_train = TRUE, rng_deviation = NULL,

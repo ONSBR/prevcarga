@@ -464,7 +464,8 @@ test_that("errors/inference.tsv carrega pelo loader sem id duplicado; contract.v
   cat <- env$prevcarga_errors_load()
   expect_false(anyDuplicated(cat$id) > 0L)
   tsv <- utils::read.delim(file.path(pc_root(), "scripts", "lib", "errors", "inference.tsv"), colClasses = "character")
-  expect_setequal(tsv$id, c("contract.infer_spec_divergent", "contract.variant_mismatch", "contract.artifact_spec_missing", "io.out_unwritable"))
+  expect_setequal(tsv$id, c("contract.infer_spec_divergent", "contract.variant_mismatch", "contract.artifact_spec_missing", "io.out_unwritable",
+                            "completude.weather_forecast_short"))
   expect_false("contract.variant_required" %in% tsv$id)
   expect_identical(env$prevcarga_error_lookup("contract.infer_spec_divergent")$class, "contract")
   expect_identical(env$prevcarga_exit_codes[[env$prevcarga_error_lookup("io.out_unwritable")$class]], 6L)

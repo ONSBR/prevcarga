@@ -1,7 +1,7 @@
 ## test-read-panel.R -- deck_reader.R (M2.7): feriados e painel do leitor. FORBIDDEN (delta=0) e CONTROL (delta!=0).
 library(testthat)
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
-env <- pc_source_lib(c("errors", "runtime", "config", "topology", "deck_reader"))
+env <- pc_source_lib(c("errors", "runtime", "config", "topology", "deck_reader", "validation"))
 for (n in c("prevcarga_read_load", "prevcarga_read_weather", "prevcarga_read_holidays", "prevcarga_read_panel"))
   assign(n, env[[n]])
 

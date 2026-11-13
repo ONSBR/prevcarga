@@ -412,15 +412,38 @@ prevcarga_read_holiday_codes <- function(ctx, areas = NULL) {
 .PREVCARGA_PANEL_LOAD_ATTRS <- c("available_until", "available_until_by_area", "load_label", "load_label_source", "tz")
 .PREVCARGA_PANEL_FC_ATTRS <- c("weather_issue_cutoff", "weather_issue_limit", "weather_publication_lag_hours")
 
-pc_panel_attrs <- function(load, weather_obs, weather_fc) {
+pc_panel_attrs <- function(load, weather_obs, weather_fc, origin = NULL) {
   for (x in list(weather_obs, weather_fc)) {
     if (!identical(attr(x, "tz"), attr(load, "tz")))
       prevcarga_abort("contract.constraint_violated", where = "panel.tz")
     if (!identical(attr(x, "available_until"), attr(load, "available_until")))
       prevcarga_abort("contract.constraint_violated", where = "panel.available_until")
   }
-  c(stats::setNames(lapply(.PREVCARGA_PANEL_LOAD_ATTRS, function(n) attr(load, n)), .PREVCARGA_PANEL_LOAD_ATTRS),
-    stats::setNames(lapply(.PREVCARGA_PANEL_FC_ATTRS, function(n) attr(weather_fc, n)), .PREVCARGA_PANEL_FC_ATTRS))
+  base <- c(stats::setNames(lapply(.PREVCARGA_PANEL_LOAD_ATTRS, function(n) attr(load, n)), .PREVCARGA_PANEL_LOAD_ATTRS),
+            stats::setNames(lapply(.PREVCARGA_PANEL_FC_ATTRS, function(n) attr(weather_fc, n)), .PREVCARGA_PANEL_FC_ATTRS))
+  if (is.null(origin)) return(base)
+  c(base, .prevcarga_weather_forecast_cover(weather_fc, lubridate::as_date(origin), attr(load, "tz")))
+}
+
+## Cobertura do clima previsto da emissao vigente por area (F3.7), pelo predicado unico do validate-deck
+## (prevcarga_forecast_coverage_end, validation.R): dia coberto = os 48 instantes de 30 min, sem tolerancia para o 23:30.
+##   weather_forecast_until : data.table(area_code, until Date | NA)  ultimo dia coberto em sequencia a partir de O; NA = O incompleto
+##   weather_forecast_next  : data.table(area_code, n_next int)       instantes consecutivos de until+1 a partir de 00:00
+##                            (o membro com model_time_offset_min > 0 precisa do(s) 1o(s) instante(s) do dia seguinte)
+## Toda conta de data fica aqui, no leitor: o despachante so le estas tabelas.
+.prevcarga_weather_forecast_cover <- function(fc, origin, tz) {
+  ce <- prevcarga_forecast_coverage_end(fc, origin, tz)
+  areas <- sort(unique(as.character(fc$area_code)), method = "radix")
+  until <- lubridate::as_date(ce$coverage_end[match(areas, ce$area_code)])
+  nx <- vapply(seq_along(areas), function(i) {
+    if (is.na(until[[i]])) return(0L)
+    start <- lubridate::force_tz(lubridate::as_datetime(until[[i]] + 1L), tz)
+    have <- as.numeric(fc$valid_time[fc$area_code == areas[[i]]])
+    ok <- (as.numeric(start) + 1800 * (seq_len(prevcarga_slots_per_day) - 1L)) %in% have
+    if (all(ok)) length(ok) else as.integer(which(!ok)[[1L]] - 1L)
+  }, 0L)
+  list(weather_forecast_until = data.table::data.table(area_code = areas, until = until),
+       weather_forecast_next = data.table::data.table(area_code = areas, n_next = nx))
 }
 
 ## Origem ja resolvida pelo chamador (o leitor nao depende de dates.R). Topologia: ctx$topology_path ou
@@ -436,7 +459,7 @@ prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days,
   fc <- prevcarga_read_weather(ctx, "forecast", areas, O, O + horizon_days, origin = O, truncate_at = truncate_at)
   hol <- prevcarga_read_holidays(ctx, areas)                    # calendario: todos os feriados da area, sem janela
   list(load = load, weather_observed = obs, weather_forecast = fc, holidays = hol,
-       attrs = c(list(origin = O), pc_panel_attrs(load, obs, fc)))
+       attrs = c(list(origin = O), pc_panel_attrs(load, obs, fc, origin = O)))
 }
 
 ## --- Sonda: schema/tipos/Hive sem coletar linhas ---------------------------------------------------------
