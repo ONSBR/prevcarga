@@ -28,7 +28,7 @@ m2_holidays <- function(areas) {
   h[which(as.numeric(simplified_code) < 0), simplified_code := bit64::as.integer64(1L)]   # deck limpo: sem codigo negativo
   h
 }
-m2_build <- function(n = 40, areas = c("SECO", "S")) {
+m2_build <- function(n = 40, areas = c("RS", "RJ")) {
   d <- m2_tmp()
   days <- seq(lubridate::ymd("2026-10-01") - (n - 1L), lubridate::ymd("2026-10-01"), by = "day")
   pc_deck_sentinel("end", days = days, areas = areas, dir = d)
@@ -190,7 +190,7 @@ test_that("[CONTROL] o shell sujo e real: sem a guarda o instante desloca; com a
 ## ---- bloco 3: parquet corrompido por processo (AC 11) ----------------------------------------------------------------------
 test_that("parquet corrompido: exit 2, parquet_unreadable com where relativo ao data_dir, nunca exit 1 nem traceback (AC 11)", {
   d <- m2_clean()
-  rel <- "load/area_code=SECO/year=2026/part-0.parquet"
+  rel <- "load/area_code=RS/year=2026/part-0.parquet"
   expect_true(file.exists(file.path(d, rel)))
   pc_mut_corrupt(d, rel)
   for (fmt in c("json", "text")) {
