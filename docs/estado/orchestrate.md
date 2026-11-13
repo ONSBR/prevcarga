@@ -28,3 +28,6 @@ testes `scripts/lib/tests/test-orchestrate.R` (+ fixture `tests/fixtures/m7/conf
   `failures.jsonl` (so ele) e, sem `--keep-going`, nao despacha lote novo apos a 1a falha (resto `skipped`). `status`/resumo na ordem de `plan$cells`: byte-identicos entre jobs.
   A semente tambem e aplicada no caminho serial (e o que garante `--jobs 1 == --jobs N`). Hooks de teste: `ctx$worker_hooks` (pre/post_runtime), como no train-models.
   Testes: `scripts/lib/tests/test-orchestrate-psock.R` (script-filho com shell sujo/limpo; CONTROL sem semente no worker).
+- **Cortes do plan por origem distinta (F2.4, fix v0.1.4)**: `prevcarga_plan` chama `prevcarga_resolve_cuts` 1x por `cut_origin` distinto (com todos os mdirs daquela origem e o `data_lag_days` nomeado do descriptor),
+  em vez de 1x por (mdir, cut_origin): `prevcarga_read_load` roda 1x por origem. O `weather_issue_limit` da celula e calculado 1x por par (origem, corte_hm) distinto (leitor, deck_reader.R; o M7 nao faz conta de hora)
+  e juntado as celulas. Celulas (train_origin, last_data_day, limites, cache_key) identicas ao caminho por celula. Testes: `test-orchestrate.R` ([F2.4]).

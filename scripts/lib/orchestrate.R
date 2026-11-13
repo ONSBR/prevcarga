@@ -138,17 +138,22 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   cells[, cut_origin := data.table::fifelse(protocol == "fixed", min(origins), origem)]
   cutrows <- unique(cells[, c("mdir", "cut_origin")])
   ## o limite do clima do TREINO vem do dates.R (mesma linha dos cortes): entra na chave do artefato dos membros que usam previsto no treino
-  cutrows[, c("train_origin", "last_data_day", "train_weather_issue_limit") := {
-    rc <- prevcarga_resolve_cuts(ctx, cut_origin, model = mdir, data_lag_days = stats::setNames(lags[[mdir]], mdir))
-    row <- rc$cuts[rc$cuts$model == mdir, ]
-    list(row$train_origin, row$last_data_day, rc$weather_issue_limit)
-  }, by = seq_len(nrow(cutrows))]
+  ## 1 resolve_cuts (1 prevcarga_read_load) por origem de corte distinta, com todos os mdirs dela
+  cutrows <- data.table::rbindlist(lapply(sort(unique(cutrows$cut_origin)), function(o) {
+    md <- unique(cutrows$mdir[cutrows$cut_origin == o])
+    rc <- prevcarga_resolve_cuts(ctx, o, model = md, data_lag_days = unlist(lags[md]))
+    data.table::data.table(mdir = rc$cuts$model, cut_origin = o, train_origin = rc$cuts$train_origin,
+                           last_data_day = rc$cuts$last_data_day, train_weather_issue_limit = rc$weather_issue_limit)
+  }))
   cells <- cutrows[cells, on = c("mdir", "cut_origin")]
   cells[, cut_origin := NULL]
   cells[, available_until := lubridate::ymd_hm(paste(format(origem, "%Y-%m-%d"), corte_hm), tz = ident$tz)]
   ## limite do clima da celula: o do leitor (prevcarga_weather_issue_limit, deck_reader.R) sobre o corte simulado; o M7 nao filtra emissao
-  cells[, weather_issue_limit := do.call(c, lapply(seq_len(.N), function(i)
+  ## 1x por par (origem, corte_hm) distinto
+  wl <- unique(cells[, c("origem", "corte_hm", "available_until")])
+  wl[, weather_issue_limit := do.call(c, lapply(seq_len(.N), function(i)
     prevcarga_weather_issue_limit(weather, origem[[i]], available_until[[i]], ident$tz, ident$weather_lag)))]
+  cells <- wl[, c("origem", "corte_hm", "weather_issue_limit")][cells, on = c("origem", "corte_hm")]
   cells[, weather_forecast_in_train := vapply(mdir, function(m) fc_train[[m]], NA)]
   cells[, cache_key := vapply(seq_len(.N), function(i) prevcarga_cache_key(
     "member_long", list(mdir = mdir[[i]], exogena = exogena[[i]]), specs[[mdir[[i]]]],
