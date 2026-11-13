@@ -11,7 +11,7 @@ source(file.path(dirname(dirname(dirname(dirname(.hw_runner)))), "scripts", "too
 
 ## Tabela gate x dono final do epico (HW.7). `oracle` = gate do oraculo (documentacao). DEFERRED = SKIP com dono ate o pack existir.
 ## HW univariado: sairam ingest_weather, efeito_temp, infer_clima, clima_honesto (gate08) e clima_fallback (gate09); entraram
-## clima_cego (HW nao le clima: FORBIDDEN/CONTROL), ingest_calendario e infer_sem_clima.
+## clima_cego (HW nao le clima: FORBIDDEN/CONTROL), ingest_calendario, infer_sem_clima e higiene_clima.
 .hw_gates <- list(
   list("registro", "-", "PLUGINS", "fast"), list("catalogo_hw", "-", "PLUGINS", "fast"),
   list("ingest_shape", "-", "PLUGINS", "fast"), list("ingest_contract", "-", "PLUGINS", "fast"),
@@ -34,7 +34,8 @@ source(file.path(dirname(dirname(dirname(dirname(.hw_runner)))), "scripts", "too
   list("corte_intradiario", "-", "PLUGINS", "fast"), list("mesmo_dia", "-", "PLUGINS", "fast"),
   list("sentinela", "-", "PLUGINS", "fast"), list("clima_cego", "-", "PLUGINS", "fast"),
   list("infer_igual_forecast", "-", "PLUGINS", "fast"),
-  list("higiene_grep", "gate05", "PLUGINS", "fast"), list("higiene_env", "-", "PLUGINS", "fast"),
+  list("higiene_grep", "gate05", "PLUGINS", "fast"), list("higiene_clima", "-", "PLUGINS", "fast"),
+  list("higiene_env", "-", "PLUGINS", "fast"),
   list("determinismo", "gate06", "PLUGINS", "fast"), list("seed_medicao", "-", "PLUGINS", "fast"),
   list("sem_seed_literal", "-", "PLUGINS", "fast"), list("artefato_puro", "-", "PLUGINS", "fast"),
   list("aditividade", "-", "PLUGINS", "fast"), list("runner_controle", "-", "PLUGINS", "fast"),
