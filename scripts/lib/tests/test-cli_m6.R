@@ -19,7 +19,7 @@ with_topology <- function(r) file.copy(topo_file, file.path(r, "config", "topolo
 STUB <- c(
   "## STUB de teste (so nesta copia): prevcarga_forecast decide pela area-sentinela.",
   "prevcarga_forecast <- function(ctx, origin = NULL, escopo = 'sin', areas = NULL, subsistema = NULL, report = FALSE,",
-  "                               report_format = 'html', skip_validate = FALSE, incluir_membros = FALSE) {",
+  "                               report_format = 'html', skip_validate = FALSE, incluir_membros = FALSE, jobs = 1L) {",
   "  sc <- if (length(areas)) areas[[1L]] else 'OK'",
   "  switch(sc,",
   "    KC = prevcarga_abort('export.key_conflict', where = 'stub'),",

@@ -140,14 +140,56 @@
   })
 }
 
-## Por folha e membro: a celula tolerante (out[[folha]][[sigla]]).
-.forecast_members <- function(ctx, plan, g, mem) {
-  out <- list()
-  for (i in seq_len(nrow(mem))) {
-    m <- mem[i, , drop = FALSE]
-    sigla <- as.character(m$sigla)
-    for (a in plan$leaves) out[[a]][[sigla]] <- .forecast_cell_safe(ctx, m, a, g)
+## --- despacho por celula (--jobs, F3.5) -----------------------------------------------------------------------
+## Modulos que cada worker PSOCK (R novo) carrega, em ordem fixa, do MESMO lib do pai (ctx$lib_dir / options prevcarga.lib).
+.forecast_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R", "deck_reader.R",
+                              "dates.R", "validation.R", "features.R", "registry.R", "training.R", "inference.R", "combination.R",
+                              "build_long_output.R", "forecast.R")
+
+## Cluster PSOCK (ADR-0038: sem fork). A falha do init de qualquer worker fecha o cluster e sobe como o pai (training.R).
+.forecast_cluster_start <- function(ctx, n) {
+  lib <- if (!is.null(ctx$lib_dir)) ctx$lib_dir else getOption("prevcarga.lib")
+  mods <- if (!is.null(ctx$worker_modules)) ctx$worker_modules else .forecast_worker_modules
+  cl <- parallel::makePSOCKcluster(n)
+  init <- tryCatch(parallel::clusterCall(cl, prevcarga_worker_init, lib, mods,
+                                         if (is.null(ctx$worker_hooks)) list() else ctx$worker_hooks),
+                   error = function(e) { parallel::stopCluster(cl); stop(e) })
+  bad <- Find(function(r) !isTRUE(r$ok), init)
+  if (!is.null(bad)) { parallel::stopCluster(cl); .prevcarga_tr_reraise(bad) }
+  cl
+}
+
+## Uma celula pela posicao k da tabela. No worker o aborto fatal vira dado (a condicao perde a classe ao cruzar o PSOCK);
+## o pai o re-levanta com o id original. Serial: o aborto sobe intacto.
+.forecast_run_cell <- function(k, cells, ctx, g, mem, fatal_as_data = FALSE) {
+  run <- function() .forecast_cell_safe(ctx, mem[cells$i[[k]], , drop = FALSE], cells$folha[[k]], g)
+  if (!isTRUE(fatal_as_data)) return(run())
+  tryCatch(run(), prevcarga_error = function(e)
+    structure(list(error_id = e$id, where = e$where, details = e$details, message = conditionMessage(e)), class = "forecast_cell_fatal"))
+}
+
+## Por folha e membro: a celula tolerante (out[[folha]][[sigla]]). A tabela de celulas segue a ordem radix da chave
+## "<folha>/<sigla>"; o resultado e reordenado por ela, entao nem N nem a ordem de chegada entram na entrega, no versao ou no run_id.
+.forecast_members <- function(ctx, plan, g, mem, jobs = 1L) {
+  cells <- expand.grid(folha = plan$leaves, i = seq_len(nrow(mem)), stringsAsFactors = FALSE)
+  cells$key <- paste(cells$folha, as.character(mem$sigla)[cells$i], sep = "/")
+  cells <- cells[order(cells$key, method = "radix"), , drop = FALSE]
+  rownames(cells) <- NULL
+  idx <- seq_len(nrow(cells))
+  jobs <- as.integer(jobs)
+  res <- if (jobs <= 1L || length(idx) < 2L) {
+    lapply(idx, .forecast_run_cell, cells = cells, ctx = ctx, g = g, mem = mem)
+  } else {
+    cl <- .forecast_cluster_start(ctx, min(jobs, length(idx)))
+    on.exit(parallel::stopCluster(cl), add = TRUE)
+    parallel::parLapplyLB(cl, idx, .forecast_run_cell, cells = cells, ctx = ctx, g = g, mem = mem, fatal_as_data = TRUE)
   }
+  names(res) <- cells$key
+  res <- res[order(names(res), method = "radix")]
+  bad <- Find(function(r) inherits(r, "forecast_cell_fatal"), res)
+  if (!is.null(bad)) prevcarga_abort(bad$error_id, where = bad$where, details = bad$details)
+  out <- list()
+  for (a in plan$leaves) for (sigla in as.character(mem$sigla)) out[[a]][[sigla]] <- res[[paste(a, sigla, sep = "/")]]
   out
 }
 
@@ -361,7 +403,7 @@
 ## Cronometro por passo (NFR de 30 min, M8.10). O relogio e INJETADO pela fachada (`ctx$step_clock`, segundos); forecast.R nao le relogio.
 ## Sem relogio => sem campos de tempo no result. O tempo NUNCA entra na entrega nem no run_manifest.json (a entrega e byte-deterministica);
 ## so no `result` do envelope. `duracao_s` = soma dos passos (cada passo = diferenca entre marcas consecutivas, a partir da largada).
-.forecast_stopwatch <- function(clock) {
+.forecast_stopwatch <- function(clock, jobs = 1L) {
   on <- is.function(clock)
   last <- if (on) clock() else NA_real_
   laps <- list()
@@ -375,7 +417,7 @@
     },
     timing = function() {
       if (!on) return(list())
-      list(duracao_s = round(sum(vapply(laps, function(l) l$duracao_s, 0)), 3), passos = laps, jobs = 1L,
+      list(duracao_s = round(sum(vapply(laps, function(l) l$duracao_s, 0)), 3), passos = laps, jobs = as.integer(jobs),
            platform = paste0(if (identical(.Platform$OS.type, "windows")) "windows" else if (grepl("linux", R.version$os)) "linux" else R.version$os,
                              "-", R.version$arch),
            runtime_id = paste0("R", as.character(getRversion()), "-", R.version$platform))
@@ -433,9 +475,9 @@
 ## Falha do relatorio => `partial.report_failed` (exit 14) com o result completo (`report$status` = "failed"); a entrega fica intacta.
 ## Devolve list(result, warnings): `warnings` = avisos do catalogo (reconcile, export, gate-0) como list(id, message).
 prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL, subsistema = NULL, report = FALSE,
-                               report_format = "html", skip_validate = FALSE, incluir_membros = FALSE) {
+                               report_format = "html", skip_validate = FALSE, incluir_membros = FALSE, jobs = 1L) {
   sink <- .forecast_warn_sink()
-  tk <- .forecast_stopwatch(ctx$step_clock)
+  tk <- .forecast_stopwatch(ctx$step_clock, jobs)
   mem <- .forecast_member_table(ctx)
   g <- .forecast_gate0(ctx, origin, skip_validate, mem, sink)
   tk$lap("validate-deck")
@@ -444,7 +486,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   rctx$tz <- g$cuts$tz
   rctx$load_label <- g$cuts$load_label
   withCallingHandlers({
-    cells <- .forecast_members(ctx, plan, g, mem)
+    cells <- .forecast_members(ctx, plan, g, mem, jobs)
     tri <- .forecast_triage(cells, plan, sink)          # folha vazia aborta aqui (subsistema/SIN), antes de combina/reconcile/scratch
     plan <- tri$plan
     members <- tri$members
