@@ -19,9 +19,8 @@ pc_m7_static_rules <- c(
   ascii   = "[^\\x01-\\x7F]")
 
 ## Excecoes fixadas (linha de codigo exata, nao a regra): `8L` e o numero de DIGITOS da conferencia SIN = soma do relatorio (reporting.R,
-## M7.4), nao uma contagem de membros. `clock`: so a linha exata de `.m7_now` (relogio so da apresentacao, injetavel por ctx$clock). A isca nao contem esse texto, entao a regra `counts` continua disparando nela.
-pc_m7_static_allow <- list(counts = "\\.rpt_bt_value\\(sf\\$sum_check, 8L\\)",
-                           clock  = "^\\.m7_now <- function\\(ctx\\) if \\(is\\.function\\(ctx\\$clock\\)\\) ctx\\$clock\\(\\) else Sys\\.time\\(\\)$")
+## M7.4), nao uma contagem de membros.
+pc_m7_static_allow <- list(counts = "\\.rpt_bt_value\\(sf\\$sum_check, 8L\\)")
 
 ## codigo sem comentarios: os tokens COMMENT do parser sao apagados (linha/coluna), o resto fica intacto
 pc_m7_strip_comments <- function(lines) {
