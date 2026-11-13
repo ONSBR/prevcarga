@@ -30,7 +30,7 @@ commit_base: "2b6c459"
 
 <span className="pc-overline">Execução · 3.12</span>
 
-<p className="pc-lead">A CLI <code>prevcarga</code> tem 20 verbos, cada um registrado num arquivo próprio em <code>scripts/lib/cli/&lt;verbo&gt;.R</code>. A gramática, a ajuda e a validação das flags são geradas desses registros, então <code>prevcarga --help</code> é sempre a referência exata da versão instalada. Esta página agrupa por uso os verbos de operação, dá a sintaxe como está no código, as flags principais e os códigos de saída mais comuns de cada um. No fim estão o instalador e o <code>prevcarga-sync</code>, que não são verbos da CLI R.</p>
+<p className="pc-lead">A CLI <code>prevcarga</code> tem 21 verbos, cada um registrado num arquivo próprio em <code>scripts/lib/cli/&lt;verbo&gt;.R</code>. A gramática, a ajuda e a validação das flags são geradas desses registros, então <code>prevcarga --help</code> é sempre a referência exata da versão instalada. Esta página agrupa por uso os verbos de operação, dá a sintaxe como está no código, as flags principais e os códigos de saída mais comuns de cada um. No fim estão o instalador e o <code>prevcarga-sync</code>, que não são verbos da CLI R.</p>
 
 ## Como ler a sintaxe e a saída
 
@@ -133,6 +133,18 @@ prevcarga describe [--origin=<data>] [--model=<m>]
 | `models` | Lista os membros e os contratos por modelo. | só globais | 0 |
 | `areas` | Mostra a topologia: folhas, subsistemas e SIN. | só globais | 0 |
 | `describe` | Contratos por modelo; com `--origin`, os cortes de data que a rodada usaria. | `--origin`, `--model` | 0; 8 com modelo desconhecido |
+
+### Configuração
+
+Grava no `config.yaml` o que o operador aponta uma vez. As chaves estão em [Configuração](/execucao/configuracao).
+
+```text title="Sintaxe (scripts/lib/cli/set-data-dir.R)"
+prevcarga set-data-dir <dir>
+```
+
+| Verbo | O que faz | Flags principais | Saídas características |
+|---|---|---|---|
+| `set-data-dir` | Grava `data_dir` (o deck) no `config.yaml` da instalação, `<R>/config.yaml`, ou no de `--config`. O diretório tem de existir; o caminho vai absoluto, e as outras chaves do arquivo ficam como estavam. | `<dir>`, `--config` | 0; 8 com diretório inexistente (`config.data_dir_missing`), fora de uma instalação sem `--config` (`config.usage`) ou falha de escrita (`config.write_failed`) |
 
 ### Rodada
 

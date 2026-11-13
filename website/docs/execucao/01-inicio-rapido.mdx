@@ -129,7 +129,13 @@ O `doctor` lista uma linha por checagem, com `PASS`, `WARN`, `FAIL` ou `N/A`: o 
 
 ### 3. Apontar o deck
 
-A CLI acha o deck pela chave `data_dir` do `config.yaml` ou pela flag global `--data=<dir>`, que tem precedência. Sem nenhum dos dois, todo verbo que lê dados sai com `config.data_dir_missing` (exit 8). O jeito mais simples é passar `--data` ao instalador, que grava a chave; também dá para editar `<R>/config.yaml`:
+A CLI acha o deck pela chave `data_dir` do `config.yaml` ou pela flag global `--data=<dir>`, que tem precedência. Sem nenhum dos dois, todo verbo que lê dados sai com `config.data_dir_missing` (exit 8). O jeito mais simples é o verbo `set-data-dir`, que grava a chave no `<R>/config.yaml` da instalação (o diretório tem de existir; o caminho vai absoluto):
+
+<Terminal title="prevcarga — bash" lines={[
+  {type:'cmd', text:'prevcarga set-data-dir /caminho/do/deck'}
+]} />
+
+Também dá para passar `--data` ao instalador, que grava a mesma chave, ou editar `<R>/config.yaml`:
 
 ```yaml title="<R>/config.yaml"
 schema_version: 1

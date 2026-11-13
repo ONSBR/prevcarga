@@ -27,3 +27,11 @@
 - Tier: o tier `parity` entra por `options(prevcarga.tier = "parity")` antes do `test_dir` ou pelo runner de gates (`.pc_gates_state$tier`); no tier fast as linhas parity saem como `[tier]` (nao como skip de gate) e o resto (units.yaml, golden.lock, CONTROL do `eng_check_golden`) roda sem golden. Nao ha runner de gates do motor (o `_` nao e membro): nenhum teste do motor leva o rotulo `[PLUGINS]`.
 - `test-engine-dates.R`: grep com `pc_grep_code` (tabela de padroes do ticket) + `pc_grep_time_arith(allow = list())` da fundacao; a entrada do motor em `pc_time_arith_allow()` (lag `hours(lagh)`) foi REMOVIDA do `helper-plugins.R` (decisao do Gabriel: sem excecao; o gate segue verde). Fixture com um arquivo por padrao, inclusive `DataHora %m-% hours(1)`. Divida pinada: `globalenv()` em `engine_abort` (`engine.R:12`, busca interina de `prevcarga_abort`; a mesma do `dl_abort`).
 - `test-engine-isolation.R`: dessem-linear REAL + descriptor-fixture `dessem-regdin` na mesma sessao; `test-engine-robustez.R` (os 4 casos + kill-switches de ENV sem efeito), `test-engine-svm-serial.R` (1 DM + 24 perfis), `test-engine-readme.R` (tabelas do README).
+
+## Janela de 1825 dias (decisao do Gabriel, 2026-11-10)
+- Os dois DESSEM ficam com `history_days: {train: 1825, infer: 1825}`. A inferencia precisa da mesma janela do treino nao so
+  pelas colunas (as dummies de mes, dia e tipo de feriado saem do `dcast` sobre o que esta na janela), mas porque o perfil de
+  feriado e AJUSTADO na inferencia: `RL_perfilFeriado` (`R/modelos_perfil.R`) ajusta um `lm` sobre as ocorrencias passadas do
+  mesmo dia do calendario (`obtemJanelaDiaria`) e tira o `sdHist` desse historico. 5 anos = 5 ocorrencias de cada feriado;
+  2 ou 3 anos foram considerados e descartados por isso. O motor monta historico + dias previstos num dataset so e filtra
+  `Data == dataPrev` no predict, preenchendo a serie com o previsto (D+1 usa D previsto como lag).

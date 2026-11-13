@@ -1,5 +1,5 @@
 id	class	message	hint
-state.artifact_missing	state	versao ou artefato inexistente no registry	rode `prevcarga train` para essa celula ou sincronize os artefatos oficiais (prevcarga-sync)
+state.artifact_missing	state	versao ou artefato inexistente no registry	rode `prevcarga train-models` para essa celula ou sincronize os artefatos oficiais (prevcarga-sync)
 state.pin_missing	state	.pin ausente ou vazio para a celula do registry	grave uma versao v_<hash> no .pin da celula ou use --version/latest
 state.promote_failed	state	falha ao mover/promover no registry (rename); a versao anterior segue intacta	confira permissao e espaco no state_dir; os .tmp-* orfaos sao do `registry gc`
 contract.version_malformed	contract	versao fora do formato v_<hex minusculo>	use uma versao no formato v_<hash> (ex.: v_0123abcd) ou latest/pin

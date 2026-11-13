@@ -189,3 +189,42 @@ prevcarga_require_data_dir <- function(ctx) {
                     details = list(hint = "use --data=<dir> ou data_dir no config.yaml"))
   invisible(ctx)
 }
+
+## --- set-data-dir: grava data_dir no config.yaml (unico escritor do config.yaml dentro do pacote) ----------------------------
+## Alvo: o config.yaml em uso (--config, o da raiz do codigo ou o da instalacao); sem nenhum, <R>/config.yaml da instalacao,
+## criado com schema_version. Fora do layout instalado e sem config.yaml: config.usage (aponte --config). O diretorio tem de
+## existir; o caminho vai absoluto, com barra /, entre aspas simples (a mesma forma do instalador, que o le e preserva no
+## upgrade). Escrita atomica: arquivo temporario no mesmo diretorio, validado com prevcarga_config_load antes do rename.
+.prevcarga_yaml_q <- function(x) paste0("'", gsub("'", "''", x, fixed = TRUE), "'")
+
+prevcarga_config_set_data_dir <- function(ctx, dir) {
+  if (!.prevcarga_chr_ok(dir) || !dir.exists(dir))
+    prevcarga_abort("config.data_dir_missing", where = as.character(dir)[1L],
+                    details = list(hint = "aponte para um diretorio que exista (o deck)"))
+  d <- normalizePath(dir, winslash = "/", mustWork = TRUE)
+  target <- ctx$config_path
+  if (is.null(target) && !is.null(ctx$install_root)) target <- file.path(ctx$install_root, "config.yaml")
+  if (is.null(target))
+    prevcarga_abort("config.usage", where = "set-data-dir",
+                    details = list(hint = "fora de uma instalacao, passe --config=<arquivo>"))
+  old <- if (file.exists(target)) readLines(target, warn = FALSE, encoding = "UTF-8") else
+    c("# config.yaml da instalacao (schema v1). Precedencia: flag da CLI > este arquivo > default.", "schema_version: 1")
+  prev <- if (file.exists(target)) prevcarga_config_load(target)$data_dir else NULL
+  lines <- c(old[!startsWith(old, "data_dir:")], paste0("data_dir: ", .prevcarga_yaml_q(d)))
+  tmp <- tempfile(".config.yaml.", tmpdir = dirname(target))
+  ok <- tryCatch({
+    con <- file(tmp, open = "wb")
+    tryCatch(writeLines(enc2utf8(lines), con, useBytes = TRUE), finally = close(con))   # fechado antes do rename (Windows)
+    TRUE
+  }, error = function(e) FALSE)
+  if (!ok || !file.exists(tmp)) {
+    unlink(tmp)
+    prevcarga_abort("config.write_failed", where = target)
+  }
+  tryCatch(prevcarga_config_load(tmp), error = function(e) { unlink(tmp); stop(e) })
+  if (!file.rename(tmp, target)) {
+    unlink(tmp)
+    prevcarga_abort("config.write_failed", where = target)
+  }
+  list(data_dir = d, config_path = .prevcarga_norm_path(target), previous = prev)
+}

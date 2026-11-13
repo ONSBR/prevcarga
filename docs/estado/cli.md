@@ -22,3 +22,6 @@
 - Contrato do handler: `function(ctx, args)` (ou `function(ctx)`) -> list(schema_version = 1L, ...); texto via
   `prevcarga_render_<verbo>(result)` se existir, senao print ASCII generico.
 - Testes: `scripts/lib/tests/test-facade.R` (verbos-fixture em dir temporario; lista de verbos/stubs derivada da descoberta).
+
+- **set-data-dir (2026-11-10):** 21o verbo, `prevcarga set-data-dir <dir>`, dono M8, nao isento. A escrita mora em config.R
+  (ver `docs/estado/config.md`). O instalador sugere o verbo nos proximos passos quando o `data_dir` falta.

@@ -81,7 +81,7 @@ test_that("CONTROL: sob pty o texto mostra o banner da CLI (nome + curva + eixo 
   tail <- x[pp:length(x)]
   expect_true(any(grepl("prevcarga doctor", tail, fixed = TRUE)))
   expect_true(any(grepl(paste0("ponha ", b$root, "/bin no PATH"), tail, fixed = TRUE)))   # sem --add-to-path
-  expect_true(any(grepl("aponte o deck: reinstale com --data <dir>", tail, fixed = TRUE)))   # sem data_dir
+  expect_true(any(grepl("aponte o deck: prevcarga set-data-dir <dir>", tail, fixed = TRUE)))   # sem data_dir
   # deck ja configurado (--data): nao sugere configurar; mostra o data_dir
   b2 <- fake_bundle(); dd <- file.path(dirname(b2$root), "deck"); dir.create(dd)
   y <- run_pty(c(args_for(b2, "text"), "--data", dd))
