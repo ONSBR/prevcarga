@@ -1,9 +1,9 @@
 ## test-ab-corte.R -- o A/B do corte REAL: pipeline completo sobre a referencia congelada da tag v0.1.5 do clean-room (ADR-0041, que supera o ADR-0034; ADR-0035).
-## So roda com a referencia do A/B gerada da tag v0.1.5 (ADR-0041; comando e pendencias em docs/estado/ab.md); sem ela, SKIP EXPLICITO com o motivo e o
-## comando exato -- nunca verde silencioso e nunca veredito inventado. Entradas (options, nunca variavel de ambiente):
-##   prevcarga.ab.ref    = <ref_out> do runner (A/index.tsv, runtime.txt, oracle.sha256, aws.log)           [obrigatoria]
-##   prevcarga.ab.clean  = saida de pc_ab_clean_run (clean-room, regra origin_midnight_utc)                  [obrigatoria]
-##   prevcarga.ab.cases  = cases.tsv usado no runner                                                          [obrigatoria]
+## So roda com a referencia do A/B gerada da tag v0.1.5 por `scripts/tools/ab_reference_run.R --ref <checkout da tag> --ref-tag v0.1.5` (ADR-0041);
+## sem ela, SKIP EXPLICITO com o motivo e o comando -- nunca verde silencioso e nunca veredito inventado. Entradas (options, nunca variavel de ambiente):
+##   prevcarga.ab.ref    = <out> do gerador sobre a tag (<origem>/membros/<sigla>/<area>.parquet, manifest.json, run.json)    [obrigatoria]
+##   prevcarga.ab.clean  = saida do mesmo gerador sobre esta arvore (lado clean-room, regra origin_midnight_utc)             [obrigatoria]
+##   prevcarga.ab.cases  = cases.tsv usado nos dois lados                                                                    [obrigatoria]
 ##   prevcarga.ab.stages = list(b = list(ratio, origem, ref_profile, window_days, ss, apply), c = list(saida, referencia),
 ##                              d = list(panel, origem, area), e = list(long))   -- estagios B-E (ausentes => `estagio_<E>_ausente`, BLOQUEADO)
 ##   prevcarga.ab.bundles = list(linux = <tarball>, windows = <zip>) -- so entao grava o recibo `ab-corte` (pc_receipt_write)
@@ -12,22 +12,20 @@
 ref <- getOption("prevcarga.ab.ref"); clean <- getOption("prevcarga.ab.clean"); cases_tsv <- getOption("prevcarga.ab.cases")
 
 test_that("[AB.CORTE] pipeline completo sobre a referencia congelada: relayout -> A -> B -> C -> D (propriedade) -> E (reporta) -> veredito", {
-  if (is.null(ref) || !file.exists(file.path(ref, "A", "index.tsv")))
-    skip("[TBD] referencia v0.1.5 ausente: gere a referencia do A/B a partir da saida da tag v0.1.5 do clean-room (ADR-0041; docs/estado/ab.md) e passe options(prevcarga.ab.ref=, prevcarga.ab.clean=, prevcarga.ab.cases=)")
+  if (is.null(ref) || !file.exists(file.path(ref, "run.json")))
+    skip("[TBD] referencia v0.1.5 ausente: gere com `scripts/tools/ab_reference_run.R --cases <cases.tsv> --data <store> --out <dir> --ref <checkout limpo da tag> --ref-tag v0.1.5` (ADR-0041; docs/estado/ab.md) e passe options(prevcarga.ab.ref=, prevcarga.ab.clean=, prevcarga.ab.cases=)")
   if (is.null(clean) || !dir.exists(clean) || is.null(cases_tsv) || !file.exists(cases_tsv))
     skip("[TBD] saida do clean-room (pc_ab_clean_run) ou cases.tsv ausente: passe options(prevcarga.ab.clean=, prevcarga.ab.cases=)")
-  ## o oraculo ficou intocado e a rede nao foi usada (provado pelo runner; reconferido aqui)
-  expect_identical(readLines(file.path(ref, "oracle.sha256")), readLines(file.path(ref, "oracle.after.sha256")))
-  expect_identical(file.size(file.path(ref, "aws.log")), 0)
+  ## a referencia e da tag v0.1.5 (ADR-0041): o commit gravado pelo gerador e o da tag, e a arvore de referencia nao foi tocada
+  rj <- jsonlite::read_json(file.path(ref, "run.json"))
+  expect_identical(rj$tag, "v0.1.5")
+  expect_match(rj$commit, "^[0-9a-f]{40}$")
   cs <- AB$pc_ab_cases_read(cases_tsv)
-  idx <- utils::read.delim(file.path(ref, "A", "index.tsv"), colClasses = "character")
-  cs <- cs[cs$caso %in% idx$caso, , drop = FALSE]                   # so os casos que o runner executou
+  cs <- cs[file.exists(file.path(ref, cs$origem, "membros", cs$sigla, paste0(cs$area, ".parquet"))), , drop = FALSE]   # so os casos que o gerador executou
   expect_gt(nrow(cs), 0L)
   tz <- unique(cs$tz); expect_length(tz, 1L)
   ctx <- list(tz = tz, root = ab_root)
-  rel <- tempfile("relayout-")
-  rl <- AB$pc_ab_relayout(file.path(ref, "A"), rel, ctx)
-  expect_length(rl$faltando, 0L)                                    # caso do oraculo sem resultado => reprova aqui, nunca Delta = 0
+  rel <- ref                                                         # a referencia ja esta no layout nativo (sem relayout de oraculo)
   exc <- AB$pc_ab_load_excecoes(AB_EXC)
   linhas <- list(AB$pc_ab_stage_a(clean, rel, cs, ctx, exc))
   st <- getOption("prevcarga.ab.stages")

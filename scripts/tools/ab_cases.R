@@ -5,7 +5,7 @@
 ## A matriz (membro, area) vem de prevcarga_members()/prevcarga_topology() do clean-room (nunca lista fixa em bash). Para cada origem do
 ## tests/ab/ab_origens.yaml o gerador le o deck pelo leitor unico (corte derivado do DADO), exige hora cheia, calcula o `corte` do ORACULO
 ## na convencao de rotulo dele (available_until - 30 min: o oraculo rotula pelo INICIO do intervalo, ADR-0035 item 8) pela borda do LONG
-## (schema_long.R) e grava cases.tsv para o runner (ab_oracle_run.sh). O protocolo vem do job.json do oraculo (lido, nunca forcado).
+## (schema_long.R) e grava cases.tsv para o gerador da referencia (ab_reference_run.R, ADR-0041). O protocolo vem do job.json do oraculo (lido, nunca forcado).
 
 pc_ab_case_cols <- c("caso", "membro", "sigla", "mdir", "exogena", "area", "origem", "deck", "tz", "available_until", "corte_oraculo",
                      "protocolo", "split", "delivery_days", "executavel", "motivo")
@@ -35,7 +35,7 @@ pc_ab_oracle_cut <- function(available_until, tz) prevcarga_long_interval_start(
 
 ## origens: caminho do YAML ou o resultado de pc_ab_origens_load. deck_dir: raiz dos decks nomeados (`store` usa ctx$data_dir).
 ## membros/areas: filtros opcionais da matriz (subconjunto representativo); NULL = a matriz inteira.
-pc_ab_cases <- function(origens, deck_dir, ctx, oracle = "/opt/ons-source/prevcargadessem3", membros = NULL, areas = NULL) {
+pc_ab_cases <- function(origens, deck_dir, ctx, oracle = NULL, membros = NULL, areas = NULL) {
   o <- if (is.character(origens)) pc_ab_origens_load(origens) else origens
   mem <- prevcarga_members(root = ctx$root)
   topo <- prevcarga_topology(root = ctx$root)
@@ -44,7 +44,7 @@ pc_ab_cases <- function(origens, deck_dir, ctx, oracle = "/opt/ons-source/prevca
   info <- lapply(unique(mem$mdir), function(m)
     list(split = prevcarga_model_spec(m, ctx$root)$split,
          dd = as.integer(prevcarga_plugin_descriptor(m, prevcarga_models_root(ctx$root))$delivery_days),
-         protocolo = jsonlite::read_json(file.path(oracle, "models", m, "job.json"))$protocol))
+         protocolo = if (is.null(oracle)) "" else jsonlite::read_json(file.path(oracle, "models", m, "job.json"))$protocol))   # ADR-0041: sem oraculo, protocolo vazio
   names(info) <- unique(mem$mdir)
   rows <- list()
   for (i in seq_len(nrow(o$origens))) {

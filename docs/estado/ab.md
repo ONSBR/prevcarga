@@ -3,6 +3,18 @@
 Ferramentas DEV-ONLY (so Linux, fora do bundle) em `scripts/tools/ab_*`; dados e listas em `tests/ab/`. O oraculo e validado UMA vez, neste A/B do
 corte, e depois descartado: sem periodo paralelo nem comparacao recorrente (ADR-0034). Erros: `scripts/lib/errors/ab.tsv`.
 
+## ADR-0041: referencia do A/B = tag v0.1.5 do clean-room (substitui o oraculo)
+- `scripts/tools/ab_reference_run.R --cases <cases.tsv> --data <store> --out <dir> [--ref <checkout limpo da tag> --ref-tag v0.1.5] [--limit n]`:
+  roda `pc_ab_clean_run` (fachada train + infer-cell, regra de clima `origin_midnight_utc`) para cada caso executavel, sem switch por modelo. Com
+  `--ref/--ref-tag` o codigo e o do checkout da tag (arvore suja => `tools.reference_dirty`; HEAD fora da tag => `tools.reference_not_tag`) e a saida
+  e a REFERENCIA; sem eles roda esta arvore (lado clean-room). Store so lido (overlay de symlinks em tempdir); artefatos em tempdir; `run.json` grava commit e tag.
+- `cases.tsv` sem oraculo: `pc_ab_cases(origens, NULL, ctx)` (protocolo vazio). `test-ab-corte.R` compara `ref` x `clean` direto no layout nativo
+  (sem relayout de oraculo); `options(prevcarga.ab.ref=, prevcarga.ab.clean=, prevcarga.ab.cases=)`.
+- REMOVIDOS: `ab_oracle_run.sh`, `ab_oracle_patches/`, `test-ab-oracle-intact.R`, `oracle_untracked_allow.txt`. As secoes abaixo sobre o runner do oraculo
+  (docker, R 4.2.3, patches do HW) sao historico do M8.8.
+- Regeracao completa (24 areas x membros x 3 origens = 576 casos executaveis; horas): gerar `cases.tsv`, rodar o gerador sobre a tag e sobre a arvore, depois
+  o teste. A rodada de F7.4 usou o subconjunto RS e SP em 2024-10-01 09:00.
+
 ## Pecas
 - `tests/ab/ab_origens.yaml` + `scripts/tools/ab_cases.R`: `pc_ab_cases(origens, deck_dir, ctx, oracle, membros, areas)` monta a matriz (membro x area) de
   `prevcarga_members()`/`prevcarga_topology()` (nunca lista fixa), le cada deck pelo leitor unico (`prevcarga_read_load(truncate_at = ...)`), exige

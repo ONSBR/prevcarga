@@ -17,7 +17,6 @@ for (m in c("receipts", "fixture_store", "ab_cases", "ab_relayout", "ab_stages",
   sys.source(file.path(ab_root, "scripts", "tools", paste0(m, ".R")), envir = AB)
 
 AB_TZ <- "Etc/GMT+3"
-AB_RUNNER <- file.path(ab_root, "scripts", "tools", "ab_oracle_run.sh")
 AB_EXC <- file.path(ab_root, "tests", "ab", "ab_excecoes.yaml")
 
 ## Excecoes de FIXTURE (AC 21 + mecanismos de limite e janela), SO para os testes: o arquivo real e do Gabriel e esta vazio (ADR-0041).

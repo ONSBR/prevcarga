@@ -1,4 +1,4 @@
-## test-engine-loader.R -- DL.1: o loader da fundacao monta o env do motor _dessem-engine (AC1, AC2, AC3, AC6).
+## test-engine-motor.R (ex test-engine-loader.R) -- DL.1: o loader da fundacao monta o env do motor _dessem-engine (AC1, AC2, AC3, AC6).
 
 expect_contract <- function(expr, id, token = NULL) {
   cond <- tryCatch({ force(expr); NULL }, prevcarga_error = function(e) e)
@@ -58,14 +58,9 @@ test_that("ac-9 CONTROL: arquivo com read.csv no topo => contract do loader nome
   expect_contract(eng_load(root), "plugin.toplevel_code", "zz_bad.R")
 })
 
-test_that("ac-10 model_parameters.json byte-identico ao do oraculo e getConfigModel le do diretorio do motor", {
+test_that("ac-10 model_parameters.json byte-identico ao pinado (md5) e getConfigModel le do diretorio do motor", {
   mine <- file.path(eng_dir(), "model_parameters.json")
   expect_identical(unname(tools::md5sum(mine)), "56f8fc5ed7b8db4275827a3a8122c0b0")
-  orc <- "/opt/ons-source/prevcargadessem3/models/dessem-linear/vendor/model_parameters.json"
-  if (file.exists(orc)) {
-    expect_identical(unname(tools::sha256sum(mine)), unname(tools::sha256sum(orc)))
-    expect_identical(readBin(mine, "raw", 1e6), readBin(orc, "raw", 1e6))
-  }
   p <- eng_load(eng_plugin_root())
   eng <- eng_env(p)
   cfg <- eng$getConfigModel("Linear.TmpMedia")
