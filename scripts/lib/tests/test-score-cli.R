@@ -152,9 +152,14 @@ test_that("score por processo == prevcarga_score + prevcarga_scorecard in-proces
     row <- Filter(function(x) identical(x$area, ref$area[[k]]) && identical(as.integer(x$d_plus), ref$d_plus[[k]]),
                   j$result$scorecard)
     expect_length(row, 1L)
-    for (col in c("wmape", "mape", "bias", "peak", "skill"))
+    for (col in c("wmape", "mape", "bias", "peak", "peak_mape", "skill"))
       expect_equal(num(row[[1L]][[col]]), ref[[col]][[k]], tolerance = 1e-9, info = paste(ref$area[[k]], ref$d_plus[[k]], col))
   }
+  expect_identical(j$result$schema_version, 1L)                         # mudanca aditiva: schema continua 1
+  rt <- pc_m3_cli(args, root = root_real)                               # texto: PEAK_MAPE logo apos PEAK, so ASCII
+  expect_identical(rt$status, 0L)
+  expect_true(any(grepl("PEAK\\s+PEAK_MAPE", pc_m3_lines(rt$stdout))))
+  expect_true(pc_m3_ascii(rt))
   ## skill == prevcarga_skill_score do grupo; o skill esta definido (CONTROL: nao e NA em todos os grupos)
   k1 <- which(ref$area == present[[1L]] & ref$d_plus == 1L)
   grp <- r$long[r$long$area == present[[1L]] & r$long$d_plus == 1L, , drop = FALSE]

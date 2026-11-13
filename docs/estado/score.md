@@ -14,3 +14,5 @@
 - Resolvido (fix/topology-ids-hour): `interval_start` vem da borda do LONG (`schema_long.R`), nao de aritmetica em
   `evaluation.R`; `topology.area_unknown` fundido em `topology.area_undeclared` (mesma classe/exit).
 - Testes: `scripts/lib/tests/test-score.R`.
+
+- Colunas (F4.2): o texto traz `PEAK_MAPE` logo apos `PEAK` (antes de `SKILL`); o JSON traz `peak_mape` em toda linha de `headline.rows` e `scorecard` (mesmas colunas do `prevcarga_scorecard`). `schema_version` continua 1 (mudanca aditiva).
