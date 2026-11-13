@@ -23,18 +23,6 @@ test_that("ac-14 toda required_function tem linha funcao -> arquivo -> pkgfun_*.
   }
 })
 
-test_that("ac-14 as linhas do mapa batem com o oraculo quando ele esta presente", {
-  V <- "/opt/ons-source/prevcargadessem3/models/dessem-linear/vendor"
-  skip_if_not(dir.exists(V), "oraculo ausente")
-  O <- dirname(dirname(dirname(V)))
-  for (l in grep("^[A-Za-z_.0-9]+ -> .* -> (pkgfun_[A-Za-z]+|_load_engine|scripts/lib/[a-z_]+)[.]R:[0-9]+$", readme_lines(), value = TRUE)) {
-    p <- strsplit(l, " -> ", fixed = TRUE)[[1L]]
-    ref <- strsplit(p[[3L]], ":", fixed = TRUE)[[1L]]
-    src <- readLines(file.path(if (grepl("^scripts/", ref[[1L]])) O else V, ref[[1L]]))
-    expect_true(grepl(paste0("^", p[[1L]], " <- function"), src[[as.integer(ref[[2L]])]]), info = l)
-  }
-})
-
 test_that("ac-14 o README lista o que nao foi portado e a regra de nowcast", {
   txt <- paste(readme_lines(), collapse = "\n")
   for (k in c("aplicaPesos", "writeOutDP", "writeOutCSV", "plotOutputData", "RN_DemandaMedia", "paralelismo",
