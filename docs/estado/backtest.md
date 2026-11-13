@@ -35,6 +35,7 @@ o registry de producao (`<state_dir>/artifacts/`) nunca e aberto (grep + spy de 
   `n_min` = `ctx$combina$n_min` (default 24; nao ha chave em config.yaml). Grava `combined/<FOLHA>/<HHMM>/combined.parquet` e `weights/<AAAA-MM>/<FOLHA>_<HHMM>.rds`; meses em fallback => `summary$fallback_months`
   (folha, corte_hm, mes). Nunca le pesos nem ponteiro de producao.
 - Reconcile (`.bt_reconcile`): so quando o plano cobre TODAS as folhas da topologia (um `--area` parcial nao e origem incompleta; nao ha reconcile). Folha sem linha combinada na origem => `summary$incompleto`
+  A linha `incompleto` leva `error_id = "completude.leaf_missing"` (id existente de `errors/reconcile.tsv`; sem id novo) ao lado de `folhas_faltando`, e o verbo serializa o `error_id` em `summary$incompleto[[i]]`. `can_reconcile` nao mudou.
   (origem, corte_hm, available_until, folhas_faltando) e nenhum arquivo em `reconciled/` para ela. Completo => bottom-up -> ratio -> `prevcarga_khat_fit(ratio, O, window_days)` (janela [O-W, O-1]; W = `ctx$khat_window_days`
   ou `prevcarga_khat_window_days`, 730; `topology.R` nao tem `khat$window_days`) -> `prevcarga_khat_apply` -> SIN. A verdade do k-hat vem de `prevcarga_read_load` (leitor unico). Falha do reconcile (ex.: sem verdade do
   subsistema) sai em `summary$reconcile_failures` e torna o veredito `partial`. `.bt_khat_apply` e pura sobre `truth` (reach-control das duas bordas no teste).

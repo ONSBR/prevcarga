@@ -266,7 +266,8 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   faltam <- topo$leaves[vapply(rows, function(r) is.null(r) || !nrow(r), NA)]
   if (length(faltam))
     return(list(long = NULL, incompleto = data.table::data.table(
-      origem = origem, corte_hm = corte, available_until = available_until, folhas_faltando = list(faltam))))
+      origem = origem, corte_hm = corte, available_until = available_until,
+      error_id = "completude.leaf_missing", folhas_faltando = list(faltam))))
   w <- .bt_window_days(ctx)
   if (is.null(truth_fn))
     truth_fn <- function(areas) prevcarga_read_load(rctx, areas = areas, from = origem - w, to = origem - 1L)
@@ -469,7 +470,8 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
 ## Completa o resumo do MAP: incompleto, fallback_months, falhas de reconcile, cache e o veredito (partial se falha ou incompleto).
 .bt_merge_summary <- function(ctx, s, red) {
   empty_inc <- data.table::data.table(origem = lubridate::ymd(character()), corte_hm = character(),
-                                      available_until = lubridate::ymd_hms(character(), tz = "UTC"), folhas_faltando = list())
+                                      available_until = lubridate::ymd_hms(character(), tz = "UTC"),
+                                      error_id = character(), folhas_faltando = list())
   s$incompleto <- if (is.null(red$incompleto) || !nrow(red$incompleto)) empty_inc else red$incompleto
   s$fallback_months <- if (is.null(red$fallback)) data.table::data.table(folha = character(), corte_hm = character(), mes = character())
                        else red$fallback
