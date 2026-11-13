@@ -83,12 +83,13 @@ m6f_delivery <- function(env, member, area, origin, ctx, perturb = list()) {
 }
 
 ## Espiao de prevcarga_infer_cell: registra (membro, area, version) em log$infer; `fail` = siglas que abortam
-## state.artifact_missing (artefato ausente de origin_agnostic).
-m6f_infer_spy <- function(env, log, perturb = list(), fail = character()) {
+## state.artifact_missing (artefato ausente de origin_agnostic). `fail_cells` = "SIGLA/AREA" que abortam so naquela celula;
+## `fail_id` = id do aborto (default state.artifact_missing).
+m6f_infer_spy <- function(env, log, perturb = list(), fail = character(), fail_cells = character(), fail_id = "state.artifact_missing") {
   function(member, area, origin, ctx, variant = NULL, version = NULL, pin = FALSE) {
     sg <- as.character(member$sigla)
     log$infer[[length(log$infer) + 1L]] <- list(member = sg, area = area, version = version)
-    if (sg %in% fail) env$prevcarga_abort("state.artifact_missing", where = paste0(sg, "/", area))
+    if (sg %in% fail || paste0(sg, "/", area) %in% fail_cells) env$prevcarga_abort(fail_id, where = paste0(sg, "/", area))
     d <- m6f_delivery(env, member, area, origin, ctx, perturb)
     list(predictions = d$predictions,
          version = if (is.null(version)) paste0("v_", substr(digest::digest(paste(sg, area), algo = "sha256"), 1L, 16L)) else version,

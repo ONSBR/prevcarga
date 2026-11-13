@@ -26,9 +26,10 @@
 .forecast_warn_sink <- function() {
   acc <- list()
   list(
-    add = function(id, message = NULL) {
+    add = function(id, message = NULL, where = NULL, details = NULL) {
       if (is.null(message)) message <- prevcarga_condition(id, type = "prevcarga_warning")$message
-      acc[[length(acc) + 1L]] <<- list(id = id, message = message)
+      acc[[length(acc) + 1L]] <<- c(list(id = id, message = message),
+                                    if (!is.null(where)) list(where = where), if (!is.null(details)) list(details = details))
       invisible(NULL)
     },
     get = function() acc)
@@ -111,30 +112,71 @@
   if (latest %in% hit) latest else hit[[length(hit)]]
 }
 
-## Por folha e membro: a entrega do infer (semi-horaria, `interval_end`) e a versao do artefato usada. origin_agnostic so le
-## o artefato (ausente => state.artifact_missing, exit 13: nunca treina); origin_scoped treina UMA vez, pela fachada de treino
-## (que deriva os cortes de dates.R), so se nao ha artefato da origem O. Nenhuma conta de corte aqui.
+## Classes que abortam a rodada (nunca viram membro ausente): erro de uso/config, de topologia, de honestidade e de runtime.
+.FORECAST_FATAL <- "^(config|topology|honesty|runtime)\\."
+
+## Uma celula (membro x folha): origin_agnostic so le o artefato (ausente => state.artifact_missing, exit 13: nunca treina);
+## origin_scoped treina UMA vez, pela fachada de treino (que deriva os cortes de dates.R), so se nao ha artefato da origem O.
+## Nenhuma conta de corte aqui. Erro do catalogo fora de .FORECAST_FATAL vira dado serializavel (status "absent", no formato de
+## .prevcarga_tr_cell_error); os fatais sobem intactos.
+.forecast_cell_safe <- function(ctx, m, a, g) {
+  sigla <- as.character(m$sigla)
+  tryCatch({
+    split <- prevcarga_model_spec(m$mdir, ctx$root)$split
+    dd <- as.integer(prevcarga_plugin_descriptor(m$mdir, prevcarga_models_root(ctx$root))$delivery_days)
+    ver <- NULL
+    if (identical(split, "origin_scoped")) {
+      ver <- .forecast_scoped_version(ctx, m, a, g$origin)
+      if (is.null(ver)) ver <- as.character(prevcarga_train(m, a, g$origin, ctx)$version)
+    }
+    res <- prevcarga_infer_cell(m, a, g$origin, ctx, version = ver)
+    list(status = "ok", folha = a, sigla = sigla,
+         delivery = data.table::data.table(interval_end = res$predictions$target_datetime, y_pred = res$predictions$y_pred),
+         member = list(name = sigla, delivery_days = dd, split = split),
+         version = as.character(res$version))
+  }, prevcarga_error = function(e) {
+    if (grepl(.FORECAST_FATAL, e$id)) stop(e)
+    list(status = "absent", folha = a, sigla = sigla, error_id = e$id, where = e$where, message = conditionMessage(e))
+  })
+}
+
+## Por folha e membro: a celula tolerante (out[[folha]][[sigla]]).
 .forecast_members <- function(ctx, plan, g, mem) {
   out <- list()
   for (i in seq_len(nrow(mem))) {
     m <- mem[i, , drop = FALSE]
     sigla <- as.character(m$sigla)
-    split <- prevcarga_model_spec(m$mdir, ctx$root)$split
-    dd <- as.integer(prevcarga_plugin_descriptor(m$mdir, prevcarga_models_root(ctx$root))$delivery_days)
-    for (a in plan$leaves) {
-      ver <- NULL
-      if (identical(split, "origin_scoped")) {
-        ver <- .forecast_scoped_version(ctx, m, a, g$origin)
-        if (is.null(ver)) ver <- as.character(prevcarga_train(m, a, g$origin, ctx)$version)
-      }
-      res <- prevcarga_infer_cell(m, a, g$origin, ctx, version = ver)
-      out[[a]][[sigla]] <- list(
-        delivery = data.table::data.table(interval_end = res$predictions$target_datetime, y_pred = res$predictions$y_pred),
-        member = list(name = sigla, delivery_days = dd, split = split),
-        version = as.character(res$version))
-    }
+    for (a in plan$leaves) out[[a]][[sigla]] <- .forecast_cell_safe(ctx, m, a, g)
   }
   out
+}
+
+.forecast_cell_ok <- function(cell) !identical(cell$status, "absent")
+
+## Decisao por folha: aviso por celula ausente e folha sem nenhum membro. Subsistema/SIN com folha vazia aborta ANTES de combina,
+## reconcile e scratch (nao sai subsistema/SIN parcial); escopo area tira a folha do plano (plan$dropped) e segue com as demais.
+## Devolve plan (possivelmente reduzido), os membros presentes por folha e membros_ausentes (folha, membro, error_id).
+.forecast_triage <- function(cells, plan, sink) {
+  ausentes <- list()
+  for (a in plan$leaves) for (sg in names(cells[[a]])) {
+    c1 <- cells[[a]][[sg]]
+    if (.forecast_cell_ok(c1)) next
+    ausentes[[length(ausentes) + 1L]] <- list(folha = a, membro = sg, error_id = c1$error_id)
+    sink$add("warning.forecast_member_absent", where = a, details = list(folha = a, membro = sg, error_id = c1$error_id))
+  }
+  empty <- plan$leaves[vapply(plan$leaves, function(a) !any(vapply(cells[[a]], .forecast_cell_ok, NA)), NA)]
+  plan$dropped <- character()
+  if (length(empty)) {
+    if (!identical(plan$escopo, "area") || setequal(empty, plan$leaves))
+      prevcarga_abort("completude.forecast_leaf_no_member", where = empty[[1L]], details = list(folhas = as.list(empty)))
+    for (a in empty) sink$add("warning.forecast_leaf_dropped", where = a)
+    plan$leaves <- setdiff(plan$leaves, empty)
+    plan$stray <- setdiff(plan$stray, empty)
+    plan$dropped <- empty
+    ausentes <- Filter(function(x) !x$folha %in% empty, ausentes)
+  }
+  present <- lapply(stats::setNames(plan$leaves, plan$leaves), function(a) cells[[a]][vapply(cells[[a]], .forecast_cell_ok, NA)])
+  list(plan = plan, members = present, membros_ausentes = ausentes)
 }
 
 ## --- 4. LONG por membro e combina -----------------------------------------------------------------------------
@@ -146,7 +188,9 @@
   wic <- if (is.null(ctx$weather_issue_cutoff)) "available_until" else ctx$weather_issue_cutoff
   cut <- sprintf("%02d%02d", lubridate::hour(au), lubridate::minute(au))
   parts <- list(); prov <- list()
-  for (sg in mem$sigla) {
+  present <- as.character(mem$sigla)[vapply(as.character(mem$sigla), function(sg) .forecast_cell_ok(leaf_members[[sg]]) &&
+                                               !is.null(leaf_members[[sg]]), NA)]
+  for (sg in present) {
     mb <- leaf_members[[sg]]
     d <- prevcarga_build_long(mb$delivery, mb$member, leaf, g$origin, au, truth = NULL, ctx = ctx)
     d <- data.table::as.data.table(prevcarga_assert_long(d, ctx))        # leitor unico do LONG: anexa o interval_start
@@ -158,7 +202,7 @@
   }
   long <- data.table::rbindlist(parts)
   data.table::setattr(long, "members_declared", mem$sigla)
-  data.table::setattr(long, "members_present", mem$sigla)
+  data.table::setattr(long, "members_present", present)     # membro ausente: f_<sigla> fica NA e a combina renormaliza
   data.table::setattr(long, "provenance", data.table::rbindlist(prov))
   prevcarga_assert_members_aligned(long, ctx)
   list(panel = prevcarga_build_panel(long, mem), members_long = parts)
@@ -251,7 +295,7 @@
   stats::setNames(lapply(seq_len(nrow(b)), function(i) .forecast_iso_min(b$until[[i]], cuts$tz)), as.character(b$area_code))
 }
 
-.forecast_write_run_json <- function(ctx, scratch, g, plan, lv, rec, versao, sc, incluir_membros) {
+.forecast_write_run_json <- function(ctx, scratch, g, plan, lv, rec, versao, sc, incluir_membros, ausentes = list()) {
   mem_areas <- structure(list(), names = character())
   if (isTRUE(incluir_membros))
     mem_areas <- stats::setNames(lapply(names(lv$members), function(s) as.list(names(lv$members[[s]]))), names(lv$members))
@@ -262,6 +306,7 @@
               khat = .forecast_khat_rows(rec$khat), escopo = plan$escopo, subsistema = plan$subsistema,
               covered = as.list(plan$covered), stray = as.list(plan$stray),
               closed = as.list(plan$closed), sin_closed = plan$sin_closed, members = mem_areas,
+              membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,
               runtime_id = paste0("R", as.character(getRversion()), "-", R.version$platform),
               code_commit = ctx$code_commit)
@@ -297,12 +342,13 @@
   m
 }
 
-.forecast_result <- function(g, plan, rec, key, versao, exp, report) {
+.forecast_result <- function(g, plan, rec, key, versao, exp, report, ausentes = list()) {
   list(origem = format(g$origin), available_until = .forecast_iso_min(g$cuts$available_until, g$cuts$tz),
        available_until_por_area = .forecast_au_by_area(g$cuts), weather_issue_cutoff = g$cuts$weather_issue_cutoff,
        versao = versao, saida = exp$saida, escopo = plan$escopo, subsistema = plan$subsistema, covered = plan$covered, stray = plan$stray,
        khat = .forecast_khat_rows(rec$khat), arquivos = exp$arquivos, cobertura_descartada = rec$cobertura_descartada,
-       ja_publicado = isTRUE(exp$ja_publicado), report = report)
+       ja_publicado = isTRUE(exp$ja_publicado), report = report,
+       membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped))
 }
 
 ## Cronometro por passo (NFR de 30 min, M8.10). O relogio e INJETADO pela fachada (`ctx$step_clock`, segundos); forecast.R nao le relogio.
@@ -391,7 +437,10 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   rctx$tz <- g$cuts$tz
   rctx$load_label <- g$cuts$load_label
   withCallingHandlers({
-    members <- .forecast_members(ctx, plan, g, mem)
+    cells <- .forecast_members(ctx, plan, g, mem)
+    tri <- .forecast_triage(cells, plan, sink)          # folha vazia aborta aqui (subsistema/SIN), antes de combina/reconcile/scratch
+    plan <- tri$plan
+    members <- tri$members
     tk$lap("infer")
     lv <- .forecast_leaves(rctx, members, g, plan, mem)
     tk$lap("combina")
@@ -400,7 +449,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
     versao <- prevcarga_forecast_versao(.forecast_versao_parts(ctx, members, lv, rec, g, plan))
     key <- prevcarga_export_key(g$origin, g$cuts$available_until, versao, g$cuts$tz)
     sc <- .forecast_write_scratch(rctx, key, plan, incluir_membros, lv, rec)
-    .forecast_write_run_json(ctx, sc$dir, g, plan, lv, rec, versao, sc, incluir_membros)
+    .forecast_write_run_json(ctx, sc$dir, g, plan, lv, rec, versao, sc, incluir_membros, tri$membros_ausentes)
     prevcarga_write_run_manifest(.forecast_run_manifest(ctx, g, members, lv, rec, mem, key), sc$dir)
     exp <- prevcarga_export(sc$dir, key, incluir_membros = incluir_membros, ctx = ctx)
     tk$lap("export")
@@ -411,11 +460,15 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   for (w in rec$warnings) sink$add(w$id, w$message)
   rep <- if (isTRUE(report)) .forecast_report_step(rctx, g, plan, key, lv, rec, report_format) else list(status = "skipped", path = NULL)
   if (isTRUE(report)) tk$lap("report")
-  result <- .forecast_result(g, plan, rec, key, versao, exp, unclass(rep)[c("status", "path")])
+  result <- .forecast_result(g, plan, rec, key, versao, exp, unclass(rep)[c("status", "path")], tri$membros_ausentes)
   result <- c(result, tk$timing())
   ## falha do report apos a entrega (M6.10): a chave forecasts/ ja foi commitada e nao e desfeita; sobe exit 14 com o result completo
   if (identical(rep$status, "failed"))
     prevcarga_abort("partial.report_failed", where = "prevcarga_forecast", details = list(cause = attr(rep, "cause")),
                     result = c(result, list(warnings = sink$get())))
+  ## folha pedida (escopo area) sem nenhum membro: as demais foram entregues; exit 14 com o result completo (padrao do report)
+  if (length(plan$dropped))
+    prevcarga_abort("partial.forecast_leaf_absent", where = paste(plan$dropped, collapse = ","),
+                    details = list(folhas = as.list(plan$dropped)), result = c(result, list(warnings = sink$get())))
   list(result = result, warnings = sink$get())
 }

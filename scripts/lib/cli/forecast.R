@@ -42,6 +42,9 @@
   c(sprintf("forecast  origem=%s  available_until=%s  versao=%s", r$origem, r$available_until, r$versao),
     sprintf("escopo=%s  folhas=%d  isoladas=%d  ja_publicado=%s", r$escopo, length(r$covered), length(r$stray),
             if (isTRUE(r$ja_publicado)) "sim" else "nao"),
+    if (length(r$membros_ausentes))
+      sprintf("ausentes=%s", paste(vapply(r$membros_ausentes, function(x) paste0(x$membro, "/", x$folha), ""), collapse = ",")),
+    if (length(r$dropped)) sprintf("folhas fora=%s", paste(unlist(r$dropped), collapse = ",")),
     paste0("saida: ", r$saida),
     vapply(r$arquivos, function(a) sprintf("arquivo %-32s linhas=%d sha256=%s", a$path, a$linhas, a$sha256), ""),
     if (!identical(r$report$status, "skipped")) paste0("relatorio: ", r$report$status, if (!is.null(r$report$path)) paste0(" ", r$report$path)),
@@ -66,7 +69,7 @@ cmd_forecast <- function(ctx, args) {
                             report = isTRUE(args[["--report"]]), report_format = fmt,
                             skip_validate = isTRUE(args[["--skip-validate"]]),
                             incluir_membros = isTRUE(args[["--incluir-membros"]]))
-  for (w in out$warnings) prevcarga_warn(w$id, where = "forecast")      # a fachada coleta os avisos do catalogo no envelope
+  for (w in out$warnings) prevcarga_warn(w$id, where = if (is.null(w$where)) "forecast" else w$where, details = w$details)      # a fachada coleta os avisos do catalogo no envelope
   res <- out$result
   ## entrega ja publicada e intacta; relatorio falho => exit 14 classificado, com o result no envelope
   if (identical(res$report$status, "failed"))

@@ -161,15 +161,15 @@ test_that("[AC4] determinismo: 2 rodadas = sha256 identical e no-op; perturbar 1
     expect_false(grepl(tok, s, fixed = TRUE), info = tok)
 })
 
-test_that("[AC5] origin_scoped treina so sem artefato de O (1x por folha); origin_agnostic ausente => exit 13 sem treino", {
+test_that("[AC5] origin_scoped treina so sem artefato de O (1x por folha); origin_agnostic ausente => membro ausente (F3.3), sem treino", {
   ctx <- fx_copy(); log <- new_log()
-  ## origin_agnostic sem artefato: aborta exit 13 e NUNCA treina (RF e LGBM nao entram no train)
+  ## origin_agnostic sem artefato: vira membro ausente (tolerancia, F3.3) e NUNCA treina (RF e LGBM nao entram no train)
   spies(log, fail = "RF")
-  expect_pc(run(ctx), "state.artifact_missing", 13L)
+  r0 <- run(ctx)
+  expect_length(r0$result$membros_ausentes, length(M6F_LEAVES))
   expect_length(Filter(function(x) x$member %in% c("RF", "LGBM"), log$train), 0L)
-  expect_length(log$train, 0L)                                          # RF e o 1o membro: nada treinou antes
-  ## 1o deck: HW treinado 1x por folha, com a origem O
-  log <- new_log(); spies(log)
+  ## 1o deck: HW treinado 1x por folha, com a origem O (estado novo: a rodada acima ja deixou o artefato de HW)
+  ctx <- fx_copy(); log <- new_log(); spies(log)
   r1 <- run(ctx)
   expect_length(log$train, length(M6F_LEAVES))
   expect_true(all(vapply(log$train, function(x) identical(x$member, "HW") && identical(x$origin, O), NA)))
