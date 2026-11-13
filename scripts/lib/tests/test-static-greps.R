@@ -244,6 +244,8 @@ test_that("consumo por AST: score -> scorecard -> wmape; skill/peak -> wmape; ba
   expect_true(calls(e$prevcarga_score, "prevcarga_scorecard"))
   for (f in c("prevcarga_scorecard", "prevcarga_skill_score", "prevcarga_peak_wmape"))
     expect_true(calls(e[[f]], "prevcarga_wmape"), info = f)
+  for (f in c("prevcarga_scorecard", "prevcarga_peak_mape"))
+    expect_true(calls(e[[f]], "prevcarga_mape"), info = f)
   expect_true(calls(e$prevcarga_baseline, "prevcarga_read_actual"))
   expect_true(calls(e$cmd_score, "prevcarga_score"))
   expect_true(calls(e$cmd_check_coherence, "prevcarga_check_coherence"))
@@ -252,6 +254,8 @@ test_that("consumo por AST: score -> scorecard -> wmape; skill/peak -> wmape; ba
   iscas <- function(y, p) mean(abs(y - p)) / mean(abs(y))
   expect_false(calls(iscas, "prevcarga_wmape"))
   expect_false(reaches(iscas, "prevcarga_wmape"))
+  isca_mape <- function(y, p) 100 * mean(abs((p - y) / y))
+  expect_false(calls(isca_mape, "prevcarga_mape"))
 })
 
 ## ---- gate de docs m3_docs_live (modo atleast1): o fechamento do M3 declara evaluation.R e honesty_gate.R VIVOS -------

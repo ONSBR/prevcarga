@@ -2,7 +2,7 @@
 ## (a referencia tem ~11 WMAPE, ~7 MAPE, 5 BIAS divergentes); consumida por score, reconcile --eval,
 ## forecast --report (M6) e backtest (M7), para os scorecards nunca discordarem.
 ##
-## Contrato de metrica (WMAPE = 100*sum|e|/sum|y_true| sobre pares finitos; pico = janela fixa 18-22h sobre a
+## Contrato de metrica (WMAPE = 100*sum|e|/sum|y_true| sobre pares finitos; pico = janela fixa 18:00-22:00 (NT) sobre a
 ## hora do interval_start) = default de trabalho [TBD: ADR-0028]. ramp/timing/pico-por-regime: DEFERRED (M4/M7).
 ## Pico difere de proposito do oraculo (carimbo-fim) e fica fora do A/B Delta=0.
 ##
@@ -58,13 +58,21 @@ prevcarga_bias <- function(y_true, y_pred) {
 }
 
 ## --- Ponto unico de agrupamento temporal e pico -------------------------------------------------------
-prevcarga_peak_hours <- 18:22  # janela fixa comunicavel [TBD: ADR-0028]
+## pico = carga 18:00-22:00 (NT PrevCarga DESSEM): intervalos com interval_start em [18:00, 22:00) [TBD: ADR-0028]
+prevcarga_peak_hours <- 18:21  # hour(interval_start) %in% 18:21 -> 18:00 ... 21:30; 22:00-22:30 fica fora
 
 ## Todo bucket hora/dia/pico/d_plus usa a coluna `interval_start` anexada pela borda do LONG (schema_long.R).
 prevcarga_peak_wmape <- function(interval_start, y_true, y_pred, hours = prevcarga_peak_hours) {
   sel <- lubridate::hour(interval_start) %in% hours
   if (!any(sel)) return(NA_real_)
   prevcarga_wmape(y_true[sel], y_pred[sel])
+}
+
+## MAPE de ponta: mesma mascara por hora do interval_start; NA se nenhum par cai na janela.
+prevcarga_peak_mape <- function(interval_start, y_true, y_pred, hours = prevcarga_peak_hours) {
+  sel <- lubridate::hour(interval_start) %in% hours
+  if (!any(sel)) return(NA_real_)
+  prevcarga_mape(y_true[sel], y_pred[sel])
 }
 
 ## --- Borda do LONG (ADR-0002/0032) --------------------------------------------------------------------
@@ -214,7 +222,8 @@ prevcarga_scorecard <- function(long, by = c("d_plus", "area"), baseline_long = 
   long <- long[is.finite(long$y_true) & is.finite(long$y_pred), , drop = FALSE]
   if (!nrow(long)) {
     out <- data.frame(long[0L, by, drop = FALSE], n = integer(), wmape = double(), mape = double(),
-                      mae = double(), rmse = double(), bias = double(), bias_pct = double(), peak = double())
+                      mae = double(), rmse = double(), bias = double(), bias_pct = double(), peak = double(),
+                      peak_mape = double())
     if (!is.null(baseline_long)) out$skill <- double()
     return(out)
   }
@@ -225,7 +234,8 @@ prevcarga_scorecard <- function(long, by = c("d_plus", "area"), baseline_long = 
       wmape = prevcarga_wmape(g$y_true, g$y_pred), mape = prevcarga_mape(g$y_true, g$y_pred),
       mae = prevcarga_mae(g$y_true, g$y_pred), rmse = prevcarga_rmse(g$y_true, g$y_pred),
       bias = b$bias, bias_pct = b$bias_pct,
-      peak = prevcarga_peak_wmape(g$interval_start, g$y_true, g$y_pred))
+      peak = prevcarga_peak_wmape(g$interval_start, g$y_true, g$y_pred),
+      peak_mape = prevcarga_peak_mape(g$interval_start, g$y_true, g$y_pred))
     if (!is.null(baseline_long)) out$skill <- prevcarga_skill_score(g, baseline_long)
     out
   })

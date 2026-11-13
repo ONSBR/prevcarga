@@ -5,7 +5,7 @@ Epico M3 implementado. Detalhe por modulo em `docs/estado/evaluation.md`, `hones
 
 ## Implementado (VIVO, fora da lista de stubs)
 - `scripts/lib/evaluation.R` -- VIVO. Fonte unica de metrica (`prevcarga_wmape` e a unica definicao; `sum(abs(` so aqui),
-  pico por `interval_start` (janela 18-22h; [TBD: ADR-0028]), baselines que leem so `interval_end <= O 00:00` (< O),
+  pico por `interval_start` (janela 18:00-22:00 da NT, colunas `peak` WMAPE e `peak_mape` MAPE; [TBD: ADR-0028]), baselines que leem so `interval_end <= O 00:00` (< O),
   `prevcarga_scorecard`/`prevcarga_skill_score`, leitor unico do LONG (`prevcarga_read_long`), `prevcarga_score` e
   `prevcarga_check_coherence`. Sem `minutes(30)` (a conversao do rotulo e das bordas, `schema_long.R`/`deck_reader.R`).
 - `scripts/lib/honesty_gate.R` -- VIVO. Honesty-gate IN-PROCESS falsificavel nos canais `y_true`
