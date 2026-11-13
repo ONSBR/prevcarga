@@ -28,7 +28,7 @@ source(file.path(dirname(dirname(dirname(dirname(.lgbm_runner)))), "scripts", "t
   list("corte_intradiario", "-", "PLUGINS", "fast"), list("gate09_fuso", "gate09", "PLUGINS", "fast"),
   list("gate_nowcast_dplus0", "gate_nowcast_dplus0", "PLUGINS", "fast"),
   list("clima_honesto", "gate_cut", "PLUGINS", "fast"), list("clima_limite", "-", "PLUGINS", "fast"),
-  list("clima_safra", "-", "PLUGINS", "fast"), list("gate10_determinismo", "gate10", "PLUGINS", "fast"),
+  list("clima_safra", "-", "PLUGINS", "fast"), list("heat_area", "-", "PLUGINS", "fast"), list("gate10_determinismo", "gate10", "PLUGINS", "fast"),
   list("aditividade_epico", "-", "PLUGINS", "fast"), list("higiene", "-", "PLUGINS", "fast"),
   list("readme", "-", "PLUGINS", "fast"), list("runner_controle", "-", "PLUGINS", "fast"),
   list("units_yaml", "-", "PLUGINS", "fast"),
