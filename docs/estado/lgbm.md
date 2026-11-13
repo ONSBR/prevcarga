@@ -8,6 +8,7 @@ Escopo do LGBM.1: contrato (`run.yaml` + `register.R`) e ingestao. FE, treino e 
 - `R/register.R` (so definicoes): `plugin_descriptor()` (`data_lag_days = 2` => `last_data_day = O-3`, ADR-0023; `delivery_days = 2`; `native_layout lgbm_day_48`),
   `lgbm_params_schema()`/`lgbm_check_params()` (erro `lgbm.params` nomeando a chave), `plugin_constants()` (hiperparametros, spans, wavelet 32, `issue_day_tz = "UTC"`,
   `heat_area` (inclui `BASE = "BASE"`, origem no legado ANN_PVDS.R:30-32 e no fallback do oraculo que usa a propria area; `TON` fica `TON`, decisao de 2026-11-12; a propriedade folha da topologia -> `heat_area` e coberta por `test-contract.R` e a safra de BASE/CONTROL ZZ1 por `test-heat-area.R`), `holidays_fixed` 2022-2025, `min_history_days_infer = 4`), `lgbm_abort()` (ids `lgbm.*` em `scripts/lib/errors/lgbm.tsv`).
+  No CLI so as folhas sao previstas (`forecast`/`backtest` rodam os membros em `topo$leaves`, e o infer filtra o clima para a propria area antes do plugin); as linhas S->RS, SECO->SP, N->AM e NE->CE do `heat_area` sao heranca do oraculo e nao valem no CLI (doc-vs-codigo rf-lgbm-hw-09; coerente com a decisao de subsistema sem clima).
   O loader exige funcoes de assinatura canonica e `freeze`/`thaw`: os estagios dos tickets seguintes sao despachados POR NOME
   (`plugin_build_features`, `plugin_train`, `plugin_inference_features`, `plugin_infer`, `lgbm_freeze`, `lgbm_thaw`); ate existirem, `lgbm.stage_missing`.
   O loader ja registra a cadeia Tier A dos 5 estagios (provado em `test-contract.R`).

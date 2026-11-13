@@ -46,7 +46,7 @@
   derruba a entrega). Primitivas reusaveis pelo M7: `prevcarga_html_escape` (escapador unico), `prevcarga_html_page`, `prevcarga_html_heatmap`, `prevcarga_svg_profile`; sem script/Plotly/fonte externa, UTF-8+LF,
   sem relogio (byte-identico para o mesmo insumo). Blocos `curva` (dia O por SIN/subsistema/folha), `available-until` (global e por area), `pesos`, `khat` (copia o result do reconcile: versao, khat_origin,
   khat_age_days), `baselines` (diferenca media do previsto vs persistencia O-1 e sazonal O-7; `prevcarga_baseline` le carga <= O 00:00 <= available_until) e `proveniencia`. Nunca le a verdade do painel nem
-  emite metrica de acerto. Pesos = media por membro dos pesos congelados do corte da rodada (a combina nao tem intercepto: 0). `format = "pdf"`: ver M6.10 abaixo.
+  emite metrica de acerto. Pesos = media por membro dos pesos congelados do corte da rodada (a coluna de intercepto do relatorio mostra 0 fixo, mas a combina tem intercepto livre `a` por celula, aplicado no `y_pred`; o relatorio nao o exibe, registrado como pendencia). `format = "pdf"`: ver M6.10 abaixo.
   `.forecast_leaves` agora tambem devolve `weights` (tabela do apply por folha). Testes: `test-reporting.R` (blocos, CONTROL peso/available_until, FORBIDDEN y_true/carga apos o corte, escape, entrega com/sem report).
 - Report PDF e falha parcial (M6.10, ADR-0033 proposto, errors/report.tsv `partial.report_failed`): `format = "pdf"` -> `.report_pdf` sobre `grDevices::pdf` (base R, zero dependencia nova nem de sistema; A4 paisagem, Helvetica,
   `compress = FALSE`, `useKerning = FALSE` para o texto ficar legivel nos bytes; so ASCII, o resto vira `?`), mesmos dados/linhas dos blocos HTML (`.report_available_until_lines`, `.report_khat_rows`, `.report_proveniencia_lines`,
@@ -161,3 +161,7 @@
 - Comandos (um arquivo por vez, R 4.5.3, nada de `run_all_gates.R` de plugin nem `run_suite` do diretorio inteiro, que traz o e2e de 8 membros reais):
   `Rscript -e 'testthat::test_file("scripts/lib/tests/test-forecast_matrix.R")'`; os 8 testes do epico + `test-errors-catalog-sync.R`; as unidades do 3.7
   (`test-engine-feriados-exogena.R`, `test-exo-prev-cut.R` do dessem-regdin e do dessem-linear, `test-delivery-grid-cut.R` do lgbm).
+
+## Pendencias registradas (sem decisao nesta spec; doc-vs-codigo)
+- **Intercepto 0 no relatorio da rodada** (cli-backtest-ops-11, combina-reconcilia-02): `.forecast_weights_table` grava `intercept = 0` fixo e o `weight` e a media dos `w` de todas as celulas do corte (todos os leads e meses),
+  nao so das celulas (lead, mes de O) aplicadas; o `a` real esta no artefato e e aplicado no `y_pred`. O comentario de `forecast.R` ("a combina nao tem intercepto") esta defasado. Registrado como pendencia; o codigo nao muda e o site nao afirma comportamento novo.

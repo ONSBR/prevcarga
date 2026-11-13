@@ -72,3 +72,8 @@ testes `scripts/lib/tests/test-backtest-report.R` (insumo sintetico + honesty-ga
 - Origem do harness por aritmetica de Date (`last - n:0`): `seq(<Date>, <Date>, by = "day")` devolve Date INTEIRO e o HW recusa (`hw.last_day_incomplete`); ver a discovery do M7.5.
 - Testes: `test-harness-gates.R` (HP real de RF/HW passa; deslocado/truncado/Date reprovam o gate12, verdade NA o gate08, origem perturbada o gate10, spy == 1 chamada por origem, mapa dos slots, greps) e `test-grammar-m7-siblings.R` (CLI real: `forecast --corte/--protocol/--origin A..B` exit 8 config; `backtest --corte/--origin A..B --dry-run` exit 0; re-roda `test-reporting.R` do M6.5).
 
+
+## Pendencias registradas (sem decisao nesta spec; doc-vs-codigo)
+- **`--dplus` inerte** (cli-backtest-ops-13): so faz `sc$dplus <- TRUE`; os scorecards ja saem por `d_plus` com ou sem a flag, e o texto de ajuda promete "horizontes D+ no relatorio". Registrado como pendencia; o comportamento atual nao muda.
+- **`--baseline` do backtest** (cli-backtest-ops-14): a ajuda do bloco unico de Options e a do `score` (`persistence` ou `seasonal_naive`); no backtest vale `todos` (default), `persistence`, `seasonal_naive`, `none` e `nenhum`, e um valor invalido so e detectado no REDUCE, depois de todas as celulas (`contract.baseline_kind`, exit 2). Registrado como pendencia.
+- **`--jobs` nao inteiro no backtest** (cli-backtest-ops-15): `--jobs=2.5` vira 2 (`as.integer`); o `train-models` recusa. Registrado como pendencia; o comportamento atual nao muda.

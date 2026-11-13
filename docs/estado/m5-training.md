@@ -31,7 +31,7 @@ Notas da tabela:
 - Pin corrigido neste ticket: os 13 `requires_report.sha256` de `models/dessem-regdin/tests/parity/units.yaml` (eaedc8ad... -> 474f9a95..., DL.9 regenerou o relatorio depois do RD.6).
 
 ## Divergencias aceitas e NOMEADAS (nenhuma escondida; nenhuma entrada em `tests/ab/ab_excecoes.yaml`, que so o Gabriel cria)
-1. **Hora incompleta descartada tambem na previsao de clima** (decisao Gabriel 2026-10-30; divergencia deliberada do oraculo, documentada por plugin):
+1. **Hora incompleta descartada tambem na previsao de clima** (decisao Gabriel 2026-10-30; a regra e do oraculo-divergente e esta certa, a causa do slot 23:30 ausente e o conversor, correcao fora desta spec; clima previsto curto sobre os dias entregues e recusado pelo despachante, F3.7):
    afeta so as ultimas ~3 h do ultimo dia entregue (O+8) dos DESSEM, em intervalos nomeados por unidade em `docs/estado/dessem_linear.md` (max 122,5 MW na
    fundacao MED x SECO de outubro/2024; fora deles `<= 1e-9`). O CONTROL (emular a media de hora parcial do oraculo) fecha tudo em `<= 1e-9`.
 2. **dessem-linear `sp-2024-11-15`** (O = feriado): residuo numerico documentado de 0,446 MW (3e-5 rel; teto 0,5 MW / 5e-5), causado por 1 ulp em `mm`

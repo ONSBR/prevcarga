@@ -73,7 +73,7 @@
   e `pc_deck_perturb` cobre `holidays` (+1 em `prevcarga_code`).
 
 ## manifest.json do store atual (M2.6)
-- Template versionado `config/deck-manifest.store.json` (schema v1, `load_label: start`, `Etc/GMT+3`; `issue_time` `UTC`; `weather_forecast_publication_lag_hours: 6`; sem `corte`). Valores a confirmar pelo Gabriel antes do merge.
+- Template versionado `config/deck-manifest.store.json` (schema v1, `load_label: start`, `Etc/GMT+3`; `issue_time` `UTC`; `weather_forecast_publication_lag_hours: 6`; sem `corte`). O rotulo esta confirmado (a fonte rotula a carga pelo inicio; o conversor grava o carimbo + 30 min e declara `load_label: end`): o deck novo gerado pelo conversor (ex.: 20261104) tem `manifest.json` com `end`, `Etc/GMT+3`, `issue_time` UTC e atraso 6. O template versionado do store segue `start` e o store real em `data/` segue sem manifest. Falta so a ressalva do fuso: o store esta em relogio de parede BRT com horario de verao ate 2019 e `Etc/GMT+3` erra o `issue_time` em 1 h no verao 2018-19 (opcao de correcao do fuso pendente).
 - `scripts/tools/write_store_manifest.R --target <copia>` (dev, fora do pacote) grava o template numa copia/overlay do store: valida pelo leitor, identico => no-op, diferente => `contract.manifest_exists_different` (exit 2; catalogo em `scripts/lib/errors/store_manifest.tsv`). O produto nunca escreve no `data_dir`. Nada foi gravado no store real (`data/`).
 - Smoke `validate-deck` pendente (depende do verbo M2.5, nao integrado): rodar sobre a copia e registrar no PR.
 

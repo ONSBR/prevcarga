@@ -166,7 +166,7 @@ As barras cobrem o tempo dos intervalos entregues. Em `interval_end`, o primeiro
 A conta é direta. No corte 09:00 restam 30 meias horas no dia O; somam-se 8 dias inteiros de 48 nos membros de `delivery_days` 9 (30 + 384 = 414) e 1 dia inteiro no LGBM (30 + 48 = 78). No corte 09:30 cada faixa perde o primeiro slot.
 
 - **Comparação entre cortes no DESSEM.** Entre os cortes 09:00 e 09:30, o conjunto comum é de 413 `interval_end`, de 10:00 de O até O+9 00:00. Nesse conjunto as saídas dos dois cortes são iguais, porque a meia hora isolada 09:00–09:30 é descartada pelo `to_hourly` em todas as séries do DESSEM: só hora completa entra na cabeça de nowcast. Ver [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
-- **O+9 não é entregue.** Os DESSEM rodam o motor por `horizon_days + 1` = 10 dias (O..O+9) para que o spline do último dia entregue veja o dia seguinte; o leitor precisa entregar clima previsto até O+9. O RF também calcula O+9 no bloco da origem O e o descarta. A entrega para em O+9 00:00.
+- **O+9 não é entregue.** Os DESSEM rodam o motor por `horizon_days + 1` = 10 dias (O..O+9) para que o spline do último dia entregue veja o dia seguinte; o leitor precisa entregar clima previsto até O+9. O RF também calcula O+9 no bloco da origem O; esse dia não é entregue, mas o clima previsto dele alimenta o spline do último slot de O+8. A entrega para em O+9 00:00.
 - **Faixas diferentes não são desalinhamento.** Depois de O+2 00:00 a combina segue com os 7 membros restantes; o tratamento está em [Combinação convexa](/metodologia/combina).
 
 ## Padrões que se repetem
