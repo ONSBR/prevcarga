@@ -310,6 +310,12 @@ test_that("[AC5] WMAPE do backtest == prevcarga score; verdade perturbada move o
   x0 <- sc$sin[sc$sin$area == "X", ]; x0 <- x0[order(x0$d_plus), ]
   expect_equal(mine(sc), s0$wmape)                      # 1 corte: o agrupamento por corte nao muda o valor
   expect_equal(x0$peak, s0$peak)
+  expect_equal(x0$peak_mape, s0$peak_mape)
+  expect_identical(names(sc$peak_fixed_18_22), c("corte_hm", "area", "d_plus", "wmape", "mape", "bias_signed"))
+  expect_equal(sc$peak_fixed_18_22$mape, sc$sin$peak_mape)
+  expect_true("mape" %in% names(sc$sin_fresh))
+  sf_ok <- sc$sin_fresh
+  expect_true(is.na(sf_ok$mape) || is.finite(sf_ok$mape))
   ## CONTROL: a verdade perturbada move os dois igualmente
   pert <- function(ie) rep(TRUE, length(ie))
   both <- with_truth(pert, function() { r <- fn(); list(res = r, score = score_x(r)) })

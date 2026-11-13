@@ -361,7 +361,7 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
     combined = if (is.null(com)) data.frame() else .bt_scorecard(rctx, com, c("corte_hm", "d_plus", "area"), kinds),
     sin = if (is.null(rec)) data.frame() else .bt_scorecard(rctx, rec, c("corte_hm", "d_plus", "area"), kinds))
   sc$peak_fixed_18_22 <- if (nrow(sc$sin)) data.frame(sc$sin[c("corte_hm", "area", "d_plus")], wmape = sc$sin$peak,
-                                                      bias_signed = sc$sin$bias) else data.frame()
+                                                      mape = sc$sin$peak_mape, bias_signed = sc$sin$bias) else data.frame()
   sin <- if (is.null(rec)) NULL else rec[rec$area == "SIN", ]
   ok <- if (is.null(sin)) logical() else is.finite(sin$y_true) & is.finite(sin$y_pred)
   sub_sum <- if (is.null(rec)) numeric() else {
@@ -370,6 +370,7 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
                 paste(s$forecast_origin, as.numeric(s$target_datetime)))]
   }
   sc$sin_fresh <- list(wmape = if (any(ok)) prevcarga_wmape(sin$y_true[ok], sin$y_pred[ok]) else NA_real_,
+                       mape = if (any(ok)) prevcarga_mape(sin$y_true[ok], sin$y_pred[ok]) else NA_real_,
                        sum_check = if (length(sub_sum)) max(abs(sin$y_pred - sub_sum), 0) else NA_real_)
   sc$awaiting_truth <- .bt_awaiting(plan, origins, rec, com, mem)
   sc$by_available_until <- TRUE

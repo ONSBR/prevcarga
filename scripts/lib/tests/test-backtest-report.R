@@ -51,8 +51,9 @@ mk_scores <- function(ytrue_shift = c(X = 0, Y = 0), baseline_pred = NULL, await
                                                        baseline_long = transform(bl[bl$area != "SIN", ], member = "RF"))$skill
   sin_rows <- all[all$area == "SIN", ]
   list(member = mem, combined = sc[sc$area %in% c("X", "Y"), ], sin = sinc[sinc$area %in% c("X", "Y", "SIN"), ],
-       peak_fixed_18_22 = data.frame(sinc[c("corte_hm", "area", "d_plus")], wmape = sinc$peak, bias_signed = sinc$bias),
-       sin_fresh = list(wmape = env$prevcarga_wmape(sin_rows$y_true, sin_rows$y_pred), sum_check = 0),
+       peak_fixed_18_22 = data.frame(sinc[c("corte_hm", "area", "d_plus")], wmape = sinc$peak, mape = sinc$peak_mape, bias_signed = sinc$bias),
+       sin_fresh = list(wmape = env$prevcarga_wmape(sin_rows$y_true, sin_rows$y_pred),
+                       mape = env$prevcarga_mape(sin_rows$y_true, sin_rows$y_pred), sum_check = 0),
        awaiting_truth = data.frame(origem = c(O, O + 1L), corte_hm = "08:00", available_until = c(at(O, "08:00"), at(O + 1L, "08:00")),
                                    awaiting = c(FALSE, awaiting)),
        fallback_months = data.frame(folha = character(), corte_hm = character(), mes = character()),
@@ -78,7 +79,8 @@ test_that("[AC1] HTML: blocos de acuracia, pico+vies com sinal, skill O-1/O-7, S
   for (id in c("proveniencia", "horizonte", "pico", "skill", "sin", "fallback", "aguardando"))
     expect_true(grepl(sprintf("<section id=\"%s\">", id), h, fixed = TRUE), info = id)
   expect_true(grepl("WMAPE por horizonte (d_plus)", h, fixed = TRUE))
-  expect_true(grepl("janela 18h-22h sobre interval_start", h, fixed = TRUE))
+  expect_true(grepl("janela 18:00-22:00 sobre interval_start", h, fixed = TRUE))
+  for (tok in c("mape %", "mape pico %", "SIN fresco mape %")) expect_true(grepl(tok, h, fixed = TRUE), info = tok)
   expect_true(grepl("vies com sinal", h, fixed = TRUE))
   expect_true(grepl("skill O-1", h, fixed = TRUE)); expect_true(grepl("skill O-7", h, fixed = TRUE))
   expect_true(grepl("SIN = soma dos subsistemas", h, fixed = TRUE)); expect_true(grepl("sum_check", h, fixed = TRUE))
@@ -181,6 +183,16 @@ test_that("[AC3] sem verdade nos scores => [prevcarga/contract] exit 2; run_meta
   expect_pc(env$prevcarga_backtest_report(list(), no_truth, mk_meta(), "html", withr::local_tempdir()), "contract.report_without_truth")
   nowm <- sc; nowm$combined <- nowm$combined[setdiff(names(nowm$combined), "wmape")]
   expect_pc(env$prevcarga_backtest_report(list(), nowm, mk_meta(), "html", withr::local_tempdir()), "contract.report_without_truth")
+  out0 <- withr::local_tempdir()
+  for (w in c("combined$mape", "peak_fixed_18_22$mape", "sin_fresh")) {
+    old <- sc
+    if (w == "combined$mape") old$combined <- old$combined[setdiff(names(old$combined), "mape")]
+    if (w == "peak_fixed_18_22$mape") old$peak_fixed_18_22 <- old$peak_fixed_18_22[setdiff(names(old$peak_fixed_18_22), "mape")]
+    if (w == "sin_fresh") old$sin_fresh$mape <- NULL
+    e <- tryCatch(env$prevcarga_backtest_report(list(), old, mk_meta(), "html", out0), error = identity)
+    expect_identical(e$id, "contract.report_without_truth"); expect_identical(e$where, w)
+  }
+  expect_length(list.files(out0), 0L)
   m <- mk_meta(); m$weather_issue_cutoff <- NULL
   expect_pc(env$prevcarga_backtest_report(list(), sc, m, "html", withr::local_tempdir()), "contract.report_input")
   expect_error(env$prevcarga_backtest_report(list(), sc, mk_meta(), "docx", withr::local_tempdir()))
