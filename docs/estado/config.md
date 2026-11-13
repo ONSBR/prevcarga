@@ -11,3 +11,14 @@
 - `config/config.yaml` e o modelo versionado (o instalador do M8 copia para `<root>/config.yaml`); `config/VERSION` = `0.0.0-dev`;
   `/config.yaml` e `/.state/` no `.gitignore`.
 - Testes: `scripts/lib/tests/test-config.R`.
+
+## set-data-dir (2026-11-10)
+- `prevcarga_config_set_data_dir(ctx, dir)` (config.R) e o unico escritor do `config.yaml` dentro do pacote; o verbo
+  `set-data-dir <dir>` (`scripts/lib/cli/set-data-dir.R`) so chama e formata. Alvo: `ctx$config_path` (`--config`, o da raiz do
+  codigo ou o da instalacao); sem nenhum, `<R>/config.yaml` da instalacao, criado com `schema_version: 1`. Fora do layout instalado
+  e sem config.yaml: `config.usage` (hint: `--config`).
+- O diretorio tem de existir (`config.data_dir_missing`); o valor vai por `normalizePath(winslash = "/")` e entre aspas simples
+  com `''` (a forma do `pc_yaml_q`/`ConvertTo-PcYamlQuoted` do instalador, cujo leitor o preserva no upgrade). As outras linhas do
+  arquivo ficam como estavam (so as `data_dir:` saem). Escrita atomica: temporario no mesmo diretorio, fechado e validado por
+  `prevcarga_config_load` antes do `file.rename`; falha de escrita ou rename = `config.write_failed` (core.tsv, exit 8).
+- Testes: `scripts/lib/tests/test-set-data-dir.R` (criacao, troca com preservacao, aspas, `--config`, recusas sem escrita).

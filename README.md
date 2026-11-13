@@ -111,22 +111,25 @@ O `doctor` mostra a versão ativa, o runtime do bundle, a configuração e o est
 A rodada precisa de um **deck canônico** num diretório local: carga verificada, clima previsto e observado, feriados e um `manifest.json` na raiz.
 
 ```sh
-# 1. artefatos oficiais: modelos, pesos da combinação e perfis k-hat (em breve)
+# 1. apontar o deck (uma vez; grava data_dir no config.yaml da instalação)
+prevcarga set-data-dir /caminho/do/deck
+
+# 2. artefatos oficiais: modelos, pesos da combinação e perfis k-hat (em breve)
 prevcarga-sync --what artifacts
 
-# 2. conferir o deck antes de rodar
-prevcarga validate-deck --origin 2026-10-15 --data ./deck
+# 3. conferir o deck antes de rodar
+prevcarga validate-deck --origin 2026-10-15
 
-# 3. a rodada: infere os membros, combina, reconcilia e entrega
-prevcarga forecast --origin 2026-10-15 --data ./deck
+# 4. a rodada: infere os membros, combina, reconcilia e entrega
+prevcarga forecast --origin 2026-10-15
 ```
 
 > [!NOTE]
-> **Em breve:** o repositório online de artefatos ainda não está no ar, então o passo 1 ainda não funciona. Até lá, os artefatos são treinados na própria máquina (`prevcarga train-models`, `combine --mode train` e `reconcile --mode train`).
+> **Em breve:** o repositório online de artefatos ainda não está no ar, então o passo 2 ainda não funciona. Até lá, os artefatos são treinados na própria máquina (`prevcarga train-models`, `combine --mode train` e `reconcile --mode train`).
 
 - `--origin` é o único flag de data. Sem ele, a origem é o último dia de carga do deck.
 - O corte intradiário sai do próprio dado de carga; não há flag de corte.
-- Com `data_dir` no `config.yaml` (ou `--data` na instalação), `--data` pode ser omitido.
+- O deck vem do `data_dir` gravado pelo `set-data-dir` (ou pelo `--data` da instalação); `--data <dir>` num comando vence o `config.yaml` só naquele comando.
 - A entrega fica em `<state>/forecasts/<origem>/…`, com chave imutável. `--report` gera também o relatório da rodada.
 
 Para conferir que a sua entrega reproduz a oficial:

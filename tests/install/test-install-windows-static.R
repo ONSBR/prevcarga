@@ -119,9 +119,9 @@ test_that("extracao por ZipFile: zip-slip recusado (GetFullPath + separador fina
   expect_true(any(grepl("EndsWith('/')", f, fixed = TRUE)))
   i_fin <- grep("} finally {", f, fixed = TRUE); expect_length(i_fin, 1L)
   expect_true(any(grepl("$za.Dispose()", f[i_fin:length(f)], fixed = TRUE)))
-  expect_true(any(grepl("Write-Progress -Activity $act -Completed", f[i_fin:length(f)], fixed = TRUE)))
-  expect_true(any(grepl("$ProgressPreference = 'Continue'", f, fixed = TRUE)))   # local, so com a barra ligada
-  expect_true(any(grepl("if ($script:PcProgress) { $ProgressPreference = 'Continue' }", f, fixed = TRUE)))
+  # barra propria (Write-PcBar), nunca o Write-Progress do host: primeira chamada antes do laco, ultima fecha a linha
+  expect_true(any(grepl("Write-PcBar 0 $total ($total -eq 0)", f, fixed = TRUE)))
+  expect_true(any(grepl("Write-PcBar $i $total ($i -eq $total)", f, fixed = TRUE)))
   # a falha de extracao continua manifest_invalid 'falha ao extrair' e o PCEXIT do zip-slip nao e emitido 2x
   expect_true(any(grepl("Write-PcError 'install.manifest_invalid' $zip ('falha ao extrair: '", ps1, fixed = TRUE)))
   expect_true(any(grepl("if ($_.Exception.Message -eq 'PCEXIT') { throw }", ps1, fixed = TRUE)))
@@ -137,14 +137,22 @@ test_that("etapas e barra so em texto com stderr no terminal: IsErrorRedirected 
   st <- ps1_fun("Write-PcStep")
   expect_true(any(grepl("if (-not $script:PcProgress) { return }", st, fixed = TRUE)))
   expect_true(any(grepl("Write-PcStream 'err'", st, fixed = TRUE)))
-  # toda etapa passa pelo Write-PcStep e todo Write-Progress fica sob $script:PcProgress (a funcao de extracao)
+  # toda etapa passa pelo Write-PcStep; a barra e a do proprio script (Write-PcBar), guardada por $script:PcProgress
   expect_length(grep("prevcarga: \\[[0-9]", code(ps1)), 0L)                                    # nenhuma etapa escrita fora do helper
   calls <- grep("Write-PcStep [0-9]", ps1, value = TRUE)
   expect_setequal(as.integer(sub(".*Write-PcStep ([0-9]).*", "\\1", calls)), 1:6)
   expect_true(any(grepl("$script:PcSteps = 6", ps1, fixed = TRUE)))
-  wp <- grep("Write-Progress", ps1)
-  f <- grep("^function Expand-PcZip", ps1); g <- grep("^\\}", ps1); g <- g[g > f][1]
-  expect_true(all(wp > f & wp < g))
+  expect_length(grep("Write-Progress", code(ps1)), 0L)                                         # cores do host (amarelo sobre ciano no 5.1)
+  b <- ps1_fun("Write-PcBar")
+  expect_true(any(grepl("if (-not $script:PcProgress) { return }", b, fixed = TRUE)))
+  expect_true(any(grepl("[Text.Encoding]::ASCII.GetBytes($t)", b, fixed = TRUE)))
+  expect_true(any(grepl("[Console]::OpenStandardError()", b, fixed = TRUE)))
+  expect_true(any(grepl('"`r', b, fixed = TRUE)))                                                # reescreve a linha
+  # a barra deixa a linha aberta; a proxima escrita (etapa, aviso ou erro) quebra a linha antes
+  w <- ps1_fun("Write-PcStream")
+  expect_true(any(grepl("if ($script:PcBarOpen) {", w, fixed = TRUE)))
+  # CONTROL: o detector acusa um Write-Progress de volta
+  expect_length(grep("Write-Progress", code(c(ps1, "      Write-Progress -Activity a -PercentComplete 1"))), 1L)
   # o script segue SilentlyContinue no topo (Invoke-WebRequest)
   expect_true(any(grepl("^\\$ProgressPreference = 'SilentlyContinue'", ps1)))
 })
