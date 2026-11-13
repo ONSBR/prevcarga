@@ -293,6 +293,8 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
   ## cortes e parametros LITERAIS da unidade (nunca os defaults do run.yaml quando a unidade os declara)
   if (length(unit$params)) sp$params <- utils::modifyList(sp$params, unit$params)
   if (!is.null(unit$seed)) sp$seed <- unit$seed
+  ## variante da unidade (EXOGENA do DESSEM: MED/MAX/MXMN) => param `exogena` do plugin, quando ele o declara
+  if (!is.null(unit$variant) && "exogena" %in% names(sp$params)) sp$params$exogena <- unit$variant
   if (!is.null(unit$cuts$train$train_origin) && !identical(format(row$train_origin), unit$cuts$train$train_origin))
     prevcarga_abort("tools.parity_failed", where = unit$id,
                     details = list(unit = unit$id, field = "train_origin", unit_value = unit$cuts$train$train_origin,
