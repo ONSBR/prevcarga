@@ -131,3 +131,16 @@
   | LGBM `nowcast_dplus0_long` (oraculo gate_nowcast_dplus0) | `m6_nowcast_dplus0` |
   `m6_nowcast_dplus0`: nos cortes 00:00 (dia O inteiro, 1o rotulo O 00:30), 12:00 (1o rotulo 12:30) e 13:30 (1o rotulo 14:00), d_plus = 0 e o SUFIXO do dia O apos o corte: leads k+1..48 (k = slots ate
   available_until; numeracao por interval_start, entao 12:00 => leads 25..48, 13:30 => 28..48; o oraculo numera pelo rotulo de fim). CONTROL: lead dentro do ja conhecido, ausencia do sufixo e painel de 00h contra corte 12:00 reprovam.
+
+## Clima previsto incompleto corta o horizonte (F3.7; decisao do Gabriel)
+- Clima previsto incompleto NAO bloqueia a rodada: corta o horizonte por membro. Dia coberto = a emissao vigente (<= `weather_issue_limit`) traz os 48
+  instantes do dia (predicado unico `prevcarga_forecast_coverage_end`, validation.R), sem tolerancia ao 23:30. A rodada so e recusada quando o dia O
+  inteiro esta incompleto (o membro dependente de clima aborta `completude.weather_forecast_short`; HW univariado segue).
+- `prevcarga_infer_cell` devolve `delivery_days_efetivo` e `weather_forecast_until` (ultimo dia coberto, do leitor); `.forecast_cell_safe` usa o efetivo em
+  `member$delivery_days` (build_long e proveniencia da combina; por lead so combinam os membros que cobrem o lead, nunca preenchido).
+- `.forecast_cell_capture` captura os `prevcarga_warning` da celula (inclusive no worker PSOCK) e o pai os re-emite no sink na ordem radix das celulas;
+  `warning.forecast_weather_horizon_cut` sai UM por folha: `details = {folha, ate, membros}` e mensagem `clima previsto ate <data>; a inferencia sera feita ate essa data`.
+- `run.json` e `result` ganham `clima_previsto_ate` (minimo entre as folhas do ultimo dia coberto) e `delivery_days_efetivo` (folha x sigla). Clima completo
+  ate O+9 => nenhum aviso, `delivery_days_efetivo` = descriptor e entrega identica a de antes (FORBIDDEN em `test-forecast_weather_cut.R`).
+- Membro ausente por clima curto (RF, `weather_cut = "absent"`) vira `warning.forecast_member_absent` (`error_id = completude.weather_forecast_short`); nenhuma linha dele.
+- Teste: `scripts/lib/tests/test-forecast_weather_cut.R` (stubs de dependencia; o fixture m6f tem 3 membros, entao RF/LGBM/HW fazem o papel de stub-dessem/stub-rf/stub-hw).

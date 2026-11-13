@@ -68,6 +68,7 @@ plugin_descriptor <- function() list(
   delivery_days = 9L, data_lag_days = 0L,   # last_data_day = O-1 (ADR-0023)
   reads_day_O = FALSE,                      # carga so com dia < O (oraculo data_adapter.R:80)
   weather_forecast_in_train = TRUE,         # origens de treino usam a emissao da origem (oraculo data_adapter.R:84-85)
+  weather_cut = "absent",                   # horizonte fixo: tmax/tmin sobre 9 dias (inference.R); clima < O+9 => membro ausente (F3.7)
   uses_rng = TRUE, history_infer_equals_train = FALSE,
   packages = c("randomForest", "data.table", "lubridate"),
   freeze = rf_freeze, thaw = rf_thaw,

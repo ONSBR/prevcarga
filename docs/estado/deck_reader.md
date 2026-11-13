@@ -74,3 +74,9 @@
 - Template versionado `config/deck-manifest.store.json` (schema v1, `load_label: start`, `Etc/GMT+3`; `issue_time` `UTC`; `weather_forecast_publication_lag_hours: 6`; sem `corte`). Valores a confirmar pelo Gabriel antes do merge.
 - `scripts/tools/write_store_manifest.R --target <copia>` (dev, fora do pacote) grava o template numa copia/overlay do store: valida pelo leitor, identico => no-op, diferente => `contract.manifest_exists_different` (exit 2; catalogo em `scripts/lib/errors/store_manifest.tsv`). O produto nunca escreve no `data_dir`. Nada foi gravado no store real (`data/`).
 - Smoke `validate-deck` pendente (depende do verbo M2.5, nao integrado): rodar sobre a copia e registrar no PR.
+
+## Cobertura do clima previsto no painel (F3.7)
+- `prevcarga_read_panel` calcula, por area e sobre o previsto ja filtrado em `[O, O+horizon]`, `attrs$weather_forecast_until` (`data.table(area_code, until Date|NA)`: ultimo dia
+  coberto em sequencia a partir de O, 48 instantes, predicado `prevcarga_forecast_coverage_end` de validation.R) e `attrs$weather_forecast_next` (`data.table(area_code, n_next)`:
+  instantes consecutivos de until+1 a partir de 00:00, para o membro com offset). Toda conta de data fica no leitor; `pc_panel_attrs(load, obs, fc, origin = NULL)` so as calcula com `origin`.
+- Depende de `validation.R` carregado (os chamadores de `prevcarga_read_panel` ja o carregam; `test-read-panel.R` passou a carrega-lo).

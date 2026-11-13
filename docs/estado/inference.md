@@ -53,3 +53,13 @@ so o RF tem inferencia entre os modelos reais). Espelha a fachada de treino (`do
   (testada com o despachante substituido). Com artefato de outro `weather_issue_cutoff` em modelo SEM clima no treino, o envelope do despachante
   (`weather_issue_cutoff diferente de cuts`) ainda recusa; a fachada so confere o corte quando o descriptor declara clima previsto no treino.
 - Erros em `errors/infer_cut.tsv`: os 6 ids `contract.*` classe 2. Testes FORBIDDEN/CONTROL em `scripts/lib/tests/test-inference.R`.
+
+## Horizonte efetivo pelo clima previsto (F3.7)
+- Descriptor ganha `weather_cut` ("truncate" default | "absent"); o RF declara `absent` (tmax/tmin sobre 9 dias fixos, features intocadas).
+- `.prevcarga_inf_weather_dependent(plugin)`: algum estagio com `requires` de prefixo `data.weather_forecast.` (HW univariado: nao => nunca cortado).
+- `.prevcarga_inf_effective_days(plugin, attrs, area, origin)` = `min(delivery_days, until - O + 1)`, menos 1 dia quando `model_time_offset_min > 0` e a emissao nao traz os
+  `offset/30` primeiros instantes do dia seguinte ao ultimo coberto (`attrs$weather_forecast_next`). Sem dia O coberto => 0.
+- `.prevcarga_inf_apply_weather_cut`: efetivo < declarado e (`weather_cut = "absent"` ou efetivo < 1) => `completude.weather_forecast_short` ANTES de qualquer estagio;
+  senao `warning.forecast_weather_horizon_cut` (`details$ate`, `membro`). Grava `cuts$delivery_days` e `cuts$weather_forecast_until`; o despachante do registry e
+  `prevcarga_infer_check_alignment` usam `cuts$delivery_days` quando presente (plugin so le; nenhuma aritmetica de data nova).
+- Os DESSEM (nd das entregas) e o LGBM (`.lgbm_delivery_grid`) leem `cuts$delivery_days`. Ver as ressalvas do dia de apoio do spline em `dessem_engine.md`.
