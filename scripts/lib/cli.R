@@ -31,6 +31,7 @@ prevcarga_verbs_planned <- c(
   "  --origin=<data>          Forecast-origin YYYY-MM-DD (unico flag de data humano; A..B so em backtest/plan)",
   "  --data=<dir>             Diretorio do store de dados",
   "  --state=<dir>            Diretorio de estado",
+  "  --artifacts-dir=<dir>    Raiz de artefatos so leitura (membros, combina, k-hat)",
   "  --config=<arquivo>       Arquivo config.yaml",
   "  --load-label=<l>         Rotulo da carga: end ou start",
   "  --weather-cutoff=<w>     Corte do tempo: available_until ou origin_midnight_utc",

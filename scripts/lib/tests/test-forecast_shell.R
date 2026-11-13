@@ -78,7 +78,7 @@ delivery <- function(x) {
 }
 envelope <- function(x) {
   j <- x$json
-  j$run_id <- NULL; j$result$saida <- NULL
+  j$run_id <- NULL; j$result$saida <- NULL; j$result$artefatos$raiz <- NULL   # raiz = caminho do state_dir da rodada (como saida)
   ## cronometro (M8.10): medida de relogio, como o run_id; os NOMES dos passos seguem comparados
   j$result$duracao_s <- NULL
   if (!is.null(j$result$passos)) j$result$passos <- lapply(j$result$passos, function(p) p[setdiff(names(p), "duracao_s")])

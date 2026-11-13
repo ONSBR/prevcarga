@@ -60,3 +60,4 @@ repro.unclassified	repro	falha de reprodutibilidade	reveja o determinismo da exe
 partial.unclassified	partial	execucao parcial	reveja as falhas parciais reportadas
 honesty.unclassified	honesty	violacao de honestidade	reveja o gate de honestidade do modulo
 config.write_failed	config	falha ao gravar o config.yaml	confira permissoes e espaco em disco do diretorio do config.yaml
+config.artifacts_dir_missing	config	diretorio de artefatos apontado nao existe	aponte --artifacts-dir (ou artifacts_dir no config.yaml) para um diretorio que exista

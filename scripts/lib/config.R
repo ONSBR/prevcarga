@@ -14,6 +14,7 @@
   schema_version = list(default = 1L, kind = "int"),
   data_dir = list(default = NULL, kind = "chr"),
   state_dir = list(default = NULL, kind = "chr"),
+  artifacts_dir = list(default = NULL, kind = "chr"),
   load_label = list(default = NULL, kind = "enum", allowed = c("end", "start"),
                     error_id = "config.bad_load_label"),
   weather_issue_cutoff = list(default = "available_until", kind = "enum",
@@ -161,6 +162,11 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
   color <- prevcarga_check_enum(.prevcarga_pick(flag("--color"), cfg$color, "auto"),
                                 c("auto", "always", "never"), "config.bad_color")
   origin <- prevcarga_parse_origin(flag("--origin"), verb)
+  ## raiz de artefatos apontada (so leitura): flag > config.yaml > NULL (sem env var); tem de existir
+  ad <- .prevcarga_norm_path(.prevcarga_pick(flag("--artifacts-dir"), cfg$artifacts_dir, NULL))
+  if (!is.null(ad) && !dir.exists(ad))
+    prevcarga_abort("config.artifacts_dir_missing", where = ad,
+                    details = list(hint = "aponte --artifacts-dir para um diretorio de artefatos que exista"))
   vf <- file.path(root, "config", "VERSION")
   version <- if (file.exists(vf)) trimws(readLines(vf, n = 1L, warn = FALSE)) else "unknown"
   list(
@@ -169,6 +175,7 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
     config_path = if (is.null(cfg_path)) NULL else .prevcarga_norm_path(cfg_path),
     data_dir = .prevcarga_norm_path(.prevcarga_pick(flag("--data"), cfg$data_dir, NULL)),
     state_dir = .prevcarga_norm_path(.prevcarga_pick(flag("--state"), cfg$state_dir, file.path(root, ".state"))),
+    artifacts_dir = ad,
     origin = origin,
     load_label_flag = load_label_flag,
     load_label_config = cfg$load_label,

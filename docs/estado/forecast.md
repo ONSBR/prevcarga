@@ -90,6 +90,15 @@
 - CLI: `--jobs=<n>` (inteiro >= 1, senao `config.bad_type` exit 8, where `--jobs`; validador proprio em `cli/forecast.R`, pois cada verbo so carrega os proprios arquivos); consta so da usage (o Options do train-models ja o declara).
   `.forecast_stopwatch(clock, jobs)` grava o `jobs` real so no `result` do envelope, nunca em `run.json`/`run_manifest`.
 
+## F3.6 -- forecast com artefatos apontados (`--artifacts-dir`)
+- `--artifacts-dir=<dir>` / `artifacts_dir` do config.yaml aponta a raiz de membros, combina e k-hat. Raiz so leitura: o forecast nunca escreve nela
+  (lista + sha256 identicos antes/depois; `<state_dir>/artifacts` nao nasce). Entrega, scratch e relatorio seguem em `<state_dir>`.
+- Sem treino implicito: celula origin_scoped sem versao de O (`.forecast_scoped_version` NULL) aborta `state.artifact_missing` dentro da celula,
+  que a celula tolerante (F3.3) transforma em membro ausente (`warning.forecast_member_absent`); `prevcarga_train` nao e chamado. Sem a flag, treina como antes.
+- Proveniencia: `run.json` e `result` trazem `artefatos = {raiz, modo}` (`modo` = `apontado` | `registry`); o texto mostra `artefatos=<modo> <raiz>`.
+  `raiz` e caminho da maquina (como `saida`): fora da comparacao de determinismo entre estados.
+- Testes: `scripts/lib/tests/test-forecast_artifacts_dir.R`.
+
 ## Verbos da CLI (M6.9; dono M6)
 - `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>]`.
   `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options

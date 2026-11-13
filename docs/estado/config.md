@@ -22,3 +22,8 @@
   arquivo ficam como estavam (so as `data_dir:` saem). Escrita atomica: temporario no mesmo diretorio, fechado e validado por
   `prevcarga_config_load` antes do `file.rename`; falha de escrita ou rename = `config.write_failed` (core.tsv, exit 8).
 - Testes: `scripts/lib/tests/test-set-data-dir.R` (criacao, troca com preservacao, aspas, `--config`, recusas sem escrita).
+
+## F3.6 -- artifacts_dir (raiz de artefatos apontada)
+- Chave `artifacts_dir` (chr, default NULL) no schema; `prevcarga_ctx` resolve `ctx$artifacts_dir` por flag `--artifacts-dir` > config.yaml > NULL
+  (sem env var), normalizado. Presente e inexistente => `config.artifacts_dir_missing` (core.tsv, exit 8, `where` = caminho), antes de qualquer infer.
+- Testes: `test-config.R` (chave nova, template) e `test-forecast_artifacts_dir.R` (precedencia e diretorio inexistente).

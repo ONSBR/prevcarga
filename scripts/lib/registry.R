@@ -974,10 +974,14 @@ prevcarga_plugin_forecast <- function(plugin, panel, cuts, spec, ctx = list()) {
 }
 
 prevcarga_registry_root <- function(ctx) {
+  if (!is.null(ctx$artifacts_dir)) return(.prevcarga_reg_norm(ctx$artifacts_dir))
   if (!is.character(ctx$state_dir) || length(ctx$state_dir) != 1L || is.na(ctx$state_dir) || !nzchar(ctx$state_dir))
     prevcarga_abort("contract.path_outside_root", where = "state_dir ausente no ctx")
   .prevcarga_reg_norm(file.path(ctx$state_dir, "artifacts"))
 }
+
+## "apontado" quando a raiz vem de --artifacts-dir/artifacts_dir (so leitura); "registry" = <state_dir>/artifacts.
+prevcarga_registry_mode <- function(ctx) if (is.null(ctx$artifacts_dir)) "registry" else "apontado"
 
 ## Aborta se o caminho normalizado nao estiver contido na raiz (recusa `..` e links que saiam dela).
 prevcarga_registry_contain <- function(path, ctx) {
