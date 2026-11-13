@@ -121,16 +121,56 @@ prevcarga_usage <- function(verbs) {
         collapse = "\n")
 }
 
+## Linhas de opcao (bloco global + opcoes de cada verbo) e as flags `--x` que cada uma declara. Uma linha por flag declarada;
+## `takes` = a flag toma argumento (`--x=<n>`). Ordem: global primeiro, depois verbos na ordem radix da descoberta; o par
+## (flag, linha) repetido entre verbos aparece uma vez. Fonte unica do parser de opcoes (opt_table e a ajuda por verbo).
+.prevcarga_opt_lines <- function(verbs) {
+  srcs <- c(list(list(source = "global", lines = .prevcarga_global_options())),
+            lapply(seq_len(nrow(verbs)), function(i) list(source = verbs$verb[[i]], lines = verbs$options[[i]])))
+  flag <- character(); line <- character(); source <- character(); takes <- logical()
+  for (s in srcs) for (l in s$lines) {
+    head <- sub("\\s{2,}.*$", "", sub("^\\s+", "", l))
+    for (x in regmatches(head, gregexpr("--[A-Za-z0-9-]+(=<[^>]+>)?", head))[[1L]]) {
+      flag <- c(flag, sub("=.*$", "", x)); line <- c(line, l); source <- c(source, s$source)
+      takes <- c(takes, grepl("=", x, fixed = TRUE))
+    }
+  }
+  d <- data.frame(flag = flag, line = line, source = source, takes = takes, stringsAsFactors = FALSE)
+  d[!duplicated(d[c("flag", "line")]), , drop = FALSE]
+}
+
 ## Tabela de flags conhecidas: nome -> toma argumento? (para localizar o token rejeitado).
 .prevcarga_opt_table <- function(verbs) {
-  lines <- c(.prevcarga_global_options(), unlist(verbs$options))
-  nm <- character(); takes <- logical()
-  for (l in lines) {
-    head <- sub("\\s{2,}.*$", "", sub("^\\s+", "", l))
-    m <- regmatches(head, gregexpr("--[A-Za-z0-9-]+(=<[^>]+>)?", head))[[1L]]
-    for (x in m) { nm <- c(nm, sub("=.*$", "", x)); takes <- c(takes, grepl("=", x, fixed = TRUE)) }
+  ol <- .prevcarga_opt_lines(verbs)
+  stats::setNames(ol$takes, ol$flag)
+}
+
+## Ajuda de UM verbo (so apresentacao; a gramatica docopt de prevcarga_usage nao muda): usage do verbo, opcoes comuns
+## (globais menos --origin/--model) e as linhas de opcao (de qualquer verbo ou global) cujo nome a usage do verbo cita.
+prevcarga_usage_verb <- function(verbs, verb) {
+  u <- verbs$usage[verbs$verb == verb][[1L]]
+  cited <- unique(sub("=.*$", "", regmatches(u, gregexpr("--[A-Za-z0-9-]+", u))[[1L]]))
+  ol <- .prevcarga_opt_lines(verbs)
+  common <- ol$line[ol$source == "global" & !(ol$flag %in% c("--origin", "--model"))]
+  own <- ol$line[ol$flag %in% cited]
+  lines <- unique(c(common, own))
+  paste(c(sprintf("prevcarga %s - ajuda do verbo", verb), "", "Usage:",
+          paste0("  ", if (grepl("[options]", u, fixed = TRUE)) u else paste(u, "[options]")), "",
+          "Options:", paste0("  ", sub("^\\s+", "", lines))), collapse = "\n")
+}
+
+## Verbo da ajuda: 1o token que nao e flag e esta em verbs$verb, pulando o valor de flag que toma argumento.
+.prevcarga_help_verb <- function(argv, verbs) {
+  opts <- .prevcarga_opt_table(verbs); i <- 1L
+  while (i <= length(argv)) {
+    t <- argv[[i]]
+    if (startsWith(t, "-")) {
+      n <- sub("=.*$", "", t)
+      if (n %in% names(opts) && isTRUE(opts[[n]]) && !grepl("=", t, fixed = TRUE)) i <- i + 1L
+    } else return(if (t %in% verbs$verb) t else NULL)
+    i <- i + 1L
   }
-  stats::setNames(takes, nm)
+  NULL
 }
 
 ## Flags de ESCOPO (campo `scoped` do registro do verbo, ex.: --corte/--protocol/--break-lock do backtest/plan): valem so nos
@@ -257,7 +297,10 @@ prevcarga_emit <- function(out, ctx, verb, warnings = list(), exit_code = 0L) {
   if (prevcarga_banner_wanted(ctx, if (show_version) "--version" else "--help"))
     writeLines(prevcarga_banner(ctx), con = stdout())
   if (show_version) writeLines(paste("prevcarga", ctx$version), con = stdout())
-  else writeLines(prevcarga_usage(verbs), con = stdout())
+  else {
+    v <- if (any(argv %in% c("-h", "--help"))) .prevcarga_help_verb(argv, verbs) else NULL
+    writeLines(.prevcarga_ascii(if (is.null(v)) prevcarga_usage(verbs) else prevcarga_usage_verb(verbs, v)), con = stdout())
+  }
   0L
 }
 

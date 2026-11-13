@@ -25,3 +25,11 @@
 
 - **set-data-dir (2026-11-10):** 21o verbo, `prevcarga set-data-dir <dir>`, dono M8, nao isento. A escrita mora em config.R
   (ver `docs/estado/config.md`). O instalador sugere o verbo nos proximos passos quando o `data_dir` falta.
+
+- **Ajuda por verbo (F2.3):** `prevcarga <verbo> -h|--help` imprime `prevcarga_usage_verb(verbs, verb)` (stdout, ASCII, rc 0, sem JSON
+  e sem runtime do verbo): titulo, `Usage:` com a usage do verbo, e `Options:` com as comuns (globais menos `--origin`/`--model`)
+  mais as linhas de opcao (de qualquer verbo ou global) cujo nome a usage do verbo cita. Regra da opcao compartilhada: a linha de
+  opcao mora so no verbo dono (o docopt exige uma so) e os demais verbos a citam na usage (e em `scoped`); a ajuda a encontra
+  por nome. `prevcarga --help` sem verbo segue sendo `prevcarga_usage(verbs)` (todas as opcoes). A gramatica do docopt nao muda:
+  o filtro e so de apresentacao. `.prevcarga_opt_lines(verbs)` e o parser unico das linhas de opcao (`.prevcarga_opt_table` deriva
+  dele). Teste: `scripts/lib/tests/test-cli-help-verb.R`.
