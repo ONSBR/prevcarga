@@ -329,22 +329,6 @@ Substitui.Feriados <- function(p_tabela, p_nlin, p_ncol, p_csv) {
   list(p_tabela, FALSE)
 }
 
-## Passo 6: LOESS linha a linha em T01..T48 (colunas 53:100); ajustados arredondados. funcoes_aux.R:519.
-Suaviza.LOESS <- function(p_tabela, p_nlin, p_span) {
-  x <- c(1:48)
-  for (z in 1:p_nlin) {
-    y     <- as.numeric(p_tabela[z, (53:100)])
-    media <- mean(y, na.rm = TRUE)
-    for (zz in 1:48) {
-      if (is.na(y[zz])) y[zz] <- media
-    }
-    l_data  <- data.frame(x, y)
-    l_loess <- stats::loess(y ~ x, data = l_data, span = p_span)
-    p_tabela[z, (53:100)] <- round(l_loess$fitted)
-  }
-  list(p_tabela, FALSE)
-}
-
 ## Pos-infer: uma linha de 48 valores. funcoes_aux.R:552.
 Suaviza.LOESS1 <- function(p_tabela, p_span) {
   x       <- c(1:48)

@@ -1,9 +1,8 @@
 ## feature_engineering.R -- estagio de feature engineering do plugin Holt-Winters (HW.2). SO definicoes.
-## Porte de prevcargadessem3/models/holt-winters/R/feature_engineering/feature_engineering.R (somente leitura): os 7
-## passos do oraculo, na ordem do oraculo, sobre o deck interno de plugin_ingest():
+## Porte de prevcargadessem3/models/holt-winters/R/feature_engineering/feature_engineering.R (somente leitura): 6
+## passos do oraculo que sobram no HW univariado (sem o LOESS de T), na ordem do oraculo, sobre o deck de plugin_ingest():
 ##   (1) Corrige.Dias.Faltantes  (2) .preconsist_ctm  (3) Corrige.Dados  (4) MO1 (set.seed(seed) imediatamente antes)
-##   -> snapshot CargaTempVerFer/CargaTempMed1  (5) Substitui.Feriados  (6) Suaviza.LOESS em T01..T48
-##   (7) recomputo de CargaTempMed[,4:5].
+##   -> snapshot CargaTempVerFer  (5) Substitui.Feriados  (6) recomputo de CargaTempMed[,4] (Tmed, coluna 5, fica NA).
 ## Os 7 params (ic, perfil_mo, classes_mo, similar, feriado, kmeans_seed) vem SO do run.yaml, sem default no codigo.
 ## O FE roda 1x por treino. Sem relogio, sem ambiente, sem hora; datas so por lubridate. Saida: ASCII puro.
 
@@ -44,13 +43,11 @@
 }
 
 ## Pre-consistencia da CargaTempMed (PrevisaoDiaria.R:60-92 do oraculo; feature_engineering.R:256). Limites de
-## Cmed/Tmed em plugin_constants().
+## Cmed em plugin_constants(); Tmed nao e tratada (HW univariado).
 .preconsist_ctm <- function(ctm) {
   k <- plugin_constants()
   nLIcarga <- k$cmed_bounds[[1L]]
   nLScarga <- k$cmed_bounds[[2L]]
-  nLItemp  <- k$tmed_bounds[[1L]]
-  nLStemp  <- k$tmed_bounds[[2L]]
 
   for (fh in 1:dim(ctm)[1]) {
     if (is.na(ctm[fh, 2])) { ctm[fh, 2] <- 0 }
@@ -79,25 +76,12 @@
         ctm[fh, 4] <- ctm[(fh - 7), 4]
       }
     }
-
-    if ((is.na(ctm[fh, 5])) | (ctm[fh, 5] > nLStemp) | (ctm[fh, 5] < nLItemp)) {
-      if (fh <= 7) {
-        look_fwd <- fh + 7
-        if (look_fwd <= dim(ctm)[1] && !is.na(ctm[look_fwd, 5])) {
-          ctm[fh, 5] <- ctm[look_fwd, 5]
-        } else {
-          ctm[fh, 5] <- mean(ctm[, 5], na.rm = TRUE)
-        }
-      } else {
-        ctm[fh, 5] <- ctm[(fh - 7), 5]
-      }
-    }
   }
   ctm
 }
 
-## Passo 7 (feature_engineering.R:562-586 do oraculo): alinha as duas tabelas pela intersecao das datas quando as
-## linhas divergem e recalcula Cmed/Tmed da CargaTempVer ja limpa. Devolve list(ctv, ctm).
+## Passo 6 (feature_engineering.R:562-586 do oraculo): alinha as duas tabelas pela intersecao das datas quando as
+## linhas divergem e recalcula Cmed da CargaTempVer ja limpa (Tmed, coluna 5, fica NA: HW univariado). Devolve list(ctv, ctm).
 .hw_recompute_ctm <- function(ctv, ctm) {
   if (nrow(ctm) != nrow(ctv)) {
     dates_ctv <- ctv[, 1]
@@ -109,7 +93,6 @@
   }
   for (x in 1:nrow(ctv)) {
     ctm[x, 4] <- mean(as.numeric(ctv[x, 4:51]), na.rm = TRUE)
-    ctm[x, 5] <- mean(as.numeric(ctv[x, 53:100]), na.rm = TRUE)
   }
   list(ctv = ctv, ctm = ctm)
 }
@@ -119,8 +102,6 @@ plugin_build_features <- function(deck, spec) {
   sp <- .hw_spec_parts(spec)
   p  <- lapply(stats::setNames(nm = c("ic", "perfil_mo", "classes_mo", "similar", "feriado", "kmeans_seed")),
                function(n) .hw_param(sp$params, n))
-  k  <- plugin_constants()
-
   ctv <- as.data.frame(deck$CargaTempVer)
   ctm <- as.data.frame(deck$CargaTempMed)
   ncol_legacy <- 52L
@@ -137,19 +118,16 @@ plugin_build_features <- function(deck, spec) {
   if (!is.null(sp$seed)) set.seed(sp$seed)
   ctv <- MO1(p_datatrain = ctv, p_ic = p$ic, p_perfil = p$perfil_mo, p_nclusters = p$classes_mo,
              p_similar = p$similar, p_kmeans_seed = p$kmeans_seed)[[1L]]
-  ## snapshots pos-MO1 e pre-feriado (CRITICO: consumidos pelo SemiFer e pelo EfeitoFer)
+  ## snapshot pos-MO1 e pre-feriado (CRITICO: consumidos pelo SemiFer e pelo EfeitoFer)
   ctv_fer <- ctv
-  ctm1    <- ctm
   ## (5) feriados
   if (isTRUE(p$feriado))
     ctv <- .hw_ok(Substitui.Feriados(p_tabela = ctv, p_nlin = nrow(ctv), p_ncol = ncol_legacy, p_csv = FALSE),
                   "Substitui.Feriados")
-  ## (6) LOESS nas temperaturas
-  ctv <- .hw_ok(Suaviza.LOESS(p_tabela = ctv, p_nlin = nrow(ctv), p_span = k$loess_span_temp), "Suaviza.LOESS")
-  ## (7) recomputo de CargaTempMed[,4:5]
+  ## (6) recomputo de CargaTempMed[,4] (Tmed fica NA: HW univariado)
   ali <- .hw_recompute_ctm(ctv, ctm)
 
   c(list(CargaTempVer = as.data.frame(ali$ctv), CargaTempMed = ali$ctm, CargaTempVerFer = ctv_fer,
-         CargaTempMed1 = ctm1, m_mes = as.integer(lubridate::month(deck$meta$origin_day))),
-    deck[c("TempPre", "CDDPre", "load_day_o", "n_steps", "weather_absent", "meta")])
+         m_mes = as.integer(lubridate::month(deck$meta$origin_day))),
+    deck[c("horizon_calendar", "load_day_o", "n_steps", "meta")])
 }

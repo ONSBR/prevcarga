@@ -6,7 +6,7 @@
 
 .hw_freeze_keep <- function() c("model_id", "origin_day", "train_origin", "mean_interval", "mean_daily", "datainiver", "datafimver",
                      "align_first_idx", "h_fit", "n_steps_fit", "m_mes", "params", "seed",
-                     "carga_temp_ver_fer", "carga_temp_med1", "carga_temp_ver")
+                     "carga_temp_ver_fer")
 
 .hw_frz_abort <- function(field, reason)
   hw_abort("hw.bad_artifact", sprintf("%s: %s", field, reason), list(field = field), where = "holt-winters/freeze")
@@ -26,7 +26,7 @@ plugin_freeze <- function(model) {
   art$align_first_idx <- as.integer(art$align_first_idx)
   art$m_mes <- as.integer(art$m_mes)
   art$seed <- as.integer(art$seed)
-  for (k in c("carga_temp_ver_fer", "carga_temp_med1", "carga_temp_ver")) art[[k]] <- .hw_clean_df(art[[k]])
+  art$carga_temp_ver_fer <- .hw_clean_df(art$carga_temp_ver_fer)
   .hw_foundation("prevcarga_plugin_scan_pure")(art)
   art
 }
@@ -42,10 +42,10 @@ plugin_thaw <- function(artifact) {
   if (!identical(a$h_fit, 9L) || !identical(a$n_steps_fit, 8L)) .hw_frz_abort("h_fit", "esperado h_fit 9L e n_steps_fit 8L")
   for (k in c("origin_day", "train_origin", "datainiver", "datafimver"))
     if (!inherits(a[[k]], "Date") || length(a[[k]]) != 1L || is.na(a[[k]])) .hw_frz_abort(k, "esperado Date")
-  for (k in c("carga_temp_ver_fer", "carga_temp_ver"))
-    if (!is.data.frame(a[[k]]) || ncol(a[[k]]) != 105L) .hw_frz_abort(k, "esperado data.frame de 105 colunas")
-  if (!is.data.frame(a$carga_temp_med1) || ncol(a$carga_temp_med1) != 6L)
-    .hw_frz_abort("carga_temp_med1", "esperado data.frame de 6 colunas")
+  extra <- setdiff(names(a), .hw_freeze_keep())
+  if (length(extra)) .hw_frz_abort(extra[[1L]], "campo fora do contrato de 14 campos (artefato antigo; re-treine)")
+  if (!is.data.frame(a$carga_temp_ver_fer) || ncol(a$carga_temp_ver_fer) != 105L)
+    .hw_frz_abort("carga_temp_ver_fer", "esperado data.frame de 105 colunas")
   a
 }
 
