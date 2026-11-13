@@ -87,7 +87,7 @@
   weights. `weights`/`members_by_lead` vao como data.frame plano (a varredura recusa o ponteiro `.internal.selfref` do data.table). `meta` = `prevcarga_run_manifest` do M1.3
   (`split = origin_scoped`, `seeds = list(combination = 0L)` sem RNG) + `area`, `version_hash`, `members_by_lead`; `model_versions` = lista nomeada vazia
   (provisorio): o validador do run-manifest recusa lista vazia, entao entra um placeholder valido e o campo e trocado pela lista vazia logo apos. Nunca `cutoff` no manifest.
-- `prevcarga_combina_apply(area, artifact_dir, panel, ctx, t_cut, members)`: sem `latest.txt` => `state.combina_not_trained` (13); `prevcarga_thaw` confere o sha256 antes do
+- `prevcarga_combina_apply(area, artifact_dir, panel, ctx, t_cut, members)`: sem `latest.txt` => `state.combina_not_trained` (13; so no `combine --mode=apply`, o forecast usa a media simples, F3.4); `prevcarga_thaw` confere o sha256 antes do
   readRDS (versao ausente/byte alterado => integrity 9); outro `member_set_hash`/`load_label`/`load_tz` => `contract.combina_artifact_mismatch` (2). Nunca re-fita.
 - Selecao de corte `.prevcarga_cmb_select_cut`: '0900' e 'c0900' equivalem; NULL com >1 corte => `contract.combina_input` "corte ambiguo"; inexistente lista os disponiveis.
 - LONG: `.prevcarga_cmb_to_long` aplica `trim_output` (M4.2c) e escreve `target_datetime` por `prevcarga_long_target_datetime` (schema_long.R; a coluna `interval_start` NAO sai); nenhuma

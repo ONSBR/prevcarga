@@ -20,8 +20,8 @@ fontes:
   - docs/estado/forecast.md
   - docs/estado/m6-forecast.md
 adrs: [ADR-0040, ADR-0030]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Arquitetura · 2.18</span>
@@ -40,24 +40,24 @@ forecasts/
     20260115T0900/                available_until no fuso da carga, sem ':'
       <versao>/                   12 hex de prevcarga_forecast_versao
         SIN.parquet               só quando o SIN fecha (sin_closed)
-        subsistemas/<ss>.parquet  subsistemas fechados (niveis subsistemas ou tudo)
-        folhas/<a>.parquet        folhas soltas: sempre; folhas cobertas: só com niveis tudo
+        subsistemas/<ss>.parquet  subsistemas fechados pelo escopo da rodada
+        folhas/<a>.parquet        as folhas do escopo (soltas e cobertas)
         membros/<m>/<a>.parquet   só com --incluir-membros
         manifest.json             metadados e arquivos[]; único campo não determinístico: gerado_em
         run_manifest.json         identidade da rodada (lida pelo verificar); fora de arquivos[]
 ```
 
-### Níveis-teto
+### Escopo da rodada
 
-`--niveis` é um teto, não uma lista. Os três valores aceitos estão em `prevcarga_export_niveis`; qualquer outro aborta `config.usage` (exit 8) antes de qualquer trabalho.
+Não há teto de níveis: o que é entregue é o que o `run.json` declara, e quem o decide é o escopo do `forecast` (`--area`, `--subsistema` ou o SIN inteiro). O export e o `forecast` não têm flag de nível.
 
-| Nível | SIN | Subsistemas fechados | Folhas soltas | Folhas cobertas | Membros |
-|---|---|---|---|---|---|
-| `sin` | sim, se fecha | não | sim | não | só com `--incluir-membros` |
-| `subsistemas` (padrão) | sim, se fecha | sim | sim | não | só com `--incluir-membros` |
-| `tudo` | sim, se fecha | sim | sim | sim | só com `--incluir-membros` |
+| Escopo | SIN | Subsistemas fechados | Folhas | Membros |
+|---|---|---|---|---|
+| `area` | não | não | as pedidas | só com `--incluir-membros` |
+| `subsistema` | não | o pedido | as dele | só com `--incluir-membros` |
+| `sin` | sim | todos | todas | só com `--incluir-membros` |
 
-A folha solta (a que não fecha nenhum subsistema) é sempre entregue: ela não passa pela reconciliação e não existe em outro nível (ver [Reconciliação](/metodologia/reconciliacao)). Os conjuntos `closed`, `stray`, `covered` e `sin_closed` vêm do plano do reconcile, gravados no `run.json`.
+A folha solta (a que não passa pela reconciliação, como toda folha do escopo `area`) é sempre entregue (ver [Reconciliação](/metodologia/reconciliacao)). Os conjuntos `closed`, `stray`, `covered` e `sin_closed` vêm do plano do reconcile, gravados no `run.json`.
 
 ### Quando um arquivo falta
 
@@ -79,7 +79,7 @@ O export não abre parquet. O número de `linhas` de cada arquivo vem do registr
 | `load_label`, `weather_issue_cutoff` | `run.json` (o rótulo declarado e a regra de clima efetiva) |
 | `khat` | lista de `ss`, `versao`, `khat_origin` por subsistema, do `run.json` |
 | `versao`, `version`, `runtime_id` | `run.json` (12 hex da chave, versão do pacote, R e plataforma) |
-| `niveis` | nível pedido no export |
+| `escopo` | escopo da rodada (`area`, `subsistema` ou `sin`), do `run.json` |
 | `schema_long` | as 8 colunas e seus tipos, de `prevcarga_schema_long` (ver [Schema LONG](/arquitetura/schema-long)) |
 | `gerado_em` | `ctx$generated_at`, derivado do carimbo do `run_id` da fachada |
 | `arquivos` | `path`, `nivel`, `area`, `linhas`, `sha256` de cada arquivo entregue, em ordem radix |
@@ -164,8 +164,8 @@ A comparação ignora `manifest.json` e `run_manifest.json`: uma reexecução id
 
 O export só copia. Ele nunca recalcula k-hat, nunca soma folhas, nunca reserializa parquet: o sha256 entregue é o da fonte. Os passos de `prevcarga_export`:
 
-1. valida `niveis` e a existência do scratch; lê o `run.json` (ausente ou ilegível: `state.nothing_to_deliver`, exit 13).
-2. seleciona os arquivos pelo nível (`.export_select`).
+1. valida a existência do scratch; lê o `run.json` (ausente ou ilegível: `state.nothing_to_deliver`, exit 13).
+2. seleciona os arquivos pelo que o `run.json` declara (`.export_select`).
 3. recalcula o sha256 de cada fonte e compara com `arquivos[]` do `run.json`; divergência aborta `integrity.copy_failed` (exit 9).
 4. cria o staging `.tmp-<run_id>` ao lado do diretório final, no mesmo volume, e copia os parquets com `file.copy(overwrite = FALSE)`.
 5. copia o `run_manifest.json`, se existir, e escreve o `manifest.json`.
@@ -185,25 +185,25 @@ Os ids moram em `scripts/lib/errors/export.tsv` e `scripts/lib/errors/export_key
 ### O verbo export
 
 ```text
-prevcarga export --scratch=<dir> [--niveis=<n>] [--incluir-membros]
+prevcarga export --scratch=<dir> [--incluir-membros]
 ```
 
 O verbo é um passthrough fino para `prevcarga_export`. Ele serve para depurar a entrega de um scratch já gravado, sem refazer a rodada.
 
 - a chave é reconstruída do `run.json` do scratch (`origem`, `available_until`, `versao`, `timezone`), nunca de flag. O mesmo scratch entrega na mesma chave que o forecast usou. `--origin` é ignorado.
 - `run.json` sem esses campos: `state.nothing_to_deliver` (exit 13). Sem `--scratch`: `config.usage` (exit 8).
-- `--scratch`, `--niveis` e `--incluir-membros` são flags de escopo: `--scratch` vale só em `export`; `--niveis` e `--incluir-membros` valem em `export` e `forecast`; em outro verbo dão `config.usage`.
+- `--scratch` e `--incluir-membros` são flags de escopo: `--scratch` vale só em `export`; `--incluir-membros` vale em `export` e `forecast`; em outro verbo dão `config.usage`.
 - `gerado_em` sai do carimbo UTC do `run_id` da fachada (relógio lido uma vez em `config.R`); o `exports.R` não lê relógio.
-- o verbo não regenera nada: um arquivo que o forecast não gravou no scratch (por exemplo, folhas cobertas de uma rodada feita sem `--niveis=tudo`) é omitido com aviso.
+- o verbo não regenera nada: um arquivo que o forecast não gravou no scratch (por exemplo, os membros de uma rodada feita sem `--incluir-membros`) é omitido com aviso.
 
-<Terminal title="prevcarga — bash" lines={[{type:'cmd',text:'prevcarga export --scratch=<state_dir>/scratch/<run_id> --niveis=tudo --format=json'}]} />
+<Terminal title="prevcarga — bash" lines={[{type:'cmd',text:'prevcarga export --scratch=<state_dir>/scratch/<run_id> --incluir-membros --format=json'}]} />
 
 Em texto, o verbo lista o nível, o diretório de saída e cada arquivo com `linhas` e `sha256`. Em JSON, o resultado traz também `ja_publicado`.
 
-## Pendente: níveis e membros fora da versão
+## Pendente: membros fora da versão
 
-<Pendente titulo="Pendente · export.key_conflict com --niveis">
-A `versao` não inclui o conjunto de arquivos. A mesma rodada entregue com outro `--niveis` ou com `--incluir-membros` cai na mesma chave com outro conteúdo e recebe `export.key_conflict` (exit 9). As saídas registradas em `docs/estado/forecast.md` são incluir `niveis` e `incluir_membros` na versão, ou o export aceitar um superconjunto e publicar só os arquivos que faltam. A decisão ainda não foi tomada.
+<Pendente titulo="Pendente · export.key_conflict com --incluir-membros">
+A `versao` não inclui o conjunto de arquivos de membros. A mesma rodada entregue com `--incluir-membros` ligado e depois desligado cai na mesma chave com outro conteúdo e recebe `export.key_conflict` (exit 9). As saídas registradas em `docs/estado/forecast.md` são incluir `incluir_membros` na versão, ou o export aceitar um superconjunto e publicar só os arquivos que faltam. A decisão ainda não foi tomada.
 </Pendente>
 
 <Pendente titulo="Pendente · code_commit da versão">

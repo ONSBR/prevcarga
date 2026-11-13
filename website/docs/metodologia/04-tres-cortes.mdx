@@ -32,8 +32,8 @@ fontes:
   - docs/adr/0006-backtest-honesto-corte-treino.md
   - docs/adr/0007-contrato-corte-intradiario.md
 adrs: [ADR-0023, ADR-0024, ADR-0035]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 import FigM04 from '@site/src/components/figuras/FIG-M04';
@@ -153,6 +153,8 @@ Na rodada diária (`forecast`), o corte entregável vai de O 00:00 até antes de
 - `available_until` = O 00:00 é aceito: é a rodada das 00h, sem nenhuma carga do dia O, com primeira entrega em O 00:30;
 - qualquer corte intradiário de O é aceito;
 - `available_until` maior ou igual a O+1 00:00 (dia O completo no deck, ou `--origin` anterior ao último dia de carga) é recusado antes de qualquer infer, com `completude.forecast_origin_day_complete` (exit 3). O corte da combina é uma hora dentro do dia O, e um dia O completo não tem representação nele.
+
+O fim do horizonte também depende do clima previsto, não só do `available_until`. Um dia do horizonte só conta como coberto quando a emissão vigente do clima traz os 48 instantes dele. Clima previsto incompleto não bloqueia a rodada: o horizonte é cortado por membro, com `warning.forecast_weather_horizon_cut` (o LGBM entrega até o último dia coberto). Os membros de horizonte fixo (DESSEM e random-forest) recusam com `completude.weather_forecast_short` e ficam ausentes, e o Holt-Winters não usa clima. Nenhum dia é preenchido nem persistido para completar o horizonte, e por lead a combina usa só os membros que cobrem o lead. Só a falta do dia O inteiro recusa o membro que depende de clima.
 
 <Figura id="FIG-M05" titulo="available_until: derivação e faixa aceita" natureza="Linha do tempo" fontes={['docs/estado/deck_reader.md', 'scripts/lib/deck_reader.R', 'scripts/lib/dates.R', 'scripts/lib/forecast.R', 'docs/estado/forecast.md']} adrs={['ADR-0035']}>
 

@@ -49,8 +49,8 @@ fontes:
   - docs/estado/dessem_linear.md
   - docs/estado/dessem_regdin.md
 adrs: [ADR-0031, ADR-0023, ADR-0012, ADR-0019]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Metodologia · 1.9</span>
@@ -149,7 +149,7 @@ Os dois descriptors declaram `history_infer_equals_train = TRUE`. O loader confe
 
 Quando recebe o spec, o `plugin_ingest` do dessem-linear lê um dia de aquecimento antes da janela (1.826 dias de CARGAHIST): a janela de `history_days.train` dias termina em `last_data_day` e começa um dia antes. O despachante chama a ingestão sem spec, e a janela é a do painel que a fundação já recortou.
 
-A ingestão confere a completude e não preenche lacunas da história. A única reposição é a da cauda curta da temperatura prevista (`fill_forecast_tail`, em Robustez do motor abaixo); o que sobra incompleto reprova:
+A ingestão confere a completude e não preenche lacunas, nem da história nem da temperatura prevista: o que está incompleto reprova. Antes dela, o despachante só deixa o DESSEM rodar com o horizonte inteiro (ver Faixa do motor e faixa de entrega abaixo):
 
 | Conferência | dessem-linear | dessem-regdin |
 |---|---|---|
@@ -161,7 +161,9 @@ As guardas extras do dessem-regdin no infer (janela do painel contra a do artefa
 
 ## Faixa do motor e faixa de entrega
 
-O descriptor declara `delivery_days = 9`: a entrega vai de O (depois do corte intradiário) até O+8. O motor roda `horizon_days + 1` = 10 dias, O..O+9. O dia O+9 existe só para o spline `monoH.FC` de `desagregaModeloSH`, que nas últimas horas de O+8 precisa enxergar o dia seguinte. O+9 não é entregue. Por isso a ingestão exige temperatura prevista até O+9.
+O descriptor declara `delivery_days = 9`: a entrega vai de O (depois do corte intradiário) até O+8. O motor roda `horizon_days + 1` = 10 dias, O..O+9. O dia O+9 existe só para o spline `monoH.FC` de `desagregaModeloSH`, que nas últimas horas de O+8 precisa enxergar o dia seguinte. O+9 não é entregue. Por isso a ingestão exige temperatura prevista até O+9, com os 48 instantes de 30 min de cada dia de O a O+9 (até O+9 23:30).
+
+O DESSEM só roda com o horizonte inteiro. Se a emissão vigente do clima previsto não cobre todos os dias até O+9, o despachante recusa o membro antes de qualquer estágio, com `completude.weather_forecast_short`, e a rodada do `forecast` o trata como membro ausente (`warning.forecast_member_absent`): nenhuma linha dele entra na combina, que renormaliza sobre os presentes. Não há corte parcial da entrega do DESSEM, nem reposição de dia curto, nem dia entregue persistido para completar o horizonte. O LGBM, em contrapartida, corta o horizonte no último dia coberto (`warning.forecast_weather_horizon_cut`), e o Holt-Winters, que não usa clima, entrega o horizonte inteiro.
 
 A matriz nativa (`values`, layout `dessem_semihourly_48`) tem 9 linhas, de O a O+8, e 48 colunas de 30 min. A grade de entrega é a da fundação (`prevcarga_delivery_grid` com 9 dias).
 
@@ -169,14 +171,13 @@ O deslocamento de 60 min do DESSEM é declarado só em `model_time_offset_min = 
 
 ## Robustez do motor
 
-O motor tem quatro guardas de robustez, sempre ligadas e sem chave por variável de ambiente. Duas cuidam do ajuste do SVM e são funções do próprio ambiente do motor, sem remendo no ambiente global. As outras duas cuidam dos dados:
+O motor tem três guardas de robustez, sempre ligadas e sem chave por variável de ambiente. Duas cuidam do ajuste do SVM e são funções do próprio ambiente do motor, sem remendo no ambiente global. A outra cuida dos dados:
 
 | Guarda | Função | Quando age | Efeito |
 |---|---|---|---|
 | Modelo vazio | `.wsvm_guard_retry` (`robustez.R`) | `tune_wsvm` falha com erro de modelo vazio, constante ou de escala | Refaz o ajuste sem as dummies binárias raras (minoria até 3, depois 10, depois 30 linhas); em último caso, só com as variáveis contínuas |
 | Clamp de cross | `.wsvm_clamp_cross` (`robustez.R`) | `tune_wsvm` falha por amostra menor que o número de dobras | Reduz `cross` ao número de linhas com peso; abaixo de 2, propaga o erro original |
 | Código de dia especial | `normalize_special_day_codes` (`feriados.R`) | Código fora dos modelados: 0 (normal) e 1 a 11, os tipos que têm janela em `janelaDadosFer` | O código vira 0 (dia normal) em todas as datas |
-| Cauda curta | `fill_forecast_tail` (`exogena.R`) | Até 2 dias curtos na temperatura prevista do horizonte | Repete o último dia completo anterior; com mais dias curtos não faz nada e a ingestão reprova |
 
 O `tune_wsvm` do motor chama o `WeightSVM::tune_wsvm` real primeiro. No caminho feliz, o resultado é o do pacote, sem alteração. As duas guardas do SVM sinalizam a condição classificada `dessem_engine_guard`, uma subclasse de `message`, com os códigos `warning.engine_empty_model_guard` e `warning.engine_cross_clamped`. No infer, o plugin coleta essas condições com `withCallingHandlers` e grava os códigos em `meta$warnings` do envelope.
 
@@ -264,5 +265,5 @@ No perfil do regdin, a temperatura horária é normalizada pelo máximo do hist�
 
 ### Histórico completo
 
-A ingestão do dessem-regdin confere o painel e não corta nem preenche a história (só a cauda curta da temperatura prevista passa por `fill_forecast_tail`). Cada dia histórico tem de ter 24 horas de carga, sem NA; senão aborta com `plugin.regdin_series_gap`, nomeando o dia. A temperatura observada e a prevista seguem a mesma regra e abortam com `plugin.regdin_panel_contract`. Carga posterior ao dia O, ou do dia O além do que o corte intradiário libera, aborta com `plugin.regdin_train_panel_has_origin`.
+A ingestão do dessem-regdin confere o painel e não corta nem preenche a história nem a temperatura prevista. Cada dia histórico tem de ter 24 horas de carga, sem NA; senão aborta com `plugin.regdin_series_gap`, nomeando o dia. A temperatura observada e a prevista seguem a mesma regra e abortam com `plugin.regdin_panel_contract`. Carga posterior ao dia O, ou do dia O além do que o corte intradiário libera, aborta com `plugin.regdin_train_panel_has_origin`.
 

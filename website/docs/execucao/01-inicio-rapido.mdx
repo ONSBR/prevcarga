@@ -35,8 +35,8 @@ fontes:
   - docs/estado/verificar.md
   - docs/estado/deck_reader.md
 adrs: [ADR-0038, ADR-0039, ADR-0040, ADR-0036, ADR-0037, ADR-0024]
-revisado_em: 2026-11-05
-commit_base: "8eaffc0"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Execução · 3.1</span>
@@ -176,7 +176,7 @@ O `validate-deck` é a validação prévia do deck: confere o manifest, o rótul
 
 O `forecast` é a rodada diária, uma origem por chamada. Ele roda a mesma validação do deck antes de tudo (a menos de `--skip-validate`), infere cada membro, treina dentro da rodada os modelos `origin_scoped` que ainda não têm artefato da origem O, combina, reconcilia e exporta. `--origin` é o único flag de data; sem ele, a origem é o último dia de carga do deck. O corte intradiário (`available_until`) sai do próprio dado de carga e o corte de treino de cada modelo sai do descriptor, como em [Os três cortes de data](/metodologia/tres-cortes). Nenhum desses dois cortes é flag: um flag de corte é recusado pelo docopt com `config.usage` (exit 8). A única regra de corte que o operador escolhe é a do clima previsto, pela flag global `--weather-cutoff` ou pela chave `weather_issue_cutoff` (default `available_until`, ADR-0024).
 
-A entrega fica em `<state_dir>/forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/`, onde a data é a origem, o segundo segmento é o `available_until` no fuso do deck e a `versao` é um hash do que entrou na rodada. Ela traz os parquets LONG, o `manifest.json` com o sha256 de cada arquivo e o `run_manifest.json` com a identidade da rodada (`data_hash`, `bundle_id`, `model_versions`). Na saída em texto, a linha `saida:` mostra esse caminho. Os demais flags (`--area`, `--subsistema`, `--niveis`, `--incluir-membros`, `--report`) estão em [Rodada diária](/execucao/rodada-diaria).
+A entrega fica em `<state_dir>/forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/`, onde a data é a origem, o segundo segmento é o `available_until` no fuso do deck e a `versao` é um hash do que entrou na rodada. Ela traz os parquets LONG, o `manifest.json` com o sha256 de cada arquivo e o `run_manifest.json` com a identidade da rodada (`data_hash`, `bundle_id`, `model_versions`). Na saída em texto, a linha `saida:` mostra esse caminho. Os demais flags (`--area`, `--subsistema`, `--incluir-membros`, `--report`, `--jobs`, `--artifacts-dir`) estão em [Rodada diária](/execucao/rodada-diaria).
 
 ### 6. Verificar contra a inferência oficial
 

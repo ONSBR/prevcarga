@@ -41,7 +41,7 @@ fontes:
   - models/_dessem-engine/R/exogena.R
 adrs: [ADR-0002, ADR-0004, ADR-0005, ADR-0023, ADR-0024, ADR-0035, ADR-0037, ADR-0040]
 revisado_em: 2026-11-13
-commit_base: "3970d3d"
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Metodologia · 1.2</span>
@@ -171,7 +171,8 @@ O deck aprovado não é alterado. Os tratamentos de cada modelo moram na ingest�
 
 | Modelo | Tratamento | Onde |
 |---|---|---|
-| `dessem-linear`, `dessem-regdin` | completa o clima previsto curto no horizonte com a persistência do último dia completo anterior, em no máximo 2 dias curtos (`max_tail_fill_days`); lacuna maior reprova no contrato do plugin | ingestão, `fill_forecast_tail` do motor comum |
+| `dessem-linear`, `dessem-regdin` | só rodam com o horizonte inteiro: com clima previsto curto (a emissão vigente sem os 48 instantes de algum dia até O+9) o despachante recusa o membro com `completude.weather_forecast_short` e a rodada o trata como membro ausente, sem completar nem persistir dia entregue | despachante, antes da ingestão |
+| `random-forest` | horizonte fixo: com clima previsto curto o membro também fica ausente; o `lgbm` corta o horizonte no último dia coberto, com `warning.forecast_weather_horizon_cut`, e o `holt-winters` não usa clima | despachante |
 | `dessem-linear`, `dessem-regdin` | monta o deck horário do motor (`CARGAHIST`, `EXOGENAHIST`, `EXOGENAPREV`, 24 horas por dia) e separa a carga do dia O até o corte, insumo do mm | ingestão |
 | `random-forest` | LOCF de `tmax` e `tmin` por dia do horizonte, a partir da origem anterior; origens de treino que seguem sem clima saem do treino | ingestão |
 | `lgbm` | os patamares do dia O depois do corte entram como sintéticos (`is_synthetic`, carga NA) para o BLF completar; com `tipodia_legacy` ligado (no `run.yaml` versionado está `false`), a sazonalidade ganha fallbacks hierárquicos calculados no treino e guardados no artefato (`sazonalidade_fallbacks`) | ingestão e atributos |

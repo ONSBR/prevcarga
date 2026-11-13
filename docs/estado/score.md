@@ -16,3 +16,4 @@
 - Testes: `scripts/lib/tests/test-score.R`.
 
 - Colunas (F4.2): o texto traz `PEAK_MAPE` logo apos `PEAK` (antes de `SKILL`); o JSON traz `peak_mape` em toda linha de `headline.rows` e `scorecard` (mesmas colunas do `prevcarga_scorecard`). `schema_version` continua 1 (mudanca aditiva).
+- MAPE e WMAPE saem juntos no texto e no JSON (`MAPE`/`WMAPE`, `PEAK`/`PEAK_MAPE`); a ponta e 18:00-22:00 (`prevcarga_peak_hours`, ver `docs/estado/evaluation.md`).

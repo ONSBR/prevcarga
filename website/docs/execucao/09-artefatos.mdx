@@ -51,13 +51,13 @@ fontes:
   - docs/estado/m6-forecast.md
   - docs/estado/sync.md
 adrs: [ADR-0023, ADR-0026, ADR-0030, ADR-0038, ADR-0039, ADR-0040]
-revisado_em: 2026-11-04
-commit_base: "379344b"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Execução · 3.9</span>
 
-<p className="pc-lead">A rodada diária só consome artefatos. Ela não treina os membros <code>origin_agnostic</code>, não ajusta os pesos da combina e não ajusta o perfil k-hat. Esses três artefatos são produzidos antes, por <code>train-models</code>, <code>combine --mode train</code> e <code>reconcile --mode train</code>, ou chegam do repositório online pelo <code>prevcarga-sync</code>. Todos moram no mesmo layout do registry, em <code>state_dir/artifacts/</code>, e o verbo <code>registry</code> governa o ponteiro <code>latest.txt</code> de cada célula. A única exceção é o membro <code>origin_scoped</code>: se não há artefato da origem O, a própria rodada o treina uma vez.</p>
+<p className="pc-lead">A rodada diária só consome artefatos. Ela não treina os membros <code>origin_agnostic</code>, não ajusta os pesos da combina e não ajusta o perfil k-hat. Esses três artefatos são produzidos antes, por <code>train-models</code>, <code>combine --mode train</code> e <code>reconcile --mode train</code>, ou chegam do repositório online pelo <code>prevcarga-sync</code>. Todos moram no mesmo layout do registry, em <code>state_dir/artifacts/</code>, e o verbo <code>registry</code> governa o ponteiro <code>latest.txt</code> de cada célula. A única exceção é o membro <code>origin_scoped</code>: se não há artefato da origem O, a própria rodada o treina uma vez, a menos que o <code>forecast</code> aponte uma raiz com <code>--artifacts-dir</code>. Os pesos da combina são opcionais na rodada: sem eles a combinação é a média simples dos membros.</p>
 
 Esta página é o roteiro do operador. A semântica do registry está em [Registry de artefatos](/arquitetura/registry), o corte de treino por classe de split em [Os três cortes de data](/metodologia/tres-cortes), e o que a rodada faz com os artefatos em [Rodada diária](/execucao/rodada-diaria).
 
@@ -67,10 +67,14 @@ Cada artefato é uma célula do registry. A célula tem as versões imutáveis `
 
 | Artefato | Célula | Quem produz | Frequência | Se faltar na rodada |
 |---|---|---|---|---|
-| Membro `origin_agnostic` (`random-forest`, `lgbm`) | `<mdir>/<area>/` | `train-models` | antes da rodada; o artefato serve às origens seguintes enquanto o seu `last_data_day` não passar o da origem | `state.artifact_missing` (exit 13); a rodada nunca treina esse membro |
-| Membro `origin_scoped` (`holt-winters`, `dessem-linear`, `dessem-regdin`) | `<mdir>/[<exogena>/]<area>/` | `train-models --origin=O` ou a própria rodada | um artefato por origem O | a rodada treina uma vez pela fachada de treino e segue |
-| Pesos da combina | `combina/<area>/` | `combine --mode train` | antes da rodada | `state.combina_not_trained` (exit 13) |
+| Membro `origin_agnostic` (`random-forest`, `lgbm`) | `<mdir>/<area>/` | `train-models` | antes da rodada; o artefato serve às origens seguintes enquanto o seu `last_data_day` não passar o da origem | `state.artifact_missing` na célula, que vira membro ausente (`warning.forecast_member_absent`); a rodada nunca treina esse membro |
+| Membro `origin_scoped` (`holt-winters`, `dessem-linear`, `dessem-regdin`) | `<mdir>/[<exogena>/]<area>/` | `train-models --origin=O` ou a própria rodada | um artefato por origem O | a rodada treina uma vez pela fachada de treino e segue; com `--artifacts-dir` não treina e a célula vira membro ausente |
+| Pesos da combina | `combina/<area>/` | `combine --mode train`, a partir do histórico dos membros | retreino uma vez por mês | média simples (EQW) com `warning.combina_eqw`; a rodada segue |
 | Perfil k-hat | `reconcile/<ss>/` | `reconcile --mode train --origin=O` | um perfil por origem O (`khat_origin == O`) | `state.khat_missing` (exit 13); perfil posterior a O dá `honesty.khat_after_origin` (exit 15) |
+
+### Artefatos apontados (`--artifacts-dir`)
+
+`prevcarga forecast --artifacts-dir=<dir>` (ou `artifacts_dir` no `config.yaml`) troca a raiz de leitura dos artefatos de membros, combina e k-hat. A raiz é só de leitura: o forecast não escreve nela e não cria `<state_dir>/artifacts`. Entrega, scratch e relatório continuam em `<state_dir>`. Sem treino implícito, uma célula `origin_scoped` sem versão da origem O vira membro ausente em vez de treinar. A proveniência `artefatos` (`raiz` e `modo`, `registry` ou `apontado`) vai no `run.json` e no `result`.
 
 A classe de split de cada modelo vem do `split` do seu `models/<mdir>/run.yaml`. O segmento `<exogena>` só existe para o membro que declara variante na topologia: `RGD_MED` vive em `dessem-regdin/MED/<area>/`, `RF` vive em `random-forest/<area>/`.
 
@@ -128,7 +132,7 @@ Treina o subconjunto pedido de membros por áreas e publica cada célula no regi
 
 ```text title="scripts/lib/cli/train-models.R (usage)"
 prevcarga train-models [--model=<m>] [--area=<a>] [--subsistema=<s>] [--areas=<a,b>]
-  [--origin=<data>] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force]
+  [--origin=<data>] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force] [--keep-going]
 ```
 
 | Flag | Efeito | Recusa |
@@ -141,6 +145,7 @@ prevcarga train-models [--model=<m>] [--area=<a>] [--subsistema=<s>] [--areas=<a
 | `--dry-run` | emite a matriz com cortes e versão-alvo, sem gravar nada | |
 | `--jobs` | workers PSOCK, padrão 1 | não inteiro ou menor que 1: `config.bad_type` (exit 8) |
 | `--force` | retreina mesmo se a versão `v_<hash>` já existe | |
+| `--keep-going` | não para na primeira célula que falha: as demais são treinadas e publicadas e o verbo termina em `partial.train_models_delivery` (exit 14) se alguma falhou | em outro verbo: `config.usage` (exit 8) |
 
 Os seletores e `--model` são validados antes de qualquer leitura do deck. A matriz é membros × áreas, ordenada por `(model, variant, area)`. Para cada célula, o corte de treino vem de `scripts/lib/dates.R` pela classe de split: `train_origin = O−1−H` no `origin_agnostic` (H é o `horizon_days`) e `train_origin = O` no `origin_scoped`. Se o deck não tem dias de carga suficientes para a janela, a célula aborta com `window.history_short` (exit 5) antes de qualquer escrita.
 
@@ -151,14 +156,20 @@ Os seletores e `--model` são validados antes de qualquer leitura do deck. A mat
 | `planned` | `--dry-run` | nada; o painel é lido como no treino e a versão-alvo é a mesma do treino real |
 | `reused` | a versão `v_<hash>` já existe e não há `--force` | nada; o plugin não é chamado e a pasta fica intocada |
 | `trained` | versão nova, ou `--force` | publica `v_<hash>/` por staging `.tmp-*` e `file.rename`, depois promove o `latest.txt` e anota o `.history` |
+| `failed` | a célula deu erro com `--keep-going` | nada; o `error_id` e a mensagem ficam em `cells[]` |
+| `skipped` | não rodou porque uma célula anterior falhou, sem `--keep-going` | nada |
 
 A versão é content-addressed: o hash cobre a identidade do treino (modelo, painel já cortado, cortes, configuração de features, commit, `renv.lock`, `load_label` e fuso). Treinar de novo com os mesmos insumos cai em `reused`. Com `--force`, a versão antiga só sai depois que a nova entrou.
 
 ### Paralelismo
 
-Com `--jobs=1` as células rodam em série, na ordem da matriz, e o primeiro erro interrompe; as células anteriores ficam publicadas. Com `--jobs` maior que 1, o verbo abre um cluster `parallel::makePSOCKcluster`, sem fork, para funcionar no Windows nativo. Cada worker é um R novo que carrega a biblioteca e fixa o runtime dentro do processo. Se a inicialização do worker falha, o pai re-levanta o erro original com o seu id de catálogo; um erro sem id vira `runtime.worker_unfixable` (exit 7). Um erro de célula volta ao pai como dado e sai com a classe original; o resultado é reordenado pela chave.
+Com `--jobs=1` as células rodam em série, na ordem da matriz, e o primeiro erro interrompe (sem `--keep-going`); as células anteriores ficam publicadas. Com `--jobs` maior que 1, o verbo abre um cluster `parallel::makePSOCKcluster`, sem fork, para funcionar no Windows nativo. Cada worker é um R novo que carrega a biblioteca e fixa o runtime dentro do processo. Se a inicialização do worker falha, o pai re-levanta o erro original com o seu id de catálogo; um erro sem id vira `runtime.worker_unfixable` (exit 7). Um erro de célula volta ao pai como dado e sai com a classe original; o resultado é reordenado pela chave.
 
-O `result` em `--format json` traz `schema_version`, `dry_run`, `origin`, `available_until`, `load_label`, `weather_issue_cutoff` e `cells[]`, com `model`, `variant`, `area`, `split`, `train_origin`, `last_data_day`, `version`, `status` e `path` por célula.
+O `result` em `--format json` traz `schema_version`, `dry_run`, `origin`, `available_until`, `load_label`, `weather_issue_cutoff` e `cells[]`, com `model`, `variant`, `area`, `split`, `train_origin`, `last_data_day`, `version`, `status` e `path` por célula; as células com falha trazem também `error_id`, `error_class` e `mensagem`.
+
+### Falhas e `--keep-going`
+
+Sem `--keep-going`, a primeira falha aborta o verbo com a classe e o exit da célula, e o `where` nomeia `<modelo>[/<variante>]:<área>`. Com `--keep-going`, todas as células são despachadas, cada uma vira uma linha de `cells[]` com `status` `trained`, `reused`, `failed` ou `skipped`, e o `result` ganha o resumo `summary` com `total`, `trained`, `reused`, `failed` e `skipped` (não no `--dry-run`). Havendo falha, o verbo sai por `partial.train_models_delivery` (exit 14), com o `result` completo no envelope: as células boas ficam publicadas. No modo texto, o stdout lista as células com o status e, nas que falharam, o `error_id`; o stderr traz uma linha `falha <modelo> <área> <error_id>: <mensagem>` por célula. Para repetir só o que falhou, rode de novo com `--area` da célula.
 
 ```bash
 prevcarga train-models --dry-run --format=json
@@ -301,7 +312,7 @@ prevcarga features --model=<m> --area=<a>
 
 ### combine --mode apply e --mode full
 
-Os dois modos exigem `--out` com diretório existente. O `apply` lê `combina/<area>/latest.txt` e confere o hash do `weights.rds` antes de abri-lo; sem pesos, `state.combina_not_trained` (exit 13). O `full` ajusta sobre o painel inteiro e aplica, sem artefato: `full` equivale a `train` seguido de `apply`. Nos dois, `--origin` restringe só as linhas de saída; uma origem sem linhas dá `config.usage`.
+Os dois modos exigem `--out` com diretório existente. O `apply` lê `combina/<area>/latest.txt` e confere o hash do `weights.rds` antes de abri-lo; sem pesos, `state.combina_not_trained` (exit 13): é só aqui que esse erro existe, porque o `forecast` usa a média simples quando a folha não tem pesos. O `full` ajusta sobre o painel inteiro e aplica, sem artefato: `full` equivale a `train` seguido de `apply`. Nos dois, `--origin` restringe só as linhas de saída; uma origem sem linhas dá `config.usage`.
 
 ```bash
 prevcarga combine --mode=apply --area=SP --root=./runs --out=./sp_comb.parquet --origin=2026-10-20
@@ -320,13 +331,13 @@ prevcarga reconcile --mode=apply --leaves-dir=./folhas --origin=2026-10-20 --eva
 ### export --scratch
 
 ```text title="scripts/lib/cli/export.R (usage)"
-prevcarga export --scratch=<dir> [--niveis=<n>] [--incluir-membros]
+prevcarga export --scratch=<dir> [--incluir-membros]
 ```
 
-O `export` entrega de novo a partir do scratch de uma rodada (`run.json` mais os parquets). A chave de entrega é derivada do `run.json` (origem, `available_until`, versão e fuso), nunca de flag, de modo que o mesmo scratch entrega na mesma chave que o forecast usou. `--niveis` aceita `sin`, `subsistemas` (padrão) ou `tudo`; outro valor dá `config.usage`. Scratch ausente ou `run.json` sem esses campos dá `state.nothing_to_deliver` (exit 13). A mesma chave com os mesmos bytes é no-op; o detalhe está em [Entrega e export imutável](/arquitetura/entrega-export).
+O `export` entrega de novo a partir do scratch de uma rodada (`run.json` mais os parquets). A chave de entrega é derivada do `run.json` (origem, `available_until`, versão e fuso), nunca de flag, de modo que o mesmo scratch entrega na mesma chave que o forecast usou. O que é entregue é o que o `run.json` declara, ou seja, o escopo da rodada. Scratch ausente ou `run.json` sem esses campos dá `state.nothing_to_deliver` (exit 13). A mesma chave com os mesmos bytes é no-op; o detalhe está em [Entrega e export imutável](/arquitetura/entrega-export).
 
-<Pendente titulo="Pendente · niveis fora da versão">Nem <code>--niveis</code> nem <code>--incluir-membros</code> entram na versão. Exportar o mesmo scratch na mesma chave com outro conjunto de arquivos dá <code>export.key_conflict</code> (exit 9); o tratamento ainda está em aberto.</Pendente>
+<Pendente titulo="Pendente · membros fora da versão">O <code>--incluir-membros</code> não entra na versão. Exportar o mesmo scratch na mesma chave com outro conjunto de arquivos dá <code>export.key_conflict</code> (exit 9); o tratamento ainda está em aberto.</Pendente>
 
 ```bash
-prevcarga export --scratch=./state/scratch/<run_id> --niveis=tudo --incluir-membros
+prevcarga export --scratch=./state/scratch/<run_id> --incluir-membros
 ```
