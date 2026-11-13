@@ -1,11 +1,11 @@
-## test-docs-writethrough.R -- write-through do encerramento do M8 (M8.12; AC 3): grep sobre docs/estado/m8-bundle.md, README.md e
-## docs/reference/MANUAL-USUARIO.md. Verbos citados vem da lista DESCOBERTA de scripts/lib/cli/*.R (nunca escrita aqui); --origin e o unico flag
+## test-docs-writethrough.R -- write-through do encerramento do M8 (M8.12; AC 3): grep sobre docs/estado/m8-bundle.md e
+## docs/reference/MANUAL-USUARIO.md (o README.md virou pagina de entrada no commit 8eaffc0 e saiu do write-through). Verbos citados vem da lista DESCOBERTA de scripts/lib/cli/*.R (nunca escrita aqui); --origin e o unico flag
 ## de data; zero PREVCARGA_; WSL2 nunca e requisito; todo `id` de tests/ab/ab_excecoes.yaml aparece; topicos obrigatorios nos tres arquivos.
 ## CONTROL: um verbo fora da lista, um flag de data, PREVCARGA_, WSL2 como requisito e um id removido plantados numa copia reprovam.
 ## O roadmap M8-BUNDLE.md so some depois do recibo `ab-corte` CORTE-OK dos DOIS bundles (AC 3).
 
 dw_root <- bb_root()
-DW_FILES <- c("docs/estado/m8-bundle.md", "README.md", "docs/reference/MANUAL-USUARIO.md")
+DW_FILES <- c("docs/estado/m8-bundle.md", "docs/reference/MANUAL-USUARIO.md")
 
 dw_read <- function(f, root = dw_root) readLines(file.path(root, f), warn = FALSE, encoding = "UTF-8")
 
@@ -86,12 +86,12 @@ test_that("[AC] ab_excecoes.yaml tem as 3 entradas e todas citadas (nenhuma entr
 })
 
 test_that("[AC] --origin e citado como o flag de data nos docs de usuario", {
-  for (f in c("README.md", "docs/reference/MANUAL-USUARIO.md")) expect_true("--origin" %in% dw_flags(dw_read(f)), info = f)
+  expect_true("--origin" %in% dw_flags(dw_read("docs/reference/MANUAL-USUARIO.md")))
 })
 
 test_that("[CONTROL] o grep acusa: verbo fora da lista, flag de data, PREVCARGA_, WSL2 como requisito, id removido, topico removido, vocabulario antigo", {
   vs <- dw_verbs(); ids <- dw_ids()
-  base <- dw_read("README.md")
+  base <- dw_read("docs/reference/MANUAL-USUARIO.md")
   expect_identical(names(dw_violations(base, vs, ids)), NULL)
   expect_identical(dw_violations(c(base, "Rode `prevcarga prever --origin 2026-10-15` hoje."), vs, ids)$verbo_fora_da_lista, "prever")
   expect_identical(dw_violations(c(base, "```", "prevcarga treinar --x", "```"), vs, ids)$verbo_fora_da_lista, "treinar")
@@ -103,6 +103,7 @@ test_that("[CONTROL] o grep acusa: verbo fora da lista, flag de data, PREVCARGA_
   expect_identical(dw_violations(sub("regdin.versao_pacotes", "x", base, fixed = TRUE), vs, ids)$id_ausente, "regdin.versao_pacotes")
   expect_identical(dw_violations(gsub("install.ps1", "inst", base, fixed = TRUE), vs, ids)$topico_ausente, "install.ps1")
   expect_true("morning" %in% dw_violations(c(base, "rodada morning"), vs, ids)$vocabulario_antigo)
+  expect_true(length(dw_violations(c(base, "acentua\u00e7\u00e3o"), vs, ids)$nao_ascii) > 0L)   # byte nao ASCII plantado
   ## prosa nao e verbo: `prevcarga e` fora de codigo nao conta; `prevcarga-sync` nao e `prevcarga <verbo>`
   expect_identical(dw_cited_verbs(c("o prevcarga e um CLI", "`prevcarga-sync --what artifacts`")), character())
 })
