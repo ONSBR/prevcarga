@@ -251,7 +251,7 @@ m6e_child_main <- function(root, work, out, phase) {
     ## pesos da combina treinados no setup sobre as entregas reais (2 origens em meses distintos => celulas EQW por fallback)
     lags <- prevcarga_plugin_data_lags(unique(mem$mdir), root)
     gg <- list(origin = O, cuts = prevcarga_resolve_cuts(ctx, origin = O, data_lag_days = lags))
-    plan <- .forecast_plan(ctx, NULL)
+    plan <- .forecast_plan(ctx, "sin")
     members <- tryCatch(suppressWarnings(suppressMessages(.forecast_members(ctx, plan, gg, mem))),
                         prevcarga_error = function(e) e)
     if (inherits(members, "prevcarga_error")) {           # plugin recusa (ex.: cabeca mm do DESSEM sem o dia O): registra e para a fase
