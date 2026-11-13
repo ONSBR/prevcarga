@@ -13,7 +13,7 @@ boundary do deck (as divergências `Carga`/`CargaGlobal`/`Exo_Temp`/`Exo_Tempera
 pós-leitura, e não pertencem ao deck). A padronização real acontece **uma vez**, no ingest cru → canônico
 (tabela de alias no fim), nunca espalhada pelos modelos (ADR-0004/0005).
 
-Tempo: colunas `timestamp[ns]` **sem fuso**; o fuso de cada dataset/coluna é **declarado no `manifest.json`** (`timezone`, ADR-0037). Store atual: carga e clima observado `Etc/GMT+3` (−03:00 fixo, sem horário de verão), `weather_forecast.valid_time` `Etc/GMT+3`, `weather_forecast.issue_time` `UTC`. ⚠ Lidas numa sessão R com o fuso do host, essas colunas aparecem deslocadas.
+Tempo: colunas `timestamp[ns]` **sem fuso**; o fuso de cada dataset/coluna é **declarado no `manifest.json`** (`timezone`, ADR-0037). Store atual: carga e clima observado `Etc/GMT+3` (−03:00 fixo; ⚠ o store histórico está em relógio de parede BRT **com horário de verão até 2019**, então a leitura como `Etc/GMT+3` erra 1 h no verão 2018-19), `weather_forecast.valid_time` `Etc/GMT+3`, `weather_forecast.issue_time` `UTC`. ⚠ Lidas numa sessão R com o fuso do host, essas colunas aparecem deslocadas.
 
 ## `manifest.json`
 Arquivo na raiz do `data_dir`, lido **só** pelo leitor único (`prevcarga_deck_manifest()`, M2.1). Schema **v1 fechado**:
@@ -99,7 +99,11 @@ Mantido como rede de segurança explícita.
 ## Contrato de emissão do clima previsto (ADR-0003)
 - `issue_time` preserva o **instante** de emissão (até 4 rodadas/dia, 6-em-6h a partir de 00 UTC). É o único
   campo em UTC; `valid_time` e a grade estão em −03:00 (fusos declarados no manifest, ADR-0037).
-- **Não** reatribuir `issue_time` de `dat_referencia` (erro da migração legada que matava 06/12/18Z).
+- `issue_time` deste TEMPPREVHIST = `dat_referencia` 00:00 UTC (data real da emissão; uma emissão por dia no store atual).
+  Exceção medida: de 2018-12-23 a 2021-03-27 o `din_origemprevisaoutc` está +1 dia (824 emissões de SP);
+  por isso a origem é `dat_referencia`, não `din_origemprevisaoutc`.
+- Cobertura do horizonte: um dia coberto tem os **48 instantes** de 30 min (00:00..23:30), sem tolerância para o 23:30, até O+9 23:30.
+  Faltando instantes, o forecast corta o horizonte dos membros que dependem de clima, com aviso classificado `forecast_weather_horizon_cut`.
 - Corte intradiário (ADR-0007): usar a emissão mais fresca com `issue_time ≤ instante de corte`.
 - **A desenhar no M5:** regra explícita de **dia-de-origem** da rodada + cálculo de horizonte **UTC-safe**
   (evita o horizonte negativo do relabel ingênuo). Ver [[clima-previsto-emissoes]] na memória.
@@ -112,7 +116,7 @@ Mantido como rede de segurança explícita.
 | `load_mwh` | `val_carga` *(fallback y-true tolerante: `load_mw`,`carga`,`carga_mwmed`,`val_cargacons`,`MW`)* |
 | `temperature` | `val_tmp` |
 | `valid_time` (forecast) | `din_referencia` |
-| `issue_time` (forecast) | `din_origemprevisaoutc` **(preservado no instante, não reatribuído)** |
+| `issue_time` (forecast) | `dat_referencia` 00:00 UTC *(ver exceção do `din_origemprevisaoutc`)* |
 | `date` (holidays) | `dat_diaespecial` |
 | `holiday_type_id` | `id_tipodiaespecial` |
 | `prevcarga_code` | `cod_prevcarga` |
