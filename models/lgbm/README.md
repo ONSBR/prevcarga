@@ -77,7 +77,7 @@ A entrega e O (apos o corte) e O+1, casada por posicao com a grade da fundacao. 
 ## Paridade (golden.lock)
 
 Delta = 0 contra o oraculo (limiar 1e-5 MW, mesma plataforma): `values` 2 x 48 e `delivery` por `prevcarga_parity_compare`.
-`models/lgbm/tests/parity/golden.lock` (versionado; o golden em `.state/golden` e gitignored) tem sha256 56915e70ca9871df94ebc33d3473a2b964663112ffee5f0c28cd9438e1307703.
+`models/lgbm/tests/parity/golden.lock` (versionado; o golden em `.state/golden` e gitignored) tem sha256 0a06c3285063c5c97a21049b85438224e575fdbe444bb1e907a2c57873a656ac.
 Oraculo travado em `c4af7378cc767c46f95ce0f09d961fe84fb7f141`. Resultado do `--tier parity-full` do fechamento (LGBM.6): `--tier parity-full` exit 0 (smoke + foundation + fanout + controls; `paridade`, `paridade_control` e `gate_adequacao_add` PASS, Delta <= 1e-5 MW), tambem apos a troca de `force_tz`/`with_tz` por `make_datetime`/`as_date(tz=)`.
 
 ## Desvios conscientes do oraculo

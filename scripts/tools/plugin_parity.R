@@ -324,6 +324,12 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
     h <- unit$cuts[[phase]]$history_start
     if (is.null(h)) default else as.integer(origin - lubridate::ymd(h))
   }
+  ## plugin origem-escopado sem janela propria da fase (HW): o despachante `forecast` (treino + infer sobre UM painel lido em O, janela
+  ## [O - history_days, O]), como o HW roda em producao; o treino em last_data_day deslocaria a janela em 1 dia
+  if (identical(row$split, "origin_scoped") && !eq) {
+    fc_cuts <- c(cuts, list(horizon_days = row$horizon_days, data_lag_days = row$data_lag_days))
+    return(prevcarga_plugin_forecast(plugin, read(unit$origin, hist("train", unit$origin, sp$history_days$train)), fc_cuts, sp, list()))
+  }
   art <- prevcarga_plugin_train(plugin, read(row$last_data_day, hist("train", row$last_data_day, sp$history_days$train)), c(cuts, list(spec = sp, phase = "train")), sp, list())
   prevcarga_plugin_infer(plugin, art, read(unit$origin, hist("infer", unit$origin, sp$history_days$infer) + (if (eq) 1L else 0L)), c(cuts, list(spec = sp, phase = "infer")), list())
 }
