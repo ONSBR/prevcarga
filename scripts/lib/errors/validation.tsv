@@ -14,3 +14,4 @@ window.window_infer_deficit	window	historico de inferencia menor que history_day
 warning.outlier	contract	intervalo de carga desvia mais de 30% da mediana dos vizinhos e do mesmo horario em +-7 dias (aviso)	confira o intervalo indicado em detail; nao reprova o deck
 warning.flatline	contract	carga identica por 6 ou mais intervalos seguidos (aviso)	confira se a serie congelou na origem; nao reprova o deck
 warning.climate_after_cut	contract	deck tem emissao de clima do dia da origem apos o limite de emissao (aviso)	o leitor ja exclui a emissao; confira a regra weather_issue_cutoff
+warning.temperature_jump	contract	temperatura varia mais de 10 graus C entre horas consecutivas (aviso)	confira o ingest do clima no instante indicado em detail; nao reprova o deck

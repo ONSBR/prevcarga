@@ -82,7 +82,8 @@ MUTATIONS <- list(
   mx_row("load_nonpositive", function(d) pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:30:00"), load_mwh := 0]),
          "contract", also = "outlier"),                  # 0 MW e tambem outlier (aviso)
   mx_row("temperature_out_of_range", function(d) pc_mut_weather(d, "weather_observed", function(dt)
-           dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:00:00"), temperature := 60]), "contract"),
+           dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:00:00"), temperature := 60]), "contract",
+         also = "temperature_jump"),                      # 60 C tambem e salto de temperatura (aviso)
   mx_row("code_negative",    function(d) pc_mut_holiday(d, "simplified_code", -1L), "contract"),
   ## completude
   mx_row("day_incomplete",   function(d) pc_mut_load(d, function(dt) dt[!(area_code == "SECO" & timestamp == mx_stamp("2026-09-11 10:30:00"))]),
@@ -101,6 +102,8 @@ MUTATIONS <- list(
   mx_row("flatline",         function(d) pc_mut_load(d, function(dt) dt[area_code == "S" & timestamp >= mx_stamp("2026-09-15 10:30:00") &
                                                                         timestamp < mx_stamp("2026-09-15 13:30:00"), load_mwh := 1024.5]),   # nivel da area S (1000 + slot): sem outlier nas bordas
          "contract", "warning"),
+  mx_row("temperature_jump", function(d) pc_mut_weather(d, "weather_observed", function(dt)
+           dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:00:00"), temperature := temperature + 15]), "contract", "warning"),
   mx_row("climate_after_cut", function(d) { pc_mut_issue(d, 12L); pc_deck_until(d, mx_at("2026-10-01 08:30")) }, "contract", "warning"),
   mx_row("available_until_spread", function(d) { pc_mut_issue(d, 0L); pc_deck_until(d, mx_at("2026-10-01 08:30"))
                                                  pc_deck_drop(d, "S", mx_at("2026-10-01 08:00")) }, "completude", "warning",

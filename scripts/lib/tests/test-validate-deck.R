@@ -198,3 +198,10 @@ test_that("verbo auto-registrado: sai da lista de stubs e o usage traz --origin 
   sys.source(file.path(pc_root(), "scripts", "lib", "cli", "validate-deck.R"), envir = env)
   expect_true("prevcarga_verb_validate_deck" %in% ls(env))
 })
+
+test_that("89,7 C no previsto: contract.temperature_out_of_range exit 2; sem ela exit 0", {
+  d <- vd_clean(); pc_mut_weather(d, "weather_forecast", function(dt) { dt[which(dt$issue_time == lubridate::ymd_hms("2026-10-01 12:00:00", tz = "UTC"))[1L], temperature := 89.7]; dt })
+  r <- run_v(root0, c("validate-deck", "--data", d, "--format", "json"))
+  expect_identical(r$code, 2L); expect_identical(jdoc(r)$error$id, "contract.temperature_out_of_range")
+  expect_identical(run_v(root0, c("validate-deck", "--data", vd_clean(), "--format", "json"))$code, 0L)
+})
