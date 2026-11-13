@@ -130,6 +130,7 @@ Todo gate [PLUGINS] do tier tem de passar (exit 0); [DEFERRED Mx] aparece como S
 | `clima_limite` | - | `test-weather.R` | [PLUGINS] |
 | `clima_safra` | - | `test-weather.R` | [PLUGINS] |
 | `heat_area` | - | `test-heat-area.R` | [PLUGINS] |
+| `delivery_grid_cut` | - | `test-delivery-grid-cut.R` | [PLUGINS] |
 | `gate10_determinismo` | gate10 | `test-determinism.R` | [PLUGINS] |
 | `aditividade_epico` | - | `test-additivity.R` | [PLUGINS] |
 | `higiene` | - | `test-additivity.R` | [PLUGINS] |

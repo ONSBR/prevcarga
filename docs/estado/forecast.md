@@ -145,3 +145,19 @@
 - Membro ausente por clima curto (RF, `weather_cut = "absent"`) vira `warning.forecast_member_absent` (`error_id = completude.weather_forecast_short`); nenhuma linha dele.
 - DESSEM (e RF) com clima curto ficam ausentes (`weather_cut = absent`); LGBM corta e HW entrega inteiro; de O+4 em diante a combina usa so os que cobrem o lead.
 - Teste: `scripts/lib/tests/test-forecast_weather_cut.R` (stubs de dependencia; o fixture m6f tem 3 membros: RF faz o papel de DESSEM ausente, LGBM o do membro que corta, HW o do univariado; FORBIDDEN com clima completo = DESSEM presente).
+
+## Verificacao do epico 3 (F3.8): matriz de escopo, tolerancia, paralelismo e clima
+- `scripts/lib/tests/test-forecast_matrix.R`: 12 linhas pairwise (escopo area/subsistema/sin x membro ausente nenhum/um/folha vazia x pesos
+  treinados/EQW x clima O+9/O+3 x `--jobs` 1/2) sobre o fixture m6f, rodando `prevcarga_forecast` de verdade. O espiao de infer fica numa COPIA do
+  lib (`ctx$lib_dir`), entao vale igual no processo e nos workers PSOCK; usa o leitor e o corte de clima REAIS com descriptors-stub (RF = DESSEM-like,
+  `weather_cut = absent`, offset 60; LGBM = truncate; HW = sem clima). Nenhum modelo real treina ou infere. Pesos EQW = `combina/<folha>/latest.txt` removido.
+- Invariantes verificadas em toda linha: nenhum subsistema/SIN com folha ausente ou fora do plano; folha vazia em subsistema/sin aborta
+  `completude.forecast_leaf_no_member` (exit 3) sem scratch; escopo area com folha vazia sai `partial.forecast_leaf_absent` (exit 14) com as demais
+  entregues; nenhuma linha de membro alem de O + `delivery_days_efetivo` 00:00 (nenhum dia de clima persistido); com clima O+3 o RF (DESSEM-like) fica
+  ausente, o LGBM entrega ate O+4 00:00 e `clima_previsto_ate = O+3`. Cada linha com jobs = 2 e re-rodada com jobs = 1 (state separado): versao, run_id,
+  sha256 de arquivos[] e do run_manifest.json identicos.
+- Comportamento verificado = decisao F3.7 (DESSEM so com horizonte inteiro; clima curto => `completude.weather_forecast_short` e membro ausente), nao o
+  texto original do ticket, que previa o DESSEM cortando.
+- Comandos (um arquivo por vez, R 4.5.3, nada de `run_all_gates.R` de plugin nem `run_suite` do diretorio inteiro, que traz o e2e de 8 membros reais):
+  `Rscript -e 'testthat::test_file("scripts/lib/tests/test-forecast_matrix.R")'`; os 8 testes do epico + `test-errors-catalog-sync.R`; as unidades do 3.7
+  (`test-engine-feriados-exogena.R`, `test-exo-prev-cut.R` do dessem-regdin e do dessem-linear, `test-delivery-grid-cut.R` do lgbm).
