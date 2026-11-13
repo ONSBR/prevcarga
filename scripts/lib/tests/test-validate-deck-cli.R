@@ -33,6 +33,7 @@ m2_build <- function(n = 40, areas = c("RS", "RJ")) {
   days <- seq(lubridate::ymd("2026-10-01") - (n - 1L), lubridate::ymd("2026-10-01"), by = "day")
   pc_deck_sentinel("end", days = days, areas = areas, dir = d)
   .pc_deck_write(m2_holidays(areas), d, file.path("auxiliary", "holidays"), character(), "date")
+  pc_deck_forecast_extend(d, max(days), max(days) + 9L)       # F6.4: clima previsto ate O+9, senao o deck "limpo" emite warning.weather_forecast_coverage
   d
 }
 .m2_tpl <- new.env()

@@ -276,8 +276,9 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   if (length(m) == 2L) m[[2L]] else "generic"
 }
 
-## Relogio so da apresentacao (stderr): nunca entra em chave, ledger, plan.json ou result. Unica leitura de relogio do M7.
-.m7_now <- function(ctx) if (is.function(ctx$clock)) ctx$clock() else Sys.time()
+## Cronometro so da apresentacao (stderr): segundos decorridos monotonicos (nao e data nem leitura de relogio de parede); nunca entra em
+## chave, ledger, plan.json ou result. Injetavel por ctx$clock (funcao sem argumento que devolve segundos numericos).
+.m7_now <- function(ctx) if (is.function(ctx$clock)) ctx$clock() else proc.time()[["elapsed"]]
 .m7_fmt_dur <- function(s) {
   s <- as.integer(round(s)); h <- s %/% 3600L; m <- (s %% 3600L) %/% 60L; x <- s %% 60L
   if (h > 0L) sprintf("%dh%02dm%02ds", h, m, x) else sprintf("%dm%02ds", m, x)
@@ -296,7 +297,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
 .m7_progress <- function(ctx, acc, total, cell = NULL) {
   if (is.function(ctx$progress)) ctx$progress(acc$done, total)
   else message(.m7_progress_line(acc$done, total, acc$failed, acc$processed,
-                                 as.numeric(difftime(.m7_now(ctx), acc$t0, units = "secs")), cell))
+                                 .m7_now(ctx) - acc$t0, cell))
   invisible(NULL)
 }
 

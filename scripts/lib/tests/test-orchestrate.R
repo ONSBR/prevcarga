@@ -406,7 +406,6 @@ test_that("[AC6][AC7] greps: sem lista inline de modelos, sem literal de contage
   code <- src[!grepl("^\\s*##", src)]
   expect_false(any(grepl("c\\(\"holt-winters\"|refit_per_origin|random-forest|lgbm|dessem", code)))
   expect_false(any(grepl("\\b192\\b|\\b8L\\b|\\b5L\\b|== ?24\\b", code)))
-  code <- code[!grepl("^\\.m7_now <- function\\(ctx\\) if \\(is\\.function\\(ctx\\$clock\\)\\)", code)]   # F2.5: unica leitura de relogio
   expect_false(any(grepl("Sys.getenv|Sys.setenv|Sys.time|Sys.Date|lubridate::now|quit\\(|mclapply|system2|symlink|Sys.readlink", code)))
   ## CONTROL: o grep acusa uma lista inline plantada
   expect_true(grepl("c\\(\"holt-winters\"", "x <- c(\"holt-winters\", \"lgbm\")"))
@@ -470,8 +469,8 @@ test_that("[F2.4 FORBIDDEN] plan: cortes, limites e cache_key identicos ao camin
 
 ## --- F2.5: progresso com ETA, falhas e ultima celula (so apresentacao, stderr) --------------------------------------
 mk_clock <- function(step = 60) {
-  t <- lubridate::ymd_hms("2026-10-01 00:00:00", tz = "UTC")
-  function() { t <<- t + step; t }
+  t <- 0
+  function() { t <<- t + step; t }          # segundos decorridos injetados (nunca o relogio real)
 }
 f25_boom <- function(cell) if (cell$origem == O1 && cell$membro == "MA" && cell$folha == "A")
   stop("[prevcarga/window] historico curto") else data.frame(x = 1L)

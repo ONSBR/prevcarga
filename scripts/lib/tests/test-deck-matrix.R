@@ -215,3 +215,36 @@ test_that("[CONTROL] cobertura tem dente: tirar uma linha de MUTATIONS acusa o w
                "g <- function() prevcarga_abort('completude.outro_inventado', where = 'x')"), bait)
   expect_setequal(mx_emitted_whats(bait), c("what_inventado", "outro_inventado"))
 })
+
+## ---- epico validate-deck (F6.5): nivel e classe por what novo; cobertura com dente para os 3 whats novos --------------------------
+MX_EPIC_LEVELS <- data.frame(
+  what  = c("outlier", "temperature_jump", "weather_non_leaf", "weather_forecast_coverage", "temperature_out_of_range"),
+  class = c("contract", "contract", "topology", "completude", "contract"),
+  level = c("warning", "warning", "warning", "warning", "error"), stringsAsFactors = FALSE)
+test_that("epico validate-deck: cada what novo tem linha CONTROL com classe e nivel certos (temperature_out_of_range = error/contract)", {
+  for (i in seq_len(nrow(MX_EPIC_LEVELS))) {
+    w <- MX_EPIC_LEVELS$what[i]; k <- match(w, MX_WHATS)
+    expect_false(is.na(k), label = paste("linha ausente:", w))
+    if (is.na(k)) next
+    r <- MUTATIONS[[k]]
+    expect_identical(c(r$class, r$level), c(MX_EPIC_LEVELS$class[i], MX_EPIC_LEVELS$level[i]), label = r$what)
+  }
+})
+
+test_that("[CONTROL] o teste de nivel acusa uma linha divergente pelo nome", {
+  bad <- MX_EPIC_LEVELS; bad$level[bad$what == "outlier"] <- "error"
+  r <- MUTATIONS[[match("outlier", MX_WHATS)]]
+  expect_false(identical(c(r$class, r$level), c(bad$class[1L], bad$level[1L])))
+})
+
+test_that("cobertura acusa cada what novo quando a linha some (dente para os 3 whats novos)", {
+  lib <- file.path(pc_root(), "scripts", "lib")
+  emitted <- mx_emitted_whats(file.path(lib, c("validation.R", "deck_reader.R")))
+  for (w in c("temperature_jump", "weather_non_leaf", "weather_forecast_coverage")) {
+    expect_true(w %in% emitted, label = w)
+    expect_true(w %in% MX_WHATS, label = w)
+    ## sem a linha, o what sai de MX_WHATS e entra em `missing` (a mesma conta do teste de cobertura)
+    expect_true(w %in% setdiff(emitted, setdiff(MX_WHATS, w)), label = w)
+    expect_identical(setdiff(emitted, c(setdiff(MX_WHATS, w), names(MX_EXEMPT))) %in% w, TRUE, label = w)
+  }
+})
