@@ -10,13 +10,17 @@
 ## contada ate o `last_data_day` de cada membro (O-1, ou O-3 no LGBM via `data_lag_days`) e janela de
 ## INFERENCIA ate O-1, como findings distintos; historicos vem do `run.yaml` (`history_days`).
 ## Classes (ADR-0040): contract, completude, topology, window; avisos (level warning) nao reprovam.
+## O outlier de carga e LOCAL (vizinhos +-2 e mesmo horario em +-7 dias, desvio > 30% nos dois), so aviso.
 ## Requer errors.R, topology.R, config.R, deck_reader.R e dates.R carregados antes. Saida: ASCII puro.
 
 ## --- 1. Vocabulario do veredito -----------------------------------------------------------------------
 prevcarga_temp_range_c <- c(-10, 50)
-prevcarga_iqr_k <- 1.5
-prevcarga_z_max <- 3.0
 prevcarga_flatline_min_slots <- 6L
+## V1 outlier local: +-neigh intervalos vizinhos (sem x) e mesmo interval_start em d+-1..k dias
+prevcarga_outlier_neigh_slots <- 2L
+prevcarga_outlier_days_k <- 7L
+prevcarga_outlier_rel <- 0.30
+prevcarga_outlier_min_days <- 3L
 
 .pc_empty_findings <- function() {
   data.table::data.table(area = character(), dataset = character(), what = character(), detail = character(),
@@ -275,12 +279,29 @@ prevcarga_flatline_min_slots <- 6L
 }
 
 ## --- 6. Avisos heuristicos --------------------------------------------------------------------------------
-.prevcarga_outlier_flat <- function(x) {
-  q <- stats::quantile(x, c(.25, .75), na.rm = TRUE, names = FALSE); iqr <- q[[2L]] - q[[1L]]
-  z <- (x - mean(x, na.rm = TRUE)) / stats::sd(x, na.rm = TRUE)
-  out <- (x < q[[1L]] - prevcarga_iqr_k * iqr | x > q[[2L]] + prevcarga_iqr_k * iqr) & abs(z) > prevcarga_z_max
+## Outlier LOCAL (so aviso): x desvia mais de `prevcarga_outlier_rel` da mediana dos vizinhos (+-neigh, sem x) E da
+## mediana do mesmo interval_start em d+-1..k dias (lookup por igualdade de instante). So avalia x com >= min_days
+## referencias de dia. Entrada: data.table de UMA area, ordenada, sem NA/duplicata. Saida: posicoes marcadas.
+.prevcarga_outlier_local <- function(s) {
+  x <- s$load_mwh; n <- length(x); k <- prevcarga_outlier_neigh_slots
+  if (n < 2L) return(integer(0))
+  ref_viz <- vapply(seq_len(n), function(i) {
+    j <- setdiff(max(1L, i - k):min(n, i + k), i); stats::median(x[j])
+  }, numeric(1))
+  off <- c(-(prevcarga_outlier_days_k:1L), 1:prevcarga_outlier_days_k)
+  refs <- data.table::rbindlist(lapply(off, function(o)
+    data.table::data.table(i = seq_len(n), t = s$interval_start + lubridate::days(o))))
+  base <- data.table::data.table(t = s$interval_start, ld = x)
+  refs <- base[refs, on = "t", nomatch = NULL][, list(ref = stats::median(ld), nd = .N), by = "i"]
+  ref_dia <- rep(NA_real_, n); nd <- integer(n)
+  ref_dia[refs$i] <- refs$ref; nd[refs$i] <- refs$nd
+  rel <- prevcarga_outlier_rel
+  which(nd >= prevcarga_outlier_min_days & abs(x / ref_viz - 1) > rel & abs(x / ref_dia - 1) > rel)
+}
+
+.prevcarga_flatline <- function(x) {
   r <- rle(x)
-  list(outlier = which(out), flatline = any(r$lengths >= prevcarga_flatline_min_slots, na.rm = TRUE))
+  any(r$lengths >= prevcarga_flatline_min_slots, na.rm = TRUE)
 }
 
 .prevcarga_check_heuristics <- function(load) {
@@ -291,11 +312,11 @@ prevcarga_flatline_min_slots <- 6L
   for (a in unique(v$area_code)) {
     s <- v[v$area_code == a]
     if (nrow(s) < 2L) next
-    r <- .prevcarga_outlier_flat(s$load_mwh)
-    if (length(r$outlier))
-      out[[length(out) + 1L]] <- .pc_finding(a, "load", "outlier", sprintf("%d intervalos; primeiro: %s", length(r$outlier),
-        format(s$interval_start[r$outlier[1L]], "%Y-%m-%d %H:%M")), "contract", level = "warning", where = "load")
-    if (r$flatline)
+    idx <- .prevcarga_outlier_local(s)
+    if (length(idx))
+      out[[length(out) + 1L]] <- .pc_finding(a, "load", "outlier", sprintf("%d intervalos; primeiro: %s", length(idx),
+        format(s$interval_start[idx[1L]], "%Y-%m-%d %H:%M")), "contract", level = "warning", where = "load")
+    if (.prevcarga_flatline(s$load_mwh))
       out[[length(out) + 1L]] <- .pc_finding(a, "load", "flatline", sprintf(">= %d intervalos identicos", prevcarga_flatline_min_slots),
                                              "contract", level = "warning", where = "load")
   }

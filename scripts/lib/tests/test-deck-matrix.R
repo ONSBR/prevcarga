@@ -96,10 +96,10 @@ MUTATIONS <- list(
   mx_row("window_train_deficit", function(d) invisible(NULL), "window", opts = list(root = root_hw60, scope = list(model = "holt-winters"))),
   mx_row("window_infer_deficit", function(d) invisible(NULL), "window", opts = list(root = root_hw45, scope = list(model = "holt-winters"))),
   ## avisos (level warning; nao reprovam)
-  mx_row("outlier",          function(d) pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-20 12:00:00"), load_mwh := 1e6]),
+  mx_row("outlier",          function(d) pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-20 12:00:00"), load_mwh := 28]),
          "contract", "warning"),
   mx_row("flatline",         function(d) pc_mut_load(d, function(dt) dt[area_code == "S" & timestamp >= mx_stamp("2026-09-15 10:30:00") &
-                                                                        timestamp < mx_stamp("2026-09-15 13:30:00"), load_mwh := 1024.5]),
+                                                                        timestamp < mx_stamp("2026-09-15 13:30:00"), load_mwh := 1024.5]),   # nivel da area S (1000 + slot): sem outlier nas bordas
          "contract", "warning"),
   mx_row("climate_after_cut", function(d) { pc_mut_issue(d, 12L); pc_deck_until(d, mx_at("2026-10-01 08:30")) }, "contract", "warning"),
   mx_row("available_until_spread", function(d) { pc_mut_issue(d, 0L); pc_deck_until(d, mx_at("2026-10-01 08:30"))

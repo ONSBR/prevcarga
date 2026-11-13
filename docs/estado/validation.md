@@ -15,7 +15,7 @@
   `day_incomplete` (!= 48 por dia de `interval_start`, `prevcarga_day_complete`) conta do primeiro dia presente de cada area em diante: dias anteriores ao inicio do deck sao deficit de JANELA, nao buraco.
 - Classes: contract (`schema_missing`, `type_mismatch`, `tz_in_parquet`, `hive_layout`, `parquet_unreadable`, `dataset_missing`, `grid_off`, `duplicate_interval`, `load_nonpositive`,
   `temperature_out_of_range` -10..50 C, `code_negative`, manifest/fuso/`load_label_conflict`), completude (`day_incomplete`, `origin_day_gap`, `no_load`), topology (`area_undeclared`, `scope_undeclared`),
-  window (`window_train_deficit` ate `last_data_day` do membro; `window_infer_deficit` ate O-1; um finding por membro, area e tipo). Avisos (level warning, nao reprovam): `outlier` (IQR 1.5x e |z| > 3), `flatline` (>= 6 identicos),
+  window (`window_train_deficit` ate `last_data_day` do membro; `window_infer_deficit` ate O-1; um finding por membro, area e tipo). Avisos (level warning, nao reprovam): `outlier` local por area (|x/ref_viz - 1| > 0.30 E |x/ref_dia - 1| > 0.30; ref_viz = mediana de +-2 vizinhos sem x, ref_dia = mediana do mesmo interval_start em d+-1..7, minimo 3 dias; constantes `prevcarga_outlier_neigh_slots`=2, `prevcarga_outlier_days_k`=7, `prevcarga_outlier_rel`=0.30, `prevcarga_outlier_min_days`=3), `flatline` (>= 6 identicos),
   `climate_after_cut` (emissao do dia O apos `weather_issue_limit`, nas duas regras), `available_until_spread`.
 - Premissas: a referencia nao preenche com zero (carga NA/0 reprova); completude flat-48; sem faixa de MW por subsistema; sem monotonicidade.
 - Catalogo: `scripts/lib/errors/validation.tsv` (15 ids proprios; os demais vem de `deck_reader.tsv`, `dates.tsv`, `deck_cut.tsv`, `topology.tsv`).

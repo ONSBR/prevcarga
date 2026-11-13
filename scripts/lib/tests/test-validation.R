@@ -272,7 +272,7 @@ test_that("dataset ausente aparece como dataset_missing e nao cascateia findings
 vd_warn_deck <- function(issues = 12L, flat = 6L, env = parent.frame()) {
   d <- vd_deck(env = env)
   pc_mut_load(d, function(dt) {
-    dt[area_code == "SECO" & timestamp == stamp("2026-09-20 12:00:00"), load_mwh := 1e6]
+    dt[area_code == "SECO" & timestamp == stamp("2026-09-20 12:00:00"), load_mwh := 28]
     hi <- if (flat == 6L) "2026-09-15 13:30:00" else "2026-09-15 13:00:00"
     dt[area_code == "S" & timestamp >= stamp("2026-09-15 10:30:00") & timestamp < stamp(hi), load_mwh := 1024.5]
     dt
@@ -295,6 +295,43 @@ test_that("AC5 outlier, flatline, climate_after_cut (12Z, available_until) e ava
   ## origin_midnight_utc: 12Z (09:00) segue tardia
   v2 <- vd_run(vd_ctx(d, root0, cutoff = "origin_midnight_utc"), origin = O)
   expect_true(v2$ok); expect_true(has(v2, "climate_after_cut", level = "warning"))
+})
+
+## --- V1 outlier local (unidade, series sinteticas em memoria) ------------------------------------------------------
+vo_mk <- function(days = 21L, f = function(t, slot) 2480 + 200 * sin(2 * pi * slot / 48)) {
+  t <- lubridate::ymd_hm("2026-09-01 00:00", tz = TZ) + lubridate::minutes(30L * (0:(48L * days - 1L)))
+  slot <- (seq_along(t) - 1L) %% 48
+  data.table::data.table(interval_start = t, load_mwh = f(t, slot))
+}
+vo_day <- function(s, d) lubridate::as_date(s$interval_start, tz = TZ) == lubridate::ymd(d)
+
+test_that("V1 outlier local: 28 entre 2480 marcado; feriado 30% e fim de semana nao", {
+  s <- vo_mk(); s[200L, load_mwh := 28]
+  expect_identical(venv$.prevcarga_outlier_local(s), 200L)
+  h <- vo_mk(); h[vo_day(h, "2026-09-10"), load_mwh := load_mwh * 0.7]
+  expect_length(venv$.prevcarga_outlier_local(h), 0L)
+  w <- vo_mk(); w[lubridate::wday(interval_start) %in% c(1L, 7L), load_mwh := load_mwh * 0.85]
+  expect_length(venv$.prevcarga_outlier_local(w), 0L)
+})
+
+test_that("V1 outlier local: rampa diaria repetida nao e marcada; horario com < 3 dias de referencia nao e avaliado", {
+  r <- vo_mk(f = function(t, slot) ifelse(slot %in% 20:23, 2000 * (1 + 0.4 * (slot - 19) / 4), 2000))
+  expect_length(venv$.prevcarga_outlier_local(r), 0L)
+  ## 6 dias: o ultimo slot do dia 3 tem so 5 referencias; com 2 dias ha < min_days => nao avaliado
+  s <- vo_mk(days = 3L); s[100L, load_mwh := 28]
+  expect_length(venv$.prevcarga_outlier_local(s), 0L)
+})
+
+test_that("V1 vocabulario: constantes antigas sumiram, 4 novas com defaults; catalogo ASCII local", {
+  expect_false(exists("prevcarga_iqr_k", envir = venv, inherits = FALSE))
+  expect_false(exists("prevcarga_z_max", envir = venv, inherits = FALSE))
+  expect_identical(venv$prevcarga_outlier_neigh_slots, 2L)
+  expect_identical(venv$prevcarga_outlier_days_k, 7L)
+  expect_identical(venv$prevcarga_outlier_rel, 0.30)
+  expect_identical(venv$prevcarga_outlier_min_days, 3L)
+  cat <- venv$prevcarga_errors_load()
+  msg <- cat$message[cat$id == "warning.outlier"]
+  expect_length(msg, 1L); expect_false(grepl("[^\x01-\x7F]", msg, perl = TRUE)); expect_match(msg, "vizinhos")
 })
 
 test_that("AC5 flatline: fronteira 5 x 6 intervalos identicos", {
