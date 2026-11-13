@@ -65,11 +65,11 @@ plugin_constants <- function() list(
   issue_day_tz = "UTC", lead_train = 0L, lead_target = 1L,
   ## historia minima do infer: janela wavelet (32 meias-horas) + shift CarWav (2 dias) + lag de O-1
   min_history_days_infer = 4L,
-  ## area -> area da serie de clima (data_adapter.R:130-150); area fora da tabela => contract
+  ## area -> area da serie de clima (data_adapter.R:130-150; BASE como o legado ANN_PVDS.R:30-32 e o fallback do oraculo); area fora da tabela => contract
   heat_area = c(MS = "MS", RS = "RS", PR = "PR", MG = "MG", S = "RS", SP = "SP", SECO = "SP",
                 RJ = "RJ", ES = "ES", SC = "SC", GO = "GO", MT = "MT", DF = "DF", AC = "AC", RO = "RO",
                 N = "AM", NE = "CE", AM = "AM", PA = "PA", MA = "MA", TON = "TON", AP = "AP",
-                ALPE = "ALPE", PBRN = "PBRN", BAOE = "BAOE", CE = "CE", PI = "PI", RR = "RR"),
+                ALPE = "ALPE", PBRN = "PBRN", BAOE = "BAOE", CE = "CE", PI = "PI", RR = "RR", BASE = "BASE"),
   ## feriados nacionais fixos 2022-2025 (data_adapter.R:321-339); datas civis, sem deslocamento
   holidays_fixed = lubridate::ymd(c(
     "2022-01-01", "2022-02-28", "2022-03-01", "2022-04-15", "2022-04-21", "2022-05-01",
