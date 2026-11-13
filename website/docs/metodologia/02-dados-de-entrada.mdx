@@ -41,7 +41,7 @@ fontes:
   - models/_dessem-engine/R/exogena.R
 adrs: [ADR-0002, ADR-0004, ADR-0005, ADR-0023, ADR-0024, ADR-0035, ADR-0037, ADR-0040]
 revisado_em: 2026-11-13
-commit_base: "f2d1734"
+commit_base: "5c48c00"
 ---
 
 <span className="pc-overline">Metodologia · 1.2</span>
@@ -181,5 +181,5 @@ O deck aprovado não é alterado. Os tratamentos de cada modelo moram na ingest�
 Um buraco antes do corte é reprovado pela validação do deck antes de chegar a esses tratamentos. Alguns plugins também conferem de novo o painel e abortam com erro próprio quando um dia de histórico chega incompleto: o `lgbm.completude` cobre os dias do histórico do LGBM, e o `hw.last_day_incomplete` cobre só o dia O−1 do HW. O detalhe de cada tratamento está nas páginas dos modelos, a partir da [visão geral dos modelos](/metodologia/modelos-visao-geral).
 
 <Pendente titulo="Pendente · manifest do store real">
-O store real ainda não tem `manifest.json`, e o leitor aborta com `contract.manifest_missing` até o store ser regravado. O template versionado `config/deck-manifest.store.json` (rótulo `start`, fuso `Etc/GMT+3`, `issue_time` em UTC, atraso de 6 horas) tem valores ainda a confirmar.
+O store real ainda não tem `manifest.json`, e o leitor aborta com `contract.manifest_missing` até o store ser regravado. O template versionado `config/deck-manifest.store.json` declara rótulo `start`, fuso `Etc/GMT+3`, `issue_time` em UTC e atraso de 6 horas. O deck novo gerado pelo conversor já tem manifest, com `load_label: end` (a fonte rotula a carga pelo início do intervalo e o conversor grava o carimbo + 30 min): o rótulo está confirmado. Resta a ressalva do fuso: o store está em relógio de parede BRT com horário de verão até 2019, e `Etc/GMT+3` erra o `issue_time` em 1 hora no verão 2018-19.
 </Pendente>

@@ -28,8 +28,8 @@ fontes:
   - docs/estado/deck_reader.md
   - docs/reference/DECK-CANONICO.md
 adrs: [ADR-0035, ADR-0037, ADR-0024, ADR-0040]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "5c48c00"
 ---
 
 <span className="pc-overline">Arquitetura · 2.12</span>
@@ -96,9 +96,9 @@ O template versionado do store é `config/deck-manifest.store.json`:
 }
 ```
 
-`Etc/GMT+3` é o fuso fixo de −03:00, sem horário de verão (no padrão IANA, o sinal do `Etc/GMT` é invertido). O utilitário de desenvolvimento `scripts/tools/write_store_manifest.R --target <copia>` grava esse template numa cópia ou overlay do store: valida pelo próprio leitor, não faz nada se o manifest existente for idêntico e aborta com `contract.manifest_exists_different` se for diferente.
+`Etc/GMT+3` é o fuso fixo de −03:00, sem horário de verão (no padrão IANA, o sinal do `Etc/GMT` é invertido). Ressalva do store: ele foi gravado em relógio de parede BRT com horário de verão até 2019, então no verão 2018-19 a emissão 00Z lida como `Etc/GMT+3` vira 21:00 em vez de 22:00, e o limite de emissão abre 1 hora antes da hora real, nos cortes 03:00 e 03:30. Até a opção de correção do fuso ser decidida, a limitação vale. O utilitário de desenvolvimento `scripts/tools/write_store_manifest.R --target <copia>` grava esse template numa cópia ou overlay do store: valida pelo próprio leitor, não faz nada se o manifest existente for idêntico e aborta com `contract.manifest_exists_different` se for diferente.
 
-<Pendente titulo="Pendente · manifest do store real">O store real em <code>data/</code> ainda não tem <code>manifest.json</code>, e o leitor aborta com <code>contract.manifest_missing</code> até ele ser gravado. Os valores do template estão registrados como "a confirmar" em <code>docs/estado/deck_reader.md</code>.</Pendente>
+<Pendente titulo="Pendente · manifest do store real">O store real em <code>data/</code> ainda não tem <code>manifest.json</code>, e o leitor aborta com <code>contract.manifest_missing</code> até ele ser gravado; o template versionado declara <code>load_label: start</code>. Já o deck novo gerado pelo conversor (por exemplo o deck 20261104) tem <code>manifest.json</code> com <code>load_label: end</code>, <code>Etc/GMT+3</code>, <code>issue_time</code> em UTC e atraso de 6 horas: o rótulo está confirmado (a fonte rotula a carga pelo início do intervalo e o conversor grava o carimbo + 30 min, declarando <code>end</code>). Falta só decidir o fuso de destino, pela ressalva do horário de verão acima.</Pendente>
 
 :::note O documento de referência está atrás do código
 O `docs/reference/DECK-CANONICO.md` ainda não lista `weather_forecast_publication_lag_hours` nem `timezone.dst_periods`, e diz que flag ou `config.yaml` em conflito com o manifest dão erro. No código, o atraso de publicação é obrigatório quando há clima previsto e só a flag `--load-label` entra no conflito. Esta página segue o `deck_reader.R`.
@@ -200,7 +200,7 @@ O clima previsto não é cortado por `valid_time`, e sim por emissão. `prevcarg
 
 Com o limite pronto, `prevcarga_freshest_issue` fica, por `(area_code, valid_time)`, com a emissão mais fresca cujo `issue_time` não passa do limite. A escolha é por `valid_time`, não por emissão inteira: uma emissão que começa depois de `00:00` do dia O não apaga as primeiras horas do dia, que vêm da emissão anterior. Nenhuma emissão posterior ao limite entra.
 
-Um exemplo com atraso de 6 h e uma emissão diária às 00Z: na rodada das 0h, `available_until = O 00:00` local, que é `O 03Z`; o limite é `O−1 21Z`, e entra a emissão 00Z de O−1. A partir de `O 03:00` local (`O 06Z`), o limite alcança `O 00Z`, com fronteira inclusiva, e entra a emissão 00Z de O.
+Um exemplo com atraso de 6 h e uma emissão diária às 00Z: na rodada das 0h, `available_until = O 00:00` local, que é `O 03Z`; o limite é `O−1 21Z`, e entra a emissão 00Z de O−1, que não cobre o horizonte inteiro até O+9. O clima previsto incompleto não bloqueia a rodada: o horizonte é cortado no último dia coberto, com `warning.forecast_weather_horizon_cut`, e os membros que não toleram a lacuna ficam ausentes (ver [Dados de entrada](/metodologia/dados-de-entrada)). A partir de `O 03:00` local (`O 06Z`), o limite alcança `O 00Z`, com fronteira inclusiva, e entra a emissão 00Z de O.
 
 ## API de leitura
 
@@ -256,6 +256,8 @@ Os feriados vêm sem janela de propósito: uma feature como dias desde o último
 | `weather_issue_cutoff` | previsto | regra usada: `available_until` ou `origin_midnight_utc` |
 | `weather_issue_limit` | previsto | limite de `issue_time` calculado pela regra |
 | `weather_publication_lag_hours` | previsto | atraso efetivo: o do manifest, ou 0 em `origin_midnight_utc` |
+| `weather_forecast_until` | previsto | por área: último dia coberto em sequência a partir de O, com os 48 instantes de 30 min (`NA` se O está incompleto) |
+| `weather_forecast_next` | previsto | por área: instantes consecutivos de `until`+1 a partir de 00:00, que o membro com deslocamento de modelagem precisa |
 
 O painel não sabe qual série de clima pertence a cada área do modelo: esse mapeamento é do plugin. Para os plugins com `weather_forecast_in_train`, `training.R` e `inference.R` trocam o `weather_forecast` do painel pelas safras de `prevcarga_read_forecast_vintages`, com o mesmo limite de emissão; ver [Despachante de plugin e fachadas de treino e inferência](/arquitetura/despachante).
 

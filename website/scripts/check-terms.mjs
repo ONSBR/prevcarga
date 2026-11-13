@@ -30,6 +30,11 @@ export const RULES = [
   { files: ['website/docs/metodologia/14-avaliacao.mdx'], forbid: /18:00\s*[-a]\s*23:00/, plant: 'ponta de 18:00 a 23:00', msg: 'ponta e 18:00-22:00' },
   { files: ['website/docs/metodologia/14-avaliacao.mdx'], require: /18:00\s*(?:a|-)\s*22:00/, msg: 'avaliacao cita a ponta 18:00-22:00' },
   { files: ['website/docs/metodologia/14-avaliacao.mdx'], require: /\bMAPE\b[\s\S]*\bWMAPE\b|\bWMAPE\b[\s\S]*\bMAPE\b/, msg: 'avaliacao mostra MAPE e WMAPE' },
+  { files: ['website/docs/metodologia/07-lightgbm.mdx'], require: /\bBASE\b/, msg: 'heat_area inclui BASE' },
+  { files: ['website/docs/metodologia/12-reconciliacao.mdx'], require: /incomplet[\s\S]*recus|recus[\s\S]*incomplet/i, msg: 'subsistema incompleto e recusado' },
+  { files: ['website/docs/metodologia/12-reconciliacao.mdx'], forbid: /Nota defasada|reutilizado em O/i, plant: 'Nota defasada no estado do modulo: perfil reutilizado em O', msg: 'nota defasada de k-hat removida' },
+  { files: ['website/docs/metodologia/13-backtest.mdx'], require: /retrain_harness/, msg: 'default dos origin_scoped e retrain_harness' },
+  { files: globMdx('website/docs'), forbid: /\bNT\b|MAPE medido/, plant: 'conforme a NT, o MAPE medido', msg: 'site nao cita a NT nem resultado medido' },
   ...['set-data-dir', '--artifacts-dir', '--jobs'].map((t) => ({ files: ['website/docs/execucao/12-referencia-cli.mdx'], require: new RegExp(t), msg: `referencia da CLI cita ${t}` })),
 ];
 

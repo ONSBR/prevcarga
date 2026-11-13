@@ -120,3 +120,6 @@
   `warning.combina_eqw` (where = area) e devolve `version_hash = "EQW"`, `weights`/`members_by_lead` NULL, `path` NA; nunca grava pesos. So o forecast liga o
   fallback; `combine --mode=apply` (sem o argumento) segue abortando `state.combina_not_trained` (13). `latest.txt` invalido e artefato de outro conjunto
   seguem abortando. Teste: `test-combination-eqw.R`.
+
+## Decisao registrada: mascara da combina (doc-vs-codigo combina-reconcilia-05)
+- A mascara de treino e pelo instante do alvo: `prevcarga_combina_train_mask` = `interval_start < inicio(m) & !is.na(y_true)`; o mes de origem e so o eixo de agrupamento, e os alvos de origens de m-1 que caem em m ficam fora. O site (`11-combina.mdx`) ja descreve assim. A descricao "por mes de origem" da NT e imprecisa; vale o codigo. Registrado como decisao; a NT nao e artefato do pacote.

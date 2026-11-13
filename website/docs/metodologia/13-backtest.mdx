@@ -33,13 +33,13 @@ fontes:
   - docs/adr/0006-backtest-honesto-corte-treino.md
   - docs/adr/0011-ciclo-artefato-registry.md
 adrs: [ADR-0023]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "5c48c00"
 ---
 
 <span className="pc-overline">Metodologia · 1.13</span>
 
-<p className="pc-lead">O backtest é a rodada diária repetida em várias origens, com o tempo truncado. Para cada origem O, o harness só entrega ao leitor único o instante de truncagem (O mais o corte intradiário); o corte de treino, o treino e a inferência são os mesmos da produção. O protocolo de backtest (<code>fixed</code>, <code>daily</code> ou <code>retrain_harness</code>) só decide quando treinar, e precisa ser compatível com a classe de split do modelo. Depois das células, um REDUCE combina por mês, reconcilia por origem e avalia contra a verdade lida de novo do deck.</p>
+<p className="pc-lead">O backtest é a rodada diária repetida em várias origens, com o tempo truncado. Para cada origem O, o harness só entrega ao leitor único o instante de truncagem (O mais o corte intradiário); o corte de treino, o treino e a inferência usam as mesmas funções da produção. O protocolo de backtest (<code>fixed</code>, <code>daily</code> ou <code>retrain_harness</code>) só decide quando treinar, e precisa ser compatível com a classe de split do modelo. O default dos modelos <code>origin_scoped</code> (<code>holt-winters</code>, <code>dessem-linear</code> e <code>dessem-regdin</code>) é <code>retrain_harness</code>, o forecast acoplado: ele não passa pelo caminho treino e depois inferência da rodada diária, que o <code>--protocol=daily</code> reproduz. Depois das células, um REDUCE combina por mês, reconcilia por origem e avalia contra a verdade lida de novo do deck.</p>
 
 ## O harness só trunca o tempo
 
@@ -178,7 +178,7 @@ Os pesos de cada mês m são ajustados com o painel anterior ao início de m, pe
 
 ### Reconcile por origem
 
-A reconciliação só roda quando o plano cobre todas as folhas da topologia; um `--area` parcial não gera reconciliação. Se uma folha não tem linha combinada numa origem, a origem entra em `incompleto` (origem, corte, `available_until`, folhas faltando) e nada é escrito em `reconciled/` para ela. Um erro do reconcile numa (origem, corte) não interrompe as demais: entra em `reconcile_failures` com o id do erro e a mensagem. O método está em [Reconciliação hierárquica](/metodologia/reconciliacao).
+A reconciliação só roda quando o plano cobre todas as folhas da topologia; um `--area` parcial não gera reconciliação. Se uma folha não tem linha combinada numa origem, a origem entra em `incompleto` (origem, corte, `available_until`, folhas faltando) e nada é escrito em `reconciled/` para ela: o REDUCE recusa fechar um subsistema com folha faltando (`completude.leaf_missing`, o mesmo id do verbo `reconcile`), sem subsistema nem SIN. Um erro do reconcile numa (origem, corte) não interrompe as demais: entra em `reconcile_failures` com o id do erro e a mensagem. O método está em [Reconciliação hierárquica](/metodologia/reconciliacao).
 
 ### Verdade fresca
 
