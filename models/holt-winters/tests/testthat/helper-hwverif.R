@@ -137,7 +137,7 @@ hv_ragged_panel <- function(st, cuts, mode = c("train", "infer")) {
 ## Delta do molde (max|dy_pred| casado por posicao; diferenca estrutural = Inf)
 hv_delta <- function(a, b) hw_lib$.prevcarga_hg_delta(a, b)
 
-HV_HOL <- lubridate::ymd("2024-05-17")                          # sexta O+2: feriado util (tipo 12 como o O-5 do deck, que da historico ao SemiFer; simplified_code 1 => FER 1)
+HV_HOL <- lubridate::ymd("2024-05-17")                          # sexta O+2: feriado util (tipo 12 como o O-5 do deck, que da historico ao SemiFer; simplified_code 1 => FER 1; SemiFer vale em todo dia util, sem clima)
 
 hv_holiday_store <- function() {
   st <- hv_store("09:00")
@@ -146,5 +146,47 @@ hv_holiday_store <- function() {
   hv_with_dir(st, d)
 }
 
-hv_drop_temp <- function(v) rep(NA_real_, length(v))
+## Artefato FALSO do HW (sem plugin_train, sem forecast::hw): plugin_freeze(hw_fx_fake_model()) com a origem do painel.
+## `mean_interval` varia por linha (1000 + 10*dia + slot) para distinguir as linhas do envelope; o historico do
+## carga_temp_ver_fer traz sabados/domingos de maio e um feriado tipo 12 (O-5) com perfis proprios, para o SemiFer
+## produzir uma linha diferente do passo cru. `ctv` troca o historico (ex.: sem o tipo do feriado do horizonte).
+hw_fx_fake_ctv <- function(env = hw_env(), O = HV_O, tipos = c(12L, 1L)) {
+  dias <- O - 30:1
+  n <- length(dias)
+  ctv <- as.data.frame(matrix(NA_real_, n, 105L, dimnames = list(NULL, env$hw_ctv_cols())))
+  ctv$Data <- dias
+  ctv$DiaSemana <- as.integer(lubridate::wday(dias))
+  ctv$Feriado <- rep(0L, n); ctv$TIPO_FER <- rep(0L, n)
+  for (k in seq_along(tipos)) {
+    i <- which(dias == O - 5L - (k - 1L))
+    ctv$Feriado[i] <- 1L; ctv$TIPO_FER[i] <- as.integer(tipos[[k]])
+  }
+  for (i in seq_len(n)) {
+    j <- 1:48
+    ctv[i, env$hw_slot_cols()] <- 1000 + 100 * sin(2 * pi * j / 48 * (1 + ctv$DiaSemana[i] / 7)) -
+      300 * ctv$Feriado[i] * cos(2 * pi * j / 48)
+  }
+  ctv
+}
+
+hw_fx_fake_artifact <- function(env = hw_env(), O = HV_O, ctv = hw_fx_fake_ctv(env, O)) {
+  m <- hw_fx_fake_model(env, O)
+  m$mean_interval <- outer(1000 + 10 * (0:8), 1:48, "+")
+  m$mean_daily <- rowMeans(m$mean_interval)
+  m$carga_temp_ver_fer <- ctv
+  env$plugin_freeze(m)
+}
+
+## Painel com o calendario do horizonte alterado: `date` passa a feriado util (FER 1, tipo 12) no painel em memoria.
+hv_flip_fer <- function(p, date, type = 12L, code = 1L) {
+  h <- as.data.frame(p$holidays)
+  h <- h[!(lubridate::as_date(h$date) %in% date), , drop = FALSE]
+  new <- h[0L, , drop = FALSE][1L, , drop = FALSE]
+  new[1L, ] <- NA
+  new$date <- date; new$holiday_type_id <- as.integer(type); new$simplified_code <- as.integer(code)
+  if ("prevcarga_code" %in% names(new)) new$prevcarga_code <- as.integer(type)
+  if ("area_code" %in% names(new)) new$area_code <- HW_AREA
+  p$holidays <- data.table::as.data.table(rbind(h, new))
+  p
+}
 

@@ -58,7 +58,8 @@ hd_run <- function(runner, ...) {
 
 test_that("[PLUGINS] runner_controle: fixture verde => exit 0 com tabela ASCII e JSON unico; gate [PLUGINS] falhando => exit 1", {
   gt <- hd_gate_table()
-  expect_true(all(c("corte_treino", "contrato_entrada", "determinismo", "higiene_grep", "clima_honesto", "clima_fallback",
+  expect_true(all(c("corte_treino", "contrato_entrada", "determinismo", "higiene_grep", "clima_cego", "ingest_calendario",
+                    "infer_sem_clima",
                     "schema_long", "ytrue_real", "harness_parity", "fachada", "portabilidade_cross_os") %in% gt$gate))
   expect_identical(gt$owner[match(c("schema_long", "ytrue_real", "harness_parity", "fachada", "portabilidade_cross_os"), gt$gate)],
                    c("DEFERRED M6", "DEFERRED M6", "DEFERRED M7", "DEFERRED M5", "DEFERRED M8"))

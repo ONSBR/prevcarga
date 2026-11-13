@@ -1,6 +1,6 @@
-## test-inference.R -- gates [PLUGINS] infer_* / efeito_temp / semifer_loess do Holt-Winters (HW.4; AC 1-7). Cadeia
+## test-inference.R -- gates [PLUGINS] infer_* / semifer_loess do Holt-Winters (HW.4; AC 1-7). Cadeia
 ## ingest -> FE -> train -> freeze sobre o store sintetico (P.0e) e infer SO sobre o artefato. Espioes: clone do env do
-## plugin (FE) e local_mocked_bindings no forecast::hw. O oraculo (somente leitura) so e carregado para o efeitoTemp.
+## plugin (FE) e local_mocked_bindings no forecast::hw.
 
 if (!exists("prevcarga_freeze", envir = hw_lib, inherits = FALSE))
   sys.source(file.path(hw_root(), "scripts", "lib", "provenance.R"), envir = hw_lib)
@@ -53,7 +53,7 @@ test_that("[PLUGINS] infer_envelope: forma, grade available_until+30 .. O+9 00:0
   out <- hi_run(env, b$art, b$deck, cuts)
   expect_identical(dim(out$values), c(8L, 48L)); expect_true(is.double(out$values) && all(is.finite(out$values)))
   expect_identical(out$meta$day0_raw, as.numeric(b$art$mean_interval[1L, ]))
-  expect_length(out$meta$day0, 48L); expect_identical(out$meta$n_steps, 8L); expect_false(out$meta$weather_absent)
+  expect_length(out$meta$day0, 48L); expect_identical(out$meta$n_steps, 8L)
   expect_identical(out$area, "ZZ1")
   g <- hw_lib$prevcarga_delivery_grid(cuts, 9)
   expect_identical(out$delivery$interval_end, g)
@@ -107,42 +107,14 @@ test_that("[PLUGINS] infer_sem_refit: 09:00/09:30/12:00 => valores identicos, 1o
   expect_length(grep("^inference", hw_grep_code(file.path(hw_root(), "models", "holt-winters", "R"), "forecast::"), value = TRUE), 0L)
 })
 
-test_that("[PLUGINS] efeito_temp: legado == oraculo em O+1..O+n; dia O com qdata proprio; CONTROL dia O no mesmo laco contamina O+1", {
-  b <- hi_base(); env <- b$env
-  ctv3 <- env$.build_CargaTempVer3(b$art$carga_temp_ver, HI_O)
-  expect_true(all(ctv3$Feriado == 0) && all(lubridate::month(ctv3$Data) %in% c(4L, 5L)))
-  cdd <- data.frame(DIA = HI_O + 0:8, TEMP = b$deck$CDDPre$TEMP[1:9], DS = b$deck$CDDPre$DS[1:9])
-  ef <- env$.hw_efeito_temp(ctv3, cdd, HI_O)
-  oracle <- file.path("/opt/ons-source/prevcargadessem3", "models/holt-winters/R/inference_features/hw_inference_features.R")
-  if (file.exists(oracle)) {
-    orc <- new.env(parent = globalenv()); suppressMessages(sys.source(oracle, envir = orc))
-    expect_identical(ctv3, orc$.build_CargaTempVer3(b$art$carga_temp_ver, HI_O))
-    expect_identical(ef[-1L], orc$.compute_efeitoTemp_legacy(ctv3, cdd$DS[-1L], cdd$TEMP[-1L]))
-    expect_identical(env$.compute_efeitoTemp_legacy(ctv3, cdd$DS, cdd$TEMP),
-                     orc$.compute_efeitoTemp_legacy(ctv3, cdd$DS, cdd$TEMP))
-  }
-  expect_identical(ef[1L], env$.compute_efeitoTemp_legacy(ctv3, cdd$DS[1L], cdd$TEMP[1L]))
-  ## fixture sintetico: o dia O (quarta, DS 4) tem mais linhas do que o dia seguinte (quinta, DS 5)
-  syn <- data.frame(DiaSemana = c(4L, 4L, 4L, 4L, 4L, 5L, 5L), CargaMedia = 1000,
-                    TempMedia = c(10, 12, 14, 16, 18, 25, 27))
-  sc <- data.frame(DIA = HI_O + 0:1, TEMP = c(20, 26), DS = c(4L, 5L))
-  own <- env$.hw_efeito_temp(syn, sc, HI_O)
-  expect_identical(own[2L], env$.compute_efeitoTemp_legacy(syn, 5L, 26))
-  expect_identical(own[2L], 0.5)
-  same_loop <- env$.compute_efeitoTemp_legacy(syn, sc$DS, sc$TEMP)           # CONTROL: O no mesmo laco
-  expect_identical(same_loop[2L], 0.8)
-  expect_false(identical(same_loop[2L], own[2L]))
-})
-
 ## frame com feriados no horizonte (mesmo tipo 12 do historico do fixture): terca O+6 FER 1, quinta O+1 FER 2, domingo O+4 FER 1
 hi_holiday_frame <- function(b) {
   d <- b$deck
   fer <- c(O1 = 2L, O4 = 1L, O6 = 1L)
   dias <- c(HI_O + 1L, HI_O + 4L, HI_O + 6L)
-  d$TempPre$FER[] <- 0L
-  i <- match(dias, d$TempPre$DIA); d$TempPre$FER[i[!is.na(i)]] <- unname(fer)[!is.na(i)]
-  d$CDDPre$TIPO_FER[] <- 0L
-  j <- match(dias, d$CDDPre$DIA); d$CDDPre$TIPO_FER[j[!is.na(j)]] <- 12L
+  d$horizon_calendar$FER[] <- 0L; d$horizon_calendar$TIPO_FER[] <- 0L
+  i <- match(dias, d$horizon_calendar$DIA)
+  d$horizon_calendar$FER[i] <- unname(fer); d$horizon_calendar$TIPO_FER[i] <- 12L
   d
 }
 
@@ -156,7 +128,7 @@ test_that("[PLUGINS] semifer_loess: terca/quinta pelo SemiFer, domingo cru, LOES
   expect_true(is.integer(hm$mDom))
   out <- env$plugin_infer(b$art, inf, cuts)
   P0 <- b$art$mean_interval
-  sf <- function(k, tipo) env$SemiFer(b$art$carga_temp_ver_fer, tipo, hm$efeitoTemp[k], b$art$mean_daily[k] + 0,
+  sf <- function(k, tipo) env$SemiFer(b$art$carga_temp_ver_fer, tipo, 0.5, b$art$mean_daily[k] + 0,
                                       b$art$m_mes, 12L)[[1L]]
   ## values[k - 1, ] = linha k do P9
   expect_identical(out$values[6L, ], hi_loess(env, as.numeric(sf(7L, "F"))))      # terca (FER 1)
@@ -173,38 +145,6 @@ test_that("[PLUGINS] semifer_loess: terca/quinta pelo SemiFer, domingo cru, LOES
   expect_identical(o2$meta$day0, o2$meta$day0_raw)
   expect_identical(o2$values[6L, ], as.numeric(sf(7L, "F")))
   expect_false(identical(o2$values[2L, ], out$values[2L, ]))
-})
-
-test_that("[PLUGINS] infer_clima: sem clima => 8 linhas + aviso ASCII; cobertura O..O+5 => 5 linhas e entrega de 9 dias", {
-  b <- hi_base(); env <- b$env; cuts <- b$cuts
-  ## sem emissao valida
-  p0 <- b$ipan; p0$weather_forecast <- p0$weather_forecast[0L]
-  w <- NULL
-  deck0 <- withCallingHandlers(env$plugin_ingest(p0, cuts),
-                               prevcarga_warning = function(c) { w <<- c; invokeRestart("muffleWarning") })
-  expect_identical(w$id, "hw.weather_absent"); expect_true(all(utf8ToInt(conditionMessage(w)) < 128L))
-  expect_true(deck0$weather_absent)
-  d0 <- hi_holiday_frame(list(deck = deck0))
-  out0 <- env$plugin_infer(b$art, env$plugin_inference_features(d0, b$art, cuts), cuts)
-  expect_identical(dim(out0$values), c(8L, 48L)); expect_false(anyNA(out0$values))
-  expect_true(out0$meta$weather_absent)
-  expect_identical(out0$meta$no_weather_days, HI_O + 1:8)
-  expect_identical(out0$values[1L, ], hi_loess(env, b$art$mean_interval[2L, ]))   # FER 2 presente mas SemiFer pulado
-  expect_identical(nrow(out0$delivery), 414L)
-  ## cobertura parcial O..O+5
-  p5 <- b$ipan
-  p5$weather_forecast <- p5$weather_forecast[lubridate::as_date(valid_time, tz = cuts$tz) <= HI_O + 5L]
-  deck5 <- suppressWarnings(env$plugin_ingest(p5, cuts))
-  expect_identical(deck5$n_steps, 5L); expect_false(deck5$weather_absent)
-  d5 <- hi_holiday_frame(list(deck = deck5))
-  out5 <- env$plugin_infer(b$art, env$plugin_inference_features(d5, b$art, cuts), cuts)
-  expect_identical(dim(out5$values), c(5L, 48L)); expect_identical(out5$meta$n_steps, 5L)
-  expect_identical(out5$meta$no_weather_days, HI_O + 6:8)
-  expect_identical(out5$delivery$interval_end, hw_lib$prevcarga_delivery_grid(cuts, 9))
-  expect_identical(nrow(out5$delivery), 414L)
-  ## dias sem clima: $mean + LOESS, sem SemiFer (O+6 e terca FER 1 no frame, mas sem clima)
-  k <- match(lubridate::ymd_hm("2024-05-21 12:00", tz = HW_TZ), out5$delivery$interval_end)
-  expect_identical(out5$delivery$y_pred[[k]], hi_loess(env, b$art$mean_interval[7L, ])[24L])
 })
 
 test_that("[PLUGINS] infer_forecast: infer(thaw(freeze(train))) identical a forecast; FE 1x; CONTROL history -7 difere", {

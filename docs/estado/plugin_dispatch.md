@@ -44,7 +44,7 @@
   dessem-regdin TRUE (`models/dessem-regdin/R/ingestion/data_adapter.R:238-251,301-302`). O campo e declarativo (nenhum codigo da fundacao o le).
 - `weather_forecast_in_train` por oraculo: lgbm TRUE (`lgbm/.../data_adapter.R:575-581`, treino com lead 0) e random-forest TRUE (`random-forest/.../data_adapter.R:84-85`,
   origens de treino com previsto); DESSEM ja declarava TRUE. A fachada de treino e a de infer entregam a esses plugins todas as emissoes `<= weather_issue_limit`.
-- Safra de clima por oraculo: holt-winters por valid_time a mais recente `<= O 00Z` (`holt-winters/.../data_adapter.R:303-304,327-362,388-394`); dessem-linear idem
+- Safra de clima por oraculo: holt-winters NAO tem safra de clima (univariado desde o F5.1/F5.2; so o calendario de feriados e a carga); dessem-linear por valid_time a mais recente `<= O 00Z`
   (`dessem-linear/.../data_adapter.R:253-301`); dessem-regdin por valid_time com corte `available_until` no intradiario e `O 00Z` na paridade
   (`dessem-regdin/.../data_adapter.R:116-141,251,258`); lgbm por (Data, Hora) a mais recente com `dia_UTC(issue) <= dia_valido - lead` (lead 0 historico/D, 1 em D+1;
   `lgbm/.../data_adapter.R:213,265-302,575-590`); random-forest a emissao EXATA de 00Z de cada origem, horizonte 1..9 (`random-forest/.../data_adapter.R:208-236`).

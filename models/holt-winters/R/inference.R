@@ -15,17 +15,18 @@
   P9
 }
 
-## Substitui as linhas FER 1 (F) / 2 (S) fora de domingo por SemiFer (membro HOLTW puro: efeitoFer = efeitoSFer = 0). So
-## com clima no dia; falha do SemiFer mantem a linha crua com aviso ASCII (oraculo).
+## Substitui as linhas FER 1 (F) / 2 (S) fora de domingo por SemiFer (membro HOLTW puro: efeitoFer = efeitoSFer = 0), em
+## todo dia util do calendario do horizonte (sem clima, p_alfa constante 0,5: ja se cancelava no ramo sabdom do SemiFer);
+## falha do SemiFer mantem a linha crua com aviso ASCII (oraculo).
 .apply_semifer_override <- function(P9, inf_feat, artifact, efeitoFer = 0, efeitoSFer = 0) {
   hm <- inf_feat$horizon_meta
-  if (isTRUE(inf_feat$weather_absent) || !NROW(artifact$carga_temp_ver_fer)) return(P9)
+  if (!NROW(artifact$carga_temp_ver_fer)) return(P9)
   for (gg in seq_len(nrow(hm))) {
     fer <- hm$FER[gg]
-    if (fer == 0L || hm$mDom[gg] == 0L || is.na(hm$TEMP[gg])) next
+    if (fer == 0L || hm$mDom[gg] == 0L) next
     tipo <- if (fer == 1L) "F" else "S"
     p_cm <- inf_feat$PrevMedDia[gg] + (if (fer == 1L) efeitoFer else efeitoSFer)
-    res <- tryCatch(SemiFer(artifact$carga_temp_ver_fer, tipo, hm$efeitoTemp[gg], p_cm, hm$m_mes[gg], hm$TIPO_FER[gg]),
+    res <- tryCatch(SemiFer(artifact$carga_temp_ver_fer, tipo, 0.5, p_cm, hm$m_mes[gg], hm$TIPO_FER[gg]),
                     error = function(e) {
                       hw_warn("hw.semifer_failed", sprintf("SemiFer(%s) falhou no dia %s", tipo, format(hm$DIA[gg])),
                               list(day = format(hm$DIA[gg])), where = "holt-winters/inference")
@@ -69,8 +70,7 @@ plugin_infer <- function(artifact, inf_feat, cuts) {
   P0 <- .assemble_previsao15(artifact)
   P9 <- .apply_loess_smoothing(.apply_semifer_override(P0, inf_feat, artifact), artifact)
   list(area = inf_feat$area, values = P9[2:(n + 1L), , drop = FALSE],
-       meta = list(day0_raw = as.numeric(P0[1L, ]), day0 = as.numeric(P9[1L, ]), n_steps = n,
-                   weather_absent = inf_feat$weather_absent, no_weather_days = inf_feat$no_weather_days),
+       meta = list(day0_raw = as.numeric(P0[1L, ]), day0 = as.numeric(P9[1L, ]), n_steps = n),
        delivery = .hw_delivery(P9, cuts))
 }
 
