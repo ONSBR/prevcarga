@@ -1,3 +1,4 @@
 id	class	message	hint
 contract.area_selector_conflict	contract	mais de um seletor de area (--area, --subsistema, --areas) no mesmo comando	use apenas um seletor de area; where lista os flags em conflito
 runtime.worker_unfixable	runtime	o runtime (TZ/locale/BLAS) nao pode ser fixado dentro de um worker PSOCK	confira o R do worker e rode prevcarga doctor; use --jobs 1 enquanto isso
+partial.train_models_delivery	partial	entrega parcial do train-models: ha celulas que falharam	veja result.cells[] (status failed, error_id, mensagem) e rode de novo com --area da celula que falhou
