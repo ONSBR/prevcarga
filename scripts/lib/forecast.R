@@ -68,18 +68,31 @@
 }
 
 ## --- 2. plano de topologia (reach-control) -------------------------------------------------------------------
-## Folhas pedidas (NULL = todas as da topologia; fora dela => topology.area_undeclared, exit 4). O fechamento (closed/stray/
-## sin_closed) e do `prevcarga_reconcile_plan`; `covered` = folhas pedidas que fecham algum subsistema. Nada literal aqui.
-.forecast_plan <- function(ctx, areas) {
+## O ESCOPO decide o que entrega (nao ha mais teto `--niveis`): `area` = so as folhas pedidas, nunca reconcilia (mesmo que as folhas
+## fechem um subsistema); `subsistema` = todas as filhas de S + reconcile de S; `sin` = todas as folhas + subsistemas + SIN.
+## Folha/subsistema fora da topologia => topology.area_undeclared (exit 4); escopo fora do enum => config.usage (exit 8).
+.forecast_plan <- function(ctx, escopo = "sin", areas = NULL, subsistema = NULL) {
+  if (!is.character(escopo) || length(escopo) != 1L || !escopo %in% c("area", "subsistema", "sin"))
+    prevcarga_abort("config.usage", where = "escopo")
   topo <- .forecast_topo(ctx)
-  want <- if (is.null(areas)) topo$leaves else unique(as.character(areas))
-  if (!length(want)) prevcarga_abort("config.usage", where = "areas")
-  bad <- setdiff(want, topo$leaves)
-  if (length(bad)) prevcarga_abort("topology.area_undeclared", where = bad[[1L]])
-  leaves <- topo$leaves[topo$leaves %in% want]
-  pl <- prevcarga_reconcile_plan(leaves, topo)
-  list(leaves = leaves, covered = setdiff(leaves, pl$stray), stray = pl$stray, closed = pl$closed,
-       sin_closed = isTRUE(pl$sin_closed), topology = topo)
+  if (identical(escopo, "area")) {
+    want <- unique(as.character(areas))
+    if (!length(want)) prevcarga_abort("config.usage", where = "areas")
+    bad <- setdiff(want, topo$leaves)
+    if (length(bad)) prevcarga_abort("topology.area_undeclared", where = bad[[1L]])
+    leaves <- topo$leaves[topo$leaves %in% want]
+    return(list(escopo = escopo, subsistema = NULL, leaves = leaves, covered = character(), stray = leaves,
+                closed = character(), sin_closed = FALSE, topology = topo))
+  }
+  if (identical(escopo, "subsistema")) {
+    if (!is.character(subsistema) || length(subsistema) != 1L) prevcarga_abort("config.usage", where = "subsistema")
+    if (!subsistema %in% names(topo$subsystems)) prevcarga_abort("topology.area_undeclared", where = subsistema)
+    leaves <- topo$leaves[topo$leaves %in% topo$subsystems[[subsistema]]$areas]
+    return(list(escopo = escopo, subsistema = subsistema, leaves = leaves, covered = leaves, stray = character(),
+                closed = subsistema, sin_closed = FALSE, topology = topo))
+  }
+  list(escopo = "sin", subsistema = NULL, leaves = topo$leaves, covered = topo$leaves, stray = character(),
+       closed = topo$order, sin_closed = TRUE, topology = topo)
 }
 
 ## --- 3. membros ------------------------------------------------------------------------------------------------
@@ -108,7 +121,7 @@
     sigla <- as.character(m$sigla)
     split <- prevcarga_model_spec(m$mdir, ctx$root)$split
     dd <- as.integer(prevcarga_plugin_descriptor(m$mdir, prevcarga_models_root(ctx$root))$delivery_days)
-    for (a in c(plan$covered, plan$stray)) {
+    for (a in plan$leaves) {
       ver <- NULL
       if (identical(split, "origin_scoped")) {
         ver <- .forecast_scoped_version(ctx, m, a, g$origin)
@@ -156,7 +169,7 @@
 .forecast_leaves <- function(ctx, members, g, plan, mem) {
   art_dir <- file.path(prevcarga_registry_root(ctx), "combina")
   long <- list(); mlong <- list(); wver <- list(); wtab <- list()
-  for (a in c(plan$covered, plan$stray)) {
+  for (a in plan$leaves) {
     lp <- .forecast_leaf_panel(ctx, members[[a]], a, g, mem)
     ap <- prevcarga_combina_apply(a, art_dir, lp$panel, ctx, members = mem, detail = TRUE)
     long[[a]] <- ap$long
@@ -172,9 +185,9 @@
 
 ## --- 5. reconcile ----------------------------------------------------------------------------------------------
 ## UMA chamada, em memoria, antes de qualquer scratch ou diretorio de entrega; k-hat `latest` da origem (khat_origin == O sempre).
-## Folhas soltas nunca passam pelo reconcile. Erros (honesty.khat_after_origin, state.khat_missing, ...) sobem intactos.
+## Folhas soltas (escopo area) nunca passam pelo reconcile. Erros (honesty.khat_after_origin, state.khat_missing, ...) sobem intactos.
 .forecast_reconcile <- function(long_leaves, plan, ctx) {
-  if (!length(plan$closed))
+  if (!length(plan$closed))          # escopo area: nunca reconcilia, mesmo com S inteiro pedido
     return(list(long = list(), khat = list(), cobertura_descartada = list(), warnings = list()))
   rec <- prevcarga_reconcile_apply(long_leaves[plan$covered], ctx, subsystems = plan$closed, khat_version = NULL, eval = FALSE)
   list(long = rec$long, khat = rec$khat, cobertura_descartada = rec$cobertura_descartada, warnings = rec$warnings)
@@ -200,7 +213,7 @@
 ## Scratch `<state_dir>/scratch/<run_id>/`, recriado SEMPRE (run_id = hash da chave). Subsistemas/SIN pelo escritor do reconcile;
 ## folhas e membros pelo mesmo escritor deterministico do LONG. Devolve arquivos[] {path, area, linhas, sha256} de TUDO que
 ## entrega (o export omite com aviso o que nao esta registrado).
-.forecast_write_scratch <- function(ctx, key, plan, niveis, incluir_membros, lv, rec) {
+.forecast_write_scratch <- function(ctx, key, plan, incluir_membros, lv, rec) {
   parent <- file.path(ctx$state_dir, "scratch")
   dir.create(parent, recursive = TRUE, showWarnings = FALSE)
   out <- file.path(parent, key$run_id)
@@ -218,8 +231,7 @@
     rows[[length(rows) + 1L]] <<- list(path = rel, area = area, linhas = as.integer(n),
                                        sha256 = digest::digest(file = p, algo = "sha256"))
   }
-  folhas <- c(plan$stray, if (identical(niveis, "tudo")) plan$covered)
-  for (a in folhas) put(lv$long[[a]], paste0("folhas/", a, ".parquet"), a)
+  for (a in plan$leaves) put(lv$long[[a]], paste0("folhas/", a, ".parquet"), a)
   if (isTRUE(incluir_membros))
     for (sg in names(lv$members)) for (a in names(lv$members[[sg]]))
       put(lv$members[[sg]][[a]], paste0("membros/", sg, "/", a, ".parquet"), a)
@@ -247,7 +259,8 @@
               available_until_por_area = .forecast_au_by_area(g$cuts), timezone = g$cuts$tz,
               load_label = g$cuts$load_label, weather_issue_cutoff = g$cuts$weather_issue_cutoff,
               weather_publication_lag_hours = g$cuts$weather_publication_lag_hours,
-              khat = .forecast_khat_rows(rec$khat), covered = as.list(plan$covered), stray = as.list(plan$stray),
+              khat = .forecast_khat_rows(rec$khat), escopo = plan$escopo, subsistema = plan$subsistema,
+              covered = as.list(plan$covered), stray = as.list(plan$stray),
               closed = as.list(plan$closed), sin_closed = plan$sin_closed, members = mem_areas,
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,
               runtime_id = paste0("R", as.character(getRversion()), "-", R.version$platform),
@@ -284,10 +297,10 @@
   m
 }
 
-.forecast_result <- function(g, plan, rec, key, versao, niveis, exp, report) {
+.forecast_result <- function(g, plan, rec, key, versao, exp, report) {
   list(origem = format(g$origin), available_until = .forecast_iso_min(g$cuts$available_until, g$cuts$tz),
        available_until_por_area = .forecast_au_by_area(g$cuts), weather_issue_cutoff = g$cuts$weather_issue_cutoff,
-       versao = versao, saida = exp$saida, niveis = niveis, covered = plan$covered, stray = plan$stray,
+       versao = versao, saida = exp$saida, escopo = plan$escopo, subsistema = plan$subsistema, covered = plan$covered, stray = plan$stray,
        khat = .forecast_khat_rows(rec$khat), arquivos = exp$arquivos, cobertura_descartada = rec$cobertura_descartada,
        ja_publicado = isTRUE(exp$ja_publicado), report = report)
 }
@@ -366,16 +379,14 @@
 ## `report = TRUE` liga o passo de relatorio (M6.5) depois da entrega; senao `report` = list(status = "skipped", path = NULL).
 ## Falha do relatorio => `partial.report_failed` (exit 14) com o result completo (`report$status` = "failed"); a entrega fica intacta.
 ## Devolve list(result, warnings): `warnings` = avisos do catalogo (reconcile, export, gate-0) como list(id, message).
-prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsistemas", report = FALSE,
+prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL, subsistema = NULL, report = FALSE,
                                report_format = "html", skip_validate = FALSE, incluir_membros = FALSE) {
-  if (!is.character(niveis) || length(niveis) != 1L || !niveis %in% prevcarga_export_niveis)
-    prevcarga_abort("config.usage", where = "--niveis", details = list(hint = "sin, subsistemas ou tudo"))
   sink <- .forecast_warn_sink()
   tk <- .forecast_stopwatch(ctx$step_clock)
   mem <- .forecast_member_table(ctx)
   g <- .forecast_gate0(ctx, origin, skip_validate, mem, sink)
   tk$lap("validate-deck")
-  plan <- .forecast_plan(ctx, areas)
+  plan <- .forecast_plan(ctx, escopo, areas, subsistema)
   rctx <- ctx                                    # convencao da rodada para o que vem depois do infer (build_long, combina, reconcile)
   rctx$tz <- g$cuts$tz
   rctx$load_label <- g$cuts$load_label
@@ -388,10 +399,10 @@ prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsi
     tk$lap("reconcile")
     versao <- prevcarga_forecast_versao(.forecast_versao_parts(ctx, members, lv, rec, g, plan))
     key <- prevcarga_export_key(g$origin, g$cuts$available_until, versao, g$cuts$tz)
-    sc <- .forecast_write_scratch(rctx, key, plan, niveis, incluir_membros, lv, rec)
+    sc <- .forecast_write_scratch(rctx, key, plan, incluir_membros, lv, rec)
     .forecast_write_run_json(ctx, sc$dir, g, plan, lv, rec, versao, sc, incluir_membros)
     prevcarga_write_run_manifest(.forecast_run_manifest(ctx, g, members, lv, rec, mem, key), sc$dir)
-    exp <- prevcarga_export(sc$dir, key, niveis = niveis, incluir_membros = incluir_membros, ctx = ctx)
+    exp <- prevcarga_export(sc$dir, key, incluir_membros = incluir_membros, ctx = ctx)
     tk$lap("export")
   }, prevcarga_warning = function(w) {
     sink$add(w$id, conditionMessage(w))
@@ -400,7 +411,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = "subsi
   for (w in rec$warnings) sink$add(w$id, w$message)
   rep <- if (isTRUE(report)) .forecast_report_step(rctx, g, plan, key, lv, rec, report_format) else list(status = "skipped", path = NULL)
   if (isTRUE(report)) tk$lap("report")
-  result <- .forecast_result(g, plan, rec, key, versao, niveis, exp, unclass(rep)[c("status", "path")])
+  result <- .forecast_result(g, plan, rec, key, versao, exp, unclass(rep)[c("status", "path")])
   result <- c(result, tk$timing())
   ## falha do report apos a entrega (M6.10): a chave forecasts/ ja foi commitada e nao e desfeita; sobe exit 14 com o result completo
   if (identical(rep$status, "failed"))

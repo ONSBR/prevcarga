@@ -1,6 +1,6 @@
 ## scripts/lib/cli/forecast.R - verbo auto-registrado `forecast` (M6.9; dono M6; descoberto por scripts/lib/cli.R, barrel por descoberta).
 ##
-## Handler fino sobre prevcarga_forecast (forecast.R): so valida enums, expande --subsistema em folhas pela topologia e entrega
+## Handler fino sobre prevcarga_forecast (forecast.R): so valida enums, resolve o escopo (area, subsistema ou sin) pela topologia e entrega
 ## result/warnings ao envelope do ADR-0040. --origin e o unico flag de data humano (global do M1); nao ha flag de corte: o docopt
 ## gerado o recusa (config.usage, exit 8). --area/--subsistema/--skip-validate/--report/--report-format ja constam do bloco Options
 ## (validate-deck, train-models, score, backtest): a duplicata torna o docopt ambiguo, entao so a usage os cita.
@@ -24,21 +24,23 @@
   else prevcarga_topology(root = ctx$root)
 }
 
-## --subsistema <ss>|all -> folhas (NULL = todas as folhas); subsistema fora da topologia => topology.area_undeclared (exit 4)
+## --subsistema <ss>|all / --area -> escopo. all ou nenhum => sin; --subsistema=S => subsistema; --area => area (so folhas, nunca
+## reconcilia). Subsistema fora da topologia => topology.area_undeclared (exit 4).
 .prevcarga_fc_resolve_areas <- function(area, subsistema, topo) {
   if (!is.null(subsistema)) {
     ss <- subsistema[[1L]]
-    if (identical(ss, "all")) return(NULL)
+    if (identical(ss, "all")) return(list(escopo = "sin", areas = NULL, subsistema = NULL))
     if (!ss %in% names(topo$subsystems)) prevcarga_abort("topology.area_undeclared", where = ss)
-    return(as.character(topo$subsystems[[ss]]$areas))
+    return(list(escopo = "subsistema", areas = NULL, subsistema = ss))
   }
-  if (length(area)) unique(as.character(area)) else NULL
+  if (length(area)) return(list(escopo = "area", areas = unique(as.character(area)), subsistema = NULL))
+  list(escopo = "sin", areas = NULL, subsistema = NULL)
 }
 
 .prevcarga_fc_text <- function(r) {
   paths <- vapply(r$arquivos, function(a) a$path, "")
   c(sprintf("forecast  origem=%s  available_until=%s  versao=%s", r$origem, r$available_until, r$versao),
-    sprintf("niveis=%s  folhas=%d  isoladas=%d  ja_publicado=%s", r$niveis, length(r$covered), length(r$stray),
+    sprintf("escopo=%s  folhas=%d  isoladas=%d  ja_publicado=%s", r$escopo, length(r$covered), length(r$stray),
             if (isTRUE(r$ja_publicado)) "sim" else "nao"),
     paste0("saida: ", r$saida),
     vapply(r$arquivos, function(a) sprintf("arquivo %-32s linhas=%d sha256=%s", a$path, a$linhas, a$sha256), ""),
@@ -47,10 +49,6 @@
 }
 
 cmd_forecast <- function(ctx, args) {
-  niveis <- .prevcarga_fc_opt(args, "--niveis")
-  niveis <- if (is.null(niveis)) "subsistemas" else niveis[[1L]]
-  if (!niveis %in% c("sin", "subsistemas", "tudo"))
-    prevcarga_abort("config.usage", where = "--niveis", details = list(hint = "sin, subsistemas ou tudo"))
   fmt <- .prevcarga_fc_opt(args, "--report-format")
   fmt <- if (is.null(fmt)) "html" else fmt[[1L]]
   if (!fmt %in% c("html", "pdf"))
@@ -60,10 +58,11 @@ cmd_forecast <- function(ctx, args) {
   if (length(area) && !is.null(ss))
     prevcarga_abort("config.usage", where = "--area/--subsistema", details = list(hint = "--area e --subsistema sao exclusivos"))
   prevcarga_require_data_dir(ctx)
-  areas <- .prevcarga_fc_resolve_areas(area, ss, .prevcarga_fc_topology(ctx))
+  sc <- .prevcarga_fc_resolve_areas(area, ss, .prevcarga_fc_topology(ctx))
   ctx$generated_at <- .prevcarga_fc_generated_at(ctx$run_id)
   ctx$step_clock <- function() proc.time()[["elapsed"]]           # relogio injetado: so o result do envelope leva o tempo (M8.10), nunca a entrega
-  out <- prevcarga_forecast(ctx, origin = ctx$origin, areas = areas, niveis = niveis,
+  out <- prevcarga_forecast(ctx, origin = ctx$origin, escopo = sc$escopo, areas = sc$areas,
+                            subsistema = sc$subsistema,
                             report = isTRUE(args[["--report"]]), report_format = fmt,
                             skip_validate = isTRUE(args[["--skip-validate"]]),
                             incluir_membros = isTRUE(args[["--incluir-membros"]]))
@@ -77,12 +76,11 @@ cmd_forecast <- function(ctx, args) {
 
 prevcarga_verb_forecast <- list(
   name    = "forecast",
-  usage   = paste("prevcarga forecast [--area=<a>... | --subsistema=<s>] [--niveis=<n>] [--incluir-membros] [--report]",
+  usage   = paste("prevcarga forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report]",
                   "[--report-format=<f>] [--skip-validate]"),
   options = c(
-    "--niveis=<n>            Teto dos agregados: sin, subsistemas (padrao) ou tudo; folha solta sempre entregue",
     "--incluir-membros       Inclui membros/<m>/<a>.parquet na entrega"),
-  scoped  = c("--niveis", "--incluir-membros", "--report", "--report-format"),   # cli.R .prevcarga_check_scoped
+  scoped  = c("--incluir-membros", "--report", "--report-format"),   # cli.R .prevcarga_check_scoped
   handler = function(ctx, args) cmd_forecast(ctx, args),
   owner   = "M6",
   exempt  = FALSE,

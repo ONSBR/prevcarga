@@ -18,7 +18,7 @@ with_topology <- function(r) file.copy(topo_file, file.path(r, "config", "topolo
 
 STUB <- c(
   "## STUB de teste (so nesta copia): prevcarga_forecast decide pela area-sentinela.",
-  "prevcarga_forecast <- function(ctx, origin = NULL, areas = NULL, niveis = 'subsistemas', report = FALSE,",
+  "prevcarga_forecast <- function(ctx, origin = NULL, escopo = 'sin', areas = NULL, subsistema = NULL, report = FALSE,",
   "                               report_format = 'html', skip_validate = FALSE, incluir_membros = FALSE) {",
   "  sc <- if (length(areas)) areas[[1L]] else 'OK'",
   "  switch(sc,",
@@ -30,7 +30,7 @@ STUB <- c(
   "  rep <- if (identical(sc, 'RP')) list(status = 'failed', path = NULL, error = 'contract.report_input')",
   "         else if (isTRUE(report)) list(status = 'ok', path = '/tmp/report.html') else list(status = 'skipped', path = NULL)",
   "  list(result = list(origem = '2026-01-15', available_until = '2026-01-15T09:00', versao = 'abc123def456',",
-  "                     saida = '/tmp/x/forecasts', niveis = niveis, covered = list('A1'), stray = list(), khat = list(),",
+  "                     saida = '/tmp/x/forecasts', escopo = escopo, covered = list('A1'), stray = list(), khat = list(),",
   "                     arquivos = list(list(path = 'SIN.parquet', area = 'SIN', linhas = 7L, sha256 = strrep('a', 64))),",
   "                     ja_publicado = FALSE, report = rep, areas = as.list(areas), origin_flag = if (is.null(origin)) NULL else format(origin),",
   "                     skip_validate = skip_validate, incluir_membros = incluir_membros, report_format = report_format),",
@@ -139,12 +139,13 @@ test_that("AC3 [CONTROL]: sem scripts/lib/cli/features.R o verbo some da descobe
 ## AC1/AC2 -- envelope JSON, ASCII, exit igual ao do texto e a matriz de exits do M6
 ## =====================================================================================================
 test_that("AC1/AC2: exit 0 -- sucesso em JSON: um documento, stderr vazio, result completo; --origin e as flags chegam ao pipeline", {
-  r <- cli(root_stub, c("forecast", "--origin=2026-01-15", "--niveis=tudo", "--incluir-membros", "--report", "--report-format=pdf",
+  r <- cli(root_stub, c("forecast", "--origin=2026-01-15", "--incluir-membros", "--report", "--report-format=pdf",
                         "--skip-validate", "--area=A1", "--area=B1"))
   j <- expect_envelope(r, 0L)
   expect_null(j$error)
   expect_identical(j$result$origin_flag, "2026-01-15")
-  expect_identical(j$result$niveis, "tudo")
+  expect_identical(j$result$escopo, "area")
+  expect_null(j$result$niveis)
   expect_identical(unlist(j$result$areas), c("A1", "B1"))
   expect_true(j$result$skip_validate); expect_true(j$result$incluir_membros)
   expect_identical(j$result$report_format, "pdf")
@@ -152,11 +153,12 @@ test_that("AC1/AC2: exit 0 -- sucesso em JSON: um documento, stderr vazio, resul
   expect_match(j$run_id, "^[0-9]{8}T[0-9]{6}Z-")
 })
 
-test_that("AC1: --subsistema expande em folhas pela topologia; all => todas; exclusivo com --area; fora => exit 4", {
+test_that("AC1: --subsistema => escopo subsistema; all => todas; exclusivo com --area; fora => exit 4", {
   r <- cli(root_stub, c("forecast", "--subsistema=SS1"))
-  expect_identical(unlist(expect_envelope(r, 0L)$result$areas), c("A1", "A2"))
+  j <- expect_envelope(r, 0L)
+  expect_identical(j$result$escopo, "subsistema"); expect_length(j$result$areas, 0L)
   r <- cli(root_stub, c("forecast", "--subsistema=all"))
-  expect_length(expect_envelope(r, 0L)$result$areas, 0L)
+  expect_identical(expect_envelope(r, 0L)$result$escopo, "sin")
   expect_envelope(cli(root_stub, c("forecast", "--subsistema=SS9")), 4L, "topology.area_undeclared")
   expect_envelope(cli(root_stub, c("forecast", "--subsistema=SS1", "--area=A1")), 8L, "config.usage")
 })
@@ -233,15 +235,15 @@ test_that("AC2: exits 13 state, 15 honesty (khat_after_origin propagado), 9 inte
   }
 })
 
-test_that("AC1: exits da matriz so existem na tabela do ADR-0040; --niveis/--report-format invalidos => 8 config.usage", {
+test_that("AC1: exits da matriz so existem na tabela do ADR-0040; --niveis (flag removida)/--report-format invalidos => 8 config.usage", {
   tabela <- unname(pc_source_lib("errors")$prevcarga_exit_codes)
   for (a in c("ST", "HN", "KC", "RP", "OK")) {
     r <- cli(root_stub, c("forecast", paste0("--area=", a)))
     expect_true(r$status %in% tabela)
   }
-  expect_envelope(cli(root_stub, c("forecast", "--niveis=x")), 8L, "config.usage")
+  expect_envelope(cli(root_stub, c("forecast", "--niveis=tudo")), 8L, "config.usage")
   expect_envelope(cli(root_stub, c("forecast", "--report-format=docx")), 8L, "config.usage")
-  expect_envelope(cli(root_stub, c("export", "--scratch=/x", "--niveis=x")), 8L, "config.usage")
+  expect_envelope(cli(root_stub, c("export", "--scratch=/x", "--niveis=tudo")), 8L, "config.usage")
 })
 
 test_that("AC1: traceback so com --debug: inesperado => exit 1 generic.unexpected, stderr vazio em JSON sem --debug", {
@@ -286,10 +288,10 @@ make_scratch <- function(origem = "2026-01-15", au = "2026-01-15T09:00", versao 
 }
 exp_env <- pc_source_lib(c("errors", "schema_long", "exports"))
 
-test_that("AC5: export --scratch <dir> --niveis tudo entrega em forecasts/<O>/<au>/<versao>/ com o manifest que o forecast produziria", {
+test_that("AC5: export --scratch <dir> entrega em forecasts/<O>/<au>/<versao>/ com o manifest que o forecast produziria", {
   sc <- make_scratch()
   st <- tempfile("m6cli-exp-state-"); dir.create(st)
-  r <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck), "--format=json"))
+  r <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data=", deck), "--format=json"))
   j <- expect_envelope(r, 0L)
   expect_match(j$result$saida, "/forecasts/2026-01-15/20260115T0900/abc123def456$")
   expect_identical(normalizePath(j$result$saida, winslash = "/"), normalizePath(file.path(st, "forecasts/2026-01-15/20260115T0900/abc123def456"), winslash = "/"))
@@ -299,25 +301,25 @@ test_that("AC5: export --scratch <dir> --niveis tudo entrega em forecasts/<O>/<a
   ## mesmo manifest que a entrega direta (a mesma chave) produziria, exceto gerado_em
   ref_state <- tempfile("m6cli-ref-"); dir.create(ref_state)
   key <- exp_env$prevcarga_export_key(O, lubridate::ymd_hm("2026-01-15 09:00", tz = TZ), "abc123def456", TZ)
-  ref <- exp_env$prevcarga_export(sc, key, niveis = "tudo", incluir_membros = FALSE, ctx = list(state_dir = ref_state, generated_at = "x"))
+  ref <- exp_env$prevcarga_export(sc, key, incluir_membros = FALSE, ctx = list(state_dir = ref_state, generated_at = "x"))
   m1 <- jsonlite::read_json(file.path(j$result$saida, "manifest.json")); m2 <- jsonlite::read_json(file.path(ref$saida, "manifest.json"))
   m1$gerado_em <- NULL; m2$gerado_em <- NULL
   expect_identical(m1, m2)
   expect_match(jsonlite::read_json(file.path(j$result$saida, "manifest.json"))$gerado_em, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T")
   ## segunda entrega do mesmo scratch: no-op (ja_publicado), mesma chave
-  r2 <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck), "--format=json"))
+  r2 <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data=", deck), "--format=json"))
   expect_true(expect_envelope(r2, 0L)$result$ja_publicado)
   ## texto ASCII
-  t <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=tudo", paste0("--state=", st), paste0("--data=", deck)))
+  t <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data=", deck)))
   expect_identical(t$status, 0L); expect_length(t$stderr, 0L)
   pc_assert_ascii(t$raw, "export texto")
 })
 
-test_that("AC5: --niveis invalido => exit 8 config.usage; scratch sem run.json/ausente => exit 13; a chave nao vem de flag (--origin e ignorado)", {
+test_that("AC5: --niveis (removida) => exit 8 config.usage; scratch sem run.json/ausente => exit 13; a chave nao vem de flag (--origin e ignorado)", {
   sc <- make_scratch()
   st <- tempfile("m6cli-exp-state-"); dir.create(st)
   base <- c(paste0("--state=", st), paste0("--data=", deck), "--format=json")
-  expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=zzz", base)), 8L, "config.usage")
+  expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=tudo", base)), 8L, "config.usage")
   expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", tempfile("nada-")), base)), 13L, "state.nothing_to_deliver")
   empty <- tempfile("m6cli-empty-"); dir.create(empty)
   expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", empty), base)), 13L, "state.nothing_to_deliver")

@@ -84,8 +84,8 @@ test_that("[AC1] forecast compoe: reconcile_apply 1x (eval FALSE, khat_version N
   expect_identical(vapply(r$result$khat, function(x) x$khat_age_days, 0L), unname(vapply(k, function(x) x$khat_age_days, 0L)))
   expect_identical(r$result$cobertura_descartada, calls$rec$cobertura_descartada)
   expect_identical(r$result$report, list(status = "skipped", path = NULL))
-  ## SIN + subsistemas entregues; o infer so foi chamado para os 3 membros x 3 folhas
-  expect_setequal(vapply(r$result$arquivos, function(x) x$path, ""), c("SIN.parquet", "subsistemas/SS1.parquet", "subsistemas/SS2.parquet"))
+  ## SIN + subsistemas + folhas entregues (escopo sin); o infer so foi chamado para os 3 membros x 3 folhas
+  expect_setequal(vapply(r$result$arquivos, function(x) x$path, ""), c("SIN.parquet", "subsistemas/SS1.parquet", "subsistemas/SS2.parquet", paste0("folhas/", M6F_LEAVES, ".parquet")))
   expect_length(log$infer, 9L)
   ## grep: forecast.R nao fita, nao treina o reconcile, nao promove, nao le o registry do k-hat
   s <- src()
@@ -134,8 +134,8 @@ test_that("[AC3] khat_origin = O+1 => exit 15; sem latest => exit 13; nenhum dir
 
 test_that("[AC4] determinismo: 2 rodadas = sha256 identical e no-op; perturbar 1 membro move o y_pred e a chave", {
   ctx <- fx_copy(); log <- new_log(); spies(log)
-  r1 <- run(ctx, incluir_membros = TRUE, niveis = "tudo")
-  r2 <- run(ctx, incluir_membros = TRUE, niveis = "tudo")
+  r1 <- run(ctx, incluir_membros = TRUE, escopo = "sin")
+  r2 <- run(ctx, incluir_membros = TRUE, escopo = "sin")
   expect_true(r2$result$ja_publicado)
   expect_identical(r2$result$versao, r1$result$versao)
   expect_identical(vapply(r2$result$arquivos, function(a) a$sha256, ""), vapply(r1$result$arquivos, function(a) a$sha256, ""))
@@ -143,11 +143,11 @@ test_that("[AC4] determinismo: 2 rodadas = sha256 identical e no-op; perturbar 1
   ## todos os arquivos do scratch (nao so os da entrega) sao identical entre as rodadas: mesma run_id, recriado
   sc <- file.path(ctx$state_dir, "scratch")
   s1 <- tree(sc)
-  run(ctx, incluir_membros = TRUE, niveis = "tudo")
+  run(ctx, incluir_membros = TRUE, escopo = "sin")
   expect_identical(tree(sc), s1)
   ## CONTROL: perturbar 1 membro (mesmos artefatos) muda o y_pred composto, a versao e a chave
   spies(log, perturb = list(RF = 25))
-  r3 <- run(ctx, incluir_membros = TRUE, niveis = "tudo")
+  r3 <- run(ctx, incluir_membros = TRUE, escopo = "sin")
   expect_false(identical(r3$result$versao, r1$result$versao))
   expect_false(identical(r3$result$saida, r1$result$saida))
   p <- function(r) arrow::read_parquet(file.path(r$result$saida, "folhas", "A1.parquet"))$y_pred
@@ -226,37 +226,38 @@ test_that("[AC6] origem default = dia do ultimo intervalo de carga do deck (sem 
     expect_false(grepl(tok, src(), fixed = TRUE), info = tok)
 })
 
-test_that("[AC7] reach-control: folha solta sem reconcile, SS1 so, todas = SIN + subsistemas; CONTROL topologia; area fora => exit 4", {
+test_that("[AC7] escopo: area nunca reconcilia, subsistema = S, sin = SIN + subsistemas; CONTROL topologia; area fora => exit 4", {
   ctx <- fx_copy(); log <- new_log(); spies(log)
   n_apply <- 0L
   real <- env$prevcarga_reconcile_apply
   mock(prevcarga_reconcile_apply = function(...) { n_apply <<- n_apply + 1L; real(...) })
   paths <- function(r) vapply(r$result$arquivos, function(a) a$path, "")
-  r1 <- run(ctx, areas = "A1")                                         # A1 sozinha nao fecha SS1: solta, entregue sem reconcile
+  r1 <- run(ctx, escopo = "area", areas = "A1")                        # escopo area: solta, entregue sem reconcile
   expect_identical(n_apply, 0L)
   expect_identical(r1$result$stray, "A1"); expect_identical(r1$result$covered, character())
   expect_identical(paths(r1), "folhas/A1.parquet")
   expect_length(r1$result$khat, 0L)
-  r2 <- run(ctx, areas = c("A1", "A2"))                                # fecha SS1 (SS2 aberto): so SS1, sem SIN
+  r2 <- run(ctx, escopo = "area", areas = c("A1", "A2"))               # SS1 inteiro pedido como area: ainda sem reconcile
+  expect_identical(n_apply, 0L)
+  expect_identical(r2$result$stray, c("A1", "A2")); expect_identical(r2$result$covered, character())
+  expect_setequal(paths(r2), c("folhas/A1.parquet", "folhas/A2.parquet"))
+  r2b <- run(ctx, escopo = "subsistema", subsistema = "SS1")           # escopo subsistema: reconcilia S
   expect_identical(n_apply, 1L)
-  expect_identical(r2$result$covered, c("A1", "A2")); expect_identical(r2$result$stray, character())
-  expect_identical(paths(r2), "subsistemas/SS1.parquet")
-  r3 <- run(ctx)                                                       # todas: SIN + subsistemas
+  expect_identical(r2b$result$covered, c("A1", "A2")); expect_identical(r2b$result$stray, character())
+  expect_setequal(paths(r2b), c("subsistemas/SS1.parquet", "folhas/A1.parquet", "folhas/A2.parquet"))
+  r3 <- run(ctx)                                                       # sin: SIN + subsistemas + folhas
   expect_identical(n_apply, 2L)
-  expect_setequal(paths(r3), c("SIN.parquet", "subsistemas/SS1.parquet", "subsistemas/SS2.parquet"))
+  expect_setequal(paths(r3), c("SIN.parquet", "subsistemas/SS1.parquet", "subsistemas/SS2.parquet", paste0("folhas/", M6F_LEAVES, ".parquet")))
   expect_identical(r3$result$covered, M6F_LEAVES); expect_identical(r3$result$stray, character())
-  r4 <- run(ctx, areas = c("A1", "B1"))                                # mistura: SS2 fecha (B1), A1 solta
-  expect_identical(r4$result$covered, "B1"); expect_identical(r4$result$stray, "A1")
-  expect_setequal(paths(r4), c("subsistemas/SS2.parquet", "folhas/A1.parquet"))
-  ## CONTROL: mover A2 para SS2 no topology.yaml muda covered/stray da MESMA chamada (areas = A1, A2)
+  ## CONTROL: mover A2 para SS2 no topology.yaml muda as folhas do escopo subsistema SS1
   dir2 <- withr::local_tempdir("ff-topo-")
   ctx5 <- ctx; ctx5$topology_path <- m6f_topology_file(dir2, move_a2 = TRUE)
-  r5 <- run(ctx5, areas = c("A1", "A2"))
-  expect_identical(r5$result$covered, "A1"); expect_identical(r5$result$stray, "A2")
-  expect_false(identical(r5$result$stray, r2$result$stray))
+  r5 <- run(ctx5, escopo = "subsistema", subsistema = "SS1")
+  expect_identical(r5$result$covered, "A1")
+  expect_false(identical(r5$result$covered, r2b$result$covered))
   ## area fora da topologia: exit 4 antes do infer
   log6 <- new_log(); spies(log6)
-  expect_pc(run(ctx, areas = c("A1", "ZZ")), "topology.area_undeclared", 4L)
+  expect_pc(run(ctx, escopo = "area", areas = c("A1", "ZZ")), "topology.area_undeclared", 4L)
   expect_length(log6$infer, 0L)
 })
 
@@ -292,7 +293,7 @@ test_that("[00h] rodada das 00h (deck ate O-1 23:30, origem O): entrega de O 00:
   ctx <- fx_copy(deck = deck0)
   m6f_prepare_origin(env, ctx, O)
   log <- new_log(); spies(log)
-  r <- run(ctx, origin = O, niveis = "tudo")
+  r <- run(ctx, origin = O, escopo = "sin")
   expect_identical(r$result$available_until, "2026-01-15T00:00")
   expect_match(r$result$saida, "/forecasts/2026-01-15/20260115T0000/")
   expect_length(log$infer, 9L)

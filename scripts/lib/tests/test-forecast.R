@@ -109,8 +109,8 @@ m6_clone <- function(s, deck = s$deck, .frame = parent.frame(), ...) {
 ## =========================================================================================================================
 test_that("[AC1] load_label end x start deslocado => sha256 identical; CONTROL: deck deslocado lido como end e acusado", {
   a <- m6_e2e_setup("end", 0L); b <- m6_e2e_setup("start", -30L)
-  ra <- m6_forecast(a$ctx, a$origin, niveis = "tudo")$result
-  rb <- m6_forecast(b$ctx, b$origin, niveis = "tudo")$result
+  ra <- m6_forecast(a$ctx, a$origin, escopo = "sin")$result
+  rb <- m6_forecast(b$ctx, b$origin, escopo = "sin")$result
   expect_identical(ra$available_until, "2026-10-15T09:00")
   expect_identical(rb$available_until, ra$available_until)
   expect_identical(m6_sha_table(rb), m6_sha_table(ra))              # subsistemas/SIN e manifest (menos gerado_em e o rotulo declarado)
@@ -118,7 +118,7 @@ test_that("[AC1] load_label end x start deslocado => sha256 identical; CONTROL: 
   expect_identical(jsonlite::read_json(file.path(rb$saida, "manifest.json"))$load_label, "start")
   ## CONTROL: o MESMO deck deslocado, declarado como end (rotulo trocado): o available_until e o alinhamento mudam 1 slot
   ctl <- m6_e2e_setup("end", -30L)
-  rc <- m6_forecast(ctl$ctx, ctl$origin, niveis = "tudo")$result
+  rc <- m6_forecast(ctl$ctx, ctl$origin, escopo = "sin")$result
   expect_identical(rc$available_until, "2026-10-15T08:30")                           # o leitor le o dado de inicio como fim: 1 slot a menos
   expect_false(identical(m6_sha_table(rc), m6_sha_table(ra)))
 })
@@ -175,7 +175,7 @@ shift_slot <- function(dt) {
 
 test_that("[AC2] 1a entrega O 09:30 em folha/subsistema/SIN/membro; 48 rotulos por dia completo; valor decodifica o proprio intervalo", {
   s <- m6_e2e_setup("end", 0L)
-  r <- m6_forecast(s$ctx, s$origin, niveis = "tudo", incluir_membros = TRUE)$result
+  r <- m6_forecast(s$ctx, s$origin, escopo = "sin", incluir_membros = TRUE)$result
   paths <- vapply(r$arquivos, function(a) a$path, "")
   expect_true(all(c("SIN.parquet", "subsistemas/SS1.parquet", "folhas/A1.parquet", "membros/RF/A1.parquet", "membros/HW/B1.parquet") %in% paths))
   expect_length(paths, 15L)
@@ -194,14 +194,14 @@ test_that("[AC2] CONTROL: a saida da combina (depois a do reconcile) deslocada 1
   s <- m6_e2e_setup("end", 0L)
   real_c <- env$prevcarga_combina_apply
   shifted_c <- function(...) { ap <- real_c(...); ap$long <- shift_slot(ap$long); ap }
-  r1 <- m6_with_mock(list(prevcarga_combina_apply = shifted_c), m6_forecast(s$ctx, s$origin, niveis = "tudo")$result)
+  r1 <- m6_with_mock(list(prevcarga_combina_apply = shifted_c), m6_forecast(s$ctx, s$origin, escopo = "sin")$result)
   b1 <- m6_check_delivery(r1)
   expect_true(length(b1) > 0L)                                                      # folhas e (derivados) subsistemas/SIN acusados
   expect_true("folhas/A1.parquet" %in% names(b1))
   s2 <- m6_e2e_setup("end", 0L)
   real_r <- env$prevcarga_reconcile_apply
   shifted_r <- function(...) { rec <- real_r(...); rec$long <- lapply(rec$long, shift_slot); rec }
-  r2 <- m6_with_mock(list(prevcarga_reconcile_apply = shifted_r), m6_forecast(s2$ctx, s2$origin, niveis = "tudo")$result)
+  r2 <- m6_with_mock(list(prevcarga_reconcile_apply = shifted_r), m6_forecast(s2$ctx, s2$origin, escopo = "sin")$result)
   b2 <- m6_check_delivery(r2)
   expect_false("folhas/A1.parquet" %in% names(b2))                                  # a folha (combina) segue alinhada
   expect_true(all(c("SIN.parquet", "subsistemas/SS1.parquet", "subsistemas/SS2.parquet") %in% names(b2)))
@@ -209,7 +209,7 @@ test_that("[AC2] CONTROL: a saida da combina (depois a do reconcile) deslocada 1
 
 test_that("[AC2] dia O completo ao meio-dia: o 1o rotulo acompanha o available_until (12:30), o sentinela continua decodificando", {
   s <- m6_e2e_setup("end", 0L, until = "12:00")
-  r <- m6_forecast(s$ctx, s$origin, niveis = "tudo")$result
+  r <- m6_forecast(s$ctx, s$origin, escopo = "sin")$result
   expect_identical(r$available_until, "2026-10-15T12:00")
   dt <- m6_read(r, "folhas/A2.parquet")
   expect_identical(m6_hhmm(min(dt$target_datetime[dt$d_plus == 0L])), "12:30")
@@ -305,7 +305,7 @@ test_that("[AC3] as duas regras dao versao e chaves distintas, ambas preservadas
 ## =========================================================================================================================
 test_that("[00h] available_until = O 00:00: todos os membros e niveis entregam a partir de O 00:30, sem carga do dia O; dia O completo e recusado", {
   s <- m6_e2e_setup("end", 0L, until = "00:00")
-  r <- m6_forecast(s$ctx, s$origin, niveis = "tudo", incluir_membros = TRUE)$result
+  r <- m6_forecast(s$ctx, s$origin, escopo = "sin", incluir_membros = TRUE)$result
   expect_identical(r$available_until, "2026-10-15T00:00")
   expect_match(r$saida, "/forecasts/2026-10-15/20261015T0000/[0-9a-f]{12}$")
   paths <- vapply(r$arquivos, function(a) a$path, "")

@@ -1,10 +1,10 @@
 # Estado: forecast (M6.4) -- rodada operacional diaria
 
-- `scripts/lib/forecast.R`: `prevcarga_forecast(ctx, origin = NULL, areas = NULL, niveis = "subsistemas", report = FALSE,
+- `scripts/lib/forecast.R`: `prevcarga_forecast(ctx, origin = NULL, escopo = "sin", areas = NULL, subsistema = NULL, report = FALSE,
   report_format = "html", skip_validate = FALSE, incluir_membros = FALSE)` -> `list(result, warnings)`. So COMPOE: nenhum calculo de
   k-hat/BU/SIN, de pesos, de corte de treino nem de hora (greps: sem `khat_fit`, `reconcile_train`, `combina_fit`, `registry_promote`,
   `artifacts/reconcile`, `Sys.time`, `Sys.Date`, `now(`, `Sys.getenv`). A rodada diaria e UMA origem O.
-- Ordem invariante: (0) `niveis` valido (exit 8 `config.usage`, antes de qualquer trabalho) -> (1) gate-0 -> (2) plano -> (3) membros ->
+- Ordem invariante: (1) gate-0 -> (2) plano por escopo (escopo invalido: exit 8 `config.usage`; folha/subsistema fora da topologia: exit 4) -> (3) membros ->
   (4) LONG por membro + combina por folha -> (5) reconcile UMA vez, em memoria -> (6) versao/chave imutavel -> scratch + `run.json` -> export.
   Reconcile (exit 15/13/2) acontece ANTES de qualquer scratch ou diretorio de entrega: nada de `forecasts/` nem `scratch/` quando falha.
 - Gate-0 (`.forecast_gate0`): origem = argumento > `ctx$origin` (flag) > dia do ultimo intervalo de carga do deck (`prevcarga_resolve_origin`, dates.R;
@@ -29,7 +29,7 @@
   hash canonico da topologia efetiva, load_label e regra de clima. O hash do y_pred faz o mesmo artefato com deck/clima novo (mesmo `available_until`) virar OUTRA
   chave em vez de `export.key_conflict`. `run_id` = hash da chave (M6.7).
 - Scratch `<state_dir>/scratch/<run_id>/` recriado SEMPRE: subsistemas/SIN pelo escritor do reconcile (`prevcarga_reconcile_write`), folhas (soltas sempre; cobertas so
-  com `niveis = tudo`) e membros (so com `incluir_membros`) pelo mesmo escritor deterministico do LONG (`.reconcile_write_parquet`); o `run.json` registra EM `arquivos[]`
+  de todas as folhas do plano) e membros (so com `incluir_membros`) pelo mesmo escritor deterministico do LONG (`.reconcile_write_parquet`); o `run.json` registra EM `arquivos[]`
   {path, area, linhas, sha256} TODO arquivo entregue (folhas, membros, subsistemas e SIN), senao o export os omitiria com `completude.export_file_missing`.
   `runtime_id` = R + plataforma (deterministico); `generated_at` vem do ctx (unico campo nao deterministico do manifest).
 - Identidade (`run_manifest.json`, fix/export-run-manifest): depois do `run.json`, `.forecast_run_manifest` grava no scratch o run-manifest do provenance.R
@@ -60,13 +60,14 @@
   (exit 3, `errors/forecast.tsv`; hint: deck vivo do dia O ou truncate_at/--corte). `combination.R` nao muda. Testes: `[00h]` em test-forecast_compose.R (espioes; 1a entrega O 00:30, sem carga de O,
   CONTROL dia O completo => recusa) e `[e2e 00h]` em test-forecast_e2e.R (8 membros reais, fases weights00/run00). Resolvido (fix/dl-00h-paridade + RD): sem hora de O os DESSEM
   rodam sem cabeca mm (dessem-linear: DM(O) pura do motor; regdin: ARIMA puro). O e2e das 00h nao tem mais skip: qualquer erro e regressao.
-- Chave imutavel x `niveis`/`incluir_membros` (achado do M6.4): a `versao` do M6.7 nao inclui o conjunto de arquivos; a mesma chave com outro `niveis`/`incluir_membros` da `export.key_conflict`
-  (exit 9). Opcoes: incluir niveis/incluir_membros ordenados na versao, ou o export aceitar superconjunto e publicar so os faltantes. Nao tratado aqui (exports.R e do M6.7).
+- ESCOPO (F3.1, substitui o teto `--niveis`, removido do forecast e do export): `area` = so as folhas pedidas (`.forecast_plan`: closed vazio, sin_closed FALSE, stray = folhas), NUNCA reconcilia, mesmo quando as folhas fecham um subsistema; `subsistema` (`--subsistema=S`) = todas as filhas de S + reconcile de S (sem SIN); `sin` (`--subsistema=all` ou sem flags) = folhas + subsistemas + SIN (closed = `topo$order`). `--area` com `--subsistema` => exit 8; subsistema fora da topologia => exit 4. O `run.json` e o result trazem `escopo`/`subsistema`; testes em test-forecast_scope.R (FORBIDDEN area x CONTROL subsistema/sin).
+- Chave imutavel x `incluir_membros` (achado do M6.4): a `versao` do M6.7 nao inclui o conjunto de arquivos; a mesma chave com outro `incluir_membros` da `export.key_conflict`
+  (exit 9). Opcoes: incluir incluir_membros ordenados na versao, ou o export aceitar superconjunto e publicar so os faltantes. Nao tratado aqui (exports.R e do M6.7).
 - Limitacoes conhecidas (nao tratadas aqui): (1) o verbo `forecast` e a gramatica docopt sao do M6.9 (hoje stub): o E2E chama a funcao publica no processo-filho; (2) a combina identifica o corte pelo
-  HHMM de `available_until` DENTRO do dia da origem: dia O completo ou `--origin` anterior ao ultimo dia do deck e recusado (ver acima); (3) `niveis`/`incluir_membros` nao entram na `versao` (M6.7): a mesma chave com outro conjunto de arquivos e `export.key_conflict`.
+  HHMM de `available_until` DENTRO do dia da origem: dia O completo ou `--origin` anterior ao ultimo dia do deck e recusado (ver acima); (3) `incluir_membros` nao entra na `versao` (M6.7): a mesma chave com outro conjunto de arquivos e `export.key_conflict`.
 
 ## Verbos da CLI (M6.9; dono M6)
-- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--niveis=<n>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate]`.
+- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate]`.
   `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options
   de outros verbos (duplicata torna o docopt ambiguo): so a usage os cita, e o `scoped` do forecast os admite. `--subsistema all` = todas as folhas; subsistema fora => `topology.area_undeclared` (4).
   O flag `--from` do snippet do ticket NAO foi declarado no forecast: `prevcarga_forecast` nao reaproveita scratch (seria flag morta).
