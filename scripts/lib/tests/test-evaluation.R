@@ -57,23 +57,35 @@ test_that("MAPE/MAE/RMSE/BIAS fechados", {
   expect_identical(prevcarga_bias(numeric(), numeric()), list(bias = NA_real_, bias_pct = NA_real_))
 })
 
-test_that("pico por interval_start: 22:30-23:00 conta, 17:30-18:00 nao; CONTROL por hora do target inverte", {
+test_that("WMAPE e MAPE batem com a conta manual", {
+  y <- c(1000, 2000); p <- c(1100, 1800)
+  expect_equal(prevcarga_wmape(y, p), 100 * 300 / 3000)
+  expect_equal(prevcarga_mape(y, p), 100 * mean(c(0.1, 0.1)))
+})
+
+test_that("pico 18:00-22:00 por interval_start: 21:30 conta, 22:00 e 17:30 nao; CONTROL por target inverte", {
   mk <- function(target_hhmm) {
     l <- pc_eval_long("A1", O, 0:1, ctx = ctx)
     hit <- format(l$target_datetime, "%H:%M") == target_hhmm
     l$y_pred[hit] <- l$y_pred[hit] + 200
     pc_long_mem(l, ctx$tz)
   }
-  a <- mk("23:00"); b <- mk("18:00")
+  a <- mk("22:00"); b <- mk("22:30"); c0 <- mk("18:00")   # interval_start 21:30 / 22:00 / 17:30
   sa <- prevcarga_scorecard(a, by = "d_plus"); sb <- prevcarga_scorecard(b, by = "d_plus")
-  expect_true(all(sa$peak > 0)); expect_true(all(sa$peak > sa$wmape))
-  expect_true(all(sb$peak == 0)); expect_true(all(sb$wmape > 0))
+  sc0 <- prevcarga_scorecard(c0, by = "d_plus")
+  expect_true(all(sa$peak > 0)); expect_true(all(sa$peak_mape > 0)); expect_true(all(sa$peak > sa$wmape))
+  expect_true(all(sb$peak == 0)); expect_true(all(sb$peak_mape == 0)); expect_true(all(sb$wmape > 0))
+  expect_true(all(sc0$peak == 0)); expect_true(all(sc0$peak_mape == 0)); expect_true(all(sc0$wmape > 0))
   istart <- function(l) prevcarga_long_interval_start(l$target_datetime, l$granularity_min, ctx$tz)
   expect_gt(prevcarga_peak_wmape(istart(a), a$y_true, a$y_pred), 0)
+  expect_gt(prevcarga_peak_mape(istart(a), a$y_true, a$y_pred), 0)
   expect_equal(prevcarga_peak_wmape(istart(b), b$y_true, b$y_pred), 0)
   by_target <- function(l) prevcarga_peak_wmape(l$target_datetime, l$y_true, l$y_pred)
-  expect_equal(by_target(a), 0); expect_gt(by_target(b), 0)          # CONTROL: carimbo-fim inverte
+  by_target_mape <- function(l) prevcarga_peak_mape(l$target_datetime, l$y_true, l$y_pred)
+  expect_equal(by_target(a), 0); expect_gt(by_target(c0), 0)          # CONTROL: carimbo-fim inverte
+  expect_equal(by_target_mape(a), 0); expect_gt(by_target_mape(c0), 0)
   expect_identical(prevcarga_peak_wmape(o0 + lubridate::hours(1), 1, 1), NA_real_)
+  expect_identical(prevcarga_peak_mape(o0 + lubridate::hours(1), 1, 1), NA_real_)
   bad <- a; bad$granularity_min[1L] <- 60L
   expect_pc_error(prevcarga_long_interval_start(bad$target_datetime, bad$granularity_min), "contract.long_schema")
   expect_pc_error(prevcarga_long_interval_start(a$target_datetime, a$granularity_min, "UTC"), "contract.long_tz")
@@ -191,7 +203,7 @@ test_that("scorecard: by duplo/simples, area toda-NA some, skill do grupo, by in
   all3 <- rbind(l, na)
   sc <- prevcarga_scorecard(all3, by = c("d_plus", "area"))
   expect_identical(nrow(sc), 6L)
-  expect_identical(names(sc), c("d_plus", "area", "n", "wmape", "mape", "mae", "rmse", "bias", "bias_pct", "peak"))
+  expect_identical(names(sc), c("d_plus", "area", "n", "wmape", "mape", "mae", "rmse", "bias", "bias_pct", "peak", "peak_mape"))
   expect_false("A3" %in% sc$area)
   expect_true(all(sc$n == 48L)); expect_true(all(abs(sc$bias - 10) < 1e-9))
   s1 <- prevcarga_scorecard(all3, by = "d_plus")
