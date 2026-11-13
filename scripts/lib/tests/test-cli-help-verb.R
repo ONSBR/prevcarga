@@ -82,7 +82,8 @@ test_that("processo: forecast --help so com as opcoes do forecast; train-models 
   t <- pc_cli(root, c("train-models", "--help"))
   expect_identical(t$status, 0L)
   expect_true(all(as.integer(t$raw_stdout) < 128L))
-  for (x in c("--dry-run", "--jobs")) expect_true(any(grepl(x, t$stdout, fixed = TRUE)), info = x)
+  for (x in c("--dry-run", "--jobs", "--keep-going")) expect_true(any(grepl(x, t$stdout, fixed = TRUE)), info = x)
+  ## CONTROLE (F2.2): --keep-going e do train-models; o forecast (acima) nao o lista, entao a presenca aqui e discriminante
   expect_identical(pc_cli(root, c("train-models", "-h"))$stdout, t$stdout)
   j <- pc_cli(root, c("--format=json", "forecast", "--help"))
   expect_identical(j$status, 0L)
