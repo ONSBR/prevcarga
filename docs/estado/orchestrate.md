@@ -31,3 +31,10 @@ testes `scripts/lib/tests/test-orchestrate.R` (+ fixture `tests/fixtures/m7/conf
 - **Cortes do plan por origem distinta (F2.4, fix v0.1.4)**: `prevcarga_plan` chama `prevcarga_resolve_cuts` 1x por `cut_origin` distinto (com todos os mdirs daquela origem e o `data_lag_days` nomeado do descriptor),
   em vez de 1x por (mdir, cut_origin): `prevcarga_read_load` roda 1x por origem. O `weather_issue_limit` da celula e calculado 1x por par (origem, corte_hm) distinto (leitor, deck_reader.R; o M7 nao faz conta de hora)
   e juntado as celulas. Celulas (train_origin, last_data_day, limites, cache_key) identicas ao caminho por celula. Testes: `test-orchestrate.R` ([F2.4]).
+- **Progresso do backtest (F2.5, fix v0.1.4)**: sem `ctx$progress`, cada celula consolidada escreve em stderr
+  `backtest: <done>/<total> falhas=<n> eta=<dur|?> ultima=<membro> <folha> <origem> <corte>` (`.m7_progress_line`, funcao pura, ASCII).
+  `eta = elapsed / processed x (total - done)`, so sobre as celulas DESTA execucao (`processed`; o `done0` do `--resume` nao conta); `eta=?` com `processed = 0`.
+  Com `--keep-going`, cada falha sai na hora em `falha <membro> <folha> <origem> <corte> <error_id>: <mensagem>`, antes da linha de progresso da propria celula.
+  O relogio e so de apresentacao: `.m7_now(ctx)` (`ctx$clock` injetavel nos testes, senao `Sys.time()`) e a unica leitura de relogio do M7 (excecao fixada por linha exata em
+  `test-m7-static.R`; a isca continua disparando a regra `clock`); nunca entra em chave, ledger, `plan.json` ou result. `ctx$progress(done, total)` mantem a assinatura e,
+  quando definido, nada e escrito em stderr pelo progresso. Testes: `test-orchestrate.R` ([F2.5]).

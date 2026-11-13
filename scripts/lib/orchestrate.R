@@ -276,10 +276,34 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   if (length(m) == 2L) m[[2L]] else "generic"
 }
 
-.m7_progress <- function(ctx, done, total) {
-  if (is.function(ctx$progress)) ctx$progress(done, total)
-  else message(sprintf("backtest: %d/%d", done, total))
+## Relogio so da apresentacao (stderr): nunca entra em chave, ledger, plan.json ou result. Unica leitura de relogio do M7.
+.m7_now <- function(ctx) if (is.function(ctx$clock)) ctx$clock() else Sys.time()
+.m7_fmt_dur <- function(s) {
+  s <- as.integer(round(s)); h <- s %/% 3600L; m <- (s %% 3600L) %/% 60L; x <- s %% 60L
+  if (h > 0L) sprintf("%dh%02dm%02ds", h, m, x) else sprintf("%dm%02ds", m, x)
+}
+
+## done: int (inclui done0 do --resume); total: int; failed: int acumulado nesta execucao;
+## processed: int celulas consolidadas NESTA execucao (done0 nao conta); elapsed_s: numeric desde o 1o despacho desta execucao;
+## cell: NULL ou list(membro = chr, folha = chr, origem = Date, corte_hm = chr "HH:MM")
+.m7_progress_line <- function(done, total, failed, processed, elapsed_s, cell = NULL) {
+  eta <- if (processed > 0L) .m7_fmt_dur(elapsed_s / processed * (total - done)) else "?"
+  last <- if (is.null(cell)) "" else sprintf(" ultima=%s %s %s %s", cell$membro, cell$folha,
+                                              format(cell$origem, "%Y-%m-%d"), cell$corte_hm)
+  sprintf("backtest: %d/%d falhas=%d eta=%s%s", done, total, failed, eta, last)
+}
+
+.m7_progress <- function(ctx, acc, total, cell = NULL) {
+  if (is.function(ctx$progress)) ctx$progress(acc$done, total)
+  else message(.m7_progress_line(acc$done, total, acc$failed, acc$processed,
+                                 as.numeric(difftime(.m7_now(ctx), acc$t0, units = "secs")), cell))
   invisible(NULL)
+}
+
+.m7_acc <- function(ctx, state, done0) {
+  acc <- new.env(); acc$state <- state; acc$done <- done0; acc$fails <- list(); acc$seen <- integer()
+  acc$t0 <- .m7_now(ctx); acc$processed <- 0L; acc$failed <- 0L
+  acc
 }
 
 ## ordem de despacho: origem mais recente primeiro (o backtest anda para tras), depois membro, folha, corte.
@@ -310,7 +334,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
 }
 
 ## Consolida os envelopes de um lote na ordem de despacho (estado, falhas, progresso); devolve se deve parar.
-.m7_collect <- function(ctx, idx, envs, keep_going, acc, total) {
+.m7_collect <- function(ctx, idx, envs, keep_going, acc, total, cells) {
   acc$seen <- c(acc$seen, idx)
   for (k in seq_along(idx)) {
     i <- idx[[k]]; e <- envs[[k]]
@@ -320,17 +344,23 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
       acc$state[[i]] <- "failed"
       acc$fails[[length(acc$fails) + 1L]] <- list(error_class = e$error_class, error_id = e$error_id,
                                                   mensagem = e$mensagem, i = i)
+      acc$failed <- acc$failed + 1L
+      if (isTRUE(keep_going))
+        message(iconv(sprintf("falha %s %s %s %s %s: %s", cells$membro[[i]], cells$folha[[i]],
+                              format(cells$origem[[i]], "%Y-%m-%d"), cells$corte_hm[[i]], e$error_id, e$mensagem),
+                      "UTF-8", "ASCII", sub = "?"))
     }
-    .m7_progress(ctx, acc$done, total)
+    acc$processed <- acc$processed + 1L
+    .m7_progress(ctx, acc, total, as.list(cells[i, c("membro", "folha", "origem", "corte_hm")]))
   }
   !isTRUE(keep_going) && any(vapply(envs, function(e) !identical(e$state, "done"), NA))
 }
 
 .m7_dispatch_serial <- function(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total) {
-  acc <- new.env(); acc$state <- state; acc$done <- done0; acc$fails <- list(); acc$seen <- integer()
+  acc <- .m7_acc(ctx, state, done0)
   seeds <- if (length(todo)) .m7_cell_seeds(ctx, cells, todo) else integer()
   for (i in todo) {
-    stop_now <- .m7_collect(ctx, i, list(.m7_cell_exec(ctx, run_id, cells[i], run_cell, seeds[[i]])), keep_going, acc, total)
+    stop_now <- .m7_collect(ctx, i, list(.m7_cell_exec(ctx, run_id, cells[i], run_cell, seeds[[i]])), keep_going, acc, total, cells)
     if (stop_now) break
   }
   list(state = .m7_mark_skipped(acc, todo), fails = acc$fails)
@@ -373,7 +403,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
 }
 
 .m7_dispatch_psock <- function(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total, jobs) {
-  acc <- new.env(); acc$state <- state; acc$done <- done0; acc$fails <- list(); acc$seen <- integer()
+  acc <- .m7_acc(ctx, state, done0)
   if (!length(todo)) return(list(state = state, fails = list()))
   seeds <- .m7_cell_seeds(ctx, cells, todo)
   nw <- min(as.integer(jobs), length(todo))
@@ -381,15 +411,15 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   on.exit(parallel::stopCluster(st$cl), add = TRUE)
   if (!is.null(st$bad)) {
     ## runtime nao fixavel no worker: nenhuma celula roda; todas viram `failed` classificadas (nunca saida silenciosa)
-    .m7_collect(ctx, todo, rep(list(.m7_init_failure_env(st$bad)), length(todo)), TRUE, acc, total)
+    .m7_collect(ctx, todo, rep(list(.m7_init_failure_env(st$bad)), length(todo)), TRUE, acc, total, cells)
     return(list(state = acc$state, fails = acc$fails))
   }
   wctx <- ctx
-  wctx$progress <- NULL                       # closure do pai nao viaja
+  wctx$clock <- NULL; wctx$progress <- NULL                       # closure do pai nao viaja
   for (b in split(todo, ceiling(seq_along(todo) / nw))) {
     tasks <- lapply(b, function(i) list(cell = cells[i], seed = seeds[[i]]))
     envs <- parallel::clusterApplyLB(st$cl, tasks, .m7_worker_task, ctx = wctx, run_id = run_id, run_cell = run_cell)
-    if (.m7_collect(ctx, b, envs, keep_going, acc, total)) break      # fail-fast: nenhum lote novo depois da 1a falha
+    if (.m7_collect(ctx, b, envs, keep_going, acc, total, cells)) break      # fail-fast: nenhum lote novo depois da 1a falha
   }
   list(state = .m7_mark_skipped(acc, todo), fails = acc$fails)
 }

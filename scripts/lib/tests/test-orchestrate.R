@@ -406,6 +406,7 @@ test_that("[AC6][AC7] greps: sem lista inline de modelos, sem literal de contage
   code <- src[!grepl("^\\s*##", src)]
   expect_false(any(grepl("c\\(\"holt-winters\"|refit_per_origin|random-forest|lgbm|dessem", code)))
   expect_false(any(grepl("\\b192\\b|\\b8L\\b|\\b5L\\b|== ?24\\b", code)))
+  code <- code[!grepl("^\\.m7_now <- function\\(ctx\\) if \\(is\\.function\\(ctx\\$clock\\)\\)", code)]   # F2.5: unica leitura de relogio
   expect_false(any(grepl("Sys.getenv|Sys.setenv|Sys.time|Sys.Date|lubridate::now|quit\\(|mclapply|system2|symlink|Sys.readlink", code)))
   ## CONTROL: o grep acusa uma lista inline plantada
   expect_true(grepl("c\\(\"holt-winters\"", "x <- c(\"holt-winters\", \"lgbm\")"))
@@ -465,4 +466,85 @@ test_that("[F2.4 FORBIDDEN] plan: cortes, limites e cache_key identicos ao camin
                             weather_lag_hours = 6L)
   p6 <- mkplan(ictx(data = d6), origins = os, cortes = cs)
   expect_false(any(p6$cells$cache_key %in% cells$cache_key))
+})
+
+## --- F2.5: progresso com ETA, falhas e ultima celula (so apresentacao, stderr) --------------------------------------
+mk_clock <- function(step = 60) {
+  t <- lubridate::ymd_hms("2026-10-01 00:00:00", tz = "UTC")
+  function() { t <<- t + step; t }
+}
+f25_boom <- function(cell) if (cell$origem == O1 && cell$membro == "MA" && cell$folha == "A")
+  stop("[prevcarga/window] historico curto") else data.frame(x = 1L)
+
+test_that("[F2.5 AC1] .m7_progress_line: string exata, eta=? com processed 0, sem ultima= com cell NULL", {
+  cell <- list(membro = "LGBM", folha = "SP", origem = lubridate::ymd("2026-10-01"), corte_hm = "09:30")
+  l <- mod$.m7_progress_line(7L, 10L, 1L, 2L, 120, cell)
+  expect_identical(l, "backtest: 7/10 falhas=1 eta=3m00s ultima=LGBM SP 2026-10-01 09:30")
+  expect_false(grepl("[^\\x01-\\x7F]", l, perl = TRUE))
+  expect_identical(mod$.m7_progress_line(2L, 10L, 0L, 0L, 0, NULL), "backtest: 2/10 falhas=0 eta=?")
+  expect_identical(mod$.m7_fmt_dur(3725), "1h02m05s")
+})
+
+test_that("[F2.5 AC2] keep-going serial: falhas=1, eta= e ultima=; a linha 'falha' sai antes da proxima de progresso", {
+  ctx <- ictx(); ctx$progress <- NULL; ctx$clock <- mk_clock()
+  p <- mkplan(ctx)
+  msgs <- character()
+  withCallingHandlers(
+    mod$prevcarga_orchestrate(ctx, p, f25_boom, keep_going = TRUE),
+    message = function(m) { msgs <<- c(msgs, sub("\n$", "", conditionMessage(m))); invokeRestart("muffleMessage") })
+  iF <- grep("^falha MA A 2026-10-01 08:00 .*historico curto", msgs)
+  expect_length(iF, 1L)
+  expect_match(msgs[[iF - 1L]], "^backtest: ")                       # a falha vem antes do progresso da propria celula
+  expect_match(msgs[[iF + 1L]], "falhas=1 eta=[0-9]+m[0-9]{2}s ultima=MA A 2026-10-01 08:00$")
+  expect_false(any(grepl("falhas=1", msgs[seq_len(iF)])))
+  expect_false(any(grepl("[^\\x01-\\x7F]", msgs, perl = TRUE)))
+})
+
+test_that("[F2.5 AC3] --resume: ETA so sobre as celulas desta execucao (processed), nunca done0", {
+  ctx <- ictx(); p <- mkplan(ctx); total <- nrow(p$cells)
+  ctx$progress <- function(done, total) NULL
+  mod$prevcarga_orchestrate(ctx, p, function(cell) if (cell$origem == O2) stop("[prevcarga/window] x") else data.frame(x = 1L),
+                            keep_going = TRUE)
+  ctx$progress <- NULL; ctx$clock <- mk_clock()
+  msgs <- character()
+  withCallingHandlers(
+    mod$prevcarga_orchestrate(ctx, p, ok_cell, resume = TRUE),
+    message = function(m) { msgs <<- c(msgs, sub("\n$", "", conditionMessage(m))); invokeRestart("muffleMessage") })
+  done0 <- total - sum(p$cells$origem == O2)
+  ntodo <- total - done0
+  expect_length(msgs, ntodo)
+  ## t0 = 1a leitura (60 s); 1a consolidacao = 2a leitura => elapsed 60 s, processed 1, restantes ntodo - 1
+  expect_match(msgs[[1L]], sprintf("^backtest: %d/%d falhas=0 eta=%s ", done0 + 1L, total, mod$.m7_fmt_dur(60 * (ntodo - 1L))))
+  expect_match(msgs[[length(msgs)]], sprintf("^backtest: %d/%d falhas=0 eta=0m00s ", total, total))
+})
+
+test_that("[F2.5 AC4] com ctx$progress: mesma sequencia (done, total) e nada no stderr pelo progresso", {
+  ctx <- ictx(); p <- mkplan(ctx); total <- nrow(p$cells)
+  seen <- list(); ctx$progress <- function(done, total) seen[[length(seen) + 1L]] <<- c(done, total)
+  ctx$clock <- mk_clock()
+  msgs <- character()
+  withCallingHandlers(
+    mod$prevcarga_orchestrate(ctx, p, ok_cell),
+    message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") })
+  expect_false(any(grepl("^backtest:", msgs)))
+  expect_identical(seen, lapply(seq_len(total), function(k) c(k, total)))
+})
+
+test_that("[F2.5 AC5 FORBIDDEN] plan.json, ledger e result sem campo de tempo e identicos com outro relogio; CONTROL: a linha muda", {
+  run1 <- function(step) {
+    ctx <- ictx(); ctx$progress <- NULL; ctx$clock <- mk_clock(step)
+    p <- mkplan(ctx); msgs <- character()
+    r <- withCallingHandlers(mod$prevcarga_orchestrate(ctx, p, f25_boom, keep_going = TRUE),
+      message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") })
+    dir <- mod$.m7_run_dir(ctx, p$run_id)
+    list(plan = readLines(file.path(dir, "plan.json")), fails = readLines(mod$.m7_failures_path(ctx, p$run_id)),
+         summary = r$summary, msgs = msgs)
+  }
+  a <- run1(60); b <- run1(7)
+  expect_identical(a$plan, b$plan)
+  expect_identical(a$summary, b$summary)
+  expect_identical(sub('"ts":"[^"]*",?', "", a$fails), sub('"ts":"[^"]*",?', "", b$fails))
+  txt <- paste(c(a$plan, a$fails, capture.output(str(a$summary))), collapse = "\n")
+  expect_false(grepl("elapsed|eta|clock|started_at", txt))
+  expect_false(identical(a$msgs, b$msgs))                                 # CONTROL: so a apresentacao muda
 })
