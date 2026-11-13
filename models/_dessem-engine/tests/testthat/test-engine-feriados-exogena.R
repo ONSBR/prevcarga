@@ -84,30 +84,3 @@ test_that("ac-3 completa => NO-OP identico; 3 dias curtos ou sem doador => inalt
   out <- suppressMessages(eng$fill_forecast_tail(fx_prev(short = 7:8), "DataHora", O, O + 8, 24L, "SE", O))
   expect_identical(nrow(out), 216L)
 })
-
-test_that("F3.7 protect_until: dia curto <= protect_until nao e copiado nem emite 'persistido'; dia > protect_until segue a regra antiga", {
-  eng <- fx_engine()
-  O <- lubridate::ymd("2025-06-20")
-  dt <- fx_prev(short = 7:8)
-  orig <- data.table::copy(dt)
-  msgs <- character()
-  tail_msgs <- function(expr) withCallingHandlers(expr, message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") })
-  ## dias 7 e 8 sao entregues: devolvido como esta, nenhuma copia
-  out <- tail_msgs(eng$fill_forecast_tail(dt, "DataHora", O, O + 8, 24L, "SE", O, max_fill_days = 2L, protect_until = O + 8))
-  expect_identical(out, dt)
-  expect_length(msgs, 0L)
-  expect_identical(dt, orig)
-  ## so o dia 7 entregue; o dia 8 (> protect_until) segue a regra antiga: uma copia, do dia 6
-  msgs <- character()
-  out2 <- tail_msgs(eng$fill_forecast_tail(dt, "DataHora", O, O + 8, 24L, "SE", O, max_fill_days = 2L, protect_until = O + 7))
-  expect_length(msgs, 1L)                                          # so o dia 8 e persistido (do dia 6 completo)
-  expect_true(grepl("dia 2025-06-28", msgs[[1L]], fixed = TRUE))
-  expect_identical(nrow(out2[lubridate::date(DataHora) == O + 8]), 24L)
-  expect_identical(nrow(out2[lubridate::date(DataHora) == O + 7]), 5L)   # o dia 7 (entregue) segue curto: o contrato do plugin o recusa
-  ## CONTROL: protect_until = NULL e a antiga persistencia dos dois dias (216 linhas, 2 mensagens)
-  msgs <- character()
-  ctl <- tail_msgs(eng$fill_forecast_tail(dt, "DataHora", O, O + 8, 24L, "SE", O, max_fill_days = 2L))
-  expect_identical(nrow(ctl), 216L)
-  expect_length(msgs, 2L)
-  expect_true(all(grepl("persistido do ultimo dia completo", msgs, fixed = TRUE)))
-})

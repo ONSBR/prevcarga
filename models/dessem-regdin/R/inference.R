@@ -136,8 +136,6 @@ rd_foundation <- function(name) {
 .rd_envelope <- function(hourly, area, cuts, acc, head_used) {
   x <- data.table::data.table(interval_end = hourly$DataHora, y_pred = hourly$Carga)
   nd <- plugin_constants()$horizon_days                                     # dias ENTREGUES (O..O+8)
-  ## F3.7: o despachante grava cuts$delivery_days (efetivo, <= horizon_days) quando o clima previsto corta o horizonte
-  if (!is.null(cuts$delivery_days)) nd <- min(nd, as.integer(cuts$delivery_days))
   ## a regra roda UMA vez (aviso unico) sobre TODOS os dias do motor (O..O+9: o spline do ultimo dia entregue ve o dia seguinte,
   ## como no oraculo); a entrega e os `values` ficam com as 2 x 24 x nd primeiras
   rule <- function(z) {

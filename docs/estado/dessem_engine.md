@@ -36,11 +36,9 @@
   2 ou 3 anos foram considerados e descartados por isso. O motor monta historico + dias previstos num dataset so e filtra
   `Data == dataPrev` no predict, preenchendo a serie com o previsto (D+1 usa D previsto como lag).
 
-## Nenhum dia entregue sai de copia (F3.7)
-- `fill_forecast_tail(..., protect_until = NULL)`: dia curto `<= protect_until` e devolvido como esta (o contrato EXOGENAPREV do plugin recusa o buraco; sem mensagem "persistido");
-  so o dia `> protect_until` (o dia de apoio do spline, fora da entrega) segue a regra antiga (ate `max_fill_days`). `NULL` = comportamento antigo (treino).
-- dessem-regdin `.rd_exo(kind prev)` e dessem-linear `dl_exo_prev` passam `protect_until = O + cuts$delivery_days - 1` quando o despachante grava `cuts$delivery_days`
-  (efetivo); `.rd_envelope`/`.dl_envelope` entregam `min(horizon_days, cuts$delivery_days)` dias.
-- Horizonte fixo do motor: o deck segue com `horizon = spec$horizon_days + 1` (o payload treinado confere `horizon_days` com o deck). Com o corte pelo clima, os dias `> protect_until`
-  (nao entregues: so alimentam o motor) sobem o limite da persistencia de `max_tail_fill_days` para a cauda inteira; o dia entregue nunca e copiado. O dia de apoio do spline (O+eff)
-  ausente e persistido pela regra antiga (nao e entrega). Validar com o motor real (treino+infer completos) fica para o gate de plugin; os testes desta entrega sao de tabelas minimas.
+## Clima previsto curto: DESSEM recusa (F3.7; decisao do Gabriel)
+- Por ora os DESSEM so funcionam com o horizonte inteiro: os dois descriptors declaram `weather_cut = "absent"`. Com clima previsto cobrindo menos que `delivery_days`
+  (incluindo o instante de D+1 que o offset de 60 min exige) o despachante aborta `completude.weather_forecast_short` (`errors/inference.tsv`) ANTES de qualquer estagio;
+  o forecast o trata como membro ausente (`warning.forecast_member_absent`, F3.3). Com clima completo nada muda: motor, `fill_forecast_tail`, ingestao e inferencia dos DESSEM
+  ficam exatamente como antes do F3.7 (nenhum `protect_until`, nenhum corte de entrega, `max_tail_fill_days` intocado).
+- Corte parcial da entrega dos DESSEM (horizonte do motor/artefato ao efetivo) fica para depois; exige validar o motor real.

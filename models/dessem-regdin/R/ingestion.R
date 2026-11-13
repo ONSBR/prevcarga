@@ -144,14 +144,8 @@ rd_panel_contract <- function(reason, details = NULL)
     w <- w[, .SD[1L], by = valid_time]
     dd <- rd_day_of(w$valid_time)
     out <- .rd_hourly_to_deck(w[dd >= O & dd <= last_day], "temperature", "valid_time", "Exo_Temperatura")
-    ## F3.7: dia ENTREGUE (O..O+delivery_days_efetivo-1, cuts$delivery_days do despachante) nunca sai de copia; so o dia de apoio
-    ## do spline (> protect_until) segue a regra da cauda. Sem cuts$delivery_days (treino) o comportamento e o antigo.
-    ## Os dias > protect_until nao sao entregues: so alimentam o motor (horizonte fixo do artefato). Com o horizonte cortado pelo clima
-    ## a cauda nao entregue pode passar de max_tail_fill_days dias; o limite sobe para a cauda inteira (nunca toca dia entregue).
-    protect <- if (is.null(cuts$delivery_days)) NULL else O + as.integer(cuts$delivery_days) - 1L
-    mfd <- if (is.null(protect)) k$max_tail_fill_days else max(k$max_tail_fill_days, as.integer(last_day - protect))
     out <- rd_engine()$fill_forecast_tail(out, "DataHora", O, last_day, k$hours_per_day, area, O,
-                                          max_fill_days = mfd, protect_until = protect)
+                                          max_fill_days = k$max_tail_fill_days)
     days <- seq(O, last_day, by = "day")
     dd <- rd_day_of(out$DataHora)
     got <- vapply(days, function(x) sum(dd == x), integer(1L))

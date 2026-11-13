@@ -143,4 +143,5 @@
 - `run.json` e `result` ganham `clima_previsto_ate` (minimo entre as folhas do ultimo dia coberto) e `delivery_days_efetivo` (folha x sigla). Clima completo
   ate O+9 => nenhum aviso, `delivery_days_efetivo` = descriptor e entrega identica a de antes (FORBIDDEN em `test-forecast_weather_cut.R`).
 - Membro ausente por clima curto (RF, `weather_cut = "absent"`) vira `warning.forecast_member_absent` (`error_id = completude.weather_forecast_short`); nenhuma linha dele.
-- Teste: `scripts/lib/tests/test-forecast_weather_cut.R` (stubs de dependencia; o fixture m6f tem 3 membros, entao RF/LGBM/HW fazem o papel de stub-dessem/stub-rf/stub-hw).
+- DESSEM (e RF) com clima curto ficam ausentes (`weather_cut = absent`); LGBM corta e HW entrega inteiro; de O+4 em diante a combina usa so os que cobrem o lead.
+- Teste: `scripts/lib/tests/test-forecast_weather_cut.R` (stubs de dependencia; o fixture m6f tem 3 membros: RF faz o papel de DESSEM ausente, LGBM o do membro que corta, HW o do univariado; FORBIDDEN com clima completo = DESSEM presente).

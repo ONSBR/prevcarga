@@ -54,11 +54,12 @@ stub_plugin <- function(delivery_days, offset = 0L, weather = TRUE, weather_cut 
                                                         requires = if (weather) "data.weather_forecast.temperature" else "data.load.load_mwh",
                                                         provides = "member_envelope"))))
 ## O fixture m6f tem 3 membros treinados (pesos da combina com 9/2/9 dias): as siglas viram os stubs de dependencia que
-## precisam de 9 dias -- RF = stub-dessem (offset 60, truncate), LGBM = stub-rf (weather_cut absent), HW = stub-hw (sem clima).
+## precisam de 9 dias -- RF = stub-dessem (offset 60, weather_cut absent: DESSEM so com horizonte inteiro), LGBM = membro que corta (truncate), HW = stub-hw (sem clima).
 ## O stub-lgbm (2 dias, truncate) so entra nas unidades do despachante (STUB_LGBM): nao e membro do fixture.
-STUB <- list(RF = stub_plugin(9L, offset = 60L), LGBM = stub_plugin(9L, weather_cut = "absent"), HW = stub_plugin(9L, weather = FALSE))
+STUB <- list(RF = stub_plugin(9L, offset = 60L, weather_cut = "absent"), LGBM = stub_plugin(9L), HW = stub_plugin(9L, weather = FALSE))
 STUB_DESSEM <- STUB$RF
-STUB_RF <- STUB$LGBM
+STUB_RF <- stub_plugin(9L, weather_cut = "absent")
+STUB_TRUNC <- STUB$LGBM
 STUB_LGBM <- stub_plugin(2L)
 
 ## Substitui prevcarga_infer_cell: leitor REAL + corte REAL do despachante; o "estagio" do stub so devolve valores fixos na
@@ -108,24 +109,22 @@ test_that("[FORBIDDEN] clima completo ate O+9 23:30: sem aviso, delivery_days = 
 })
 
 ## --- CONTROL: clima so ate O+3 (mais os dois 1os instantes de O+4, que o offset de 60 min exige) ----------------------------
-test_that("[CONTROL] clima ate O+3: aviso com a data, stub-dessem corta em O+4 00:00, stub-rf ausente, hw inteiro, lgbm inteiro", {
+test_that("[CONTROL] clima ate O+3: aviso com a data, DESSEM ausente (recusa catalogada), membro que corta entrega ate O+3, hw inteiro", {
   deck <- deck_truncated(at("2026-01-19 00:30"))                 # O+4 00:00 e 00:30 presentes: dia O+4 NAO coberto
   ctx <- fx_ctx(deck)
   pa <- env$prevcarga_read_panel(ctx, O, "A1", 9L, 5L)$attrs
   expect_identical(pa$weather_forecast_until[area_code == "A1"]$until, O + 3L)
   expect_identical(pa$weather_forecast_next[area_code == "A1"]$n_next, 2L)
-  ## stub-dessem (offset 60): corta no intervalo que termina em O+4 00:00 e nenhuma linha em O+4 ou depois
   cuts <- env$prevcarga_resolve_cuts(ctx, origin = O)
-  got <- withCallingHandlers(env$.prevcarga_inf_apply_weather_cut(STUB_DESSEM, "stub-dessem", "A1", O, pa, cuts),
+  ## DESSEM (offset 60, weather_cut absent) recusa antes de qualquer estagio
+  e <- tryCatch(env$.prevcarga_inf_apply_weather_cut(STUB_DESSEM, "dessem-linear", "A1", O, pa, cuts), prevcarga_error = function(e) e)
+  expect_identical(e$id, "completude.weather_forecast_short")
+  ## membro que corta (truncate, sem offset): entrega ate o fim de O+3 e o aviso traz a data coberta
+  got <- withCallingHandlers(env$.prevcarga_inf_apply_weather_cut(STUB_TRUNC, "lgbm", "A1", O, pa, cuts),
                              prevcarga_warning = function(w) invokeRestart("muffleWarning"))
   expect_identical(got$delivery_days, 4L)
-  expect_identical(got$weather_forecast_until, O + 3L)
-  grid <- env$prevcarga_delivery_grid(got, got$delivery_days)
-  expect_identical(max(grid), at("2026-01-19 00:00"))
-  expect_lte(max(grid), day_start(O + 4L))
-  ## o aviso sai pelo despachante com a data coberta
-  w <- tryCatch(env$.prevcarga_inf_apply_weather_cut(STUB_DESSEM, "stub-dessem", "A1", O, pa, cuts),
-                prevcarga_warning = function(w) w)
+  expect_identical(max(env$prevcarga_delivery_grid(got, got$delivery_days)), at("2026-01-19 00:00"))
+  w <- tryCatch(env$.prevcarga_inf_apply_weather_cut(STUB_TRUNC, "lgbm", "A1", O, pa, cuts), prevcarga_warning = function(w) w)
   expect_identical(w$id, "warning.forecast_weather_horizon_cut")
   expect_identical(w$details$ate, format(O + 3L))
 
@@ -133,36 +132,30 @@ test_that("[CONTROL] clima ate O+3: aviso com a data, stub-dessem corta em O+4 0
   cw <- cut_warns(r)
   expect_length(cw, 1L)                                           # um aviso por folha, com os membros cortados
   expect_identical(cw[[1L]]$details$ate, format(O + 3L))
-  expect_identical(cw[[1L]]$details$membros, list("random-forest"))   # RF = stub-dessem; o stub-rf aborta e o stub-hw nao e cortado
+  expect_identical(cw[[1L]]$details$membros, list("lgbm"))
   expect_match(cw[[1L]]$message, paste0("clima previsto ate ", format(O + 3L), "; a inferencia sera feita ate essa data"), fixed = TRUE)
   expect_identical(r$result$clima_previsto_ate, format(O + 3L))
   expect_identical(run_json(ctx)$clima_previsto_ate, format(O + 3L))
-  expect_identical(run_json(ctx)$delivery_days_efetivo$A1$RF, 4L)
-  ## stub-dessem entrega ate o intervalo que termina em O+4 00:00, nenhuma linha em O+4 ou depois
-  ds <- ym(r, "RF", "A1")
-  expect_identical(max(ds$target_datetime), at("2026-01-19 00:00"))
-  expect_false(any(ds$target_datetime > day_start(O + 4L)))
-  ## stub-rf ausente: aborto do despachante antes do estagio (contador zero), aviso de membro ausente, nenhuma linha dele
-  expect_false("LGBM/A1" %in% unlist(r$log$stage))
+  ## DESSEM-like (sigla RF) ausente com a recusa catalogada; o estagio nunca e chamado; nenhuma linha dele
+  expect_false("RF/A1" %in% unlist(r$log$stage))
   ab <- Filter(function(x) identical(x$id, "warning.forecast_member_absent"), r$warnings)
   expect_length(ab, 1L)
-  expect_identical(ab[[1L]]$details, list(folha = "A1", membro = "LGBM", error_id = "completude.weather_forecast_short"))
-  expect_false("LGBM" %in% list.files(file.path(r$result$saida, "membros")))
-  ## stub-hw inteiro
+  expect_identical(ab[[1L]]$details, list(folha = "A1", membro = "RF", error_id = "completude.weather_forecast_short"))
+  expect_false("RF" %in% list.files(file.path(r$result$saida, "membros")))
+  ## o membro que corta entrega ate O+4 00:00 e o hw o horizonte inteiro
   cuts0 <- env$prevcarga_resolve_cuts(ctx, origin = O)
+  lg <- ym(r, "LGBM", "A1")
+  expect_identical(max(lg$target_datetime), at("2026-01-19 00:00"))
+  expect_false(any(lg$target_datetime > day_start(O + 4L)))
   expect_identical(ym(r, "HW", "A1")$target_datetime, env$prevcarga_delivery_grid(cuts0, 9L))
-  expect_identical(r$result$delivery_days_efetivo$A1[c("RF", "HW")], list(RF = 4L, HW = 9L))
-  ## de O+4 em diante a combinacao usa so o stub-hw (valor = o do hw: o stub-dessem nao cobre o lead e o stub-rf esta ausente)
+  expect_identical(r$result$delivery_days_efetivo$A1[c("LGBM", "HW")], list(LGBM = 4L, HW = 9L))
+  ## de O+4 em diante a combinacao usa so o hw
   y <- yp(r, "A1")
   late <- y[y$target_datetime > day_start(O + 4L), ]
   hw <- ym(r, "HW", "A1")
   expect_gt(nrow(late), 0L)
   m <- merge(data.frame(t = late$target_datetime, y = late$y_pred), data.frame(t = hw$target_datetime, h = hw$y_pred), by = "t")
   expect_equal(m$y, m$h, tolerance = 1e-9)
-  ## CONTROL do CONTROL: ate O+4 00:00 o stub-dessem entra na combinacao (o valor difere do hw puro)
-  early <- y[y$target_datetime <= day_start(O + 4L) & y$target_datetime > day_start(O + 1L), ]
-  me <- merge(data.frame(t = early$target_datetime, y = early$y_pred), data.frame(t = hw$target_datetime, h = hw$y_pred), by = "t")
-  expect_false(isTRUE(all.equal(me$y, me$h)))
 })
 
 ## --- AC5/AC6: horizonte efetivo (unidade, plugin-lista) ---------------------------------------------------------------
@@ -209,9 +202,11 @@ test_that("[UNIT] membro weather_cut absent aborta completude.weather_forecast_s
   expect_identical(env$.prevcarga_inf_apply_weather_cut(STUB_RF, "random-forest", "A1", O, full, cuts)$delivery_days, 9L)
 })
 
-test_that("[UNIT] o RF real declara weather_cut = absent no descriptor (lido sem treinar); os demais, truncate", {
+test_that("[UNIT] RF e DESSEM reais declaram weather_cut = absent (lido sem treinar); os demais, truncate", {
   desc <- function(m) env$prevcarga_plugin_descriptor(m, env$prevcarga_models_root(pc_root()))
   expect_identical(desc("random-forest")$weather_cut, "absent")
+  expect_identical(desc("dessem-linear")$weather_cut, "absent")      # DESSEM so com horizonte inteiro (decisao do Gabriel)
+  expect_identical(desc("dessem-regdin")$weather_cut, "absent")
   expect_identical(desc("lgbm")$weather_cut, "truncate")
   expect_identical(desc("holt-winters")$weather_cut, "truncate")
   ## HW univariado nao le clima: nenhum estagio com requires data.weather_forecast.

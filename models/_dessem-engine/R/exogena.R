@@ -3,10 +3,7 @@
 ## curto da exogena prevista no horizonte [from, to]. NO-OP quando completa, sem doador, sem doador antes de
 ## um dia curto ou com mais de `max_fill_days` dias curtos (o contrato do plugin reprova depois).
 ## Sempre ligado: o kill-switch DESSEM_EXOG_TAIL_FILL nao e portado. Deslocamento por periodo do lubridate.
-## `protect_until` (F3.7): dia ENTREGUE nunca sai de copia. Dia curto <= protect_until fica como esta (o contrato do plugin recusa
-## o buraco); so dia > protect_until (o dia de apoio do spline, fora da entrega) segue a regra acima. NULL = comportamento antigo.
-fill_forecast_tail <- function(dt, time_col, from, to, slots_per_day, area, origin, max_fill_days = 2L,
-                               protect_until = NULL) {
+fill_forecast_tail <- function(dt, time_col, from, to, slots_per_day, area, origin, max_fill_days = 2L) {
   if (is.null(dt) || nrow(dt) == 0L) return(dt)
   stopifnot(time_col %in% names(dt))
   ft <- data.table::as.data.table(data.table::copy(dt))
@@ -15,7 +12,6 @@ fill_forecast_tail <- function(dt, time_col, from, to, slots_per_day, area, orig
   cnt <- vapply(needed, function(d) sum(dd == d), integer(1L))
   complete_days <- needed[cnt >= slots_per_day]
   short_days <- needed[cnt < slots_per_day]
-  if (!is.null(protect_until)) short_days <- short_days[short_days > lubridate::as_date(protect_until)]
   if (length(short_days) == 0L) return(dt)
   if (length(complete_days) == 0L) return(dt)
   if (length(short_days) > max_fill_days) return(dt)

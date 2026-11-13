@@ -69,20 +69,6 @@ dl_single_area <- function(panel) {
   a
 }
 
-## Exogena prevista do deck: emissao mais recente por valid_time (o leitor ja filtrou por weather_issue_limit), janela O..last_day
-## e a persistencia de cauda curta do motor; `protect_until` (F3.7) = ultimo dia entregue, que nunca e copiado. Pura (testavel sem ingest).
-dl_exo_prev <- function(weather_forecast, area, O, last_day, k, eng, protect_until = NULL) {
-  wf <- data.table::as.data.table(weather_forecast)[area_code == area]
-  data.table::setorder(wf, valid_time, -issue_time)
-  wf <- wf[, .SD[1L], by = valid_time]
-  d_wf <- dl_day_of(wf$valid_time)
-  out <- wf[d_wf >= O & d_wf <= last_day, .(DataHora = valid_time, Exo_Temperatura = temperature)]
-  data.table::setorder(out, DataHora)
-  mfd <- if (is.null(protect_until)) k$max_tail_fill_days else max(k$max_tail_fill_days, as.integer(last_day - lubridate::as_date(protect_until)))
-  eng$fill_forecast_tail(out, "DataHora", O, last_day, k$hours_per_day, area, O,
-                         max_fill_days = mfd, protect_until = protect_until)
-}
-
 plugin_ingest <- function(panel, cuts, spec = NULL) {
   v <- if (is.null(spec)) list(exogena = NA_character_, model_key = NA_character_) else dl_resolve_variant(spec)
   k <- plugin_constants()
@@ -112,11 +98,14 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   exogenahist <- wo[in_window(dl_day_of(valid_time)), .(DataHora = valid_time, Exo_Temperatura = temperature)]
   data.table::setorder(exogenahist, DataHora)
 
-  ## F3.7: dia ENTREGUE (cuts$delivery_days do despachante) nunca sai de copia; so o dia de apoio segue a regra da cauda.
-  protect <- if (is.null(cuts$delivery_days)) NULL else O + as.integer(cuts$delivery_days) - 1L
-  ## dias > protect_until nao sao entregues (so alimentam o motor, horizonte fixo do artefato): com o horizonte cortado a cauda
-  ## nao entregue pode passar de max_tail_fill_days; o limite sobe para a cauda inteira (nunca toca dia entregue).
-  exogenaprev <- dl_exo_prev(panel$weather_forecast, area, O, O + horizon - 1L, k, eng, protect_until = protect)
+  wf <- data.table::as.data.table(panel$weather_forecast)[area_code == area]
+  data.table::setorder(wf, valid_time, -issue_time)
+  wf <- wf[, .SD[1L], by = valid_time]
+  d_wf <- dl_day_of(wf$valid_time)
+  exogenaprev <- wf[d_wf >= O & d_wf <= O + horizon - 1L, .(DataHora = valid_time, Exo_Temperatura = temperature)]
+  data.table::setorder(exogenaprev, DataHora)
+  exogenaprev <- eng$fill_forecast_tail(exogenaprev, "DataHora", O, O + horizon - 1L, k$hours_per_day, area, O,
+                                        max_fill_days = k$max_tail_fill_days)
 
   h <- data.table::as.data.table(panel$holidays)
   if ("area_code" %in% names(h)) h <- h[area_code == area]
