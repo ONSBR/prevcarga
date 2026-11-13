@@ -59,3 +59,4 @@ coherence.unclassified	coherence	falha de coerencia	reveja a coerencia entre os 
 repro.unclassified	repro	falha de reprodutibilidade	reveja o determinismo da execucao
 partial.unclassified	partial	execucao parcial	reveja as falhas parciais reportadas
 honesty.unclassified	honesty	violacao de honestidade	reveja o gate de honestidade do modulo
+config.write_failed	config	falha ao gravar o config.yaml	confira permissoes e espaco em disco do diretorio do config.yaml

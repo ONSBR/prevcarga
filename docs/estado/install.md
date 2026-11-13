@@ -186,3 +186,12 @@ O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO pa
 - Windows: o `install.ps1` usa `$PSScriptRoot` (catálogo e fallback de bundles antigos) e termina com `exit`, então `irm | iex` não é
   suportado (o `Join-Path` com raiz vazia aborta e o `exit` fecharia a janela). A forma documentada baixa para `$env:TEMP` com `iwr` e roda
   num `powershell -File` filho, com `SecurityProtocol = 'Tls12'` antes (o Windows PowerShell 5.1 pode não oferecer TLS 1.2 por padrão).
+
+## Barra da extracao no Windows (2026-11-10)
+- O `install.ps1` nao usa mais `Write-Progress`: as cores vinham do console (amarelo sobre ciano no Windows PowerShell 5.1) e
+  a barra ficava no topo da janela. `Write-PcBar` desenha `[####....] NN%  i de k arquivos` em stderr, ASCII e sem cor, na linha
+  de baixo da etapa 3, reescrita com CR a cada ~1%; a ultima chamada fecha a linha. Enquanto a linha esta aberta
+  (`$script:PcBarOpen`), o `Write-PcStream` quebra a linha antes de qualquer escrita, entao um erro no meio da extracao sai na linha
+  de baixo. Mesma guarda das etapas (`$script:PcProgress`: texto e stderr no terminal). **[DEFERRED windows-vm, dono Gabriel]**
+  ver a barra num console real (5.1 e pwsh 7).
+- Proximos passos sem `data_dir`: os dois instaladores sugerem `prevcarga set-data-dir <dir>`.
