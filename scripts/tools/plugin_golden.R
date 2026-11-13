@@ -444,6 +444,8 @@ pc_golden_main <- function(argv, repo) {
   pre <- if (reference) pc_golden_preflight_reference(args) else pc_golden_preflight(args)
   spec <- pc_golden_units(ru$path)
   units <- Filter(function(u) is.null(args$variant) || identical(u$variant, args$variant), pc_golden_group_units(spec, ru$group))
+  ## fonte clean-room: `oracle_env` (EXOGENA, R_LIBS_USER do R 4.4.3...) e so do oraculo; o filho da tag roda no ambiente do proprio R
+  if (reference) units <- lapply(units, function(u) { u$oracle_env <- list(); u })
   for (u in units) pc_golden_require_report(u, repo)    # nenhuma unidade chama o oraculo sem o relatorio exigido
   scratch <- tempfile("golden-scratch-")
   dir.create(scratch)
