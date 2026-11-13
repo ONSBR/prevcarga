@@ -86,6 +86,13 @@ test_that("pico 18:00-22:00 por interval_start: 21:30 conta, 22:00 e 17:30 nao; 
   expect_equal(by_target_mape(a), 0); expect_gt(by_target_mape(c0), 0)
   expect_identical(prevcarga_peak_wmape(o0 + lubridate::hours(1), 1, 1), NA_real_)
   expect_identical(prevcarga_peak_mape(o0 + lubridate::hours(1), 1, 1), NA_real_)
+  ## FORBIDDEN: comprimento diferente aborta mesmo com a mascara de hora aplicada antes da metrica
+  h <- o0 + lubridate::hours(18L)
+  expect_pc_error(prevcarga_peak_mape(h, c(100, 200), 100), "contract.metric_length")
+  expect_pc_error(prevcarga_peak_wmape(h, c(100, 200), 100), "contract.metric_length")
+  expect_pc_error(prevcarga_peak_mape(h, 100, c(100, 200)), "contract.metric_length")
+  expect_pc_error(prevcarga_peak_mape(c(h, h + 3600), 100, 100), "contract.metric_length")
+  expect_equal(prevcarga_peak_mape(h, 100, 110), 10)                  # CONTROL: comprimentos iguais seguem
   bad <- a; bad$granularity_min[1L] <- 60L
   expect_pc_error(prevcarga_long_interval_start(bad$target_datetime, bad$granularity_min), "contract.long_schema")
   expect_pc_error(prevcarga_long_interval_start(a$target_datetime, a$granularity_min, "UTC"), "contract.long_tz")
