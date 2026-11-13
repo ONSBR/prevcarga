@@ -215,10 +215,11 @@
   long <- list(); mlong <- list(); wver <- list(); wtab <- list()
   for (a in plan$leaves) {
     lp <- .forecast_leaf_panel(ctx, members[[a]], a, g, mem)
-    ap <- prevcarga_combina_apply(a, art_dir, lp$panel, ctx, members = mem, detail = TRUE)
+    ap <- prevcarga_combina_apply(a, art_dir, lp$panel, ctx, members = mem, detail = TRUE,
+                                fallback_eqw = TRUE)
     long[[a]] <- ap$long
     wver[[a]] <- ap$version_hash
-    wtab[[a]] <- ap$weights
+    if (!is.null(ap$weights)) wtab[[a]] <- ap$weights     # EQW: sem pesos para a folha (relatorio sem pesos dela)
     for (d in lp$members_long) {
       sg <- d$member[[1L]]
       mlong[[sg]][[a]] <- d[, names(prevcarga_schema_long), with = FALSE]
@@ -306,6 +307,7 @@
               khat = .forecast_khat_rows(rec$khat), escopo = plan$escopo, subsistema = plan$subsistema,
               covered = as.list(plan$covered), stray = as.list(plan$stray),
               closed = as.list(plan$closed), sin_closed = plan$sin_closed, members = mem_areas,
+              combina_pesos = lv$weights_version,
               membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,
               runtime_id = paste0("R", as.character(getRversion()), "-", R.version$platform),
@@ -323,7 +325,11 @@
   dh <- if (is.null(ctx$data_hash)) prevcarga_data_hash(ctx$data_dir, man, prevcarga_resolve_load_label(ctx, man)$value) else ctx$data_hash
   mv <- list()
   for (a in names(members)) for (sg in names(members[[a]])) mv[[paste0(sg, "/", a)]] <- members[[a]][[sg]]$version
-  for (a in names(lv$weights_version)) mv[[paste0("combina/", a)]] <- as.character(lv$weights_version[[a]])
+  eqw <- character()                             # folha sem pesos: combina/<folha> = "EQW" (sobreposto depois; o construtor so aceita v_<hash>)
+  for (a in names(lv$weights_version)) {
+    v <- as.character(lv$weights_version[[a]])
+    if (identical(v, "EQW")) eqw <- c(eqw, a) else mv[[paste0("combina/", a)]] <- v
+  }
   for (ss in names(rec$khat)) mv[[paste0("khat/", ss)]] <- as.character(rec$khat[[ss]]$versao)
   sg <- as.character(mem$sigla)
   spec <- lapply(as.character(mem$mdir), prevcarga_model_spec, root = ctx$root)
@@ -337,6 +343,7 @@
     root = ctx$root, package_version = if (is.null(ctx$version)) "unknown" else ctx$version, run_id = key$run_id,
     members = mem, versao = key$versao)
   m$split <- stats::setNames(lapply(spec, function(s) s$split), sg)
+  for (a in eqw) m$model_versions[[paste0("combina/", a)]] <- "EQW"
   if (!is.null(ctx$code_commit)) m$code_commit <- ctx$code_commit
   if (!is.null(ctx$renv_lock_hash)) m$renv_lock_hash <- ctx$renv_lock_hash
   m
@@ -454,7 +461,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
     exp <- prevcarga_export(sc$dir, key, incluir_membros = incluir_membros, ctx = ctx)
     tk$lap("export")
   }, prevcarga_warning = function(w) {
-    sink$add(w$id, conditionMessage(w))
+    sink$add(w$id, conditionMessage(w), where = w$where)   # `where` = a folha/area do aviso (ex.: combina_eqw)
     invokeRestart("muffleWarning")
   })
   for (w in rec$warnings) sink$add(w$id, w$message)

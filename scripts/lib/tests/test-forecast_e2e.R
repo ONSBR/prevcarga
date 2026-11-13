@@ -14,11 +14,11 @@ for (ph in c("train", "weights", "run", "rerun", "weights00", "run00")) {
 skip_if_stopped <- function(ph) if (is.null(PH[[ph]])) skip(paste("fase", ph, "nao rodou (prevcarga.m6e_stop)"))
 ok <- function(ph) { r <- PH[[ph]]; expect_identical(r$status, 0L, info = paste(utils::tail(r$log, 30), collapse = "\n")); r$json }
 
-test_that("[e2e] sem pesos da combina a 1a rodada aborta exit 13, mas as 6 celulas origin_scoped treinaram dentro do forecast, 1x cada", {
+test_that("[e2e] sem pesos da combina a 1a rodada sai pela media simples (EQW, F3.4) e as 6 celulas origin_scoped treinaram dentro do forecast, 1x cada", {
   skip_if_stopped("train")
   j <- ok("train")
-  expect_identical(j$pre_error$id, "state.combina_not_trained")
-  expect_identical(j$pre_error$exit, 13L)
+  expect_null(j$pre_error$id)                                      # nao aborta mais: combina sem pesos = media simples
+  expect_true(isTRUE(j$pre_error$eqw))
   expect_identical(j$trained_in_forecast, 6L)                      # HW, LIN_MED/MAX/MXMN, RGD_MED/MAX
   skip_if_stopped("weights")
   w <- ok("weights")
