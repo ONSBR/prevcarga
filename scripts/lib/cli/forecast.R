@@ -3,10 +3,18 @@
 ## Handler fino sobre prevcarga_forecast (forecast.R): so valida enums, resolve o escopo (area, subsistema ou sin) pela topologia e entrega
 ## result/warnings ao envelope do ADR-0040. --origin e o unico flag de data humano (global do M1); nao ha flag de corte: o docopt
 ## gerado o recusa (config.usage, exit 8). --area/--subsistema/--skip-validate/--report/--report-format ja constam do bloco Options
-## (validate-deck, train-models, score, backtest): a duplicata torna o docopt ambiguo, entao so a usage os cita.
+## (validate-deck, train-models, score, backtest); --jobs=<n> (PSOCK, F3.5) consta do bloco Options do train-models: a duplicata torna o docopt ambiguo, entao so a usage os cita.
 ## O relatorio roda DEPOIS do commit da entrega (M6.5); se falhar, a entrega fica e o verbo sai exit 14 (partial.report_failed).
 ## Convencao da fachada: handler(ctx, args); texto devolve linhas ASCII, JSON devolve o `result`. Sem env vars.
 ## Requer errors.R, config.R (da fachada) e topology.R ... reporting.R (lista em `modules`).
+
+## --jobs: inteiro >= 1, senao config.bad_type (mesma regra de .prevcarga_tm_int do train-models; cada verbo carrega so os proprios arquivos).
+.prevcarga_fc_jobs <- function(x) {
+  v <- suppressWarnings(as.numeric(x))
+  if (length(v) != 1L || is.na(v) || v != floor(v) || v < 1)
+    prevcarga_abort("config.bad_type", where = "--jobs", details = list(got = as.character(x), expected = "inteiro >= 1"))
+  as.integer(v)
+}
 
 .prevcarga_fc_opt <- function(args, name) {
   v <- args[[name]]
@@ -60,6 +68,7 @@ cmd_forecast <- function(ctx, args) {
   ss <- .prevcarga_fc_opt(args, "--subsistema")
   if (length(area) && !is.null(ss))
     prevcarga_abort("config.usage", where = "--area/--subsistema", details = list(hint = "--area e --subsistema sao exclusivos"))
+  jobs <- if (is.null(.prevcarga_fc_opt(args, "--jobs"))) 1L else .prevcarga_fc_jobs(args[["--jobs"]])
   prevcarga_require_data_dir(ctx)
   sc <- .prevcarga_fc_resolve_areas(area, ss, .prevcarga_fc_topology(ctx))
   ctx$generated_at <- .prevcarga_fc_generated_at(ctx$run_id)
@@ -68,7 +77,7 @@ cmd_forecast <- function(ctx, args) {
                             subsistema = sc$subsistema,
                             report = isTRUE(args[["--report"]]), report_format = fmt,
                             skip_validate = isTRUE(args[["--skip-validate"]]),
-                            incluir_membros = isTRUE(args[["--incluir-membros"]]))
+                            incluir_membros = isTRUE(args[["--incluir-membros"]]), jobs = jobs)
   for (w in out$warnings) prevcarga_warn(w$id, where = if (is.null(w$where)) "forecast" else w$where, details = w$details)      # a fachada coleta os avisos do catalogo no envelope
   res <- out$result
   ## entrega ja publicada e intacta; relatorio falho => exit 14 classificado, com o result no envelope
@@ -80,7 +89,7 @@ cmd_forecast <- function(ctx, args) {
 prevcarga_verb_forecast <- list(
   name    = "forecast",
   usage   = paste("prevcarga forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report]",
-                  "[--report-format=<f>] [--skip-validate]"),
+                  "[--report-format=<f>] [--skip-validate] [--jobs=<n>]"),
   options = c(
     "--incluir-membros       Inclui membros/<m>/<a>.parquet na entrega"),
   scoped  = c("--incluir-membros", "--report", "--report-format"),   # cli.R .prevcarga_check_scoped

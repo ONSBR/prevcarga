@@ -79,8 +79,19 @@
   Versao e `run_manifest.model_versions` listam so os presentes; `run.json` e `result` ganham `membros_ausentes` ([{folha, membro, error_id}]) e `dropped`. Sem falha (CONTROL) a entrega e igual a de antes.
 - Efeito colateral: origin_agnostic sem artefato em TODAS as folhas deixou de abortar `state.artifact_missing` (exit 13); vira membro ausente com aviso (a media simples sem pesos e o ticket F3.4). Teste: `test-forecast_tolerance.R`.
 
+## F3.5 -- `forecast --jobs=N` (PSOCK, saida identica a serial)
+- `.forecast_members(ctx, plan, g, mem, jobs)` monta a tabela de celulas (folha, membro) em ordem radix pela chave `"<folha>/<sigla>"` e roda `.forecast_run_cell` por posicao: `jobs <= 1` em serie (`lapply`, sem cluster);
+  `jobs > 1` por `.forecast_cluster_start(ctx, min(jobs, celulas))` (`parallel::makePSOCKcluster`; sem fork/mclapply, ADR-0038) + `parLapplyLB`, com `on.exit(stopCluster)`. O resultado e REORDENADO pela chave antes de qualquer uso:
+  nem N nem a ordem de chegada entram na entrega, no `versao` nem no `run_manifest` (FORBIDDEN delta 0 em `test-forecast_jobs.R`; CONTROL: sabotar uma celula muda o `versao`).
+- Worker: `prevcarga_worker_init(lib, .forecast_worker_modules, ctx$worker_hooks)` (training.R) carrega a lib em R novo e fixa o runtime in-process (a semente e do despachante/`run.yaml`; nenhum `set.seed` no forecast).
+  Init com falha => cluster fechado e `.prevcarga_tr_reraise` (`runtime.worker_unfixable`, exit da classe runtime), antes de qualquer scratch/entrega. Ids novos de erro: nenhum.
+- Aborto fatal (`.FORECAST_FATAL`) dentro do worker cruza o PSOCK como dado (`forecast_cell_fatal`) e o pai o re-levanta com o id original (a primeira celula na ordem radix); membro ausente segue como dado (`status = "absent"`).
+  Avisos emitidos dentro do worker nao voltam ao pai (as celulas hoje so abortam; sem `prevcarga_warn` na inferencia).
+- CLI: `--jobs=<n>` (inteiro >= 1, senao `config.bad_type` exit 8, where `--jobs`; validador proprio em `cli/forecast.R`, pois cada verbo so carrega os proprios arquivos); consta so da usage (o Options do train-models ja o declara).
+  `.forecast_stopwatch(clock, jobs)` grava o `jobs` real so no `result` do envelope, nunca em `run.json`/`run_manifest`.
+
 ## Verbos da CLI (M6.9; dono M6)
-- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate]`.
+- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>]`.
   `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options
   de outros verbos (duplicata torna o docopt ambiguo): so a usage os cita, e o `scoped` do forecast os admite. `--subsistema all` = todas as folhas; subsistema fora => `topology.area_undeclared` (4).
   O flag `--from` do snippet do ticket NAO foi declarado no forecast: `prevcarga_forecast` nao reaproveita scratch (seria flag morta).
