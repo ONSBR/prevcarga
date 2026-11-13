@@ -10,7 +10,8 @@ fe_deck <- local({
       env <- hw_env()
       st <- hw_fx_store()
       cuts <- hw_fx_cuts(st)
-      cache <<- list(deck = env$plugin_ingest(hw_fx_panel(st, cuts, history_days = 60L), cuts), cuts = cuts)
+      cache <<- list(deck = env$plugin_ingest(hw_fx_panel(st, cuts, history_days = 60L, weather = FALSE), cuts),
+                    cuts = cuts)
     }
     cache
   }
@@ -58,9 +59,9 @@ fe_new_log <- function() { l <- new.env(); l$calls <- list(); l$out <- list(); l
 fe_names <- function(log) vapply(log$calls, function(x) x$name, "")
 
 FE_STEPS <- c("Corrige.Dias.Faltantes", ".preconsist_ctm", "Corrige.Dados", "MO1", "Substitui.Feriados",
-              "Suaviza.LOESS", ".hw_recompute_ctm")
+              ".hw_recompute_ctm")
 
-test_that("[PLUGINS] fe_ordem: os 7 passos na ordem do oraculo; snapshots pos-MO1; CONTROL feriado false", {
+test_that("[PLUGINS] fe_ordem: os 6 passos (sem LOESS) na ordem do oraculo; snapshot pos-MO1; CONTROL feriado false", {
   env <- hw_env(); fx <- fe_deck(); spec <- hw_spec()
   expect_true(isTRUE(spec$params$feriado))
   log <- fe_new_log()
@@ -69,17 +70,16 @@ test_that("[PLUGINS] fe_ordem: os 7 passos na ordem do oraculo; snapshots pos-MO
   nm <- fe_names(log)
   expect_identical(nm[nm != "set.seed"],
                    c("Corrige.Dias.Faltantes", "Corrige.Dias.Faltantes", ".preconsist_ctm", "Corrige.Dados", "MO1",
-                     "Substitui.Feriados", "Suaviza.LOESS", ".hw_recompute_ctm"))
+                     "Substitui.Feriados", ".hw_recompute_ctm"))
   ## Corrige.Dados(p_ncol = 52, p_Negativos = TRUE, p_TrocaDias = FALSE, p_TabelaCargaMedia = FALSE)
   cd <- log$calls[[which(nm == "Corrige.Dados")]]$args
   expect_identical(cd$p_ncol, 52L); expect_true(cd$p_Negativos)
   expect_false(cd$p_TrocaDias); expect_false(cd$p_TabelaCargaMedia)
-  ## LOESS: span 0,3 do plugin_constants
-  expect_identical(log$calls[[which(nm == "Suaviza.LOESS")]]$args$p_span, 0.3)
-  ## snapshots == estado logo apos o MO1 / pre-consistencia, antes da substituicao de feriados
+  expect_false("Suaviza.LOESS" %in% nm)
+  expect_false("CargaTempMed1" %in% names(f))
+  ## snapshot == estado logo apos o MO1, antes da substituicao de feriados
   i_mo <- which(nm == "MO1")
   expect_identical(f$CargaTempVerFer, log$out[[i_mo]][[1L]])
-  expect_identical(f$CargaTempMed1, log$out[[which(nm == ".preconsist_ctm")]])
   ## a substituicao de feriados tem efeito: O-5 e feriado do fixture (Feriado 1)
   H <- env$hw_slot_cols()
   expect_false(identical(f$CargaTempVer[, H], f$CargaTempVerFer[, H]))
@@ -92,7 +92,7 @@ test_that("[PLUGINS] fe_ordem: os 7 passos na ordem do oraculo; snapshots pos-MO
   expect_identical(g$CargaTempVer[, H], g$CargaTempVerFer[, H])
   ## CargaTempMed recomputado da CargaTempVer limpa
   expect_equal(f$CargaTempMed$Cmed, unname(rowMeans(f$CargaTempVer[, H])))
-  expect_equal(f$CargaTempMed$Tmed, unname(rowMeans(f$CargaTempVer[, env$hw_temp_cols()])))
+  expect_true(all(is.na(f$CargaTempMed$Tmed)))               # HW univariado: Tmed (coluna 5) NA
 })
 
 test_that("[PLUGINS] fe_sementes: set.seed(spec$seed) antes do MO1, p_seed = kmeans_seed; CONTROL kmeans_seed 7", {
@@ -195,18 +195,17 @@ test_that("[PLUGINS] fe_pureza: deck de entrada intacto, saida com chaves e dime
   expect_identical(get(".Random.seed", envir = globalenv()), seed0)
   expect_identical(ls(globalenv(), all.names = TRUE), g0)
   expect_identical(fx$deck, deck0)
-  expect_identical(names(f), c("CargaTempVer", "CargaTempMed", "CargaTempVerFer", "CargaTempMed1", "m_mes", "TempPre",
-                               "CDDPre", "load_day_o", "n_steps", "weather_absent", "meta"))
+  expect_identical(names(f), c("CargaTempVer", "CargaTempMed", "CargaTempVerFer", "m_mes", "horizon_calendar",
+                               "load_day_o", "n_steps", "meta"))
   n <- nrow(fx$deck$CargaTempVer)
   expect_identical(dim(f$CargaTempVer), c(n, 105L))
   expect_identical(dim(f$CargaTempVerFer), c(n, 105L))
   expect_identical(dim(f$CargaTempMed), c(n, 6L))
-  expect_identical(dim(f$CargaTempMed1), c(n, 6L))
   expect_identical(names(f$CargaTempVer), env$hw_ctv_cols())
   expect_identical(names(f$CargaTempMed), c("data", "feriado", "diasemana", "Cmed", "Tmed", "TIPO_FER"))
   expect_identical(f$m_mes, as.integer(lubridate::month(fx$cuts$origin_day)))
   expect_identical(f$m_mes, 5L)
-  for (k in c("TempPre", "CDDPre", "load_day_o", "n_steps", "weather_absent", "meta"))
+  for (k in c("horizon_calendar", "load_day_o", "n_steps", "meta"))
     expect_identical(f[[k]], fx$deck[[k]], info = k)
   expect_s3_class(f$CargaTempVer$Data, "Date")
   expect_true(all(f$CargaTempVer$Data <= fx$cuts$last_data_day))
@@ -219,7 +218,7 @@ test_that("[PLUGINS] fe_perfil_st: o ramo ST (ARIMA) roda e devolve as mesmas co
   sp <- spec; sp$params$perfil_mo <- "ST"
   st <- suppressMessages(env$plugin_build_features(fx$deck, sp))
   expect_identical(names(st), names(c0))
-  for (k in c("CargaTempVer", "CargaTempMed", "CargaTempVerFer", "CargaTempMed1"))
+  for (k in c("CargaTempVer", "CargaTempMed", "CargaTempVerFer"))
     expect_identical(dim(st[[k]]), dim(c0[[k]]), info = k)
   expect_identical(names(st$CargaTempVer), names(c0$CargaTempVer))
   expect_true(all(is.finite(as.matrix(st$CargaTempVer[, env$hw_slot_cols()]))))

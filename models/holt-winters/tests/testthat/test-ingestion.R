@@ -20,9 +20,9 @@ test_that("[PLUGINS] ingest_shape: H01 = 00:00-00:30 por interval_start; CONTROL
     lubridate::minutes(30L * rep(0:47, each = nrow(ctv)))
   expect_true(all(dec == want))
   expect_true(all(lubridate::hour(dec[seq_len(nrow(ctv))]) == 0L & lubridate::minute(dec[seq_len(nrow(ctv))]) == 0L))
-  ## o clima observado cai por valid_time no mesmo mapeamento
-  dect <- hw_sentinel_decode(as.matrix(ctv[, env$hw_temp_cols()]), cuts$tz)
-  expect_true(all(dect == want))
+  ## HW univariado: TempMedia e T01..T48 todos NA_real_
+  expect_true(all(is.na(ctv$TempMedia)) && is.double(ctv$TempMedia))
+  expect_true(all(is.na(as.matrix(ctv[, env$hw_temp_cols()]))) && is.double(ctv[[env$hw_temp_cols()[[1L]]]]))
   ## CONTROL: agrupar por interval_end desloca a 1a coluna e reprova o sentinela
   hist <- panel$load[lubridate::as_date(interval_start, tz = cuts$tz) <= cuts$last_data_day]
   bad <- env$.hw_wide_by_slot(hist, "interval_end", "load_mwh", "H", cuts$tz)
@@ -55,10 +55,9 @@ test_that("[PLUGINS] ingest_shape: tipos, feriados do calendario e dia O fora da
   expect_identical(deck$meta$area, HW_AREA)
   expect_identical(deck$meta$last_data_day, cuts$last_data_day)
   expect_identical(deck$n_steps, 8L)
-  expect_false(deck$weather_absent)
-  expect_identical(names(deck$TempPre), c("DIA", env$hw_slot_cols(), "FER"))
-  expect_identical(names(deck$CDDPre), c("DIA", "TEMP", "TOT", "DS", "TIPO_FER"))
-  expect_identical(deck$TempPre$DIA, cuts$origin_day + 0:8)
+  expect_identical(names(deck), c("CargaTempVer", "CargaTempMed", "horizon_calendar", "load_day_o", "n_steps", "meta"))
+  expect_false(any(c("TempPre", "CDDPre", "weather_absent") %in% names(deck)))
+  expect_false("weather_issue_cutoff" %in% names(deck$meta))
 })
 
 test_that("[PLUGINS] ingest_shape: infer traz a carga do dia O (ate available_until) so em load_day_o", {
@@ -113,49 +112,48 @@ test_that("[PLUGINS] ingest_contract: load_mwh ausente, timestamp cru, dia O no 
   expect_null(hw_catch(env$plugin_ingest(panel, cuts)))
 })
 
-test_that("[PLUGINS] ingest_weather: emissao 06Z escolhida com limite 06Z; 18Z => contract; sem emissao => fallback + aviso", {
+test_that("[PLUGINS] ingest_calendario: deck sem clima identical ao com clima, sem aviso; calendario O..O+8 do feriado; CONTROL feriado removido", {
   env <- hw_env()
   st <- hw_fx_store()
   cuts <- hw_fx_cuts(st)
   O <- cuts$origin_day
-  iss <- function(h) lubridate::force_tz(lubridate::as_datetime(O), "UTC") + lubridate::hours(h)
-  ctx <- hw_fx_ctx(st)
-  fc_all <- hw_lib$prevcarga_read_weather(ctx, "forecast", HW_AREA, O, O + cuts$horizon_days)
-  expect_true(any(fc_all$issue_time == iss(18L)) || any(fc_all$issue_time > iss(6L)))
-  c06 <- cuts; c06$weather_issue_limit <- iss(6L)
-  p06 <- hw_fx_panel(st, c06)
-  expect_true(max(p06$weather_forecast$issue_time) == iss(6L))
-  deck <- env$plugin_ingest(p06, c06)
-  day <- O + 2L
-  want06 <- fc_all[issue_time == iss(6L) & lubridate::as_date(valid_time, tz = cuts$tz) == day][order(valid_time)]
-  want18 <- fc_all[issue_time == iss(18L) & lubridate::as_date(valid_time, tz = cuts$tz) == day][order(valid_time)]
-  expect_identical(nrow(want06), 48L)
-  got <- unlist(deck$TempPre[deck$TempPre$DIA == day, env$hw_slot_cols()], use.names = FALSE)
-  expect_equal(got, want06$temperature)
-  expect_false(isTRUE(all.equal(got, want18$temperature)))
-  ## 18Z no painel com limite 06Z => confere e aborta (nunca corta)
-  p18 <- p06; p18$weather_forecast <- fc_all[issue_time <= iss(18L)]
-  e <- hw_catch(env$plugin_ingest(p18, c06))
-  expect_s3_class(e, "prevcarga_error")
-  expect_identical(e$id, "hw.weather_beyond_cut"); expect_identical(e$exit_code, 2L)
-  expect_true(hw_ascii(conditionMessage(e)))
-  ## sem nenhuma emissao: fallback do oraculo
-  p0 <- p06; p0$weather_forecast <- p06$weather_forecast[0L]
-  w <- NULL
-  deck0 <- withCallingHandlers(env$plugin_ingest(p0, c06),
-    prevcarga_warning = function(cnd) { w <<- cnd; invokeRestart("muffleWarning") })
-  expect_s3_class(w, "prevcarga_warning")
-  expect_identical(w$id, "hw.weather_absent")
-  expect_true(hw_ascii(conditionMessage(w)))
-  expect_true(deck0$weather_absent)
-  expect_identical(deck0$n_steps, cuts$horizon_days)
-  expect_true(all(is.na(as.matrix(deck0$TempPre[, env$hw_slot_cols()]))))
-  expect_true(all(is.na(deck0$CDDPre$TEMP)) && all(is.na(deck0$CDDPre$TOT)))
-  expect_identical(deck0$TempPre$FER[deck0$TempPre$DIA == O + 3L], 1L)    # feriado futuro do calendario
-  expect_identical(deck0$TempPre$FER[deck0$TempPre$DIA == O + 4L], 0L)
-  expect_identical(deck0$CDDPre$DS, as.integer(lubridate::wday(O + 0:8)))
-  ## CONTROL: com a emissao presente o deck nao e fallback
-  expect_false(deck$weather_absent)
+  p_full <- hw_fx_panel(st, cuts)
+  p_none <- hw_fx_panel(st, cuts, weather = FALSE)
+  expect_true(NROW(p_full$weather_forecast) > 0L)
+  expect_null(p_none$weather_observed); expect_null(p_none$weather_forecast)
+  ## stages: nenhuma coluna de clima exigida
+  expect_identical(env$hw_data_tokens(), c("data.load.load_mwh", "data.holidays.date", "data.holidays.simplified_code",
+                                           "data.holidays.holiday_type_id"))
+  d <- hw_lib$prevcarga_plugin_load("holt-winters", file.path(hw_root(), "models"))$descriptor
+  expect_null(hw_catch(hw_lib$.prevcarga_plugin_require_data_cols(p_none, d,
+                                                                   c("ingestion", "inference_features", "inference"))))
+  w <- character()
+  deck_none <- withCallingHandlers(env$plugin_ingest(p_none, cuts),
+    warning = function(cnd) { w <<- c(w, conditionMessage(cnd)); invokeRestart("muffleWarning") })
+  expect_length(w, 0L)
+  ## FORBIDDEN Delta 0: o clima do painel nao muda o deck
+  expect_identical(deck_none, env$plugin_ingest(p_full, cuts))
+  ctv <- deck_none$CargaTempVer
+  expect_identical(names(ctv), env$hw_ctv_cols())
+  expect_true(all(is.na(ctv$TempMedia)) && all(is.na(as.matrix(ctv[, env$hw_temp_cols()]))))
+  ## calendario do horizonte: 9 linhas O..O+8 e n_steps 8
+  hc <- deck_none$horizon_calendar
+  expect_identical(names(hc), c("DIA", "FER", "TIPO_FER", "DS"))
+  expect_identical(hc$DIA, O + 0:8)
+  expect_identical(hc$DS, as.integer(lubridate::wday(O + 0:8)))
+  expect_identical(deck_none$n_steps, 8L)
+  expect_identical(hc$FER[hc$DIA == O + 3L], 1L)            # feriado futuro do calendario
+  expect_identical(hc$FER[hc$DIA == O + 4L], 0L)
+  expect_identical(hc$TIPO_FER[hc$DIA == O + 3L], env$.hw_lookup(O + 3L, env$.hw_holidays(p_none$holidays), "TIPO_FER"))
+  ## CONTROL: feriado removido do calendario muda FER
+  p_nofer <- p_none
+  p_nofer$holidays <- p_none$holidays[lubridate::as_date(p_none$holidays$date) != O + 3L, ]
+  hc2 <- env$plugin_ingest(p_nofer, cuts)$horizon_calendar
+  expect_identical(hc2$FER[hc2$DIA == O + 3L], 0L)
+  expect_false(identical(hc2$FER, hc$FER))
+  ## horizon_days ausente nos cuts: cai em delivery_days - 1 do descriptor
+  c0 <- cuts; c0$horizon_days <- NULL
+  expect_identical(env$plugin_ingest(p_none, c0)$n_steps, 8L)
 })
 
 test_that("[PLUGINS] ingest_puro: duas rodadas identical, insensiveis a env/relogio/RNG; 730 dias de historia", {

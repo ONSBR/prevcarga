@@ -52,11 +52,10 @@
   m
 }
 
-## Snapshots que o infer le (SemiFer e efeitoTemp): arqCarga do SemiFer = CargaTempVerFer com Data >= piso (2019-01-01).
+## Snapshot que o infer le (SemiFer): arqCarga do SemiFer = CargaTempVerFer com Data >= piso (2019-01-01).
 .hw_semifer_snapshots <- function(features) {
   fer <- features$CargaTempVerFer
-  list(carga_temp_ver_fer = fer[fer$Data >= plugin_constants()$semifer_floor, , drop = FALSE],
-       carga_temp_med1 = features$CargaTempMed1, carga_temp_ver = features$CargaTempVer)
+  list(carga_temp_ver_fer = fer[fer$Data >= plugin_constants()$semifer_floor, , drop = FALSE])
 }
 
 ## `spec` = list(params, seed, horizon_days, history_days) (modelo spec do run.yaml) OU, na forma do despachante P.0c,

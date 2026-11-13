@@ -6,14 +6,13 @@ if (!exists("prevcarga_freeze", envir = hw_lib, inherits = FALSE))
 
 fz_spec <- function() { s <- hw_spec(); s$history_days$train <- 59L; s }
 
+## modelo FALSO (hw_fx_fake_model): freeze/thaw sem plugin_train nem forecast::hw
 fz_base <- local({
   cache <- NULL
   function() {
     if (is.null(cache)) {
-      env <- hw_env(); st <- hw_fx_store(); cuts <- hw_fx_cuts(st); spec <- fz_spec()
-      deck <- env$plugin_ingest(hw_fx_panel(st, cuts, history_days = 60L), cuts)
-      feats <- suppressMessages(env$plugin_build_features(deck, spec))
-      cache <<- list(env = env, cuts = cuts, spec = spec, feats = feats, model = env$plugin_train(feats, spec))
+      env <- hw_env(); st <- hw_fx_store(); cuts <- hw_fx_cuts(st)
+      cache <<- list(env = env, cuts = cuts, spec = fz_spec(), model = hw_fx_fake_model(env, cuts$origin_day))
     }
     cache
   }
@@ -29,7 +28,7 @@ fz_plugin <- function() list(descriptor = list(model_id = "holt-winters", contra
 
 FZ_FIELDS <- c("model_id", "origin_day", "train_origin", "mean_interval", "mean_daily", "datainiver", "datafimver",
                "align_first_idx", "h_fit", "n_steps_fit", "m_mes", "params", "seed",
-               "carga_temp_ver_fer", "carga_temp_med1", "carga_temp_ver")
+               "carga_temp_ver_fer")
 
 test_that("[PLUGINS] freeze_puro: campos exatos, scan_pure ok; CONTROL trained_at injetado acusado e sha256 diferente", {
   b <- fz_base(); art <- b$env$plugin_freeze(b$model)
@@ -38,10 +37,9 @@ test_that("[PLUGINS] freeze_puro: campos exatos, scan_pure ok; CONTROL trained_a
   expect_identical(dim(art$mean_interval), c(9L, 48L)); expect_null(dimnames(art$mean_interval))
   expect_true(is.double(art$mean_interval) && is.double(art$mean_daily) && length(art$mean_daily) == 9L)
   expect_s3_class(art$origin_day, "Date"); expect_s3_class(art$datainiver, "Date")
-  expect_true(all(art$carga_temp_ver_fer$Data >= lubridate::ymd("2019-01-01")))
-  expect_identical(ncol(art$carga_temp_ver_fer), 105L); expect_identical(ncol(art$carga_temp_ver), 105L)
-  expect_identical(ncol(art$carga_temp_med1), 6L)
-  expect_identical(art$m_mes, 5L); expect_identical(art$seed, 1234L)
+  expect_identical(ncol(art$carga_temp_ver_fer), 105L)
+  expect_false(any(c("carga_temp_med1", "carga_temp_ver") %in% names(art)))
+  expect_identical(art$m_mes, 5L); expect_identical(art$seed, 1L)
   for (cl in c("forecast", "ets", "ts")) expect_false(any(vapply(art, inherits, NA, what = cl)))
   expect_false(any(c("trained_at", "config", "call", "available_until", "model_var") %in% names(art)))
   expect_identical(art$origin_day, b$cuts$origin_day); expect_identical(art$train_origin, b$cuts$origin_day)
@@ -56,23 +54,16 @@ test_that("[PLUGINS] freeze_puro: campos exatos, scan_pure ok; CONTROL trained_a
   expect_identical(hw_catch(b$env$plugin_freeze(bad))$id, "hw.bad_artifact")
 })
 
-test_that("[PLUGINS] freeze_det: 2 treinos => sha256 igual; thaw(freeze) identical; .Random.seed do chamador inalterado", {
+test_that("[PLUGINS] freeze_det: 2 freezes do mesmo modelo falso => sha256 igual; thaw(freeze) identical; seed do chamador intacta", {
   b <- fz_base(); env <- b$env
-  guard <- hw_lib$.prevcarga_plugin_guarded
   set.seed(4242); seed0 <- get(".Random.seed", envir = globalenv())
-  m1 <- suppressMessages(guard(fz_plugin(), env$plugin_train(b$feats, b$spec)))
-  m2 <- suppressMessages(guard(fz_plugin(), env$plugin_train(b$feats, b$spec)))
+  a1 <- env$plugin_freeze(b$model); a2 <- env$plugin_freeze(hw_fx_fake_model(env, b$cuts$origin_day))
   expect_identical(get(".Random.seed", envir = globalenv()), seed0)
-  a1 <- env$plugin_freeze(m1); a2 <- env$plugin_freeze(m2)
   expect_identical(fz_sha(a1), fz_sha(a2))
-  expect_identical(fz_sha(a1), fz_sha(env$plugin_freeze(b$model)))
   f <- tempfile("hw-frz-", fileext = ".rds"); on.exit(unlink(c(f, paste0(f, ".manifest.json"))), add = TRUE)
   hw_lib$prevcarga_freeze(a1, f)
   back <- hw_lib$prevcarga_thaw(f)
   expect_identical(env$plugin_thaw(back), a1)
-  ## forma do despachante P.0c (params + seed no 3o argumento) da o mesmo modelo
-  m3 <- env$plugin_train(b$feats, b$spec$params, b$spec$seed)
-  expect_identical(env$plugin_freeze(m3)$mean_interval, a1$mean_interval)
   ## o artefato nao depende do available_until: o carimbo nunca o traz
   expect_false("available_until" %in% names(a1))
 })
@@ -87,8 +78,17 @@ test_that("[PLUGINS] thaw_contract: forma 8x48 => contract nomeando mean_interva
   expect_match(conditionMessage(hw_catch(env$plugin_thaw(w))), "mean_daily")
   w <- art; w$align_first_idx <- 1L
   expect_match(conditionMessage(hw_catch(env$plugin_thaw(w))), "align_first_idx")
-  w <- art; w$carga_temp_med1 <- w$carga_temp_med1[, 1:5]
-  expect_match(conditionMessage(hw_catch(env$plugin_thaw(w))), "carga_temp_med1")
+  ## artefato antigo de 16 campos => hw.bad_artifact nomeando o primeiro campo a mais
+  old <- c(art, list(carga_temp_med1 = data.frame(x = 1), carga_temp_ver = art$carga_temp_ver_fer))
+  e16 <- hw_catch(env$plugin_thaw(old))
+  expect_identical(e16$id, "hw.bad_artifact"); expect_identical(e16$details$field, "carga_temp_med1")
+  expect_true(all(utf8ToInt(conditionMessage(e16)) < 128L))
+  ## carga_temp_ver_fer de 104 colunas
+  bad <- art; bad$carga_temp_ver_fer <- bad$carga_temp_ver_fer[, -105L]
+  e104 <- hw_catch(env$plugin_thaw(bad))
+  expect_identical(e104$id, "hw.bad_artifact"); expect_identical(e104$details$field, "carga_temp_ver_fer")
+  ## CONTROL: o artefato de 14 campos e 105 colunas passa
+  expect_null(hw_catch(env$plugin_thaw(art)))
   ## byte adulterado, pela fundacao (P.0d): stamp + freeze_bytes + thaw
   st <- hw_lib$prevcarga_plugin_stamp(art, fz_plugin(), c(b$spec, list(split = "origin_scoped")), b$cuts,
                                       list(load_label = "start", timezone = HW_TZ, weather_issue_cutoff = "available_until"))

@@ -36,8 +36,6 @@ test_that("[PLUGINS] sentinela: H01 = 00:00-00:30 por interval_start e delivery 
   expect_true(r$ok)
   expect_true(all(lubridate::hour(r$dec[seq_len(nrow(ctv))]) == 0L & lubridate::minute(r$dec[seq_len(nrow(ctv))]) == 0L))   # H01 = 00:00
   expect_identical(max(ctv$Data), cuts$last_data_day)
-  ## o clima observado cai por valid_time no mesmo mapeamento
-  expect_true(hv_sentinel_ok(ctv[, env$hw_temp_cols()], ctv$Data, cuts$tz)$ok)
   ## CONTROL: agrupar por interval_end desloca a 1a coluna e o MESMO decodificador reprova
   hist <- panel$load[lubridate::as_date(interval_start, tz = cuts$tz) <= cuts$last_data_day]
   bad <- hw_fx_variant_group_by_end(hist, cuts)

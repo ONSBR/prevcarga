@@ -13,7 +13,7 @@ source(file.path(dirname(dirname(dirname(dirname(.hw_runner)))), "scripts", "too
 .hw_gates <- list(
   list("registro", "-", "PLUGINS", "fast"), list("catalogo_hw", "-", "PLUGINS", "fast"),
   list("ingest_shape", "-", "PLUGINS", "fast"), list("ingest_contract", "-", "PLUGINS", "fast"),
-  list("ingest_weather", "-", "PLUGINS", "fast"), list("ingest_puro", "-", "PLUGINS", "fast"),
+  list("ingest_calendario", "-", "PLUGINS", "fast"), list("ingest_puro", "-", "PLUGINS", "fast"),
   list("hv_lubridate", "-", "PLUGINS", "fast"), list("fe_ordem", "-", "PLUGINS", "fast"),
   list("fe_sementes", "-", "PLUGINS", "fast"), list("fe_params", "-", "PLUGINS", "fast"),
   list("fe_datas", "-", "PLUGINS", "fast"), list("fe_pureza", "-", "PLUGINS", "fast"),
