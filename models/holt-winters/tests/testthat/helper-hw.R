@@ -80,7 +80,7 @@ hw_fx_cuts <- function(store, origin = store$O, rule = "available_until") {
 ## Painel pelo leitor do M2. O previsto traz TODAS as emissoes <= weather_issue_limit (o leitor entrega so a mais fresca;
 ## o HW escolhe a mais fresca por (dia, slot)); o observado usa `valid_time` (adaptador do P.0i). mode "train": carga e
 ## observado cortados em last_data_day; "infer": carga ate available_until.
-hw_fx_panel <- function(store, cuts, mode = c("train", "infer"), history_days = 45L) {
+hw_fx_panel <- function(store, cuts, mode = c("train", "infer"), history_days = 45L, weather = TRUE) {
   mode <- match.arg(mode)
   ctx <- hw_fx_ctx(store)
   O <- lubridate::as_date(cuts$origin_day)
@@ -92,7 +92,20 @@ hw_fx_panel <- function(store, cuts, mode = c("train", "infer"), history_days = 
     p$load <- p$load[lubridate::as_date(interval_start, tz = cuts$tz) <= cuts$last_data_day]
     p$weather_observed <- p$weather_observed[lubridate::as_date(valid_time, tz = cuts$tz) <= cuts$last_data_day]
   }
+  ## weather = FALSE: deck sem clima (HW univariado) -- weather_observed e weather_forecast NULL
+  if (!isTRUE(weather)) { p["weather_observed"] <- list(NULL); p["weather_forecast"] <- list(NULL) }
   p
+}
+
+## Modelo FALSO do HW para freeze/thaw (sem plugin_train, sem forecast::hw): os 14 campos de .hw_freeze_keep() mais
+## carga_temp_med1 e carga_temp_ver (extras que o freeze descarta), matrizes sinteticas pequenas.
+hw_fx_fake_model <- function(env = hw_env(), O = lubridate::ymd("2024-05-15")) {
+  ctv <- as.data.frame(matrix(1, nrow = 3L, ncol = 105L, dimnames = list(NULL, env$hw_ctv_cols())))
+  ctv$Data <- O - 3:1
+  list(model_id = "holt-winters", origin_day = O, train_origin = O, mean_interval = matrix(1000, 9L, 48L),
+       mean_daily = rep(1000, 9L), datainiver = O - 60L, datafimver = O - 1L, align_first_idx = 2L, h_fit = 9L,
+       n_steps_fit = 8L, m_mes = 5L, params = list(), seed = 1L, carga_temp_ver_fer = ctv,
+       carga_temp_med1 = data.frame(x = 1), carga_temp_ver = ctv)       # extras: o freeze descarta
 }
 
 ## Decodifica o sentinela (minutos desde 2026-09-01 00:00 no fuso) em instantes.

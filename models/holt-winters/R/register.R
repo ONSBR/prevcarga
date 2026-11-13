@@ -35,13 +35,11 @@ hw_warn <- function(id, reason = NULL, details = NULL, where = "holt-winters/ing
 ## --- Constantes intrinsecas do modelo (nao sao tunaveis) ----------------------------------------------------------
 plugin_constants <- function() list(
   loess_span_out  = 0.13,                          # Suaviza.LOESS1 pos-infer (hw_inference.R:379)
-  loess_span_temp = 0.3,                           # Suaviza.LOESS de T01..T48 (feature_engineering.R:537)
   semifer_floor   = lubridate::ymd("2019-01-01"),  # piso do arqCarga do SemiFer (hw_training.R)
   ts_frequency    = 7L,                            # frequency do ts() diario
   hv_tz           = "America/Sao_Paulo",           # so o flag historico HV (horario de verao)
   hv_utc_hour     = 6L,                            # o oraculo avalia o fuso as 06:00 UTC do dia (GetData2.R:51)
-  cmed_bounds     = c(1, 999999),                  # .preconsist_ctm: Cmed valida
-  tmed_bounds     = c(-10, 50))                    # .preconsist_ctm: Tmed valida
+  cmed_bounds     = c(1, 999999))                  # .preconsist_ctm: Cmed valida
 
 ## --- Nomes de colunas e tokens (sem literal espalhado) -------------------------------------------------------------
 hw_slot_cols <- function() sprintf("H%02d", 1:48)
@@ -50,13 +48,12 @@ hw_temp_cols <- function() sprintf("T%02d", 1:48)
 hw_ctv_cols <- function() c("Data", "Feriado", "DiaSemana", hw_slot_cols(), "TempMedia", hw_temp_cols(),
                             "CargaMedia", "HV", "FHV15", "DHV15", "TIPO_FER")
 ## Tokens do deck/features; o registro os qualifica com `holt-winters::` (so `data.*` fica sem prefixo).
-hw_deck_tokens <- function() paste0("deck.", c("CargaTempVer", "CargaTempMed", "TempPre", "CDDPre", "load_day_o",
-                                               "n_steps", "weather_absent", "meta"))
-hw_feature_tokens <- function() paste0("features.", c("hist_matrix", "temp_matrix", "calendar", "horizon_weather"))
-## Colunas do painel exigidas na ingestao (tokens data.<dataset>.<coluna> do contrato do leitor)
-hw_data_tokens <- function() c("data.load.load_mwh", "data.weather_observed.temperature",
-  "data.weather_forecast.issue_time", "data.weather_forecast.valid_time", "data.weather_forecast.temperature",
-  "data.holidays.date", "data.holidays.simplified_code", "data.holidays.holiday_type_id")
+hw_deck_tokens <- function() paste0("deck.", c("CargaTempVer", "CargaTempMed", "horizon_calendar", "load_day_o",
+                                               "n_steps", "meta"))
+hw_feature_tokens <- function() paste0("features.", c("hist_matrix", "calendar"))
+## Colunas do painel exigidas na ingestao (tokens data.<dataset>.<coluna> do contrato do leitor). HW e univariado: sem clima.
+hw_data_tokens <- function() c("data.load.load_mwh", "data.holidays.date", "data.holidays.simplified_code",
+                               "data.holidays.holiday_type_id")
 
 ## --- Schema dos 7 params (sem default: o run.yaml e a unica fonte) ------------------------------------------------
 hw_params_schema <- function() list(

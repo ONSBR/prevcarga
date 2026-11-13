@@ -10,10 +10,12 @@
 source(file.path(dirname(dirname(dirname(dirname(.hw_runner)))), "scripts", "tools", "plugin_gates.R"))
 
 ## Tabela gate x dono final do epico (HW.7). `oracle` = gate do oraculo (documentacao). DEFERRED = SKIP com dono ate o pack existir.
+## HW univariado: sairam ingest_weather, efeito_temp, infer_clima, clima_honesto (gate08) e clima_fallback (gate09); entraram
+## clima_cego (HW nao le clima: FORBIDDEN/CONTROL), ingest_calendario e infer_sem_clima.
 .hw_gates <- list(
   list("registro", "-", "PLUGINS", "fast"), list("catalogo_hw", "-", "PLUGINS", "fast"),
   list("ingest_shape", "-", "PLUGINS", "fast"), list("ingest_contract", "-", "PLUGINS", "fast"),
-  list("ingest_weather", "-", "PLUGINS", "fast"), list("ingest_puro", "-", "PLUGINS", "fast"),
+  list("ingest_calendario", "-", "PLUGINS", "fast"), list("ingest_puro", "-", "PLUGINS", "fast"),
   list("hv_lubridate", "-", "PLUGINS", "fast"), list("fe_ordem", "-", "PLUGINS", "fast"),
   list("fe_sementes", "-", "PLUGINS", "fast"), list("fe_params", "-", "PLUGINS", "fast"),
   list("fe_datas", "-", "PLUGINS", "fast"), list("fe_pureza", "-", "PLUGINS", "fast"),
@@ -22,16 +24,16 @@ source(file.path(dirname(dirname(dirname(dirname(.hw_runner)))), "scripts", "too
   list("train_contract", "-", "PLUGINS", "fast"), list("train_cut", "-", "PLUGINS", "fast"),
   list("freeze_puro", "-", "PLUGINS", "fast"), list("freeze_det", "-", "PLUGINS", "fast"),
   list("thaw_contract", "-", "PLUGINS", "fast"), list("infer_envelope", "-", "PLUGINS", "fast"),
-  list("infer_sem_refit", "-", "PLUGINS", "fast"), list("efeito_temp", "-", "PLUGINS", "fast"),
-  list("semifer_loess", "-", "PLUGINS", "fast"), list("infer_clima", "-", "PLUGINS", "fast"),
+  list("infer_sem_refit", "-", "PLUGINS", "fast"), list("infer_sem_clima", "-", "PLUGINS", "fast"),
+  list("semifer_loess", "-", "PLUGINS", "fast"),
   list("infer_forecast", "-", "PLUGINS", "fast"), list("infer_contract", "-", "PLUGINS", "fast"),
   list("infer_puro", "-", "PLUGINS", "fast"),
   list("paridade", "-", "PLUGINS", "parity"), list("paridade_controle", "-", "PLUGINS", "parity"),
   list("sem_crash_1o_mes", "gate03", "PLUGINS", "parity"), list("sem_deslocamento", "gate11", "PLUGINS", "parity"),
   list("corte_treino", "gate01", "PLUGINS", "fast"), list("contrato_entrada", "gate02", "PLUGINS", "fast"),
   list("corte_intradiario", "-", "PLUGINS", "fast"), list("mesmo_dia", "-", "PLUGINS", "fast"),
-  list("sentinela", "-", "PLUGINS", "fast"), list("clima_honesto", "gate08", "PLUGINS", "fast"),
-  list("clima_fallback", "gate09", "PLUGINS", "fast"), list("infer_igual_forecast", "-", "PLUGINS", "fast"),
+  list("sentinela", "-", "PLUGINS", "fast"), list("clima_cego", "-", "PLUGINS", "fast"),
+  list("infer_igual_forecast", "-", "PLUGINS", "fast"),
   list("higiene_grep", "gate05", "PLUGINS", "fast"), list("higiene_env", "-", "PLUGINS", "fast"),
   list("determinismo", "gate06", "PLUGINS", "fast"), list("seed_medicao", "-", "PLUGINS", "fast"),
   list("sem_seed_literal", "-", "PLUGINS", "fast"), list("artefato_puro", "-", "PLUGINS", "fast"),

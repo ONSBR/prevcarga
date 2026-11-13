@@ -66,14 +66,14 @@ test_that("[PLUGINS] helpers_oraculo: funcoes portadas == oraculo (identical), C
   expect_identical(env$classifica_kmeans(as.matrix(cd[, 4:51]), 12L, p_seed = 123L),
                    orc$classifica_kmeans(as.matrix(cd[, 4:51]), 12L))
 
-  ## 4. Substitui.Feriados, 5. Suaviza.LOESS, 6. Suaviza.LOESS1, 7. SemiFer
+  ## 4. Substitui.Feriados, 5. Suaviza.LOESS1, 6. SemiFer (Suaviza.LOESS de T saiu: HW univariado)
   mo <- mo_e[[1L]]
   expect_gt(mo_e[[2L]], 0)
   expect_true(any(mo$Feriado %in% c(1, 2)))
   sf_e <- env$Substitui.Feriados(mo, nrow(mo), 52L, FALSE)
   expect_identical(sf_e, orc$Substitui.Feriados(mo, nrow(mo), 52L, FALSE))
   expect_false(identical(sf_e[[1L]], mo))
-  expect_identical(env$Suaviza.LOESS(sf_e[[1L]], nrow(mo), 0.3), orc$Suaviza.LOESS(sf_e[[1L]], nrow(mo), 0.3))
+  expect_false(exists("Suaviza.LOESS", envir = env, inherits = FALSE))
   row <- as.numeric(mo[1L, 4:51]) * (1 + 0.05 * sin((1:48)^2))  # linha irregular: o span importa
   expect_identical(env$Suaviza.LOESS1(row, 0.13), orc$Suaviza.LOESS1(row, 0.13))
   for (fs in c("F", "S"))

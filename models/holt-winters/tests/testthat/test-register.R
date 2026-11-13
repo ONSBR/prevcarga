@@ -84,11 +84,11 @@ hw_used_ids <- function(dir) {
 }
 hw_ids_missing <- function(dir, catalog) setdiff(hw_used_ids(dir), catalog$id)
 
-test_that("[PLUGINS] catalogo_hw: os 10 ids hw.* declarados, ASCII, classe esperada, TSV em sincronia", {
+test_that("[PLUGINS] catalogo_hw: os 12 ids hw.* declarados, ASCII, classe esperada, TSV em sincronia", {
   cat <- hw_lib$prevcarga_errors_load()
   want <- c(hw.raw_timestamp = "contract", hw.input_column = "contract", hw.train_day_o = "contract",
-            hw.weather_beyond_cut = "contract", hw.artifact_origin = "contract",
-            hw.last_day_incomplete = "completude", hw.history_short = "window", hw.weather_absent = "completude",
+            hw.artifact_origin = "contract",
+            hw.last_day_incomplete = "completude", hw.history_short = "window",
             hw.bad_param = "contract", hw.fe_flag = "contract", hw.bad_cut = "contract",
             hw.non_finite = "contract", hw.bad_artifact = "contract", hw.semifer_failed = "completude")
   expect_true(all(names(want) %in% cat$id))
@@ -101,6 +101,12 @@ test_that("[PLUGINS] catalogo_hw: os 10 ids hw.* declarados, ASCII, classe esper
   expect_false(as.raw(13L) %in% raw)
   own <- utils::read.delim(tsv, quote = "", colClasses = "character")
   expect_setequal(own$id, names(want))
+  expect_length(names(want), 12L)
+  expect_false(any(c("hw.weather_beyond_cut", "hw.weather_absent") %in% cat$id))
+  expect_false(grepl("clima|weather|temperatura", own$hint[own$id == "hw.input_column"], ignore.case = TRUE))
+  ## nenhum resquicio do clima/LOESS de T em R/ (Suaviza.LOESS1, o pos-infer, continua)
+  expect_identical(hw_grep_code(file.path(hw_root(), "models", "holt-winters", "R"),
+                                "hw[.]weather_beyond_cut|hw[.]weather_absent|Suaviza[.]LOESS[(]"), character())
   expect_false(anyDuplicated(cat$id) > 0L)
   expect_identical(hw_ids_missing(file.path(hw_root(), "models", "holt-winters", "R"), cat), character())
 })
