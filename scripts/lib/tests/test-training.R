@@ -501,3 +501,41 @@ test_that("data.frame vazio de celulas ganha as colunas de erro", {
   expect_identical(nrow(e), 0L)
   expect_true(all(c("status", "error_id", "error_class", "mensagem") %in% names(e)))
 })
+
+## =====================================================================================================
+## F2.4 -- prevcarga_train_plan (dry-run) sem reler o deck por celula: memo local, versao identica a do treino real
+## =====================================================================================================
+tr_count <- function(fn, frame = parent.frame()) {
+  n <- 0L; orig <- get(fn, envir = env)
+  assign(fn, function(...) { n <<- n + 1L; orig(...) }, envir = env)
+  withr::defer(assign(fn, orig, envir = env), envir = frame)
+  function() n
+}
+## 2 areas x 3 membros do mesmo mdir (variantes) => 6 celulas
+tr_cells6 <- data.frame(sigla = rep("T30", 6L), model = "toy-30", variant = rep(c(NA, "V1", "V2"), each = 2L),
+                        area = rep(c("A", "B"), 3L), stringsAsFactors = FALSE)
+
+test_that("F2.4: plano le plugin e cortes 1x por mdir e o painel 1x por chave (area, span, H, fc); 2a chamada le de novo", {
+  s <- tr_setup("toy-30")
+  nr <- tr_count("prevcarga_read_panel"); np <- tr_count("prevcarga_plugin_load"); nc <- tr_count("prevcarga_resolve_cuts")
+  plan <- suppressWarnings(env$prevcarga_train_plan(tr_cells6, O, s$ctx))
+  expect_identical(nrow(plan), 6L)
+  expect_identical(nr(), 2L); expect_identical(np(), 1L); expect_identical(nc(), 1L)
+  suppressWarnings(env$prevcarga_train_plan(tr_cells6, O, s$ctx))      # memo local da chamada: nada global
+  expect_identical(nr(), 4L)
+})
+
+test_that("F2.4 [FORBIDDEN]: versoes do plano identicas as do treino real celula a celula; [CONTROL] carga alterada muda so a area", {
+  s <- tr_setup("toy-30")
+  plan <- suppressWarnings(env$prevcarga_train_plan(tr_cells6, O, s$ctx))
+  real <- suppressWarnings(env$prevcarga_train_models(tr_cells6, s$ctx, origin = O))
+  expect_identical(plan$version, real$version)
+  expect_identical(plan$area, real$area)
+  d2 <- env$prevcarga_fixture_perturb(s$deck, "load", after = at("00:00", "2026-09-25") - lubridate::minutes(1L),
+                                      at_or_before = at("23:30", "2026-09-25"), areas = "A",
+                                      perturb = function(v) v + 1000)
+  s2 <- tr_setup("toy-30", deck = d2)
+  plan2 <- suppressWarnings(env$prevcarga_train_plan(tr_cells6, O, s2$ctx))
+  expect_true(all(plan2$version[plan2$area == "A"] != plan$version[plan$area == "A"]))
+  expect_identical(plan2$version[plan2$area == "B"], plan$version[plan$area == "B"])
+})

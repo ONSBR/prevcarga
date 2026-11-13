@@ -27,17 +27,25 @@
 
 ## --- Painel e cortes da celula ------------------------------------------------------------------------------
 ## Devolve plugin, spec efetivo, cuts (formato do despachante) e o painel de TREINO ja cortado em last_data_day.
-prevcarga_train_inputs <- function(member, area, origin, ctx) {
+## `rc`, `read_panel`, `plugin` e `spec` (todos opcionais) vem do prevcarga_train_plan, que os memoiza por chamada; sem eles
+## o comportamento e o de sempre (prevcarga_train e o treino real nao mudam). `read_panel(area, span, horizon_days,
+## weather_forecast_in_train)` devolve o painel NAO cortado; o corte por janela segue por celula, aqui.
+prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_panel = NULL, plugin = NULL, spec = NULL) {
   origin <- lubridate::as_date(origin)
   if (is.null(ctx$weather_issue_cutoff)) ctx$weather_issue_cutoff <- "available_until"
-  plugin <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))
-  prevcarga_plugin_check_signature(plugin)
+  if (is.null(plugin)) {
+    plugin <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))
+    prevcarga_plugin_check_signature(plugin)
+  }
   d <- plugin$descriptor
-  spec <- prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
-  prevcarga_plugin_check_params(spec$params, d$params_schema, member$mdir)
+  if (is.null(spec)) {
+    spec <- prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
+    prevcarga_plugin_check_params(spec$params, d$params_schema, member$mdir)
+  }
 
-  rc <- prevcarga_resolve_cuts(ctx, origin, model = member$mdir,
-                               data_lag_days = stats::setNames(d$data_lag_days, member$mdir))
+  if (is.null(rc))
+    rc <- prevcarga_resolve_cuts(ctx, origin, model = member$mdir,
+                                 data_lag_days = stats::setNames(d$data_lag_days, member$mdir))
   row <- rc$cuts[rc$cuts$model == member$mdir, ]
   if (nrow(row) != 1L || !identical(as.integer(row$data_lag_days), as.integer(d$data_lag_days)))
     prevcarga_abort("contract.cut_mismatch", where = member$mdir,
@@ -58,10 +66,14 @@ prevcarga_train_inputs <- function(member, area, origin, ctx) {
     cuts$last_data_day - hist + 1L
   need <- as.integer(cuts$last_data_day - first_day) + 1L
   span <- as.integer(origin - first_day) + 1L
-  p <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
-  if (isTRUE(d$weather_forecast_in_train))
-    p$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
-                                                           cuts$weather_issue_limit)
+  fc_in_train <- isTRUE(d$weather_forecast_in_train)
+  p <- if (!is.null(read_panel)) read_panel(area, span, spec$horizon_days, fc_in_train) else {
+    pp <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
+    if (fc_in_train)
+      pp$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
+                                                              cuts$weather_issue_limit)
+    pp
+  }
   day_of <- function(x) lubridate::as_date(x, tz = cuts$tz)
   in_window <- function(x) day_of(x) <= cuts$last_data_day & day_of(x) >= first_day
   panel <- p
@@ -267,11 +279,46 @@ prevcarga_train_matrix <- function(args, ctx) {
   df
 }
 
-## --dry-run: cortes e versao-alvo por celula, sem gravar nada (status = "planned"). A leitura do deck e a mesma do treino.
+## Memo do painel do dry-run: vive so na closure criada por chamada de prevcarga_train_plan (nada global, nada entre
+## execucoes). Chave exata (area, span, horizon_days, weather_forecast_in_train); o valor e o painel NAO cortado.
+.prevcarga_tr_panel_memo <- function(ctx, origin, rc) {
+  memo <- new.env(parent = emptyenv())
+  function(area, span, horizon_days, fc_in_train) {
+    k <- paste(area, span, horizon_days, isTRUE(fc_in_train), sep = "|")
+    if (!is.null(memo[[k]])) return(memo[[k]])
+    p <- prevcarga_read_panel(ctx, origin, area, horizon_days, span)
+    if (isTRUE(fc_in_train))
+      p$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + horizon_days,
+                                                             rc$weather_issue_limit)
+    assign(k, p, envir = memo); p
+  }
+}
+
+## --dry-run: cortes e versao-alvo por celula, sem gravar nada (status = "planned"). Mesma leitura e mesmos cortes do
+## treino, mas plugin, cortes (1 resolve_cuts com todos os mdirs) e painel sao lidos 1x por chave, nao por celula.
 prevcarga_train_plan <- function(cells, origin, ctx) {
+  origin <- lubridate::as_date(origin)
+  if (is.null(ctx$weather_issue_cutoff)) ctx$weather_issue_cutoff <- "available_until"
+  mdirs <- unique(cells$model)
+  plugins <- list(); lags <- integer(0)
+  for (m in mdirs) {
+    plugins[[m]] <- prevcarga_plugin_load(m, prevcarga_models_root(ctx$root))
+    prevcarga_plugin_check_signature(plugins[[m]])
+    lags[[m]] <- as.integer(plugins[[m]]$descriptor$data_lag_days)
+  }
+  rc <- if (length(mdirs)) prevcarga_resolve_cuts(ctx, origin, model = mdirs, data_lag_days = lags)
+  read_panel <- .prevcarga_tr_panel_memo(ctx, origin, rc)
+  specs <- list()    # por membro (mdir + variante): o spec efetivo depende da variante
   rows <- lapply(seq_len(nrow(cells)), function(i) {
     m <- .prevcarga_tr_member(cells, i)
-    inp <- prevcarga_train_inputs(m, cells$area[[i]], origin, ctx)
+    sk <- paste(m$mdir, m$exogena, sep = "|")
+    if (is.null(specs[[sk]])) {
+      sp <- prevcarga_model_spec(m$mdir, ctx$root, .prevcarga_tr_overrides(plugins[[m$mdir]], m, ctx))
+      prevcarga_plugin_check_params(sp$params, plugins[[m$mdir]]$descriptor$params_schema, m$mdir)
+      specs[[sk]] <<- sp
+    }
+    inp <- prevcarga_train_inputs(m, cells$area[[i]], origin, ctx, rc = rc, read_panel = read_panel,
+                                  plugin = plugins[[m$mdir]], spec = specs[[sk]])
     id <- prevcarga_train_fingerprint(m, inp$spec, inp$cuts, inp$panel, ctx)
     key <- prevcarga_registry_key(m, cells$area[[i]], ctx)
     prevcarga_cell_row(m, cells$area[[i]], inp$cuts, id$version, "planned", file.path(key, id$version))

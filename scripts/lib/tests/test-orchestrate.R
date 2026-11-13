@@ -422,3 +422,47 @@ test_that("--origin A..B: as origens saem Date de typeof double (seq(by = 'day')
   expect_identical(typeof(e$.m7_origins(list(origin = structure(as.integer(unclass(O1)), class = "Date")))), "double")
   expect_identical(typeof(seq(O1, O2, by = "day")), "integer")
 })
+
+## --- F2.4: plan resolve cortes 1x por origem distinta e o limite do clima 1x por (origem, corte_hm) ------------------
+tr_count <- function(fn, frame = parent.frame()) {
+  n <- 0L; orig <- get(fn, envir = mod)
+  assign(fn, function(...) { n <<- n + 1L; orig(...) }, envir = mod)
+  withr::defer(assign(fn, orig, envir = mod), envir = frame)
+  function() n
+}
+
+test_that("[F2.4] plan: read_load 1x por origem distinta e weather_issue_limit 1x por (origem, corte_hm)", {
+  os <- c(O1 - 1L, O1, O2); cs <- c("08:00", "09:30")
+  nl <- tr_count("prevcarga_read_load"); nw <- tr_count("prevcarga_weather_issue_limit")
+  p <- mkplan(ictx(), origins = os, cortes = cs)
+  expect_identical(nl(), length(os))                       # 3, nao 3 mdirs x 3 origens
+  ## 6 pares (origem, corte_hm) + 3 de dentro do resolve_cuts (1 por origem); antes: 1 por celula + 1 por (mdir, origem)
+  expect_identical(nw(), length(os) * length(cs) + length(os))
+  expect_gt(nrow(p$cells), length(os) * length(cs))
+})
+
+test_that("[F2.4 FORBIDDEN] plan: cortes, limites e cache_key identicos ao caminho antigo por celula", {
+  os <- c(O1 - 1L, O1, O2); cs <- c("08:00", "09:30")
+  ctx <- ictx(); p <- mkplan(ctx, origins = os, cortes = cs)
+  ident <- mod$.m7_identity_inputs(ctx)
+  cells <- p$cells
+  ## caminho antigo: 1 resolve_cuts e 1 weather_issue_limit por celula
+  for (i in seq_len(nrow(cells))) {
+    plugin <- mod$prevcarga_plugin_load(cells$mdir[[i]], mod$prevcarga_models_root(ctx$root))
+    lag <- as.integer(plugin$descriptor$data_lag_days)
+    rc <- mod$prevcarga_resolve_cuts(ctx, cells$origem[[i]], model = cells$mdir[[i]],
+                                     data_lag_days = stats::setNames(lag, cells$mdir[[i]]))
+    expect_identical(cells$train_origin[[i]], rc$cuts$train_origin[[1L]])
+    expect_identical(cells$last_data_day[[i]], rc$cuts$last_data_day[[1L]])
+    expect_identical(cells$train_weather_issue_limit[[i]], rc$weather_issue_limit)
+    au <- lubridate::ymd_hm(paste(format(cells$origem[[i]], "%Y-%m-%d"), cells$corte_hm[[i]]), tz = ident$tz)
+    expect_identical(cells$weather_issue_limit[[i]],
+                     mod$prevcarga_weather_issue_limit("available_until", cells$origem[[i]], au, ident$tz, ident$weather_lag))
+  }
+  ## CONTROL: um deck com lag de clima diferente muda limites e cache_key
+  d6 <- tempfile("m7-deck-")
+  fx$prevcarga_fixture_deck(d6, seed = 5, areas = AREAS, days = seq(O1 - 14L, O2, by = "day"), load_label = "start",
+                            weather_lag_hours = 6L)
+  p6 <- mkplan(ictx(data = d6), origins = os, cortes = cs)
+  expect_false(any(p6$cells$cache_key %in% cells$cache_key))
+})

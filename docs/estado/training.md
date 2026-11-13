@@ -57,3 +57,8 @@ Codigo: `scripts/lib/training.R`; catalogo `scripts/lib/errors/training.tsv`; sp
   usam o plugin-brinquedo `toy-rng` (toy-30 origin_agnostic que consome o RNG com o seed do spec).
 - ABERTO (decidido no M5.4, follow-up contra o M5.3): a correcao da janela de carga do facade (history_days.train + H, origin_agnostic; ajustar window.history_short) e a prova
   ponta a ponta com o random-forest REAL via `train-models` continuam em aberto; as provas dos ACs 1/4/5 usam o plugin-brinquedo `toy-rng` (interino aceito). O canal cuts$spec/phase segue sob a F1 escalada.
+- `--dry-run` sem reler o deck por celula (F2.4, fix v0.1.4): `prevcarga_train_plan` carrega e confere o plugin 1x por mdir, chama `prevcarga_resolve_cuts` 1x com todos os mdirs (`rc`), calcula o spec
+  efetivo 1x por membro (variante) e le o painel por um memo local (`.prevcarga_tr_panel_memo`, closure criada em cada chamada; nada global nem entre execucoes) com chave exata
+  `area|span|horizon_days|weather_forecast_in_train` e valor = painel NAO cortado (o corte por janela segue por celula em `prevcarga_train_inputs`). `prevcarga_train_inputs` ganhou os argumentos opcionais
+  `rc`, `read_panel`, `plugin`, `spec`; sem eles o comportamento e o de sempre (`prevcarga_train` e o treino real nao mudam). As versoes `v_<hash>` do plano sao identicas as de `prevcarga_train_models`
+  no mesmo deck (FORBIDDEN delta 0); uma linha de carga alterada numa area muda so a versao daquela area (CONTROL). Testes: `test-training.R` (secao F2.4).
