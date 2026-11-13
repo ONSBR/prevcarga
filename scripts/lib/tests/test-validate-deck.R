@@ -33,11 +33,13 @@ vd_root <- function(hw = c(30, 10), env = NULL) {
 }
 ## deck de `n` dias terminando em 2026-10-01 (O); `until` corta a carga; label start grava o manifest start
 VA1 <- "RS"; VA2 <- "RJ"                 # folhas de config/topology.yaml (SECO e S sao subsistemas); ordem radix: RJ < RS
-vd_build <- function(n = 40, areas = c(VA1, VA2), label = "end", until = NULL, env = parent.frame()) {
+vd_build <- function(n = 40, areas = c(VA1, VA2), label = "end", until = NULL, forecast_until = lubridate::ymd("2026-10-10"),
+                     env = parent.frame()) {
   d <- vd_tmp(env)
   days <- seq(lubridate::ymd("2026-10-01") - (n - 1L), lubridate::ymd("2026-10-01"), by = "day")
   pc_deck_sentinel(label, days = days, areas = areas, until = until, dir = d)
   .pc_deck_write(.vd_h(areas), d, file.path("auxiliary", "holidays"), character(), "date")
+  pc_deck_forecast_extend(d, lubridate::ymd("2026-10-01"), forecast_until)
   d
 }
 .vd_tpl <- new.env()
@@ -205,4 +207,14 @@ test_that("89,7 C no previsto: contract.temperature_out_of_range exit 2; sem ela
   r <- run_v(root0, c("validate-deck", "--data", d, "--format", "json"))
   expect_identical(r$code, 2L); expect_identical(jdoc(r)$error$id, "contract.temperature_out_of_range")
   expect_identical(run_v(root0, c("validate-deck", "--data", vd_clean(), "--format", "json"))$code, 0L)
+})
+
+test_that("clima ate O+3: exit 0 e warning.weather_forecast_coverage em warnings[] (JSON) e no stderr (texto)", {
+  d <- vd_build(forecast_until = lubridate::ymd("2026-10-04"))
+  rj <- run_v(root0, c("validate-deck", "--data", d, "--format", "json"))
+  expect_identical(rj$code, 0L); expect_length(Filter(nzchar, rj$out), 1L)
+  ids <- vapply(jdoc(rj)$warnings, function(w) w$id, "")
+  expect_true("warning.weather_forecast_coverage" %in% ids)
+  rt <- run_v(root0, c("validate-deck", "--data", d))
+  expect_true(any(grepl("warning.weather_forecast_coverage", rt$err, fixed = TRUE))); expect_false(non_ascii(c(rt$out, rt$err, rj$out)))
 })

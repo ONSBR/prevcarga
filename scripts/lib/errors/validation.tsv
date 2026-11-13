@@ -16,3 +16,4 @@ warning.flatline	contract	carga identica por 6 ou mais intervalos seguidos (avis
 warning.climate_after_cut	contract	deck tem emissao de clima do dia da origem apos o limite de emissao (aviso)	o leitor ja exclui a emissao; confira a regra weather_issue_cutoff
 warning.temperature_jump	contract	temperatura varia mais de 10 graus C entre horas consecutivas (aviso)	confira o ingest do clima no instante indicado em detail; nao reprova o deck
 warning.weather_non_leaf	topology	clima gravado em area que nao e folha da topologia (subsistema ou perda) (aviso)	o clima e lido so por area folha; mova a particao indicada em where para as folhas ou remova-a
+warning.weather_forecast_coverage	completude	clima previsto da emissao usada nao cobre os 48 instantes de cada dia ate O mais o maior horizonte (aviso)	complete a emissao ate a data alvo indicada em detail; sem isso o forecast corta o horizonte

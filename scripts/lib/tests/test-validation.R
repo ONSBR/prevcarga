@@ -51,6 +51,7 @@ vd_template <- function(n = 40, areas = c(VD_A1, VD_A2)) {
     h[which(as.numeric(simplified_code) < 0), simplified_code := bit64::as.integer64(1L)]
     pc_deck_panel(areas = areas, holidays = h, dir = d)
     if (n != 4) pc_deck_days(d, n)
+    pc_deck_forecast_extend(d, O, O + 9L)
     .vd_tpl[[key]] <- d
   }
   .vd_tpl[[key]]
@@ -100,7 +101,8 @@ test_that("validation.tsv carrega pelo loader sem id duplicado e cobre os ids pr
            "contract.duplicate_interval", "contract.load_nonpositive", "contract.temperature_out_of_range",
            "contract.code_negative", "completude.day_incomplete", "topology.scope_undeclared",
            "window.window_train_deficit", "window.window_infer_deficit", "warning.outlier", "warning.flatline",
-           "warning.climate_after_cut", "warning.temperature_jump", "warning.weather_non_leaf")
+           "warning.climate_after_cut", "warning.temperature_jump", "warning.weather_non_leaf",
+           "warning.weather_forecast_coverage")
   expect_true(all(own %in% cat$id))
   expect_false(anyDuplicated(cat$id) > 0L)
   tsv <- utils::read.delim(file.path(pc_root(), "scripts", "lib", "errors", "validation.tsv"), quote = "", colClasses = "character")
@@ -289,7 +291,8 @@ test_that("AC5 outlier, flatline, climate_after_cut (12Z, available_until) e ava
   v <- vd_run(vd_ctx(d, root0), origin = O)
   expect_true(v$ok); expect_identical(v$class, "ok")
   expect_identical(v$available_until, at("2026-10-01 08:00"))
-  expect_setequal(whats(v), c("outlier", "flatline", "climate_after_cut", "available_until_spread"))
+  ## a unica emissao (12Z) e posterior ao limite 08:00: nenhuma emissao valida, logo a cobertura tambem avisa
+  expect_setequal(whats(v), c("outlier", "flatline", "climate_after_cut", "available_until_spread", "weather_forecast_coverage"))
   expect_true(all(v$findings$level == "warning")); expect_identical(nrow(errs(v)), 0L)
   expect_identical(v$findings$area[v$findings$what == "outlier"], VD_A1)
   expect_identical(v$findings$area[v$findings$what == "flatline"], VD_A2)
@@ -556,6 +559,55 @@ test_that("V2 temperature_jump unidade: par com buraco de 3 h nao e avaliado; gr
   g30 <- mk(c("2026-09-25 10:00:00", "2026-09-25 10:30:00", "2026-09-25 11:00:00"), c(15, 40, 30))
   expect_identical(nrow(venv$.prevcarga_check_temperature_jump(g30, "weather_observed")), 1L)   # so 10:00->11:00 (15 C)
   expect_identical(nrow(venv$.prevcarga_check_temperature_jump(mk("2026-09-25 10:00:00", NA_real_), "weather_observed")), 0L)
+})
+
+## --- V3 cobertura do clima previsto ate O+H (aviso) -----------------------------------------------------------------
+cov_trim <- function(d, until_excl) pc_mut_weather(d, "weather_forecast", function(dt) dt[valid_time < stamp(until_excl)])
+cov_detail <- function(v) v$findings$detail[v$findings$what == "weather_forecast_coverage"]
+
+test_that("cobertura FORBIDDEN: 48 instantes ate O+9 nao avisa; CONTROL: sem o 23:30 de O+9 cobre ate O+8", {
+  expect_clean(vd_run(vd_ctx(vd_deck(), root0), origin = O))
+  d <- vd_deck(); pc_mut_weather(d, "weather_forecast", function(dt) dt[valid_time != stamp("2026-10-10 23:30:00")])
+  v <- vd_run(vd_ctx(d, root0), origin = O)
+  expect_true(v$ok); expect_true(has(v, "weather_forecast_coverage", "completude", "warning"))
+  expect_identical(cov_detail(v), rep("clima previsto ate 2026-10-09; alvo 2026-10-10", 2L))
+  expect_identical(sort(v$findings$area[v$findings$what == "weather_forecast_coverage"]), sort(c(VD_A1, VD_A2)))
+})
+
+test_that("cobertura: emissao ate O+3 avisa com O+3 (todos os membros) e lgbm (H = 1) nao avisa", {
+  d <- vd_deck(); cov_trim(d, "2026-10-05 00:00:00")
+  v <- vd_run(vd_ctx(d, root0), origin = O)
+  expect_true(v$ok)
+  expect_true(all(cov_detail(v) == "clima previsto ate 2026-10-04; alvo 2026-10-10")); expect_length(cov_detail(v), 2L)
+  expect_false(has(vd_run(vd_ctx(d, root0), origin = O, scope = list(model = "lgbm")), "weather_forecast_coverage"))
+})
+
+test_that("cobertura: emissao apos weather_issue_limit nao conta; clima curto so em SECO nao gera cobertura", {
+  d <- vd_deck(); cov_trim(d, "2026-10-05 00:00:00")
+  pc_deck_forecast_extend(d, O, O + 9L, issue_hour_utc = 48L)      # emissao de 03/10 00Z, depois do limite, cobre ate O+9
+  v <- vd_run(vd_ctx(d, root0), origin = O)
+  expect_true(all(cov_detail(v) == "clima previsto ate 2026-10-04; alvo 2026-10-10")); expect_length(cov_detail(v), 2L)
+  s <- vd_deck(); pc_mut_add_area(s, "SECO")
+  pc_mut_weather(s, "weather_forecast", function(dt) dt[!(area_code == "SECO" & valid_time >= stamp("2026-10-03 00:00:00"))])
+  vs <- vd_run(vd_ctx(s, root0), origin = O)
+  expect_true(has(vs, "weather_non_leaf", "topology", "warning")); expect_false(has(vs, "weather_forecast_coverage"))
+})
+
+test_that("cobertura predicado puro: vazio e O nao coberto => NA; buraco em O+2 => O+1; sem disco", {
+  f <- venv$prevcarga_forecast_coverage_end
+  mk <- function(until, drop = NULL) {
+    vt <- seq(at("2026-10-01 00:00"), at(paste(until, "23:30")), by = "30 min")
+    if (!is.null(drop)) vt <- vt[lubridate::as_date(vt, tz = TZ) != drop | lubridate::hour(vt) != 23L]
+    data.table::data.table(area_code = "RJ", valid_time = vt)
+  }
+  expect_identical(nrow(f(NULL, O, TZ)), 0L)
+  expect_true(is.na(f(mk("2026-10-01")[-.N], O, TZ)$coverage_end))
+  expect_identical(f(mk("2026-10-10"), O, TZ)$coverage_end, O + 9L)
+  expect_identical(f(mk("2026-10-10")[-.N], O, TZ)$coverage_end, O + 8L)
+  expect_identical(f(mk("2026-10-10", drop = O + 2L), O, TZ)$coverage_end, O + 1L)
+  ## deck sem nenhum previsto nas folhas: 'sem clima previsto'
+  d <- vd_deck(); pc_mut_weather(d, "weather_forecast", function(dt) dt[area_code != VD_A1])
+  expect_true(any(grepl("^sem clima previsto; alvo 2026-10-10$", cov_detail(vd_run(vd_ctx(d, root0), origin = O)))))
 })
 
 test_that("V2 faixa fisica segue erro contract; vocabulario e catalogo ASCII", {

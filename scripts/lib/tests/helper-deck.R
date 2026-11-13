@@ -158,6 +158,22 @@ pc_ctx_deck <- function(data_dir, load_label = NULL, source = "default") {
 
 .pc_deck_manifest_read <- function(dir) jsonlite::read_json(file.path(dir, "manifest.json"), simplifyVector = TRUE)
 
+## Estende o clima previsto com UMA emissao (issue_time = origin + issue_hour_utc, digitos UTC) em grade de 30 min de
+## `origin` 00:00 ate `until_day` 23:30 no fuso da carga (temperatura suave, sem salto). `drop_last` omite so o 23:30
+## do ultimo dia. As emissoes do sentinela ficam como estao (a mais fresca vence por valid_time na leitura).
+pc_deck_forecast_extend <- function(dir, origin, until_day, issue_hour_utc = 0L, drop_last = FALSE) {
+  fc <- .pc_deck_read(dir, "weather_forecast"); m <- .pc_deck_manifest_read(dir); tz <- m$timezone$load
+  areas <- sort(unique(fc$area_code), method = "radix")
+  vt <- seq(lubridate::force_tz(lubridate::as_datetime(origin), tz),
+            lubridate::force_tz(lubridate::as_datetime(until_day), tz) + lubridate::minutes(23L * 60L + 30L), by = "30 min")
+  if (drop_last) vt <- utils::head(vt, -1L)
+  issue <- lubridate::force_tz(lubridate::as_datetime(origin), "UTC") + lubridate::hours(issue_hour_utc)
+  ext <- data.table::CJ(area_code = areas, i = seq_along(vt), sorted = FALSE)
+  ext[, `:=`(issue_time = issue, valid_time = lubridate::force_tz(vt[i], "UTC"))]
+  ext[, temperature := 15 + match(area_code, areas) + i / 1000][, heat_index := temperature + 1]
+  .pc_deck_rewrite(rbind(fc, ext[, names(fc), with = FALSE]), dir, "weather_forecast")
+}
+
 ## Colunas de tempo ja no instante correto (fuso da carga) + interval_start/interval_end para a carga.
 .pc_deck_view <- function(dt, dataset, dir) {
   m <- .pc_deck_manifest_read(dir); tz <- m$timezone$load
@@ -208,6 +224,13 @@ pc_deck_issues <- function(dir, hours_utc) {
   new <- .pc_deck_forecast(days, sort(unique(fc$area_code), method = "radix"), hours_utc,
                            m$timezone$load, m$timezone$weather_forecast$issue_time)
   .pc_deck_rewrite(new, dir, "weather_forecast")
+  ## preserva a extensao de pc_deck_forecast_extend (instantes :30): reaplica com a emissao da menor hora de `hours_utc`
+  half <- fc[lubridate::minute(valid_time) == 30L]
+  if (nrow(half)) {
+    pc_deck_forecast_extend(dir, lubridate::as_date(min(half$valid_time)), lubridate::as_date(max(fc$valid_time)),
+                            issue_hour_utc = min(as.integer(hours_utc)))
+  }
+  invisible(dir)
 }
 
 ## --- Painel (M2.7) ------------------------------------------------------------------------------------------------

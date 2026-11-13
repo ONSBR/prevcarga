@@ -34,6 +34,7 @@ mx_deck <- function() {                                   # limpo de 40 dias (RS
     h[which(as.numeric(simplified_code) < 0), simplified_code := bit64::as.integer64(1L)]
     pc_deck_panel(areas = c(MX_A1, MX_A2), holidays = h, dir = d)
     pc_deck_days(d, 40)
+    pc_deck_forecast_extend(d, mx_O, mx_O + 9L)
     .mx$tpl <- d
   }
   dst <- mx_tmp()
@@ -105,8 +106,11 @@ MUTATIONS <- list(
          "contract", "warning"),
   mx_row("temperature_jump", function(d) pc_mut_weather(d, "weather_observed", function(dt)
            dt[area_code == MX_A1 & timestamp == mx_stamp("2026-09-25 10:00:00"), temperature := temperature + 15]), "contract", "warning"),
+  mx_row("weather_forecast_coverage", function(d) { pc_mut_weather(d, "weather_forecast", function(dt)
+           dt[valid_time < mx_stamp("2026-10-05 00:00:00")]) }, "completude", "warning"),     # previsto so ate O+3
   mx_row("weather_non_leaf", function(d) pc_mut_add_area(d, "SECO"), "topology", "warning"),
-  mx_row("climate_after_cut", function(d) { pc_mut_issue(d, 12L); pc_deck_until(d, mx_at("2026-10-01 08:30")) }, "contract", "warning"),
+  mx_row("climate_after_cut", function(d) { pc_mut_issue(d, 12L); pc_deck_until(d, mx_at("2026-10-01 08:30")) }, "contract", "warning",
+         also = "weather_forecast_coverage"),            # unica emissao (12Z) e posterior ao limite: sem emissao valida
   mx_row("available_until_spread", function(d) { pc_mut_issue(d, 0L); pc_deck_until(d, mx_at("2026-10-01 08:30"))
                                                  pc_deck_drop(d, MX_A2, mx_at("2026-10-01 08:00")) }, "completude", "warning",
          also = "climate_after_cut")                     # a emissao 00Z de O+1 cai no dia O local, depois do limite
