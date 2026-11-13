@@ -20,7 +20,10 @@
   deck novo do mesmo O (available_until maior) reutiliza o artefato (mesmo `v_<hash>`) e so o infer muda. O infer recebe `version =` explicita.
 - LONG e combina (`.forecast_leaf_panel`/`.forecast_leaves`): `prevcarga_build_long` por membro (faixa por `delivery_days` do descriptor) -> proveniencia em
   memoria no formato do run-manifest da combina -> `prevcarga_assert_members_aligned` -> `prevcarga_build_panel` -> `prevcarga_combina_apply(detail = TRUE)`
-  com os pesos congelados de `<state_dir>/artifacts/combina/<area>/` (ausente => `state.combina_not_trained`, exit 13; sem corte da combina para o HHMM de
+  com os pesos congelados de `<state_dir>/artifacts/combina/<area>/` (ausente => **media simples** `prevcarga_produce_eqw`, F3.4: `.forecast_leaves` passa
+  `fallback_eqw = TRUE`, sai `warning.combina_eqw` com `where` = folha, `run_manifest.model_versions["combina/<folha>"] = "EQW"` (sobreposto depois do construtor,
+  que so valida `v_<hash>`), `run.json$combina_pesos = {folha: "EQW" | v_<hash>}` e o relatorio omite pesos da folha; nunca grava pesos; retreino mensal da combina
+  tira a folha do EQW; latest.txt invalido/artefato de outro conjunto seguem abortando; sem corte da combina para o HHMM de
   `available_until` => `contract.combina_input`). Por lead so combinam os membros que cobrem o lead (M4.2c).
 - Reconcile: `prevcarga_reconcile_apply(long_leaves[covered], ctx, subsystems = closed, khat_version = NULL, eval = FALSE)` uma vez; folhas soltas nunca passam por ele.
   `result$khat` = `[{ss, versao, khat_origin (texto), khat_age_days}]` (do reconcile) e `result$cobertura_descartada` identical ao do reconcile.

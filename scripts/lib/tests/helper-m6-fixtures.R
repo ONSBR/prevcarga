@@ -238,10 +238,12 @@ m6e_child_main <- function(root, work, out, phase) {
       if (identical(prevcarga_model_spec(mem$mdir[[i]], root)$split, "origin_agnostic"))
         suppressWarnings(suppressMessages(orig_train(mem[i, ], "SP", O, ctx)))
     suppressWarnings(prevcarga_reconcile_train(ctx, O, "all", window_days = 300L))
-    ## 1a chamada de prevcarga_forecast: sem pesos da combina aborta (exit 13), mas as 6 celulas origin_scoped ja treinaram
+    ## 1a chamada de prevcarga_forecast: sem pesos da combina sai pela media simples (EQW, F3.4), e as 6 celulas origin_scoped ja treinaram
     ## DENTRO do forecast (so porque nao havia artefato de O)
-    res$pre_error <- tryCatch(suppressWarnings(suppressMessages(prevcarga_forecast(ctx, skip_validate = TRUE))),
-                              prevcarga_error = function(e) list(id = e$id, exit = e$exit_code))
+    res$pre_error <- tryCatch({
+      r0 <- suppressWarnings(suppressMessages(prevcarga_forecast(ctx, skip_validate = TRUE)))
+      list(eqw = any(vapply(r0$warnings, function(w) identical(w$id, "warning.combina_eqw"), NA)))   # F3.4: sem pesos = EQW, nao aborta
+    }, prevcarga_error = function(e) list(id = e$id, exit = e$exit_code))
     res$trained_in_forecast <- counts$train
   }
 

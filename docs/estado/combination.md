@@ -114,3 +114,9 @@
   dominancia (so assertada nos fixtures desenhados; M8 estagio D / M7 so reportam).
 - Testes: `test-combine.R` + `helper-combination-cli.R` (fixture de 8 membros alinhados x 3 meses, `prevcarga_main` in-process com runtime real; espiao de
   `prevcarga_combina_load` por env intermediario). Os modulos do verbo sao carregados no globalenv pelo helper, como o dispatch faz.
+
+## F3.4 -- fallback EQW no apply
+- `prevcarga_combina_apply(..., fallback_eqw = FALSE)`: sem `latest.txt` e `fallback_eqw = TRUE` aplica `prevcarga_produce_eqw` no corte selecionado, emite
+  `warning.combina_eqw` (where = area) e devolve `version_hash = "EQW"`, `weights`/`members_by_lead` NULL, `path` NA; nunca grava pesos. So o forecast liga o
+  fallback; `combine --mode=apply` (sem o argumento) segue abortando `state.combina_not_trained` (13). `latest.txt` invalido e artefato de outro conjunto
+  seguem abortando. Teste: `test-combination-eqw.R`.
