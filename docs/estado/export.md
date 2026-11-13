@@ -1,6 +1,6 @@
 # Estado: export (M6.2)
 
-- `scripts/lib/exports.R`: `prevcarga_export(scratch, key, niveis = "subsistemas", incluir_membros = FALSE, ctx)` copia BYTES do
+- `scripts/lib/exports.R`: `prevcarga_export(scratch, key, incluir_membros = FALSE, ctx)` copia BYTES do
   scratch da rodada (`SIN.parquet`, `subsistemas/<ss>.parquet`, `folhas/<a>.parquet`, `membros/<m>/<a>.parquet`) para
   `file.path(ctx$state_dir, key$rel)`. Nunca recalcula k-hat, nunca reserializa parquet, nao le relogio, zero S3/HTTP, sem symlink.
   - Metadados da rodada vem do `run.json` do scratch (covered/stray/closed/sin_closed/members/khat/available_until/regra de clima/versao).
@@ -14,7 +14,8 @@
   - `run_manifest.json` (identidade da rodada, escrito pelo forecast no scratch; ver `docs/estado/forecast.md`): copiado em bytes para a raiz da
     entrega quando existe, fora de `arquivos[]` e ignorado no `.export_key_check` como o `manifest.json` (rerun = no-op). O `verificar` le dele.
   - Atomicidade: staging `.tmp-<run_id>` no mesmo volume + `file.rename`; erro remove o staging (`integrity.copy_failed`, exit 9).
-- `scripts/lib/cli/export.R` (M6.9): verbo `export --scratch=<dir> [--niveis=<n>] [--incluir-membros]` (flags `scoped`, dono M6). A chave de entrega e
+- F3.1: `--niveis` removido; `.export_select(scratch, run, incluir_membros)` entrega o que o `run.json` declara (SIN se `sin_closed`, `subsistemas/<closed>`, `folhas/<stray + covered>`); o manifest grava `escopo` no lugar de `niveis`.
+- `scripts/lib/cli/export.R` (M6.9): verbo `export --scratch=<dir> [--incluir-membros]` (flags `scoped`, dono M6). A chave de entrega e
   RECONSTRUIDA do `run.json` do `--scratch` (origem, available_until, versao, timezone) por `prevcarga_export_key`, nunca de flag (`--origin` e ignorado):
   mesma chave e mesmo manifest que o `forecast` produziu. Scratch ausente/sem run.json => `state.nothing_to_deliver` (exit 13). `gerado_em` sai do carimbo do run_id da fachada.
   Flag `--scratch` (nao `--from`, como dizia o ticket): `--from` casa o gate de flags de data e o docopt global o aceitaria em qualquer verbo; `--origin` segue o unico flag de data.

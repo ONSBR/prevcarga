@@ -19,7 +19,7 @@
 }
 
 .render_export_text <- function(r) {
-  c(sprintf("export  niveis=%s  arquivos=%d", r$niveis, length(r$arquivos)),
+  c(sprintf("export  escopo=%s  arquivos=%d", if (is.null(r$escopo)) "-" else r$escopo, length(r$arquivos)),
     paste0("saida: ", r$saida),
     vapply(r$arquivos, function(a) sprintf("arquivo %-32s linhas=%d sha256=%s", a$path, a$linhas, a$sha256), ""),
     "OK")
@@ -28,10 +28,6 @@
 cmd_export <- function(ctx, args) {
   from <- .prevcarga_ex_opt(args, "--scratch")
   if (is.null(from)) prevcarga_abort("config.usage", where = "--scratch")
-  niveis <- .prevcarga_ex_opt(args, "--niveis")
-  if (is.null(niveis)) niveis <- "subsistemas"
-  if (!niveis %in% prevcarga_export_niveis)
-    prevcarga_abort("config.usage", where = paste0("--niveis=", niveis), details = list(hint = "sin, subsistemas ou tudo"))
   scratch <- normalizePath(from, winslash = "/", mustWork = FALSE)
   if (!dir.exists(scratch))
     prevcarga_abort("state.nothing_to_deliver", where = "--scratch", details = list(reason = "scratch ausente", scratch = from))
@@ -44,19 +40,18 @@ cmd_export <- function(ctx, args) {
                     details = list(reason = "run.json sem origem/available_until/versao/timezone", scratch = from))
   key <- prevcarga_export_key(og, au, as.character(run$versao), tz)
   ctx$generated_at <- .prevcarga_ex_generated_at(ctx$run_id)
-  res <- prevcarga_export(scratch, key, niveis = niveis, incluir_membros = isTRUE(args[["--incluir-membros"]]), ctx = ctx)
-  res$niveis <- niveis
+  res <- prevcarga_export(scratch, key, incluir_membros = isTRUE(args[["--incluir-membros"]]), ctx = ctx)
+  res$escopo <- if (is.null(run$escopo)) NULL else as.character(run$escopo)
   if (identical(ctx$format, "json")) res else .render_export_text(res)
 }
 
 prevcarga_verb_export <- list(
   name    = "export",
-  usage   = "prevcarga export --scratch=<dir> [--niveis=<n>] [--incluir-membros]",
+  usage   = "prevcarga export --scratch=<dir> [--incluir-membros]",
   options = c(
     "--scratch=<dir>         Scratch de uma rodada (run.json + parquets); a chave de entrega e reconstruida dele",
-    "--niveis=<n>            Teto dos agregados: sin, subsistemas (padrao) ou tudo; folha solta sempre entregue",
     "--incluir-membros       Inclui membros/<m>/<a>.parquet na entrega"),
-  scoped  = c("--scratch", "--niveis", "--incluir-membros"),   # so export e forecast (cli.R .prevcarga_check_scoped)
+  scoped  = c("--scratch", "--incluir-membros"),   # so export e forecast (cli.R .prevcarga_check_scoped)
   handler = function(ctx, args) cmd_export(ctx, args),
   owner   = "M6",
   exempt  = FALSE,

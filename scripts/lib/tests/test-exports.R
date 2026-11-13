@@ -1,4 +1,4 @@
-## test-exports.R -- exports.R (M6.2): copia de bytes, manifest, niveis-teto, atomicidade e pureza. Cada FORBIDDEN tem o seu CONTROL.
+## test-exports.R -- exports.R (M6.2): copia de bytes, manifest, entrega = run.json, atomicidade e pureza. Cada FORBIDDEN tem o seu CONTROL.
 ## Tudo em tempdir; sem env vars; scratch de fixture montado aqui (parquet via arrow SO no teste; run.json com arquivos[] como o reconcile grava).
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
 ex <- pc_source_lib(c("errors", "schema_long", "exports"))
@@ -15,7 +15,7 @@ register_files <- function(s, rows) {
                                          sha256 = digest::digest(file = file.path(s, rel), algo = "sha256")))
 }
 ## scratch como o forecast deixa: run.json + SIN + subsistemas + folhas cobertas + 1 folha solta + membros
-make_scratch <- function(with_stray = TRUE, with_agg = TRUE, n_sin = 7L, unregistered = character()) {
+make_scratch <- function(with_stray = TRUE, with_agg = TRUE, n_sin = 7L, unregistered = character(), declare_covered = TRUE) {
   s <- withr::local_tempdir("pc-scratch-", .local_envir = parent.frame())
   rows <- list()
   put <- function(rel, area, n, seed) { write_leaf(file.path(s, rel), area, n, seed); rows[[rel]] <<- list(area = area, n = n) }
@@ -32,7 +32,8 @@ make_scratch <- function(with_stray = TRUE, with_agg = TRUE, n_sin = 7L, unregis
               weather_issue_cutoff = "available_until",
               khat = lapply(SS, function(ss) list(ss = ss, versao = "v_0123456789abcdef", khat_origin = "2026-01-15",
                                                   extra = "ignorado")),
-              covered = as.list(COVERED), stray = if (with_stray) list(STRAY) else list(),
+              escopo = if (with_agg) "sin" else "area",
+              covered = if (declare_covered) as.list(COVERED) else list(), stray = if (with_stray) list(STRAY) else list(),
               closed = if (with_agg) as.list(SS) else list(), sin_closed = with_agg,
               members = list(M1 = list("A1")), arquivos = register_files(s, rows), versao = "abc123", version = "0.1.0", runtime_id = "rt-1")
   writeLines(as.character(jsonlite::toJSON(run, auto_unbox = TRUE, pretty = TRUE)), file.path(s, "run.json"))
@@ -42,8 +43,8 @@ state_ctx <- function(at = "2026-01-15T12:01:00Z") {
   d <- withr::local_tempdir("pc-state-", .local_envir = parent.frame())
   list(state_dir = d, generated_at = at)
 }
-do_export <- function(s, ctx, id = "r1", niveis = "subsistemas", membros = FALSE, fn = ex$prevcarga_export)
-  fn(s, list(rel = file.path("exports", id), run_id = id), niveis = niveis, incluir_membros = membros, ctx = ctx)
+do_export <- function(s, ctx, id = "r1", membros = FALSE, fn = ex$prevcarga_export)
+  fn(s, list(rel = file.path("exports", id), run_id = id), incluir_membros = membros, ctx = ctx)
 manifest <- function(r) jsonlite::read_json(file.path(r$saida, "manifest.json"), simplifyVector = FALSE)
 paths <- function(r) vapply(r$arquivos, function(a) a$path, "")
 
@@ -73,7 +74,7 @@ test_that("manifest: campos copiados do run.json, deterministico exceto gerado_e
   r1 <- do_export(s, c1); r2 <- do_export(s, c2)
   m1 <- manifest(r1); m2 <- manifest(r2)
   expect_named(m1, c("produto", "origem", "available_until", "available_until_por_area", "timezone", "load_label",
-                     "weather_issue_cutoff", "khat", "versao", "version", "runtime_id", "niveis", "schema_long",
+                     "weather_issue_cutoff", "khat", "versao", "version", "runtime_id", "escopo", "schema_long",
                      "gerado_em", "arquivos"))
   expect_identical(m1$origem, "2026-01-15"); expect_identical(m1$timezone, "Etc/GMT+3")
   expect_identical(m1$khat[[1L]], list(ss = "SS1", versao = "v_0123456789abcdef", khat_origin = "2026-01-15"))
@@ -96,28 +97,28 @@ test_that("manifest: campos copiados do run.json, deterministico exceto gerado_e
   expect_identical(sub("\"gerado_em\": \"[^\"]*\"", "", rawToChar(b1)), sub("\"gerado_em\": \"[^\"]*\"", "", rawToChar(b2)))
 })
 
-test_that("niveis-teto: sin, subsistemas, tudo e membros; folha solta sempre entregue", {
+test_that("entrega = run.json: SIN se sin_closed, subsistemas de closed, folhas de stray+covered; membros so com o flag", {
   s <- make_scratch()
-  p <- function(niveis, membros = FALSE) sort(paths(do_export(s, state_ctx(), niveis = niveis, membros = membros)))
-  expect_identical(p("sin"), sort(c("SIN.parquet", "folhas/Z9.parquet")))
-  expect_identical(p("subsistemas"), sort(c("SIN.parquet", "subsistemas/SS1.parquet", "subsistemas/SS2.parquet", "folhas/Z9.parquet")))
-  all <- p("tudo")
-  expect_true(all(paste0("folhas/", COVERED, ".parquet") %in% all))
-  expect_false(any(grepl("^membros/", all)))                     # CONTROL: membros so com o flag
-  expect_true("membros/M1/A1.parquet" %in% p("tudo", membros = TRUE))
-  expect_false(any(grepl("^folhas/(A1|A2|B1)", p("subsistemas"))))
-  expect_error(do_export(s, state_ctx(), niveis = "x"), class = "prevcarga_error")
+  p <- function(membros = FALSE) sort(paths(do_export(s, state_ctx(), membros = membros)))
+  expect_identical(p(), sort(c("SIN.parquet", paste0("subsistemas/", SS, ".parquet"), paste0("folhas/", c(COVERED, STRAY), ".parquet"))))
+  expect_false(any(grepl("^membros/", p())))                     # CONTROL: membros so com o flag
+  expect_true("membros/M1/A1.parquet" %in% p(membros = TRUE))
+  ## escopo area: so folhas, sem SIN nem subsistemas (FORBIDDEN)
+  sa <- make_scratch(with_agg = FALSE)
+  expect_identical(sort(paths(do_export(sa, state_ctx()))), sort(paste0("folhas/", c(COVERED, STRAY), ".parquet")))
+  expect_false(any(grepl("niveis", names(manifest(do_export(s, state_ctx(), id = "r2"))))))
 })
 
 test_that("nothing_to_deliver: aborta exit 13 sem criar chave nem staging", {
-  s <- make_scratch(with_stray = FALSE, with_agg = FALSE)       # nada alem de folhas cobertas
+  s <- make_scratch(with_stray = FALSE, with_agg = FALSE, declare_covered = FALSE)   # run.json nao declara nada a entregar
   ctx <- state_ctx()
-  cond <- tryCatch(do_export(s, ctx, niveis = "sin"), prevcarga_error = function(e) e)
+  cond <- tryCatch(do_export(s, ctx), prevcarga_error = function(e) e)
   expect_identical(cond$id, "state.nothing_to_deliver"); expect_identical(cond$class_name, "state")
   expect_identical(ex$prevcarga_exit_codes[["state"]], 13L)
   expect_length(list.files(ctx$state_dir, all.files = TRUE, no.. = TRUE), 0L)
-  ## CONTROL: com niveis = tudo ha o que entregar
-  expect_length(do_export(s, ctx, niveis = "tudo")$arquivos, length(COVERED))
+  ## CONTROL: com as folhas declaradas no run.json ha o que entregar
+  s2 <- make_scratch(with_stray = FALSE, with_agg = FALSE)
+  expect_length(do_export(s2, ctx)$arquivos, length(COVERED))
 })
 
 test_that("[FORBIDDEN] byte adulterado no scratch aborta integrity.copy_failed; CONTROL: scratch integro entrega", {

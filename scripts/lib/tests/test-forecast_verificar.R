@@ -33,7 +33,7 @@ forecast <- function(ctx) {
   on.exit({ assign("prevcarga_infer_cell", old$i, envir = env); assign("prevcarga_train", old$t, envir = env) }, add = TRUE)
   assign("prevcarga_infer_cell", m6f_infer_spy(env, log), envir = env)
   assign("prevcarga_train", m6f_train_spy(env, log), envir = env)
-  env$prevcarga_forecast(ctx, skip_validate = TRUE, niveis = "tudo")$result
+  env$prevcarga_forecast(ctx, skip_validate = TRUE, escopo = "sin")$result
 }
 verificar <- function(saida, ref = NULL, state = base) {
   args <- list(`--saida` = saida, `--referencia` = if (is.null(ref)) FALSE else ref, `--oficial` = is.null(ref))

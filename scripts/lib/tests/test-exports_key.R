@@ -35,7 +35,7 @@ kparts <- function(...) modifyList(list(
 kau <- function(h = 9L, m = 0L) lubridate::make_datetime(2026, 1, 15, h, m, tz = KTZ)
 kkey <- function(au = kau(), versao = ek$prevcarga_forecast_versao(kparts()))
   ek$prevcarga_export_key(lubridate::ymd("2026-01-15"), au, versao, KTZ)
-kexport <- function(s, ctx, key = kkey()) ek$prevcarga_export(s, key, niveis = "subsistemas", ctx = ctx)
+kexport <- function(s, ctx, key = kkey()) ek$prevcarga_export(s, key, ctx = ctx)
 ktree <- function(d) {
   f <- sort(list.files(d, recursive = TRUE, all.files = TRUE), method = "radix")
   stats::setNames(vapply(f, function(x) digest::digest(file = file.path(d, x), algo = "sha256"), ""), f)

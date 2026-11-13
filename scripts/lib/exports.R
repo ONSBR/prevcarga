@@ -14,8 +14,6 @@
 ## Requer errors.R, provenance.R (prevcarga_version_hash), schema_long.R (prevcarga_schema_long), data.table, jsonlite, digest, lubridate.
 ## Nao abre parquet (leitor unico: deck_reader.R).
 
-prevcarga_export_niveis <- c("sin", "subsistemas", "tudo")
-
 ## --- Chave imutavel (M6.7) ------------------------------------------------------------------------------
 ## `versao` = 12 hex do prevcarga_version_hash (provenance.R, 8 chaves fixas) sobre os insumos da entrega. As 8 chaves do contrato
 ## recebem: model_id = "forecast"; code_commit = versao do pacote; data_fingerprint = v_<hash> do k-hat por subsistema (ordenado por ss);
@@ -80,17 +78,15 @@ prevcarga_export_key <- function(origin, available_until, versao, tz) {
                                                details = list(reason = "run.json ilegivel", scratch = scratch)))
 }
 
-## Tabela (rel, nivel, area) a entregar, com niveis-teto: sin = SIN + folhas soltas; subsistemas = + subsistemas;
-## tudo = + folhas cobertas; membros so com incluir_membros. A folha solta e sempre entregue.
+## Tabela (rel, nivel, area) a entregar: o que o run.json declara (escopo do forecast, sem teto): SIN se sin_closed, subsistemas/<closed>,
+## folhas/<stray + covered>; membros so com incluir_membros.
 ## Arquivo ausente no scratch ou nao registrado em run.json$arquivos gera aviso (nunca some em silencio); tabela vazia aborta antes de criar diretorio.
-.export_select <- function(scratch, run, niveis, incluir_membros) {
+.export_select <- function(scratch, run, incluir_membros) {
   rel <- character(); nivel <- character(); area <- character()
   add <- function(r, n, a) { rel <<- c(rel, r); nivel <<- c(nivel, n); area <<- c(area, a) }
   if (isTRUE(run$sin_closed)) add("SIN.parquet", "sin", "SIN")
-  if (niveis %in% c("subsistemas", "tudo"))
-    for (ss in .export_chr(run$closed)) add(paste0("subsistemas/", ss, ".parquet"), "subsistema", ss)
-  folhas <- c(.export_chr(run$stray), if (identical(niveis, "tudo")) .export_chr(run$covered))
-  for (a in folhas) add(paste0("folhas/", a, ".parquet"), "folha", a)
+  for (ss in .export_chr(run$closed)) add(paste0("subsistemas/", ss, ".parquet"), "subsistema", ss)
+  for (a in c(.export_chr(run$stray), .export_chr(run$covered))) add(paste0("folhas/", a, ".parquet"), "folha", a)
   if (isTRUE(incluir_membros))
     for (m in names(run$members)) for (a in .export_chr(run$members[[m]]))
       add(paste0("membros/", m, "/", a, ".parquet"), "membro", a)
@@ -102,7 +98,7 @@ prevcarga_export_key <- function(origin, available_until, versao, tz) {
     prevcarga_warn("completude.export_file_missing", where = "prevcarga_export",
                    details = list(arquivos = gone$rel))
   sel <- sel[file.exists(src) & rel %in% listed]
-  if (!nrow(sel)) prevcarga_abort("state.nothing_to_deliver", where = "prevcarga_export", details = list(niveis = niveis))
+  if (!nrow(sel)) prevcarga_abort("state.nothing_to_deliver", where = "prevcarga_export", details = list(escopo = as.character(run$escopo)))
   sel[order(rel, method = "radix")]
 }
 
@@ -117,7 +113,7 @@ prevcarga_export_key <- function(origin, available_until, versao, tz) {
 }
 
 ## manifest em ordem de chaves fixa; campos da rodada copiados do run.json (khat nunca recalculado)
-.export_manifest <- function(run, entries, niveis, ctx) {
+.export_manifest <- function(run, entries, ctx) {
   khat <- lapply(run$khat, function(k) list(ss = k$ss, versao = k$versao, khat_origin = k$khat_origin))
   if (!length(khat)) khat <- list()
   list(produto = "prevcarga-forecast",
@@ -132,7 +128,7 @@ prevcarga_export_key <- function(origin, available_until, versao, tz) {
        versao = run$versao,
        version = run$version,
        runtime_id = run$runtime_id,
-       niveis = niveis,
+       escopo = if (is.null(run$escopo)) NULL else as.character(run$escopo),
        schema_long = as.list(prevcarga_schema_long),
        gerado_em = ctx$generated_at,
        arquivos = entries)
@@ -157,13 +153,11 @@ prevcarga_export_key <- function(origin, available_until, versao, tz) {
 
 ## Entrega a rodada do scratch em `file.path(ctx$state_dir, key$rel)`. key = list(rel =, run_id =) (definida pelo M6.7).
 ## Devolve list(saida = <diretorio final>, arquivos = entries) para o result do verbo.
-prevcarga_export <- function(scratch, key, niveis = "subsistemas", incluir_membros = FALSE, ctx) {
-  if (!is.character(niveis) || length(niveis) != 1L || !niveis %in% prevcarga_export_niveis)
-    prevcarga_abort("config.usage", where = "--niveis", details = list(hint = "sin, subsistemas ou tudo"))
+prevcarga_export <- function(scratch, key, incluir_membros = FALSE, ctx) {
   if (!is.character(scratch) || length(scratch) != 1L || !dir.exists(scratch))
     prevcarga_abort("state.nothing_to_deliver", where = "prevcarga_export", details = list(reason = "scratch ausente"))
   run <- .export_read_run(scratch)
-  sel <- .export_select(scratch, run, niveis, incluir_membros)
+  sel <- .export_select(scratch, run, incluir_membros)
   recs <- stats::setNames(run$arquivos, vapply(run$arquivos, function(x) as.character(x$path), ""))
   entries <- lapply(seq_len(nrow(sel)), function(i)
     .export_entry(sel$src[[i]], sel$rel[[i]], sel$nivel[[i]], sel$area[[i]], recs[[sel$rel[[i]]]]))
@@ -176,7 +170,7 @@ prevcarga_export <- function(scratch, key, niveis = "subsistemas", incluir_membr
   for (i in seq_len(nrow(sel))) .export_copy(sel$src[[i]], file.path(tmp, sel$rel[[i]]))
   rmf <- file.path(scratch, "run_manifest.json")
   if (file.exists(rmf)) .export_copy(rmf, file.path(tmp, basename(rmf)))
-  mname <- basename(.export_write_json(.export_manifest(run, entries, niveis, ctx), file.path(tmp, "manifest.json")))
+  mname <- basename(.export_write_json(.export_manifest(run, entries, ctx), file.path(tmp, "manifest.json")))
   ## chave ja publicada: mesmos bytes = no-op (o staging sai no on.exit, a chave fica intacta); diferenca = key_conflict
   if (identical(.export_key_check(final, entries, ignore = c(mname, basename(rmf))), "noop"))
     return(list(saida = final, arquivos = entries, ja_publicado = TRUE))

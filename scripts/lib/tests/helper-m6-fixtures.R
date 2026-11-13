@@ -276,7 +276,7 @@ m6e_child_main <- function(root, work, out, phase) {
       stats::setNames(as.list(vapply(f, function(x) digest::digest(file = file.path(d, x), algo = "sha256"), "")), f)
     }
     go <- function(skip) tryCatch(
-      prevcarga_forecast(ctx, origin = O, niveis = "tudo", incluir_membros = TRUE, skip_validate = skip),
+      prevcarga_forecast(ctx, origin = O, escopo = "sin", incluir_membros = TRUE, skip_validate = skip),
       prevcarga_error = function(e) list(error = list(id = e$id, exit = e$exit_code, where = e$where)))
     ## o deck sintetico (460 dias) e mais curto que a janela de producao dos run.yaml: o gate-0 real RECUSA (janela de
     ## historico, exit 5) -- a validacao roda e reprova; a rodada segue com skip_validate (o corte continua vindo do leitor)
