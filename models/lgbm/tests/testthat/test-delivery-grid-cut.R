@@ -9,14 +9,14 @@ cuts_at <- function(dd = NULL) {
     if (!is.null(dd)) list(delivery_days = as.integer(dd)))
 }
 
-test_that("[F3.7] sem cuts$delivery_days a grade e a do descriptor (2 dias); FORBIDDEN clima completo = mesma grade", {
+test_that("[PLUGINS] delivery_grid_cut: sem cuts$delivery_days a grade e a do descriptor (2 dias); FORBIDDEN clima completo = mesma grade", {
   g <- P$.lgbm_delivery_grid(cuts_at())
   expect_identical(g, lgbm_lib$prevcarga_delivery_grid(cuts_at(), 2L))
   expect_identical(g, P$.lgbm_delivery_grid(cuts_at(2L)))
   expect_identical(max(g), at_time("2026-10-03 00:00"))
 })
 
-test_that("[F3.7] CONTROL cuts$delivery_days = 1 (clima so ate O): a grade termina em O+1 00:00", {
+test_that("[PLUGINS] delivery_grid_cut: CONTROL cuts$delivery_days = 1 (clima so ate O): a grade termina em O+1 00:00", {
   g <- P$.lgbm_delivery_grid(cuts_at(1L))
   expect_identical(g, lgbm_lib$prevcarga_delivery_grid(cuts_at(1L), 1L))
   expect_identical(max(g), at_time("2026-10-02 00:00"))
