@@ -42,7 +42,8 @@ vd_ctx <- function(dir, root, cutoff = "available_until", ...) {
 
 .vd_tpl <- new.env()
 ## deck limpo memoizado por (n, areas): nao tem -1 em feriado; copiado por teste.
-vd_template <- function(n = 40, areas = c("SECO", "S")) {
+VD_A1 <- "RS"; VD_A2 <- "RJ"            # folhas de config/topology.yaml (SECO e S sao subsistemas); ordem radix: RJ < RS
+vd_template <- function(n = 40, areas = c(VD_A1, VD_A2)) {
   key <- paste(n, paste(areas, collapse = ","))
   if (is.null(.vd_tpl[[key]])) {
     d <- vd_tmp()
@@ -54,7 +55,7 @@ vd_template <- function(n = 40, areas = c("SECO", "S")) {
   }
   .vd_tpl[[key]]
 }
-vd_deck <- function(n = 40, areas = c("SECO", "S"), env = parent.frame()) {
+vd_deck <- function(n = 40, areas = c(VD_A1, VD_A2), env = parent.frame()) {
   src <- vd_template(n, areas)
   dst <- vd_tmp(env)
   file.copy(list.files(src, full.names = TRUE, all.files = TRUE, no.. = TRUE), dst, recursive = TRUE)
@@ -99,7 +100,7 @@ test_that("validation.tsv carrega pelo loader sem id duplicado e cobre os ids pr
            "contract.duplicate_interval", "contract.load_nonpositive", "contract.temperature_out_of_range",
            "contract.code_negative", "completude.day_incomplete", "topology.scope_undeclared",
            "window.window_train_deficit", "window.window_infer_deficit", "warning.outlier", "warning.flatline",
-           "warning.climate_after_cut", "warning.temperature_jump")
+           "warning.climate_after_cut", "warning.temperature_jump", "warning.weather_non_leaf")
   expect_true(all(own %in% cat$id))
   expect_false(anyDuplicated(cat$id) > 0L)
   tsv <- utils::read.delim(file.path(pc_root(), "scripts", "lib", "errors", "validation.tsv"), quote = "", colClasses = "character")
@@ -173,21 +174,21 @@ test_that("AC2 NA / dia de 47 -> day_incomplete (completude); load 0 -> load_non
   ctx0 <- vd_ctx(vd_deck(), root0)
   expect_clean(vd_run(ctx0, origin = O))
   s <- stamp("2026-09-25 10:30:00")
-  d1 <- vd_deck(); pc_mut_load(d1, function(dt) dt[area_code == "SECO" & timestamp == s, load_mwh := NA_real_])
+  d1 <- vd_deck(); pc_mut_load(d1, function(dt) dt[area_code == VD_A1 & timestamp == s, load_mwh := NA_real_])
   v1 <- vd_run(vd_ctx(d1, root0), origin = O)
   expect_false(v1$ok); expect_identical(v1$class, "completude")
   expect_identical(v1$findings$what[v1$findings$level == "error"], "day_incomplete")
   expect_identical(v1$findings$detail[v1$findings$what == "day_incomplete"], "2026-09-25: 47/48")
-  d2 <- vd_deck(); pc_mut_load(d2, function(dt) dt[!(area_code == "SECO" & timestamp == s)])
+  d2 <- vd_deck(); pc_mut_load(d2, function(dt) dt[!(area_code == VD_A1 & timestamp == s)])
   v2 <- vd_run(vd_ctx(d2, root0), origin = O)
   expect_identical(v2$class, "completude"); expect_true(has(v2, "day_incomplete", "completude", "error"))
   expect_identical(v2$findings$detail[v2$findings$what == "day_incomplete"], "2026-09-25: 47/48")
-  d3 <- vd_deck(); pc_mut_load(d3, function(dt) dt[area_code == "SECO" & timestamp == s, load_mwh := 0])
+  d3 <- vd_deck(); pc_mut_load(d3, function(dt) dt[area_code == VD_A1 & timestamp == s, load_mwh := 0])
   v3 <- vd_run(vd_ctx(d3, root0), origin = O)
   expect_false(v3$ok); expect_identical(v3$class, "contract")
   expect_identical(unique(errs(v3)$what), "load_nonpositive")   # CONTROL: RF/LGBM preencheriam com 0
   ## buraco inteiro (dia sem linha) tambem e day_incomplete com 0/48
-  d4 <- vd_deck(); pc_mut_load(d4, function(dt) dt[!(area_code == "SECO" & as.Date(timestamp - 1) == as.Date("2026-09-25"))])
+  d4 <- vd_deck(); pc_mut_load(d4, function(dt) dt[!(area_code == VD_A1 & as.Date(timestamp - 1) == as.Date("2026-09-25"))])
   v4 <- vd_run(vd_ctx(d4, root0), origin = O)
   expect_identical(v4$findings$detail[v4$findings$what == "day_incomplete"], "2026-09-25: 0/48")
 })
@@ -198,7 +199,7 @@ test_that("AC3 buraco fora da janela do escopo nao reprova; dentro reprova (fron
   ## RF: last_data_day = O-1, from = min(O-1-20+1, O-1-5+1) = O-20 = 2026-09-11
   hole <- function(day) {
     d <- vd_deck()
-    pc_mut_load(d, function(dt) dt[!(area_code == "SECO" & timestamp == lubridate::as_datetime(paste(day, "12:30:00"), tz = "UTC"))])
+    pc_mut_load(d, function(dt) dt[!(area_code == VD_A1 & timestamp == lubridate::as_datetime(paste(day, "12:30:00"), tz = "UTC"))])
     vd_run(vd_ctx(d, root), origin = O, scope = sc)
   }
   expect_clean(hole("2026-09-05"))       # antes do inicio da janela
@@ -209,7 +210,7 @@ test_that("AC3 buraco fora da janela do escopo nao reprova; dentro reprova (fron
   expect_true(has(hole("2026-09-30"), "day_incomplete"))   # cauda: O-1
   ## o mesmo furo de 09-05 reprova num escopo cuja janela o contem (CONTROL: HW train 60)
   d <- vd_deck()
-  pc_mut_load(d, function(dt) dt[!(area_code == "SECO" & timestamp == stamp("2026-09-05 12:30:00"))])
+  pc_mut_load(d, function(dt) dt[!(area_code == VD_A1 & timestamp == stamp("2026-09-05 12:30:00"))])
   expect_true(has(vd_run(vd_ctx(d, root), origin = O, scope = list(model = "holt-winters")), "day_incomplete"))
 })
 
@@ -227,14 +228,14 @@ test_that("AC4 oito mutacoes de contract, cada uma com o `what` proprio; CONTROL
   one(function(d) pc_mut_retype(d, "load", "timestamp", "timestamp_tz"), "tz_in_parquet")
   one(function(d) pc_mut_flatten(d, "weather_observed"), "hive_layout")
   one(function(d) pc_mut_holiday(d, "simplified_code", -1L), "code_negative")
-  one(function(d) pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == stamp("2026-09-25 10:30:00"),
+  one(function(d) pc_mut_load(d, function(dt) dt[area_code == VD_A1 & timestamp == stamp("2026-09-25 10:30:00"),
                                                    timestamp := stamp("2026-09-25 10:15:00")]), "grid_off")
-  one(function(d) pc_mut_load(d, function(dt) rbind(dt, dt[area_code == "SECO" & timestamp == stamp("2026-09-25 10:30:00")])),
+  one(function(d) pc_mut_load(d, function(dt) rbind(dt, dt[area_code == VD_A1 & timestamp == stamp("2026-09-25 10:30:00")])),
       "duplicate_interval")
-  one(function(d) pc_mut_weather(d, "weather_observed", function(dt) dt[area_code == "SECO" & timestamp == stamp("2026-09-25 10:00:00"),
+  one(function(d) pc_mut_weather(d, "weather_observed", function(dt) dt[area_code == VD_A1 & timestamp == stamp("2026-09-25 10:00:00"),
                                                                         temperature := 60]), "temperature_out_of_range")
   ## temperatura prevista fora da faixa tambem (dataset proprio)
-  v <- one(function(d) pc_mut_weather(d, "weather_forecast", function(dt) { dt[which(dt$area_code == "SECO" & dt$issue_time == stamp("2026-10-01 12:00:00"))[1L], temperature := -30]; dt }),
+  v <- one(function(d) pc_mut_weather(d, "weather_forecast", function(dt) { dt[which(dt$area_code == VD_A1 & dt$issue_time == stamp("2026-10-01 12:00:00"))[1L], temperature := -30]; dt }),
            "temperature_out_of_range")
   expect_identical(unique(errs(v)$dataset), "weather_forecast")
 })
@@ -251,7 +252,7 @@ test_that("AC4 heat_index opcional ausente da ok == TRUE; presente com tipo erra
 
 test_that("AC4 parquet corrompido: parquet_unreadable com where relativo ao data_dir, nenhum erro R escapa", {
   d <- vd_deck()
-  rel <- "load/area_code=SECO/year=2026/part-0.parquet"
+  rel <- sprintf("load/area_code=%s/year=2026/part-0.parquet", VD_A1)
   expect_true(file.exists(file.path(d, rel)))
   pc_mut_corrupt(d, rel)
   v <- expect_no_error(vd_run(vd_ctx(d, root0), origin = O))
@@ -272,14 +273,14 @@ test_that("dataset ausente aparece como dataset_missing e nao cascateia findings
 vd_warn_deck <- function(issues = 12L, flat = 6L, env = parent.frame()) {
   d <- vd_deck(env = env)
   pc_mut_load(d, function(dt) {
-    dt[area_code == "SECO" & timestamp == stamp("2026-09-20 12:00:00"), load_mwh := 28]
+    dt[area_code == VD_A1 & timestamp == stamp("2026-09-20 12:00:00"), load_mwh := 28]
     hi <- if (flat == 6L) "2026-09-15 13:30:00" else "2026-09-15 13:00:00"
-    dt[area_code == "S" & timestamp >= stamp("2026-09-15 10:30:00") & timestamp < stamp(hi), load_mwh := 1024.5]
+    dt[area_code == VD_A2 & timestamp >= stamp("2026-09-15 10:30:00") & timestamp < stamp(hi), load_mwh := 1024.5]
     dt
   })
   pc_mut_issue(d, issues)
   pc_deck_until(d, at("2026-10-01 08:30"))
-  pc_deck_drop(d, "S", at("2026-10-01 08:00"))     # S ate 08:00, SECO ate 08:30 => spread; global 08:00
+  pc_deck_drop(d, VD_A2, at("2026-10-01 08:00"))     # RJ ate 08:00, RS ate 08:30 => spread; global 08:00
   d
 }
 
@@ -290,8 +291,8 @@ test_that("AC5 outlier, flatline, climate_after_cut (12Z, available_until) e ava
   expect_identical(v$available_until, at("2026-10-01 08:00"))
   expect_setequal(whats(v), c("outlier", "flatline", "climate_after_cut", "available_until_spread"))
   expect_true(all(v$findings$level == "warning")); expect_identical(nrow(errs(v)), 0L)
-  expect_identical(v$findings$area[v$findings$what == "outlier"], "SECO")
-  expect_identical(v$findings$area[v$findings$what == "flatline"], "S")
+  expect_identical(v$findings$area[v$findings$what == "outlier"], VD_A1)
+  expect_identical(v$findings$area[v$findings$what == "flatline"], VD_A2)
   ## origin_midnight_utc: 12Z (09:00) segue tardia
   v2 <- vd_run(vd_ctx(d, root0, cutoff = "origin_midnight_utc"), origin = O)
   expect_true(v2$ok); expect_true(has(v2, "climate_after_cut", level = "warning"))
@@ -397,8 +398,9 @@ test_that("AC7 area fora da topologia -> area_undeclared; escopo area XX / model
   vm <- vd_run(ctx, origin = O, scope = list(model = "yy"))
   expect_identical(vm$class, "topology"); expect_identical(whats(vm), "scope_undeclared")   # sem model_spec => sem contract
   expect_identical(vm$findings$where, "yy")
-  expect_clean(vd_run(vd_ctx(vd_deck(40, c("RS", "PR", "SC", "S")), root0), origin = O,
-                      scope = list(area = "S", model = "lgbm")))                             # CONTROL: S expande p/ as folhas
+  v <- vd_run(vd_ctx(vd_deck(40, c("RS", "PR", "SC", "S")), root0), origin = O,
+              scope = list(area = "S", model = "lgbm"))                                      # CONTROL: S expande p/ as folhas
+  expect_true(v$ok); expect_identical(whats(v), "weather_non_leaf")                          # S e subsistema: so o aviso P8
 })
 
 test_that("AC7 area = SECO expande para as folhas do subsistema + ele mesmo e nao gera finding de escopo", {
@@ -408,14 +410,36 @@ test_that("AC7 area = SECO expande para as folhas do subsistema + ele mesmo e na
   v <- vd_run(vd_ctx(d, root0), origin = O, scope = list(area = "SECO"))
   expect_false(has(v, "scope_undeclared"))
   expect_setequal(v$scope$areas, c(leaves, "SECO"))
-  expect_clean(v)
+  expect_true(v$ok); expect_identical(whats(v), "weather_non_leaf")                          # SECO e subsistema: so o aviso P8
 })
 
 ## --- AC 8: acumulacao e precedencia ---------------------------------------------------------------------------------
+test_that("P8 clima em SECO -> weather_non_leaf por dataset (topology, warning); XX so area_undeclared", {
+  d <- vd_deck(); pc_mut_add_area(d, "SECO")
+  v <- vd_run(vd_ctx(d, root0), origin = O)
+  expect_true(v$ok); expect_identical(whats(v), "weather_non_leaf")
+  expect_setequal(v$findings$dataset, c("weather_observed", "weather_forecast"))
+  expect_identical(nrow(v$findings), 2L)
+  expect_true(all(v$findings$class == "topology" & v$findings$level == "warning" & v$findings$area == "SECO"))
+  expect_identical(v$findings$where[v$findings$dataset == "weather_observed"], "weather/observed/area_code=SECO")
+  expect_true("SECO" %in% v$scope$areas)                         # o aviso nao muda as areas lidas
+  x <- vd_deck(); pc_mut_add_area(x, "XX")
+  vx <- vd_run(vd_ctx(x, root0), origin = O)
+  expect_identical(whats(vx), "area_undeclared"); expect_false(has(vx, "weather_non_leaf"))
+})
+
+test_that("P8 clima em PESE (perda) -> weather_non_leaf e nenhum area_undeclared", {
+  d <- vd_deck(); pc_mut_add_area(d, "PESE")
+  v <- vd_run(vd_ctx(d, root0), origin = O)
+  expect_true(v$ok); expect_identical(whats(v), "weather_non_leaf")
+  expect_false(has(v, "area_undeclared"))
+  expect_true(all(v$findings$area == "PESE"))
+})
+
 test_that("AC8 acumula classes (nao aborta no 1o defeito); dominante contract pela precedencia do errors.R", {
   d <- vd_deck(25)                                   # RF 30/10: deficit de janela
-  pc_mut_drop_col(d, "weather_observed", "temperature", area = "S")
-  pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == stamp("2026-09-25 10:30:00"), load_mwh := NA_real_])
+  pc_mut_drop_col(d, "weather_observed", "temperature", area = VD_A2)
+  pc_mut_load(d, function(dt) dt[area_code == VD_A1 & timestamp == stamp("2026-09-25 10:30:00"), load_mwh := NA_real_])
   v <- vd_run(vd_ctx(d, root0), origin = O)
   cls <- unique(errs(v)$class)
   expect_true(all(c("contract", "completude", "window") %in% cls))
@@ -425,7 +449,7 @@ test_that("AC8 acumula classes (nao aborta no 1o defeito); dominante contract pe
 
 test_that("AC8 so NA + area fora da topologia: dominante completude", {
   d <- vd_deck(); pc_mut_add_area(d, "XX")
-  pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == stamp("2026-09-25 10:30:00"), load_mwh := NA_real_])
+  pc_mut_load(d, function(dt) dt[area_code == VD_A1 & timestamp == stamp("2026-09-25 10:30:00"), load_mwh := NA_real_])
   v <- vd_run(vd_ctx(d, root0), origin = O)
   expect_setequal(unique(errs(v)$class), c("completude", "topology"))
   expect_identical(v$class, "completude")
@@ -433,12 +457,12 @@ test_that("AC8 so NA + area fora da topologia: dominante completude", {
 })
 
 test_that("AC8 buraco 07:00-07:30 no dia O: abort do leitor vira finding origin_day_gap; available_until nunca vale 07:00", {
-  d <- vd_deck(); pc_deck_drop(d, "SECO", at(c("2026-10-01 07:00", "2026-10-01 07:30")))
+  d <- vd_deck(); pc_deck_drop(d, VD_A1, at(c("2026-10-01 07:00", "2026-10-01 07:30")))
   v <- expect_no_error(vd_run(vd_ctx(d, root0), origin = O))
   expect_false(v$ok); expect_identical(v$class, "completude")
   f <- v$findings[v$findings$what == "origin_day_gap", ]
-  expect_identical(nrow(f), 1L); expect_identical(f$class, "completude"); expect_identical(f$where, "SECO:07:00")
-  expect_identical(f$area, "SECO")
+  expect_identical(nrow(f), 1L); expect_identical(f$class, "completude"); expect_identical(f$where, paste0(VD_A1, ":07:00"))
+  expect_identical(f$area, VD_A1)
   expect_false(isTRUE(v$available_until == at("2026-10-01 07:00")))
   expect_null(v$available_until); expect_null(v$cuts)
   expect_identical(v$forecast_origin, O)
@@ -479,7 +503,7 @@ test_that("AC9 load_label em conflito com a flag: finding contract load_label_co
 })
 
 test_that("somente leitura: o validate_deck nao cria nem altera arquivos do data_dir (inclui cenarios com erro)", {
-  d <- vd_deck(); pc_mut_corrupt(d, "load/area_code=S/year=2026/part-0.parquet"); pc_mut_add_area(d, "XX")
+  d <- vd_deck(); pc_mut_corrupt(d, sprintf("load/area_code=%s/year=2026/part-0.parquet", VD_A2)); pc_mut_add_area(d, "XX")
   before <- md5_tree(d)
   invisible(prevcarga_validate_deck(vd_ctx(d, root0), origin = O))
   expect_identical(md5_tree(d), before)
@@ -505,7 +529,7 @@ test_that("[TBD: ADR-0027] precedencia entre aviso de spread e corte global por 
 ## --- V2 temperature_jump (aviso) x faixa fisica (erro) ----------------------------------------------------------------
 test_that("V2 temperature_jump observado: 15 C avisa (CONTROL), 9 C nao (FORBIDDEN); ok TRUE", {
   jump <- function(dT, env = parent.frame()) { d <- vd_deck(env = env); pc_mut_weather(d, "weather_observed", function(dt)
-    dt[area_code == "SECO" & timestamp == stamp("2026-09-25 10:00:00"), temperature := temperature + dT]); d }
+    dt[area_code == VD_A1 & timestamp == stamp("2026-09-25 10:00:00"), temperature := temperature + dT]); d }
   v <- vd_run(vd_ctx(jump(15), root0), origin = O)
   expect_true(v$ok); expect_true(has(v, "temperature_jump", "contract", "warning"))
   expect_identical(unique(v$findings$dataset), "weather_observed"); expect_identical(nrow(v$findings), 1L)
@@ -516,12 +540,12 @@ test_that("V2 temperature_jump observado: 15 C avisa (CONTROL), 9 C nao (FORBIDD
 test_that("V2 temperature_jump previsto: salto dentro da emissao avisa; diferenca entre emissoes nao", {
   iss <- stamp("2026-10-01 12:00:00")
   one_jump <- vd_deck(); pc_mut_weather(one_jump, "weather_forecast", function(dt) {
-    dt[which(dt$area_code == "SECO" & dt$issue_time == iss)[5L], temperature := temperature + 15]; dt })
+    dt[which(dt$area_code == VD_A1 & dt$issue_time == iss)[5L], temperature := temperature + 15]; dt })
   v <- vd_run(vd_ctx(one_jump, root0), origin = O)
   expect_true(v$ok); expect_true(has(v, "temperature_jump", "contract", "warning"))
   expect_identical(unique(v$findings$dataset), "weather_forecast")
   shift <- vd_deck(); pc_mut_weather(shift, "weather_forecast", function(dt) {
-    dt[dt$area_code == "SECO" & dt$issue_time == iss, temperature := temperature + 15]; dt })
+    dt[dt$area_code == VD_A1 & dt$issue_time == iss, temperature := temperature + 15]; dt })
   expect_false(has(vd_run(vd_ctx(shift, root0), origin = O), "temperature_jump"))
 })
 

@@ -164,14 +164,24 @@ prevcarga_outlier_min_days <- 3L
   topo <- .prevcarga_capture(prevcarga_topology(path = tp), "scope", acc)
   if (is.null(topo$value)) {
     acc$add(topo$finding)
-    return(list(areas = character(), models = character(), models_cuts = NULL))
+    return(list(areas = character(), models = character(), models_cuts = NULL, leaves = character()))
   }
   subs <- topo$value$subsystems
   declared <- unique(c(topo$value$leaves, names(subs), vapply(subs, function(s) s$loss, "")))
   pa <- .pc_present_areas(probe)
-  present <- if (is.null(pa) || !nrow(pa)) character() else sort(unique(pa$area), method = "radix")
+  present <- if (is.null(pa) || !nrow(pa)) character() else sort(unique(pa$area))
   for (a in setdiff(present, declared)) {
     acc$add(.pc_finding(a, pa$dataset[pa$area == a][[1L]], "area_undeclared", a, "topology", where = a))
+  }
+  leaves <- topo$value$leaves
+  wx <- if (is.null(pa)) pa else pa[pa$dataset %in% c("weather_observed", "weather_forecast") &
+                                    pa$area %in% declared & !pa$area %in% leaves]
+  if (!is.null(wx) && nrow(wx)) {
+    data.table::setorderv(wx, c("area", "dataset"))
+    for (i in seq_len(nrow(wx)))
+      acc$add(.pc_finding(wx$area[i], wx$dataset[i], "weather_non_leaf",
+        sprintf("%s nao e folha (subsistema ou perda)", wx$area[i]), "topology", level = "warning",
+        where = sprintf("%s/area_code=%s", .PREVCARGA_DECK_DATASETS[[wx$dataset[i]]], wx$area[i])))
   }
   areas <- if (is.null(scope$area)) intersect(present, declared) else {
     keep <- character()
@@ -183,7 +193,7 @@ prevcarga_outlier_min_days <- 3L
     }
     unique(keep)
   }
-  areas <- sort(areas, method = "radix")
+  areas <- sort(areas)
 
   mem <- .prevcarga_capture(prevcarga_members(path = tp, root = ctx$root), "scope", acc)
   acc$add(mem$finding)
@@ -196,7 +206,7 @@ prevcarga_outlier_min_days <- 3L
     models <- intersect(scope$model, all_m)
     mc <- if (length(models)) models else NULL
   }
-  list(areas = areas, models = models, models_cuts = mc)
+  list(areas = areas, models = models, models_cuts = mc, leaves = leaves)
 }
 
 ## --- 4/7. Intervalo relevante e janelas ---------------------------------------------------------------

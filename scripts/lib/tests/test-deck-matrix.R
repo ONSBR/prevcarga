@@ -27,11 +27,12 @@ mx_root <- function(hw = c(30, 10)) {
   d
 }
 .mx <- new.env()
-mx_deck <- function() {                                   # limpo de 40 dias (SECO, S) terminando em O; copia por chamada
+MX_A1 <- "RS"; MX_A2 <- "RJ"            # folhas de config/topology.yaml (SECO e S sao subsistemas); ordem radix: RJ < RS
+mx_deck <- function() {                                   # limpo de 40 dias (RS, RJ) terminando em O; copia por chamada
   if (is.null(.mx$tpl)) {
-    d <- mx_tmp(); h <- pc_deck_holidays_default(c("SECO", "S"))
+    d <- mx_tmp(); h <- pc_deck_holidays_default(c(MX_A1, MX_A2))
     h[which(as.numeric(simplified_code) < 0), simplified_code := bit64::as.integer64(1L)]
-    pc_deck_panel(areas = c("SECO", "S"), holidays = h, dir = d)
+    pc_deck_panel(areas = c(MX_A1, MX_A2), holidays = h, dir = d)
     pc_deck_days(d, 40)
     .mx$tpl <- d
   }
@@ -61,7 +62,7 @@ MUTATIONS <- list(
   ## contract: dataset / layout / tipos / arquivos
   mx_row("dataset_missing",  function(d) unlink(file.path(d, "auxiliary", "holidays"), recursive = TRUE), "contract"),
   mx_row("hive_layout",      function(d) pc_mut_flatten(d, "weather_observed"), "contract"),
-  mx_row("parquet_unreadable", function(d) pc_mut_corrupt(d, "load/area_code=SECO/year=2026/part-0.parquet"), "contract"),
+  mx_row("parquet_unreadable", function(d) pc_mut_corrupt(d, sprintf("load/area_code=%s/year=2026/part-0.parquet", MX_A1)), "contract"),
   mx_row("schema_missing",   function(d) pc_mut_drop_col(d, "weather_forecast", "temperature"), "contract"),
   mx_row("tz_in_parquet",    function(d) pc_mut_retype(d, "load", "timestamp", "timestamp_tz"), "contract"),
   mx_row("type_mismatch",    function(d) pc_mut_retype(d, "load", "load_mwh", "string"), "contract"),
@@ -74,21 +75,21 @@ MUTATIONS <- list(
   mx_row("weather_lag_missing", mx_manifest(function(m) { m$weather_forecast_publication_lag_hours <- NULL; m }), "contract"),
   mx_row("load_label_conflict", function(d) pc_deck_manifest(d, load_label = "start"), "contract", opts = list(flag_label = "end")),
   ## contract: sanidade de carga e clima
-  mx_row("grid_off",         function(d) pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:30:00"),
+  mx_row("grid_off",         function(d) pc_mut_load(d, function(dt) dt[area_code == MX_A1 & timestamp == mx_stamp("2026-09-25 10:30:00"),
                                                                          timestamp := mx_stamp("2026-09-25 10:15:00")]), "contract",
          also = "day_incomplete"),                       # fora da grade: o dia fica com 47 intervalos validos
-  mx_row("duplicate_interval", function(d) pc_mut_load(d, function(dt) rbind(dt, dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:30:00")])),
+  mx_row("duplicate_interval", function(d) pc_mut_load(d, function(dt) rbind(dt, dt[area_code == MX_A1 & timestamp == mx_stamp("2026-09-25 10:30:00")])),
          "contract"),
-  mx_row("load_nonpositive", function(d) pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:30:00"), load_mwh := 0]),
+  mx_row("load_nonpositive", function(d) pc_mut_load(d, function(dt) dt[area_code == MX_A1 & timestamp == mx_stamp("2026-09-25 10:30:00"), load_mwh := 0]),
          "contract", also = "outlier"),                  # 0 MW e tambem outlier (aviso)
   mx_row("temperature_out_of_range", function(d) pc_mut_weather(d, "weather_observed", function(dt)
-           dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:00:00"), temperature := 60]), "contract",
+           dt[area_code == MX_A1 & timestamp == mx_stamp("2026-09-25 10:00:00"), temperature := 60]), "contract",
          also = "temperature_jump"),                      # 60 C tambem e salto de temperatura (aviso)
   mx_row("code_negative",    function(d) pc_mut_holiday(d, "simplified_code", -1L), "contract"),
   ## completude
-  mx_row("day_incomplete",   function(d) pc_mut_load(d, function(dt) dt[!(area_code == "SECO" & timestamp == mx_stamp("2026-09-11 10:30:00"))]),
+  mx_row("day_incomplete",   function(d) pc_mut_load(d, function(dt) dt[!(area_code == MX_A1 & timestamp == mx_stamp("2026-09-11 10:30:00"))]),
          "completude"),
-  mx_row("origin_day_gap",   function(d) pc_deck_drop(d, "SECO", mx_at("2026-10-01 07:00")), "completude"),
+  mx_row("origin_day_gap",   function(d) pc_deck_drop(d, MX_A1, mx_at("2026-10-01 07:00")), "completude"),
   mx_row("no_load",          function(d) invisible(NULL), "completude", opts = list(origin = mx_O + 60L)),
   ## topology
   mx_row("area_undeclared",  function(d) pc_mut_add_area(d, "XX"), "topology"),
@@ -97,16 +98,17 @@ MUTATIONS <- list(
   mx_row("window_train_deficit", function(d) invisible(NULL), "window", opts = list(root = root_hw60, scope = list(model = "holt-winters"))),
   mx_row("window_infer_deficit", function(d) invisible(NULL), "window", opts = list(root = root_hw45, scope = list(model = "holt-winters"))),
   ## avisos (level warning; nao reprovam)
-  mx_row("outlier",          function(d) pc_mut_load(d, function(dt) dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-20 12:00:00"), load_mwh := 28]),
+  mx_row("outlier",          function(d) pc_mut_load(d, function(dt) dt[area_code == MX_A1 & timestamp == mx_stamp("2026-09-20 12:00:00"), load_mwh := 28]),
          "contract", "warning"),
-  mx_row("flatline",         function(d) pc_mut_load(d, function(dt) dt[area_code == "S" & timestamp >= mx_stamp("2026-09-15 10:30:00") &
+  mx_row("flatline",         function(d) pc_mut_load(d, function(dt) dt[area_code == MX_A2 & timestamp >= mx_stamp("2026-09-15 10:30:00") &
                                                                         timestamp < mx_stamp("2026-09-15 13:30:00"), load_mwh := 1024.5]),   # nivel da area S (1000 + slot): sem outlier nas bordas
          "contract", "warning"),
   mx_row("temperature_jump", function(d) pc_mut_weather(d, "weather_observed", function(dt)
-           dt[area_code == "SECO" & timestamp == mx_stamp("2026-09-25 10:00:00"), temperature := temperature + 15]), "contract", "warning"),
+           dt[area_code == MX_A1 & timestamp == mx_stamp("2026-09-25 10:00:00"), temperature := temperature + 15]), "contract", "warning"),
+  mx_row("weather_non_leaf", function(d) pc_mut_add_area(d, "SECO"), "topology", "warning"),
   mx_row("climate_after_cut", function(d) { pc_mut_issue(d, 12L); pc_deck_until(d, mx_at("2026-10-01 08:30")) }, "contract", "warning"),
   mx_row("available_until_spread", function(d) { pc_mut_issue(d, 0L); pc_deck_until(d, mx_at("2026-10-01 08:30"))
-                                                 pc_deck_drop(d, "S", mx_at("2026-10-01 08:00")) }, "completude", "warning",
+                                                 pc_deck_drop(d, MX_A2, mx_at("2026-10-01 08:00")) }, "completude", "warning",
          also = "climate_after_cut")                     # a emissao 00Z de O+1 cai no dia O local, depois do limite
 )
 MX_WHATS <- vapply(MUTATIONS, function(r) r$what, "")

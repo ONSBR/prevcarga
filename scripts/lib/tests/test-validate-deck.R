@@ -32,7 +32,8 @@ vd_root <- function(hw = c(30, 10), env = NULL) {
   h
 }
 ## deck de `n` dias terminando em 2026-10-01 (O); `until` corta a carga; label start grava o manifest start
-vd_build <- function(n = 40, areas = c("SECO", "S"), label = "end", until = NULL, env = parent.frame()) {
+VA1 <- "RS"; VA2 <- "RJ"                 # folhas de config/topology.yaml (SECO e S sao subsistemas); ordem radix: RJ < RS
+vd_build <- function(n = 40, areas = c(VA1, VA2), label = "end", until = NULL, env = parent.frame()) {
   d <- vd_tmp(env)
   days <- seq(lubridate::ymd("2026-10-01") - (n - 1L), lubridate::ymd("2026-10-01"), by = "day")
   pc_deck_sentinel(label, days = days, areas = areas, until = until, dir = d)
@@ -153,7 +154,7 @@ test_that("origem default pelo deck x flag; result carrega os campos do ADR-0040
     expect_true(k %in% names(j), info = k)
   expect_match(j$data_hash, "^[0-9a-f]{64}$")
   expect_identical(j$timezone$load, TZ)
-  expect_identical(names(j$available_until_by_area), c("S", "SECO"))
+  expect_identical(names(j$available_until_by_area), c(VA2, VA1))
   expect_length(j$cuts, 5L)
   for (row in j$cuts)
     expect_true(all(c("model", "train_origin", "last_data_day", "data_lag_days", "data_lag_source") %in% names(row)))
