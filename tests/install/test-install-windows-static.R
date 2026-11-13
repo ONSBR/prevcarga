@@ -243,7 +243,10 @@ test_that("install.ps1: banner, explicacoes e proximos passos sob $script:PcProg
   expect_true(any(grepl("abra um terminal novo para o PATH valer", ns, fixed = TRUE)))
   expect_true(any(grepl("prevcarga doctor", ns, fixed = TRUE)))
   expect_true(any(grepl("Get-PcConfigValue 'data_dir'", ns, fixed = TRUE)) && any(grepl("if ($d) {", ns, fixed = TRUE)))
-  expect_true(any(grepl("-Data <dir>", ns, fixed = TRUE)) && any(grepl("$Data", ps1[1:40], fixed = TRUE)))
+  expect_true(any(grepl("prevcarga set-data-dir <dir>", ns, fixed = TRUE)) && any(grepl("$Data", ps1[1:40], fixed = TRUE)))
+  # CONTROL: a sugestao antiga (-Data <dir>) nao satisfaz a expectativa
+  old <- sub("prevcarga set-data-dir <dir>", "reinstale com -Data <dir>", ns, fixed = TRUE)
+  expect_false(any(grepl("prevcarga set-data-dir <dir>", old, fixed = TRUE)))
   expect_true(any(grepl("-Rollback", grep("Write-PcNote", ps1, value = TRUE), fixed = TRUE)))
   # CONTROL: a guarda removida de um helper e detectada
   b <- ps1_fun("Write-PcNote"); expect_false(identical(trimws(b[-2][2]), "if (-not $script:PcProgress) { return }"))
