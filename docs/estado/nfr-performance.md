@@ -32,3 +32,11 @@ Gate de performance: `prevcarga forecast --origin <O> --format json` pelo bundle
 | windows-x86_64 | [DEFERRED windows-vm do M8, dono: Gabriel, 2026-10-31] | | | | |
 
 - **Gate Windows (M8.11)**: os itens Windows deste modulo (braco Windows do NFR de 30 min) sao EXECUTADOS pelo gate da VM Windows (`tests/windows/Invoke-WindowsGate.ps1`; roteiro `docs/reference/windows-gate.md`; estado `docs/estado/windows-gate.md`, itens W15). Pendente: Gabriel.
+
+## Smoke operacional do train-models --dry-run (192 celulas)
+
+> Registro manual do operador. NAO e teste, quality gate nem criterio de aceite do epico 2 (Fixes v0.1.4); nenhum comando de teste depende deste numero. Le o deck configurado em modo somente leitura (`prevcarga train-models --dry-run --format=json`); nada e gravado no deck nem em `models/*/models/`.
+
+| data | commit | maquina | celulas | tempo de parede |
+|---|---|---|---|---|
+| pendente | - | - | 192 (8 membros x 24 folhas) | - |
