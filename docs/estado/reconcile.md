@@ -56,9 +56,9 @@ Desvios do plano original, por unify: (1) nao existe `prevcarga_khat_promote` (g
   Convencao efetiva = `ctx$load_label`/`ctx$tz`, ou o manifest do deck quando ausentes.
 - `prevcarga_reconcile_apply(long_leaves, ctx, subsystems = "all", khat_version = NULL, eval = FALSE)`: valida a entrada (`assert_long`;
   uma unica `forecast_origin`), recusa subsistema pedido que nao fecha (`completude.leaf_missing`, `where` = folhas ausentes; nada devolvido),
-  Teste FORBIDDEN/CONTROL (test-reconcile-apply.R): SS2 sem Ls2_2 aborta `completude.leaf_missing` (where = Ls2_2), nada devolvido e nada gravado; completo reconcilia e grava `subsistemas/SS2.parquet`. O REDUCE do backtest reusa o mesmo id na linha `incompleto` (ver backtest.md).
   resolve+thaw+politica+khat_apply por ss, SIN so quando todos os subsistemas da topologia foram pedidos. Nada grava em disco.
   Retorno `{long{ss..., SIN|NULL}, khat, cobertura_descartada, wmape|NULL, scorecard|NULL, warnings}`.
+  Teste FORBIDDEN/CONTROL (test-reconcile-apply.R): SS2 sem Ls2_2 aborta `completude.leaf_missing` (where = Ls2_2), nada devolvido e nada gravado; completo reconcilia e grava `subsistemas/SS2.parquet`. O REDUCE do backtest reusa o mesmo id na linha `incompleto` (ver backtest.md).
 - `need_truth = eval`: sem `eval` nenhum leitor e chamado e `y_true` e NA. Com `eval`, `prevcarga_read_actual` por area (a saida nao traz a
   coluna da area), casado por `target_datetime == interval_end`; `wmape{bottomup, reconciliado, teto}` por `prevcarga_wmape`
   (`teto` = BU_pred + (SS_true - BU_true)); `y_true` do SIN = soma dos `y_true` dos subsistemas; `y_pred` independe da verdade.
