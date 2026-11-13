@@ -5,6 +5,8 @@
 ##
 ##   Rscript --vanilla scripts/tools/plugin_golden.R --model <m>|_dessem-engine --units <units.yaml> --oracle <dir>
 ##       [--variant <v>] [--out <dir>] [--root <models>] [--data <store>] [--rscript <Rscript>] [--format text|json]
+##   Rscript --vanilla scripts/tools/plugin_golden.R --model <m>|_dessem-engine --units <units.yaml> --source reference
+##       --ref <checkout limpo da tag> --ref-tag <tag> [--data <store>] ...
 ##
 ## Sem switch por modelo: roda `<root>/<model>/tests/parity/oracle_driver.R` (contrato `--oracle <dir> --unit <unit.json>
 ## --out <dir> --available-until <ISO>`; o driver grava `native.rds` e `long.parquet` em --out). Contrato de units.yaml:
@@ -205,8 +207,8 @@ pc_golden_group_units <- function(spec, group) {
   format(au, "%Y-%m-%dT%H:%M")
 }
 
-.pc_golden_unit_json <- function(unit, tz, data_dir) {
-  list(id = unit$id, area = unit$area, origin = format(unit$origin), available_until = format(unit$available_until, "%Y-%m-%dT%H:%M"),
+.pc_golden_unit_json <- function(unit, tz, data_dir, model = NULL) {
+  list(model = model, id = unit$id, area = unit$area, origin = format(unit$origin), available_until = format(unit$available_until, "%Y-%m-%dT%H:%M"),
        tz = tz, weather_issue_cutoff = unit$weather_issue_cutoff, day0_source = unit$day0_source, variant = unit$variant,
        history_days = unit$history_days, oracle_cut = unit$oracle_cut, oracle_env = unit$oracle_env,
        oracle_available_until = .pc_golden_cut_arg(unit), data_dir = data_dir,
@@ -250,6 +252,31 @@ pc_golden_preflight <- function(args) {
   list(out = out, oracle = oracle, stamp = stamp, commit = .pc_golden_git(oracle, c("rev-parse", "HEAD"))[[1L]])
 }
 
+## Fonte clean-room (ADR-0041): o checkout da tag tem de estar LIMPO e com HEAD no commit da tag. Devolve a mesma forma de
+## pc_golden_preflight (`oracle` = a arvore de referencia), mais `source = "reference"` e a tag.
+pc_golden_preflight_reference <- function(args) {
+  ref <- normalizePath(args$ref, winslash = "/", mustWork = FALSE)
+  if (!nzchar(args$ref) || !dir.exists(ref)) prevcarga_abort("tools.bad_args", where = "--ref", details = list(expected = args$ref))
+  if (!nzchar(args$ref_tag)) prevcarga_abort("tools.bad_args", where = "--ref-tag")
+  out <- normalizePath(args$out, winslash = "/", mustWork = FALSE)
+  if (identical(out, ref) || startsWith(paste0(out, "/"), paste0(ref, "/")))
+    prevcarga_abort("tools.out_inside_oracle", where = "--out", details = list(out = out, oracle = ref))
+  st <- .pc_golden_git(ref, c("status", "--porcelain"))
+  if (!is.null(attr(st, "status")))
+    prevcarga_abort("tools.bad_args", where = "--ref", details = list(why = "nao e um repositorio git", ref = ref))
+  if (length(st)) prevcarga_abort("tools.reference_dirty", where = ref, details = list(first = st[[1L]], n = length(st)))
+  head <- .pc_golden_git(ref, c("rev-parse", "HEAD"))[[1L]]
+  tag <- suppressWarnings(.pc_golden_git(ref, c("rev-parse", "--verify", "--quiet", paste0(args$ref_tag, "^{commit}"))))
+  if (!is.null(attr(tag, "status")) || !length(tag))
+    prevcarga_abort("tools.reference_not_tag", where = ref, details = list(head = head, tag = args$ref_tag, tag_commit = NA_character_))
+  if (!identical(head, tag[[1L]]))
+    prevcarga_abort("tools.reference_not_tag", where = ref, details = list(head = head, tag = args$ref_tag, tag_commit = tag[[1L]]))
+  stamp <- tempfile("golden-stamp-")
+  file.create(stamp)
+  Sys.sleep(0.05)
+  list(out = out, oracle = ref, stamp = stamp, commit = head, source = "reference", tag = args$ref_tag)
+}
+
 ## Oraculo intacto: git status vazio E nenhum arquivo (fora de .git) mais novo que o carimbo.
 pc_golden_oracle_touched <- function(pre) {
   st <- .pc_golden_git(pre$oracle, c("status", "--porcelain"))
@@ -266,7 +293,7 @@ pc_golden_oracle_touched <- function(pre) {
   log <- file.path(run, "oracle.log")
   ujson <- file.path(paths$scratch, unit$id, "unit.json")
   if (!file.exists(ujson))
-    writeLines(jsonlite::toJSON(.pc_golden_unit_json(unit, tz, args$data), auto_unbox = TRUE, null = "null", pretty = TRUE), ujson)
+    writeLines(jsonlite::toJSON(.pc_golden_unit_json(unit, tz, args$data, args$model), auto_unbox = TRUE, null = "null", pretty = TRUE), ujson)
   cargs <- c("--vanilla", shQuote(paths$driver), "--oracle", shQuote(paths$oracle), "--unit", shQuote(ujson),
              "--out", shQuote(run), "--available-until", .pc_golden_cut_arg(unit))
   rc <- withr::with_dir(file.path(paths$scratch, unit$id),
@@ -293,13 +320,17 @@ pc_golden_oracle_touched <- function(pre) {
 .pc_golden_unit_dir <- function(out, model, unit)
   file.path(out, "plugins", model, if (is.null(unit$variant)) "_" else unit$variant, unit$area, format(unit$origin))
 
-.pc_golden_sanitize <- function(x, scratch) gsub(scratch, "<scratch>", x, fixed = TRUE)
+.pc_golden_sanitize <- function(x, scratch, tree = NULL) {
+  x <- gsub(scratch, "<scratch>", x, fixed = TRUE)
+  if (!is.null(tree)) x <- gsub(tree, "<ref>", x, fixed = TRUE)   # fonte clean-room: o invocation.json nao depende de onde o checkout mora
+  x
+}
 
 pc_golden_publish <- function(unit, run, out, model, paths, commit, rversion) {
   dst <- .pc_golden_unit_dir(out, model, unit)
   dir.create(dst, recursive = TRUE, showWarnings = FALSE)
   for (f in c("native.rds", .pc_golden_longs(run$dir))) file.copy(file.path(run$dir, f), file.path(dst, f), overwrite = TRUE)
-  inv <- list(model = model, unit = unit$id, args = .pc_golden_sanitize(run$args, paths$scratch),
+  inv <- list(model = model, unit = unit$id, args = .pc_golden_sanitize(run$args, paths$scratch, if (identical(paths$source, "reference")) paths$oracle),
               env = run$env, pins = .PC_GOLDEN_PINS, cwd = "<scratch>", oracle_commit = commit, r_version = rversion)
   writeLines(jsonlite::toJSON(.pc_golden_canon(inv), auto_unbox = TRUE, null = "null", pretty = TRUE),
              file.path(dst, "invocation.json"))
@@ -353,7 +384,8 @@ pc_runtime_fingerprint <- function(packages, rscript, env = .PC_GOLDEN_PINS) {
          stats::setNames(list(), character()))
 }
 
-pc_golden_lock_update <- function(lock_path, model, unit_id, files, oracle_commit, data_digest, fingerprint) {
+pc_golden_lock_update <- function(lock_path, model, unit_id, files, oracle_commit, data_digest, fingerprint,
+                                  source = "oracle", reference_tag = NULL) {
   ## exclusao mutua (geradores de grupos distintos em paralelo): mkdir e atomico
   mtx <- paste0(lock_path, ".lck")
   got <- FALSE
@@ -364,6 +396,7 @@ pc_golden_lock_update <- function(lock_path, model, unit_id, files, oracle_commi
   if (is.null(lock$units)) lock$units <- stats::setNames(list(), character())
   lock$model <- model
   lock$oracle_commit <- oracle_commit
+  if (identical(source, "reference")) { lock$source <- "reference"; lock$reference_tag <- reference_tag }
   lock$units[[unit_id]] <- list(files = as.list(files), oracle_commit = oracle_commit, data_digest = data_digest,
                                 fingerprint = fingerprint)
   txt <- jsonlite::toJSON(.pc_golden_canon(lock), auto_unbox = TRUE, null = "null", pretty = TRUE, digits = NA)
@@ -375,13 +408,17 @@ pc_golden_lock_update <- function(lock_path, model, unit_id, files, oracle_commi
 
 ## --- main ----------------------------------------------------------------------------------------------------------
 pc_golden_parse_args <- function(argv, repo) {
-  known <- c("model", "variant", "units", "oracle", "out", "root", "rscript", "format", "data")
+  known <- c("model", "variant", "units", "oracle", "out", "root", "rscript", "format", "data", "source", "ref", "ref-tag")
   if (length(argv) %% 2L != 0L || any(!grepl("^--", argv[seq(1L, length(argv), by = 2L)])))
     prevcarga_abort("tools.bad_args", where = "argv")
   k <- if (length(argv)) sub("^--", "", argv[seq(1L, length(argv), by = 2L)]) else character()
   a <- stats::setNames(as.list(if (length(argv)) argv[seq(2L, length(argv), by = 2L)] else character()), k)
   if (length(bad <- setdiff(k, known))) prevcarga_abort("tools.bad_args", where = paste0("--", bad[[1L]]))
-  for (f in c("model", "units", "oracle")) if (is.null(a[[f]])) prevcarga_abort("tools.bad_args", where = paste0("--", f))
+  if (is.null(a$source)) a$source <- "oracle"
+  if (!(a$source %in% c("oracle", "reference"))) prevcarga_abort("tools.bad_args", where = "--source")
+  need <- if (identical(a$source, "reference")) c("model", "units", "ref", "ref-tag") else c("model", "units", "oracle")
+  for (f in need) if (is.null(a[[f]])) prevcarga_abort("tools.bad_args", where = paste0("--", f))
+  if (identical(a$source, "reference")) { a$ref_tag <- a[["ref-tag"]]; a$oracle <- a$ref }
   if (is.null(a$root)) a$root <- file.path(repo, "models")
   if (is.null(a$out)) a$out <- file.path(repo, ".state", "golden")
   if (is.null(a$rscript)) a$rscript <- file.path(R.home("bin"), "Rscript")
@@ -393,12 +430,18 @@ pc_golden_parse_args <- function(argv, repo) {
 pc_golden_main <- function(argv, repo) {
   args <- pc_golden_parse_args(argv, repo)
   parity <- file.path(args$root, args$model, "tests", "parity")
-  driver <- file.path(parity, "oracle_driver.R")
+  reference <- identical(args$source, "reference")
+  ## fonte clean-room: o driver mora na PROPRIA tag (o codigo que gera o golden e o do commit referenciado no lock); o do modelo
+  ## (quando existe, p.ex. o motor isolado, que nao e plugin) tem precedencia sobre o generico da fundacao
+  driver <- if (!reference) file.path(parity, "oracle_driver.R") else {
+    own <- file.path(args$ref, "models", args$model, "tests", "parity", "reference_driver.R")
+    if (file.exists(own)) own else file.path(args$ref, "scripts", "tools", "reference_driver.R")
+  }
   if (!grepl("^[A-Za-z0-9_][A-Za-z0-9._-]*$", args$model) || !dir.exists(parity))
     prevcarga_abort("tools.bad_args", where = "--model", details = list(expected = parity))
   if (!file.exists(driver)) prevcarga_abort("tools.bad_args", where = "--model", details = list(expected = driver))
   ru <- pc_golden_resolve_units(args$units, args$root, args$model)
-  pre <- pc_golden_preflight(args)
+  pre <- if (reference) pc_golden_preflight_reference(args) else pc_golden_preflight(args)
   spec <- pc_golden_units(ru$path)
   units <- Filter(function(u) is.null(args$variant) || identical(u$variant, args$variant), pc_golden_group_units(spec, ru$group))
   for (u in units) pc_golden_require_report(u, repo)    # nenhuma unidade chama o oraculo sem o relatorio exigido
@@ -407,7 +450,7 @@ pc_golden_main <- function(argv, repo) {
   on.exit(unlink(scratch, recursive = TRUE), add = TRUE)
   if (startsWith(paste0(normalizePath(scratch, winslash = "/"), "/"), paste0(pre$oracle, "/")))
     prevcarga_abort("tools.out_inside_oracle", where = "scratch")
-  paths <- list(scratch = scratch, driver = normalizePath(driver, winslash = "/"), oracle = pre$oracle)
+  paths <- list(scratch = scratch, driver = normalizePath(driver, winslash = "/"), oracle = pre$oracle, source = args$source)
   done <- list()
   for (u in units) {
     r1 <- .pc_golden_run_once(u, paths, 1L, args, spec$tz)
@@ -424,9 +467,10 @@ pc_golden_main <- function(argv, repo) {
   lock <- file.path(parity, "golden.lock")
   for (d in done) {
     files <- vapply(c("native.rds", .pc_golden_longs(d$dir), "invocation.json"), function(f) .pc_golden_sha(file.path(d$dir, f)), "")
-    pc_golden_lock_update(lock, args$model, d$unit$id, files, pre$commit, pc_data_digest(args$data, d$unit), d$fingerprint)
+    pc_golden_lock_update(lock, args$model, d$unit$id, files, pre$commit, pc_data_digest(args$data, d$unit), d$fingerprint,
+                          source = args$source, reference_tag = pre$tag)
   }
-  list(model = args$model, oracle_commit = pre$commit, out = pre$out, lock = lock,
+  list(model = args$model, oracle_commit = pre$commit, source = args$source, out = pre$out, lock = lock,
        units = unname(lapply(done, function(d) list(id = d$unit$id, dir = d$dir))))
 }
 
