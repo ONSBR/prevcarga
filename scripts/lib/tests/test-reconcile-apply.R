@@ -151,8 +151,17 @@ test_that("AC5 completude.leaf_missing: subsistema unico e 'todos' (SIN nao comp
   full <- pc_leaves_long(s$topo, O, s$ctx)
   miss <- full[full$area != "Ls2_2", ]
   res <- NULL
+  out <- file.path(withr::local_tempdir("ra-miss-"), "reconciled")
   c1 <- expect_pc(res <- apply_q(miss, s$ctx, "SS2"), "completude.leaf_missing", 3L)
-  expect_identical(c1$where, "Ls2_2")
+  expect_identical(c1$where, "Ls2_2"); expect_null(res)
+  ## FORBIDDEN: a recusa nao devolve nada, logo nada e gravado
+  if (!is.null(res)) env$prevcarga_reconcile_write(res, out, "r1")
+  expect_false(dir.exists(out)); expect_length(list.files(dirname(out), recursive = TRUE), 0L)
+  ## CONTROL: folhas completas => SS2 reconciliado e gravado
+  ok2 <- apply_q(pc_leaves_long(s$topo, O, s$ctx), s$ctx, "SS2")
+  expect_gt(nrow(ok2$long$SS2), 0L)
+  env$prevcarga_reconcile_write(ok2, out, "r2")
+  expect_true(file.exists(file.path(out, "subsistemas", "SS2.parquet")))
   c2 <- expect_pc(res <- apply_q(miss, s$ctx, "all"), "completude.leaf_missing", 3L)
   expect_identical(c2$where, "Ls2_2"); expect_null(res)
   ## subsistema que fecha pode ser pedido sozinho mesmo com folha de outro ausente; SIN nao sai

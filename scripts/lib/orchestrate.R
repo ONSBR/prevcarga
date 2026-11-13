@@ -558,6 +558,7 @@ prevcarga_backtest_run <- function(ctx, args) {
               summary = list(ok = s$ok, total = s$total, failed = s$failed, skipped = s$skipped,
                              incompleto = if (is.null(s$incompleto)) list() else lapply(seq_len(nrow(s$incompleto)), function(i) list(
                                origem = format(s$incompleto$origem[[i]], "%Y-%m-%d"), corte_hm = s$incompleto$corte_hm[[i]],
+                               error_id = s$incompleto$error_id[[i]],
                                folhas_faltando = s$incompleto$folhas_faltando[[i]])),
                              failures = lapply(seq_len(nrow(s$failures)), function(i) list(
                                membro = s$failures$membro[[i]], folha = s$failures$folha[[i]],

@@ -199,6 +199,7 @@ test_that("[AC1] keep-going: folha faltando => incompleto sem SIN; membro faltan
   expect_identical(nrow(inc), 1L)
   expect_identical(inc$origem[[1L]], BO1)
   expect_identical(inc$folhas_faltando[[1L]], "B")
+  expect_identical(inc$error_id[[1L]], "completude.leaf_missing")
   expect_identical(res$summary$verdict, "partial")
   ## FORBIDDEN: nenhum SIN/subsistema parcial de O1 em reconciled/
   expect_false(dir.exists(file.path(res$paths$reconciled, "2026-10-05")))
@@ -235,6 +236,7 @@ test_that("[AC1] verbo: origem incompleta => exit 14 partial.backtest_delivery c
   expect_length(inc, 1L)
   expect_identical(inc[[1L]]$origem, "2026-10-05")
   expect_identical(unlist(inc[[1L]]$folhas_faltando), "B")
+  expect_identical(inc[[1L]]$error_id, "completude.leaf_missing")
 })
 
 test_that("[AC3] k-hat por origem: janela [O-W, O-1] inclusiva; FORBIDDEN >= O e O-W-1 delta 0, CONTROL O-1 e O-W delta != 0; latest intocado", {
