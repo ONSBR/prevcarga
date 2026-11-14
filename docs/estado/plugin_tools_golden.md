@@ -26,3 +26,24 @@
 - `reference_driver.R` generico: reusa `.pc_parity_envelope` da tag (leitor -> cortes -> treino em `last_data_day` -> infer em O, cortes literais da unidade); escreve `native.rds = list(layout, values, meta)` e `long.parquet` (timestamp = inicio do intervalo, y_pred) da entrega; layout horario (RF) => `long_O.parquet` + `long_Om1.parquet`. Motor isolado: ingest do dessem-linear da tag em modo paridade (dataPrev = O + 1) + motor.
 - Testes: `test-plugin-tools-golden.R` ([7.4]: arvore suja, HEAD fora da tag, caminho feliz com driver stub, invocation sem o caminho do checkout).
 - Regeracao (passo operacional, depende da tag; ver o commit dos locks): `git worktree add --detach <tmp> v0.1.5`; uma execucao por modelo; depois `models/<m>/tests/run_all_gates.R --tier parity`.
+
+## Registro operacional do tier parity (F7.4, ADR-0041)
+- Baseline: tag `v0.1.5` = `00acf8f121d6e8d9e6ea46262093115b2dfea742` (congelada). Arvore testada: commit de integracao `f324e32` (chore/fixes-v014-base; goldens regerados em `3e470ef` e `7211791`, relatorios do dessem-linear em `a8e333e` e `54e800c`). Os 6 `golden.lock` trazem `oracle_commit` = `00acf8f`, `data_digest` e `fingerprint` preenchidos (conferido em F7.5 sem rodar plugin).
+- Comando por plugin (R 4.5.3, uma execucao por modelo, sobre o store atual somente leitura): `Rscript --vanilla models/<m>/tests/run_all_gates.R --tier parity`. O tier nao foi rerodado em F7.5; este registro e a fonte duravel.
+
+| plugin | exit | tempo | arvore rodada | N/A e SKIP (dono) |
+|---|---|---|---|---|
+| holt-winters | 0 | 184 s | `2e69430` | `harness_parity` DEFERRED M7 (harness de backtest); `portabilidade_cross_os` DEFERRED M8 (VM Windows, dono Gabriel) |
+| random-forest | 0 | 361 s | `2e69430` | `gate12` DEFERRED M7 (A/B); `cross_os` DEFERRED M8 |
+| lgbm | 0 | 1208 s | `2e69430` | `cross_os` DEFERRED M8 |
+| dessem-linear | 0 | 4199 s | `54e800c` | `fanout_parity` N/A (so no tier parity-full; coberto pelo `fanout_report` regerado em `54e800c`: 19 unidades, 0 divergencias); `gate03_sem_crash` DEFERRED M7; `cross_os` DEFERRED M8 |
+| dessem-regdin | 0 | 4092 s | `a8e333e` | `paridade_foundation` e `paridade_fanout` N/A (so parity-full); `sem_crash_harness` DEFERRED M7; `cross_os` DEFERRED M8 |
+| _dessem-engine | 0 | 1289 s (rerodado em `859875b`, arvore = `f324e32`; 0 falhas) | `2e69430` | nenhum (suites `engine-*` com `options(prevcarga.tier = "parity")`) |
+
+- O dessem-linear so fechou com exit 0 depois das correcoes `2e69430`, `a8e333e` e `54e800c` (rodadas anteriores saiam 1 em `fanout_parity`/`readme`).
+- Rodadas de 2026-11-13/14, feitas pelo passo operacional do F7.4; a rodada de cada plugin e posterior ao commit dos seus locks.
+- Equivalencia de arvore com o commit de integracao `f324e32` (o registro vale para ele sem rerodar): `git diff --stat 54e800c f324e32 -- models scripts tests` e vazio (dessem-linear); `git diff --stat a8e333e f324e32 -- models scripts tests` so toca `models/dessem-linear/README.md` e `fanout_report.json` (dessem-regdin inalterado); `git diff 2e69430 f324e32 -- models scripts tests` so toca arquivos de `models/dessem-linear/` e `models/dessem-regdin/tests/parity/units.yaml` (holt-winters, random-forest, lgbm e _dessem-engine inalterados). O commit de cada rodada foi inferido pelo horario do fim do log contra o `git log` (sem hash gravado no log).
+- `config/` e `renv.lock`: `git diff --stat <c> f324e32 -- config renv.lock` e vazio para `2e69430`, `a8e333e`, `54e800c`, `00acf8f` e `4cec0d7`.
+- Necessidade de rerodar por plugin sobre `f324e32` (criterio: a arvore de `models/<plugin>/` e dos arquivos que ele le difere): nenhum precisou. `git diff --stat 2e69430 f324e32 -- models/<p> scripts tests config renv.lock` e vazio para holt-winters, random-forest, lgbm e _dessem-engine; dessem-regdin (rodada em `a8e333e`) le `models/dessem-linear/tests/parity/foundation_report.json` (pin de sha256 no `units.yaml`), que nao muda de `a8e333e` a `f324e32` (so mudam `models/dessem-linear/README.md` e `fanout_report.json`, que o dessem-regdin nao le); dessem-linear (rodado em `54e800c`) tem diff vazio.
+- `_dessem-engine`: o exit 0 do registro original nao tinha tempo; rerodado so o testthat (`options(prevcarga.tier = "parity")`, `models/_dessem-engine/tests/testthat`) em `859875b` (arvore de modelos/scripts/tests/config/renv.lock = `f324e32`) com o golden de `.state` (gitignored) copiado do worktree do F7.4 (`54e800c`): 0 falhas, 1289 s. Sem o golden a suite falha `invocation.json ausente` (golden nao e versionado).
+- A partir daqui cada log de gate grava `git rev-parse HEAD` na primeira linha.
