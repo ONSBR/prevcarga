@@ -123,3 +123,13 @@
 
 ## Decisao registrada: mascara da combina (doc-vs-codigo combina-reconcilia-05)
 - A mascara de treino e pelo instante do alvo: `prevcarga_combina_train_mask` = `interval_start < inicio(m) & !is.na(y_true)`; o mes de origem e so o eixo de agrupamento, e os alvos de origens de m-1 que caem em m ficam fora. O site (`11-combina.mdx`) ja descreve assim. A descricao "por mes de origem" da NT e imprecisa; vale o codigo. Registrado como decisao; a NT nao e artefato do pacote.
+
+## E6 -- celula do mes seguinte
+- `prevcarga_combina_fit(..., next_month = FALSE)`: com TRUE, cada (lead, cut) ganha a celula `m_next = max(ym) + 1 mes` (`.prevcarga_cmb_next_ym`, lubridate, tz do
+  `target_datetime`; virada 2023-12 -> 2024-01). A celula usa os presentes (colunas `f_*` nao-NA) do ultimo mes do painel, a mascara `prevcarga_combina_train_mask(grp, m_next)`
+  e `complete.cases`, o mesmo `n_min`, a taxonomia (`no_member`, `n_min`; nunca `first_month`) e o warm start do ultimo mes: `w` e `a` ficam `identical()` aos da celula
+  do mes num fit com as origens desse mes e os mesmos membros. Painel vazio devolve `.prevcarga_cmb_empty_weights()` sem `m_next`. Schema da tabela de pesos inalterado.
+- So `prevcarga_combina_train` liga `next_month = TRUE`. O meta do artefato ganha `panel_last_ym` e `next_ym`, e o cutoff do fingerprint passa a ser `paste0(next_ym, "-01")`
+  (sem `next_ym`, o ultimo ym fitado, como antes).
+- Delta 0: `prevcarga_combina_full`, `combine --mode=full`, o gate e o `.bt_combine` do backtest chamam o fit com o default; tabela, `weights/<mes>/*.rds` e
+  `combined.parquet` byte a byte iguais (`test-backtest-reduce.R` "[E6] .bt_combine delta 0"). Testes: `test-combination-next-month.R`.

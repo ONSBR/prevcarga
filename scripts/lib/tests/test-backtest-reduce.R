@@ -386,3 +386,19 @@ test_that("[M7.4] verbo --report: HTML e PDF do backtest real; falha do report a
   expect_identical(cond$result$report_status, "failed")
   expect_true(file.exists(file.path(ctx3$state_dir, "backtest", cond$result$run_id, "scores", "scores.rds")))
 })
+
+## --- [E6] delta 0: o next_month do fit (so o train liga) nao toca o backtest ---------------------------------------------
+## sha256 gravados ANTES de editar combination.R (E6-T1), em ordem radix do caminho relativo a raiz da rodada.
+E6_BT_SHA256 <- c("bc74b7cc154066831c5fe0529f7e73c311642cd7228ef1c806b08b4dfb1d9783",
+                 "b30563e962653f630ddbaedd54495613bce19b63d3f4fb6a714698b3ec74f26f",
+                 "b30563e962653f630ddbaedd54495613bce19b63d3f4fb6a714698b3ec74f26f")
+
+test_that("[E6] .bt_combine delta 0: sha256 de combined e weights iguais aos de antes do next_month", {
+  ctx <- bctx(); ctx$combina <- list(n_min = 3L)
+  res <- run_bt(ctx, origins = OS_M, areas = "A", baseline = "none")
+  root <- res$paths$root
+  fs <- sort(list.files(file.path(root, c("combined", "weights")), recursive = TRUE, full.names = TRUE), method = "radix")
+  got <- vapply(fs, function(f) digest::digest(file = f, algo = "sha256"), "")
+  expect_gt(length(fs), 0L)
+  expect_identical(unname(got), E6_BT_SHA256)
+})

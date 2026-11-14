@@ -70,6 +70,8 @@ A célula cai no **fallback EQW** (pesos 1/k sobre os k membros presentes e a = 
 | `no_member` | Nenhum membro tem previsão naquela célula. |
 | `n_min` | Menos de `n_min = 24` linhas de treino completas (alvo com verdade e todos os membros presentes sem NA). |
 
+No `train`, cada par (lead, corte) congela também a **célula do mês seguinte**, m_next = último mês do painel + 1 mês. Ela usa os membros presentes do último mês do painel, a mesma máscara de treino (aplicada a m_next), o mesmo `n_min` e a mesma taxonomia de fallback (`no_member`, `n_min`), com o ajuste do último mês como ponto de partida. Por isso a primeira origem do mês seguinte encontra pesos e não aborta. O `full` e o backtest não geram essa célula.
+
 <Figura id="FIG-M15" titulo="Ajuste por célula da combina" natureza="Fluxo" fontes={['scripts/lib/combination.R', 'docs/estado/combination.md']} adrs={['ADR-0013', 'ADR-0032']}>
 
 ```mermaid
