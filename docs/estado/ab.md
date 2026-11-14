@@ -3,6 +3,19 @@
 Ferramentas DEV-ONLY (so Linux, fora do bundle) em `scripts/tools/ab_*`; dados e listas em `tests/ab/`. O oraculo e validado UMA vez, neste A/B do
 corte, e depois descartado: sem periodo paralelo nem comparacao recorrente (ADR-0034). Erros: `scripts/lib/errors/ab.tsv`.
 
+## ADR-0041: referencia do A/B = tag v0.1.5 do clean-room (substitui o oraculo)
+- `scripts/tools/ab_reference_run.R --cases <cases.tsv> --data <store> --out <dir> [--ref <checkout limpo da tag> --ref-tag v0.1.5] [--limit n]`:
+  roda `pc_ab_clean_run` (fachada train + infer-cell, regra de clima `origin_midnight_utc`) para cada caso executavel, sem switch por modelo. Com
+  `--ref/--ref-tag` o codigo e o do checkout da tag (arvore suja => `tools.reference_dirty`; HEAD fora da tag => `tools.reference_not_tag`) e a saida
+  e a REFERENCIA; sem eles roda esta arvore (lado clean-room). Store so lido (overlay de symlinks em tempdir); artefatos em tempdir; `run.json` grava commit e tag.
+- `cases.tsv` sem oraculo: `pc_ab_cases(origens, NULL, ctx)` (protocolo vazio). `test-ab-corte.R` compara `ref` x `clean` direto no layout nativo
+  (sem relayout de oraculo); `options(prevcarga.ab.ref=, prevcarga.ab.clean=, prevcarga.ab.cases=)`.
+- REMOVIDOS: `ab_oracle_run.sh`, `ab_oracle_patches/`, `test-ab-oracle-intact.R`, `oracle_untracked_allow.txt`. As secoes abaixo sobre o runner do oraculo
+  (docker, R 4.2.3, patches do HW) sao historico do M8.8.
+- Regeracao completa (24 areas x membros x 3 origens = 576 casos executaveis; horas): gerar `cases.tsv`, rodar o gerador sobre a tag e sobre a arvore, depois
+  o teste. A rodada de F7.4 usou o subconjunto RS e SP em 2024-10-01 09:00 (16 casos, tag v0.1.5 em 00acf8f): estagio A com 8 membros em Delta = 0, 0 FAIL, 0 excecoes (lista vazia); veredito CORTE-BLOQUEADO so por estagios B/C/D ausentes e recibos.
+- **pendencia: matriz completa de 576 casos** (24 areas x membros x 3 origens de `ab_origens.yaml`); adiada por decisao do Gabriel (custo de horas de maquina).
+
 ## Pecas
 - `tests/ab/ab_origens.yaml` + `scripts/tools/ab_cases.R`: `pc_ab_cases(origens, deck_dir, ctx, oracle, membros, areas)` monta a matriz (membro x area) de
   `prevcarga_members()`/`prevcarga_topology()` (nunca lista fixa), le cada deck pelo leitor unico (`prevcarga_read_load(truncate_at = ...)`), exige
@@ -68,11 +81,14 @@ corte, e depois descartado: sem periodo paralelo nem comparacao recorrente (ADR-
   (`pc_ab_recibos_collect` le por sha do bundle via `pc_receipt_read`). Senao `CORTE-BLOQUEADO` com os motivos EXATOS. `pc_ab_report_write` grava
   `ab_veredito.json` + `ab_veredito.md` (ASCII) e, so com `bundles`, o recibo `ab-corte` por bundle (`pc_receipt_write`).
 
-## Lista fechada de excecoes (`tests/ab/ab_excecoes.yaml`) -- dono: Gabriel (ADR-0034 D23)
+## Lista fechada de excecoes (`tests/ab/ab_excecoes.yaml`) -- dono: Gabriel (ADR-0041, que supera o ADR-0034 D23)
+> ADR-0041: a referencia do A/B passa a ser a saida da tag v0.1.5 do clean-room (nao mais o oraculo) e a lista esta VAZIA: as 3 entradas abaixo
+> (`regdin.versao_pacotes`, `dessem_linear.hora_incompleta_clima_previsto`, `dessem_linear.sp_2024_11_15_residuo_numerico`) existiam so pela divergencia
+> com o oraculo e sairam. Os mecanismos de `limite` e `janela_final_h` seguem testados com fixture (`ab_fixture_excecoes`). Historico do M8.8:
 Campos obrigatorios `id, membro, estagio, condicao, justificativa, adr`; opcionais `limite {max_abs, max_rel}` (`max_rel = max|D| / max|ref|`),
 `janela_final_h`, `decisao`, `fonte`. Carregador estrito: campo ausente, desconhecido, `condicao` vazia/generica (sem campo do caso, constante) ou com
 funcao fora da whitelist, estagio `E`, id duplicado => `contract.ab_excecoes_bad`. Casa so por membro + estagio + condicao (+ teto/janela).
-Semeada SO com decisoes ja tomadas e citadas (`decisao`, `fonte`):
+Semeada no M8.8 SO com decisoes ja tomadas e citadas (`decisao`, `fonte`) -- REMOVIDAS pelo ADR-0041:
 1. `regdin.versao_pacotes` -- dessem-regdin, A, `max_rel 1.3e-5` (ADR-0036; `docs/estado/m1-spike-r453.md`).
 2. `dessem_linear.hora_incompleta_clima_previsto` -- dessem-linear, A, so as ultimas 3 h da faixa (Gabriel 2026-10-30; `docs/estado/dessem_linear.md`).
 3. `dessem_linear.sp_2024_11_15_residuo_numerico` -- dessem-linear, A, SP em 2024-11-15, tetos `max_abs 0.5`, `max_rel 5e-5` (DL9-GAP-2; medido 0,446 MW).

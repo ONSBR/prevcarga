@@ -129,7 +129,7 @@
       **qualidade da combina** só bloqueia nos fixtures do M4 (ε=0), no holdout real só é reportada (ADR-0025);
       **staging único `.tmp-*`** para todo escritor do registry, limpo pelo `registry gc`, com teste de promote
       interrompido também no Windows nativo (ADR-0030); **oráculo validado uma vez** no A/B do corte e descartado, sem
-      período em paralelo (ADR-0034). Essas decisões ainda precisam entrar nos tickets (próxima reabertura do plano),
+      período em paralelo (ADR-0034, superado pelo ADR-0041: o baseline de paridade/A-B passa a ser a tag v0.1.5 do clean-room). Essas decisões ainda precisam entrar nos tickets (próxima reabertura do plano),
       junto com a correção do texto da spec que cita `--as-of` como alias.
   - **Sem aliases (Gabriel, 2026-10-23):** nomes herdados do oráculo não existem no clean-room — `prever`, `treinar`,
     `morning`, `publish` e a flag `--as-of` dão erro de uso (exit 8); `--origin` é o único flag de data. Não há aviso

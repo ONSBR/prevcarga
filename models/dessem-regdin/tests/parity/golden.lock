@@ -1,6 +1,8 @@
 {
   "model": "dessem-regdin",
-  "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141",
+  "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742",
+  "reference_tag": "v0.1.5",
+  "source": "reference",
   "units": {
     "rgd-max-n-20241015-0900": {
       "data_digest": {
@@ -33,9 +35,9 @@
         }
       },
       "files": {
-        "invocation.json": "18d8e5e893f6050d017128272d29e1ff1f0bdeb4b9ec7f115851025c0621f644",
-        "long.parquet": "c8d0c369e6863f51ca41838f73ee121a0173125c794e07dd835aee01a9ff0a9d",
-        "native.rds": "6ffccbda046592c2493545fcacc9fe68403a0e956d90b7f0448d3b4696430ca8"
+        "invocation.json": "d1b7733e78ea56d800f69892cb292f64d6342c1696d04416a35ea817bf7a4a61",
+        "long.parquet": "c75d374d236202533f68fcf4bf652188962f2be9fa3bd9433c4b8a35d1da6961",
+        "native.rds": "a0a3510a69f81fa3fb8933a5f30a9fe922beb8d7e35b81071925b9586399c299"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -56,7 +58,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-max-ne-20241015-0900": {
       "data_digest": {
@@ -89,9 +91,9 @@
         }
       },
       "files": {
-        "invocation.json": "fe643cbf30f69e908672ca56eaf012098c5fa7aa355e414ab0ffe97e04cb5109",
-        "long.parquet": "09e5181ac21497c6fdf624c76a9ecd7db211a9c6cf0d7b1008a5356625e54709",
-        "native.rds": "23e236c904e370652ebe6dced48705973eec95a7b516db4e5a807b16ecaf8470"
+        "invocation.json": "a48a33f89fccb1d002ab45cc7da411973883221e7287b066746a0612a5914c19",
+        "long.parquet": "d8e761dda9bd796da607f6aa15f5e604103a780ab1dfa3a753124772d0470b86",
+        "native.rds": "aae4170ba401c049e051aafec9d197c6415d086231782c37e71273a070dd42c0"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -112,7 +114,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-max-s-20241015-0900": {
       "data_digest": {
@@ -145,9 +147,9 @@
         }
       },
       "files": {
-        "invocation.json": "6864b0a0091df577262e66cf6865961f77142c0a60076475f037b7f6a0e556a2",
-        "long.parquet": "081261ec8c9530de66ad57d125c4317e088b7f380887c58bccd8022a7d72db5a",
-        "native.rds": "70382c2dd7d13695b2b8deee3f5973a97a6548f824d58a6029adaf7a9e2d5824"
+        "invocation.json": "23710868eadea4eb6de00616e1804d331013d70ddc649c347a663ada3a30c3cd",
+        "long.parquet": "9b2307780284284b29cd9e67fd001970b40ea6b99b63832876cf6386c3745ff9",
+        "native.rds": "d4b4c76b70e14e7598acda6188bcf342cbeb4b6fb38a3dced34bd781afb50635"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -168,7 +170,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-max-seco-20241007-1200": {
       "data_digest": {
@@ -201,9 +203,9 @@
         }
       },
       "files": {
-        "invocation.json": "a4df8f2ced46769658121ec4344b92d45c3fe9848e5057b81ad600bae9ff9c9f",
-        "long.parquet": "a4e9465fb61ec5346d3a75225a2bd4bfa28b32602a8a3c7ae64be92f64273bfb",
-        "native.rds": "52ea194759dbaad3d81ff2adb1869335ecfd16ba27c08ad4f1f0ef0e403d0467"
+        "invocation.json": "a0acf6d459309d7834600af9e0a3136a39e0eca0a98a5a633dadc5f8fb17df16",
+        "long.parquet": "0a593b121849e2ab1fc3d74ba27c644e99d8ca57e2c554cda7763f48739baadb",
+        "native.rds": "7f7cc0dbb56153034337b14f4fca1436da6e0eb945419f43dd1ef9a6b3a572fe"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -224,7 +226,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-max-seco-20241015-0900": {
       "data_digest": {
@@ -257,9 +259,9 @@
         }
       },
       "files": {
-        "invocation.json": "7f346d4a9b8e7be6df0f2ee8578c04318f4b35800d589ac62659c89332d3204c",
-        "long.parquet": "7b4cb346b7d7feb822f29f751b86647a74efb7caeb6032c4f74889810b8b6637",
-        "native.rds": "58471449246ad4608f6f0151eb09619fbf916ebcfecfcbcf09e795e8e7e790bb"
+        "invocation.json": "e4b4c19883d60d4e53d0dc426e99a62f1a51974bf45697953b8bf52010b4ec66",
+        "long.parquet": "799e1da72bbff739fc030977f97a62b306b01d34f863d195463b2d8d4e2c9ea8",
+        "native.rds": "8f814322f9ce680e261e6d34918cf366af9b02526333573fafd3426f29c04f34"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -280,7 +282,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-med-n-20241015-0900": {
       "data_digest": {
@@ -313,9 +315,9 @@
         }
       },
       "files": {
-        "invocation.json": "7d4e6270269412847a592af6df9519b0c67204891a92d16227481d042936f5bb",
-        "long.parquet": "14243879374083954c81446ac4576020174f1f6a483709b4aaaf00fc48a4aa10",
-        "native.rds": "1975bef32ad584ea08478f24563cfc8e88ec504bc9c1aa75540907b5f56fed76"
+        "invocation.json": "88b1433913fdea2c4ca0baa4af6b2bc01bf4fb711d6423a17203f3ccd01dec4f",
+        "long.parquet": "665169df6453002e39dba3c7c1e3f70a4408f5df149658ae3a0ca630d945c67e",
+        "native.rds": "0b62439089452a435b038fca4018c0dd6af218052846509c4f47b0940eb54e6c"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -336,7 +338,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-med-ne-20241015-0900": {
       "data_digest": {
@@ -369,9 +371,9 @@
         }
       },
       "files": {
-        "invocation.json": "fe7fe7ad9bc525cd0d2f9ba860d83f763a26ad4bdc6f24ab7596d9e563800789",
-        "long.parquet": "802911b7c80f873d3531fc69881695a29812de192a91228f5620aaa4b61f419f",
-        "native.rds": "3f14f788207204b38a0d1bbdfb937119a1dfc02342d2e2efdf687e52242804f6"
+        "invocation.json": "3f0f52f6ac64f0b74b9f093030eb6de163f420e8aa3669fbc3985830c5ccdbc9",
+        "long.parquet": "fc8b8bb84eee153580d93527a618b223a4b8cff203af322427855f7b6f2643b6",
+        "native.rds": "f987bc471aa28983ae083238010f1f0c89b205529f4b152e8123f97de4e03c64"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -392,7 +394,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-med-s-20241015-0900": {
       "data_digest": {
@@ -425,9 +427,9 @@
         }
       },
       "files": {
-        "invocation.json": "493536d895ff4330d7e580a76c6686069ca1644ec213f9996d8fc20a7dd6c10b",
-        "long.parquet": "5c6648b085d7693e2303f2ea468f4eef06039be399a6b6543aca1215d7c2c421",
-        "native.rds": "a48ec61359e386b9c874b54d6c91df29f6d9f2c8350f1f37f6ff4dd03a1b6358"
+        "invocation.json": "e053e078b9636f9ed425a300abcf6463b541e736416a5c4c65b77b97da71737b",
+        "long.parquet": "e3e0ee2b52d49c7312e7bca6559e45bdb6dd459f02b8055aa447355e3191521b",
+        "native.rds": "2c82dfa04fd415d4236acf82824ddb1121e351b43bf33f15cb6c854459cbfa63"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -448,7 +450,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-med-seco-20241001-0900": {
       "data_digest": {
@@ -481,9 +483,9 @@
         }
       },
       "files": {
-        "invocation.json": "ea180bd463188a837d147815fd4dba129a84cd8c933c8a13948d97bc3f9c4955",
-        "long.parquet": "794c7834b8e7eb7b66c25dba55e99f2a2e29638a7e0473c4d7ddc6249d0f7b9e",
-        "native.rds": "ea0999fd4b0798a67b8f1b087aa77349f47da1a119e046f0daa2acd74d975d48"
+        "invocation.json": "cb2ba5a8507d6683e50c8a042bd5ae0286df23738bb91a9169573e6dec6916d7",
+        "long.parquet": "9d5f6377fdd9d77b4e45d6643688d854b91ebac77e6112f5334e745fbd1615a5",
+        "native.rds": "ba1a876084e4ff6d70feb2ca67b4cd13fbaa9106025d4ff4a836c82816c0af34"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -504,7 +506,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-med-seco-20241007-1200": {
       "data_digest": {
@@ -537,9 +539,9 @@
         }
       },
       "files": {
-        "invocation.json": "d3d99cd5e8f2fb06c04f6d373af04589e7d8a7e92251e671e510f7c88b681bc6",
-        "long.parquet": "c1365d7bf2efa51db7e9b5029bd9c2fc53f3afdd080c89b7de80a98d33174b5b",
-        "native.rds": "3ce92fae579d0ae56f32c3a42e7437dddc9a7148eacdba75f91eaa15165ba487"
+        "invocation.json": "a6a35eac6255317c361deb2f82c3d288a34da831ae83485b7a5555f9926f07cf",
+        "long.parquet": "f25bc957ae1a4c2b038e4be2549878e4d49550bb677e76eef2947100780b96d3",
+        "native.rds": "8735f1ab8965bca52e2982def30159b4b71a19f670c24927e62e307317b6e7da"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -560,7 +562,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-med-seco-20241015-0900": {
       "data_digest": {
@@ -593,9 +595,9 @@
         }
       },
       "files": {
-        "invocation.json": "be86a546ca2cfb9792f1d56492c4b57b15261c9bba8ada41a7770e08fb7e917a",
-        "long.parquet": "7899680c1dd6355a40917ff72e947c51ca8882b7f92ce97764c5b0d9eb179eb8",
-        "native.rds": "7a2b29a0f47209762ece40048f9cdd5d63c0b40ef8e10c5a8dc1242039e485ef"
+        "invocation.json": "888daea47c26e3fa159fdc69087e884e39510e72b39739d453e20e1c4e3b7570",
+        "long.parquet": "d6dfe7eed952b846c682d0b3673fca70ac4a037aa4d8e589e79697fbf5fc1307",
+        "native.rds": "55abec2fced953e63e9af140c2d1229f6492f2b1a26a52bf695e3efbcd81c616"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -616,7 +618,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-med-seco-20241022-1200": {
       "data_digest": {
@@ -649,9 +651,9 @@
         }
       },
       "files": {
-        "invocation.json": "96d6f7339500ed9ea33f1d853b21d2f123cf5965a3c537500632d2fdb74cea3e",
-        "long.parquet": "f09fa6dee8c475f20ff4f3796d099cbdde9f841f68545e3d66e2c68209fade7c",
-        "native.rds": "d05f78bf9536c38faecea28cad51996d52faaa728b82ec9967675f85ec0a14c9"
+        "invocation.json": "102c6b9cd6924e8a42fdc2e42ed0880805cf9256d76d0edf95e11c5cbdbcda87",
+        "long.parquet": "ff45a592b8c36d5b267937ae2c9e77326b8af6533e59decec7d315f6d94ba2c8",
+        "native.rds": "03d7f8404f0cce116bc78aada5d335e55402ef48ca670bc899ede1e36a1e8961"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -672,7 +674,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "rgd-med-seco-20241029-0900": {
       "data_digest": {
@@ -705,9 +707,9 @@
         }
       },
       "files": {
-        "invocation.json": "d2d843a12c987787de3b45a087d237ec6fc26f22c8ef2f1e132fd28aa4d87c05",
-        "long.parquet": "456188943d53038afe7ff3f28e579cceab2787e603de25b83692d4c063db8929",
-        "native.rds": "5e6a7fa5a9bd78667374f2fd4b697d3cb9f42afd90997fb86ef628315a294835"
+        "invocation.json": "2b4d1d0a21f25a1ece4c4f9e8e94256a91ce6dae06afb9648fc9a08f603671d9",
+        "long.parquet": "2775dbcf1e31501012ef4b47ecacf823d34fb0f26f387a94618590bfbdd01c06",
+        "native.rds": "56ef78764ffb1ab4a45f9d4ad73acc6a14750b82f7fb72e3a67f96be54dce3ad"
       },
       "fingerprint": {
         "R": "4.5.3",
@@ -728,7 +730,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     }
   }
 }

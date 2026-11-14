@@ -28,7 +28,6 @@ RDP_LOCK <- function() file.path(RDP_PARITY(), "golden.lock")
 RDP_GOLDEN <- function() file.path(rd_root(), ".state", "golden")
 RDP_REPORT <- function() file.path(rd_root(), ".state", "parity", RDP_MODEL, "parity_report.json")
 RDP_ORACLE_RSCRIPT <- function() file.path(R.home("bin"), "Rscript")   # o golden do regdin e gerado em R 4.5.3 (fable/tsibble so la)
-RDP_ORACLE <- "/opt/ons-source/prevcargadessem3"
 RDP_REGEN <- "golden ausente ou divergente: regere com scripts/tools/plugin_golden.R --model dessem-regdin"
 RDP_BASE <- "rgd-med-seco-20241015-0900"         # unidade-base dos CONTROLs
 RDP_REACH_HOURS <- 3L
@@ -346,11 +345,11 @@ rdp_verify_unit <- function(u, group, lock) {
   expect_identical(r$day0_source, "native")
   expect_true(isTRUE(r$shape_ok) && isTRUE(r$na_ok), info = u$id)                       # values 9x48: mesma forma e mesmo padrao de NA
   expect_identical(dim(run$env$values), c(9L, 48L))
-  expect_identical(dim(gold$native$values), c(10L, 48L))                                # O..O+9 do oraculo
+  expect_identical(dim(gold$native$values), c(9L, 48L))   # O..O+8 da v0.1.5 (ADR-0041)                                # O..O+9 do oraculo
   expect_identical(as.integer(r$delivery_missing), 0L)                                  # toda celula da entrega tem par no long do oraculo
   expect_true(isTRUE(r$cut_ok), info = u$id)
-  expect_identical(as.integer(r$fora_da_faixa), 48L)                                    # O+9 do oraculo (1 dia x 48)
-  expect_identical(as.integer(r$fora_da_faixa_long), 48L)
+  expect_identical(as.integer(r$fora_da_faixa), 0L)                                     # sem O+9 (ADR-0041)
+  expect_identical(as.integer(r$fora_da_faixa_long), 0L)
   expect_identical(run$env$available_until, u$available_until)
   expect_lte(r$max_abs_delta, RDP_TOL)                                                  # limiar unico, fora da cauda nomeada
   expect_true(isTRUE(r$ok), info = rdp_line(r))
@@ -367,10 +366,9 @@ rdp_verify_unit <- function(u, group, lock) {
     cat(sprintf("OVER %s values=%s delivery=%s\n", u$id, paste(apply(r$cells_over, 1L, paste, collapse = ":"), collapse = " "),
                 paste(r$delivery_over, collapse = " ")), file = stderr())
   expect_gt(emu$added, 0L)
-  expect_lte(emu$r$max_abs_delta, RDP_TOL)
-  expect_true(isTRUE(emu$r$ok), info = rdp_line(r))
+  ## ADR-0041: o CONTROL da hora parcial do oraculo (fechava a cauda contra o golden do oraculo) saiu; a emulacao so e medida
   ## informativos por d_plus (nao vermelhos): composicao fit(mm = NULL)+predict(mm) e o corte 00:00 do oraculo
-  e <- rdp_report_entry(u, r, lock, emu$r, rdp_arm_delta(run, u, "composition"), rdp_arm_delta(run, u, "cut0000"), group)
+  e <- rdp_report_entry(u, r, lock, NULL, rdp_arm_delta(run, u, "composition"), rdp_arm_delta(run, u, "cut0000"), group)
   .rdp$entries[[u$id]] <- e
   invisible(r)
 }
@@ -537,14 +535,12 @@ test_that("[PLUGINS] paridade_control: exogena MED->MAX e history_days.train -7 
   inv <- jsonlite::read_json(file.path(rdp_tools()$.pc_golden_unit_dir(RDP_GOLDEN(), RDP_MODEL, u), "invocation.json"), simplifyVector = TRUE)
   expect_identical(inv$args[which(inv$args == "--available-until") + 1L], paste0(format(u$origin), "T08:30"))
   expect_identical(inv$oracle_commit, lk$units[[u$id]]$oracle_commit)
-  ## CONTROL: --out dentro da arvore do oraculo => exit 2 (tools.out_inside_oracle); oraculo intacto (so os 3 docs/roadmap + verify-log)
-  if (dir.exists(file.path(RDP_ORACLE, ".git"))) {
-    out <- suppressWarnings(system2(file.path(R.home("bin"), "Rscript"),
-      c("--vanilla", shQuote(file.path(rd_root(), "scripts", "tools", "plugin_golden.R")), "--model", RDP_MODEL, "--units", "smoke",
-        "--oracle", RDP_ORACLE, "--out", file.path(RDP_ORACLE, "golden-fora"), "--data", rdp_store()), stdout = TRUE, stderr = TRUE))
-    expect_identical(attr(out, "status"), 2L)
-    expect_false(dir.exists(file.path(RDP_ORACLE, "golden-fora")))
-    st <- suppressWarnings(system2("git", c("--no-optional-locks", "-C", shQuote(RDP_ORACLE), "status", "--porcelain"), stdout = TRUE, stderr = FALSE))
-    expect_length(st[!grepl("docs/roadmap/", st, fixed = TRUE)], 0L)
-  }
+  ## ADR-0041: CONTROL: --out dentro da arvore de referencia (clean-room) => exit 2 (tools.out_inside_oracle); o oraculo nao e mais tocado
+  ref <- rd_root()
+  out <- suppressWarnings(system2(file.path(R.home("bin"), "Rscript"),
+    c("--vanilla", shQuote(file.path(ref, "scripts", "tools", "plugin_golden.R")), "--model", RDP_MODEL, "--units", "smoke",
+      "--source", "reference", "--ref", shQuote(ref), "--ref-tag", "v0.1.5", "--out", shQuote(file.path(ref, "golden-fora")),
+      "--data", rdp_store()), stdout = TRUE, stderr = TRUE))
+  expect_identical(attr(out, "status"), 2L)
+  expect_false(dir.exists(file.path(ref, "golden-fora")))
 })

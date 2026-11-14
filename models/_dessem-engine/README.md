@@ -158,7 +158,7 @@ partir da raiz). Tier `fast` = tudo menos as linhas `parity`; o tier `parity` en
 
 | teste | AC do epico | tier |
 |---|---|---|
-| test-engine-golden.R (unidades `engine` e `robustez` do golden isolado; CONTROL offset 0 e sem set.seed) | AC2 | parity (+ fast: units.yaml, golden.lock) |
+| test-engine-parity.R (golden isolado da v0.1.5; unidades `engine` e `robustez` do golden isolado; CONTROL offset 0 e sem set.seed) | AC2 | parity (+ fast: units.yaml, golden.lock) |
 | test-engine-dates.R (pc_grep_code + pc_grep_time_arith sem excecao, HVZ, tz) | AC3 | fast |
 | test-engine-isolation.R (duas instancias, globalenv intacto, CONTROL sem desagregaModeloSH) | AC1 | fast |
 | test-engine-robustez.R (modelo-vazio, clamp de cross, flag-12, cauda curta; kill-switches de ENV sem efeito) | AC16 (parte motor) | fast (+ unidades `robustez` no parity) |
@@ -201,6 +201,4 @@ paralelismo (`pkgfun_paralelismo.R`, `mclapply`), self-location (`_load_engine.R
 ## Testes
 
 `Rscript --vanilla -e 'testthat::test_dir("models/_dessem-engine/tests/testthat", stop_on_failure=TRUE)'`
-(a partir da raiz do repo; R 4.5.3). `test-engine-golden.R` roda o oraculo em processo filho (R 4.4.3) e
-confere `max|delta Carga| <= 1e-5` MW em `processaModelosDMPerfil` e `desagregaModeloSH`; e pulado se o oraculo
-estiver ausente.
+(a partir da raiz do repo; R 4.5.3). `test-engine-parity.R` (tier parity) confere `max|delta Carga| <= 1e-5` MW em `processaModelosDMPerfil` e `desagregaModeloSH` contra o golden da tag v0.1.5 (ADR-0041); a comparacao direta com o oraculo saiu.

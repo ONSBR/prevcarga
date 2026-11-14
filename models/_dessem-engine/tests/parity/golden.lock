@@ -1,6 +1,8 @@
 {
   "model": "_dessem-engine",
-  "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141",
+  "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742",
+  "reference_tag": "v0.1.5",
+  "source": "reference",
   "units": {
     "engine_max_seco_20241015": {
       "data_digest": {
@@ -33,26 +35,25 @@
         }
       },
       "files": {
-        "invocation.json": "5c14e46947795e4ab820fb73447ccc0c9c60e77c60d87e7c6e0365f2994c0b66",
-        "long.parquet": "8e81913a4e863f11b1e50e078e8cb2b44a030ce99f67aa0a9966dede499dabbc",
-        "native.rds": "7b3dfb2990db59908871173eda163c5cedc9bd9c1e39d765f81dc1369036de89"
+        "invocation.json": "e2fc5e39115be94395d7b94eff777d777a4e6a6d0e9f8bbcc9e889b790c87f8f",
+        "long.parquet": "40e0222ff0e9298008e3cd9f518c748f741d4d2818de8f89533cbafa5ed2c3f1",
+        "native.rds": "6d80351b01bb07ff71cce58cb94fbd251f890173e56aa0af11ff15d454e81b18"
       },
       "fingerprint": {
-        "R": "WARNING: ignoring environment value of R_HOME",
-        "blas": "x86_64-pc-linux-gnu",
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
         "packages": {
-          "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
           "WeightSVM": "1.7.16",
-          "arrow": "22.0.0",
-          "data.table": "1.18.0",
-          "e1071": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
           "jsonlite": "2.0.0",
-          "lubridate": "1.9.4",
+          "lubridate": "1.9.5",
           "rlist": "0.4.6.2"
         },
-        "platform": "R version 4.4.3 (2025-02-28)"
+        "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "engine_med_seco_20241015": {
       "data_digest": {
@@ -85,26 +86,25 @@
         }
       },
       "files": {
-        "invocation.json": "48e2e62b48d9da146b635fc2d165a2a3923a06dc91d62ec99cd19a9971eeae8a",
-        "long.parquet": "d05942b89cfb67915fea0214c2116767f81486cd7eea7172849ffeaf4f65973a",
-        "native.rds": "6fb42ef1c096f51895889ddd670cddc293d97fd8b7496e9cff02bba3a1ac5aa5"
+        "invocation.json": "031802741ab6a369b49e05de4ff5fc84d8eebf1c1c833080de8fcc41e484e237",
+        "long.parquet": "44222925390c9c102c4e3d7140d2867b5cb87b77829d697710e953c653a4f0f4",
+        "native.rds": "1caae1d05d0da91ec7452d2307aafa95174ffacaacc3f8877e48836755936c31"
       },
       "fingerprint": {
-        "R": "WARNING: ignoring environment value of R_HOME",
-        "blas": "x86_64-pc-linux-gnu",
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
         "packages": {
-          "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
           "WeightSVM": "1.7.16",
-          "arrow": "22.0.0",
-          "data.table": "1.18.0",
-          "e1071": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
           "jsonlite": "2.0.0",
-          "lubridate": "1.9.4",
+          "lubridate": "1.9.5",
           "rlist": "0.4.6.2"
         },
-        "platform": "R version 4.4.3 (2025-02-28)"
+        "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "engine_mxmn_seco_20241015": {
       "data_digest": {
@@ -137,26 +137,25 @@
         }
       },
       "files": {
-        "invocation.json": "7675bea0292444ed6ee6ac061447c77ef500f9f7470813781dfda8471dbe5644",
-        "long.parquet": "1aa54272e8352fb4433151b1a1d6eb9bd74662aa39f336f22f71d26a5ac0fa91",
-        "native.rds": "ef8565246b17ef9fa62a6ac8ff1a11e4f3a9754b4af2a3be18ff3ba41d7e829e"
+        "invocation.json": "86550eac32b69ea24326ce5a4d27e5f351b74eda789094077e1e01c3a7f562fa",
+        "long.parquet": "af12f7d4ecc14c4111c0b7e09227f13b67a9fe13d9640e2b2d1633496feb6f58",
+        "native.rds": "cfd2d092da52d19db4f9d8f170baffa2aa15d361a57e8167c9fd2e50e8dbae73"
       },
       "fingerprint": {
-        "R": "WARNING: ignoring environment value of R_HOME",
-        "blas": "x86_64-pc-linux-gnu",
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
         "packages": {
-          "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
           "WeightSVM": "1.7.16",
-          "arrow": "22.0.0",
-          "data.table": "1.18.0",
-          "e1071": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
           "jsonlite": "2.0.0",
-          "lubridate": "1.9.4",
+          "lubridate": "1.9.5",
           "rlist": "0.4.6.2"
         },
-        "platform": "R version 4.4.3 (2025-02-28)"
+        "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "robustez_flag12_sp_20241222": {
       "data_digest": {
@@ -189,26 +188,25 @@
         }
       },
       "files": {
-        "invocation.json": "97cae91ce527243ac0167cfbacb01a7f1f6536030d1845ccd0ffdbf27775f241",
-        "long.parquet": "57cda6b873f09d65a5a97222c59a69cf470719db436d1d55528811be08de802b",
-        "native.rds": "265987743dcd765d6daa994028869d7ec3874be7fee4020a358b0864cb6ed635"
+        "invocation.json": "e94ddeadded17810a64c14207ea5c0df6982b65087ba7bdc34d089aee57ea0f1",
+        "long.parquet": "ff22df55521b8e67bf943de445884a03be7d03d225e4fc7f6979a7e64734389c",
+        "native.rds": "fe8f0b898faf8694badd1f9edcff433b89d625967de1cd8f8e55520580d19f85"
       },
       "fingerprint": {
-        "R": "WARNING: ignoring environment value of R_HOME",
-        "blas": "x86_64-pc-linux-gnu",
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
         "packages": {
-          "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
           "WeightSVM": "1.7.16",
-          "arrow": "22.0.0",
-          "data.table": "1.18.0",
-          "e1071": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
           "jsonlite": "2.0.0",
-          "lubridate": "1.9.4",
+          "lubridate": "1.9.5",
           "rlist": "0.4.6.2"
         },
-        "platform": "R version 4.4.3 (2025-02-28)"
+        "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "robustez_go_20241005": {
       "data_digest": {
@@ -241,26 +239,25 @@
         }
       },
       "files": {
-        "invocation.json": "a8042cc37a3c163b2baf7f464266746eb7e9c5107483c0ea054d560939ece97d",
-        "long.parquet": "a8a04b949c25c1cd38934671d7d9ffb978b83f1a78df9fe1aa26ae712ccee2d8",
-        "native.rds": "9f86d53ab106d7029dd05f4abb8432eb321410d90409a78b09f80d27649ae25e"
+        "invocation.json": "ead8a13c976a92c97cfbc971b6f407b40c9f6c6faa5238e07ec2007213b91636",
+        "long.parquet": "880a858fed0ea0bfe18d452686e58b3fe31f39f8a0d136d1ab485253486f7155",
+        "native.rds": "37ea55bd140cc89914ffa2647008da38c6de70eb1cca81e42c6a794e772b2db3"
       },
       "fingerprint": {
-        "R": "WARNING: ignoring environment value of R_HOME",
-        "blas": "x86_64-pc-linux-gnu",
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
         "packages": {
-          "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
           "WeightSVM": "1.7.16",
-          "arrow": "22.0.0",
-          "data.table": "1.18.0",
-          "e1071": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
           "jsonlite": "2.0.0",
-          "lubridate": "1.9.4",
+          "lubridate": "1.9.5",
           "rlist": "0.4.6.2"
         },
-        "platform": "R version 4.4.3 (2025-02-28)"
+        "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "robustez_ton_sp_20241119": {
       "data_digest": {
@@ -281,26 +278,25 @@
         }
       },
       "files": {
-        "invocation.json": "c7bb3345e0195dc53da3fee820bf4613d5b7044053fb8c93ab3ee8046ca031b3",
-        "long.parquet": "e865f99e9661a9bd0d62457945e9d8a3922da2b332f5259ff50e3ed907012a5e",
-        "native.rds": "55311757aab7738b0461e78886f9aae45ee1ea50786537f38140dc612476627b"
+        "invocation.json": "bb6dc666460d30416b20851d387553dfd8402c75b949506a366b8e15cd1cf1e0",
+        "long.parquet": "701d9eccb7aead1bc00a957fcdb01bc48bad1f7ce230e76b518033d22beee6de",
+        "native.rds": "e98fdfc5bca07acaa16dc8fb9c32297c0b6d7cb365bc0cfc8643b53ecc9530f0"
       },
       "fingerprint": {
-        "R": "WARNING: ignoring environment value of R_HOME",
-        "blas": "x86_64-pc-linux-gnu",
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
         "packages": {
-          "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
           "WeightSVM": "1.7.16",
-          "arrow": "22.0.0",
-          "data.table": "1.18.0",
-          "e1071": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
           "jsonlite": "2.0.0",
-          "lubridate": "1.9.4",
+          "lubridate": "1.9.5",
           "rlist": "0.4.6.2"
         },
-        "platform": "R version 4.4.3 (2025-02-28)"
+        "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "c4af7378cc767c46f95ce0f09d961fe84fb7f141"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     }
   }
 }

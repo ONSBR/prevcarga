@@ -93,12 +93,7 @@ test_that("[AB.V] Estagio E x10 => veredito inalterado (a qualidade nunca entra 
 
 test_that("[AB.V] carregador estrito de ab_excecoes.yaml: campo ausente, desconhecido ou condicao generica => erro de carga; o arquivo real carrega", {
   ex <- AB$pc_ab_load_excecoes(AB_EXC)
-  expect_gte(length(ex), 3L)
-  for (e in ex) {
-    expect_true(all(AB$pc_ab_exc_required %in% names(e)))
-    expect_true(nzchar(e$decisao) && nzchar(e$fonte))        # cada item cita a decisao do Gabriel e o doc de origem
-  }
-  expect_true(all(c("regdin.versao_pacotes", "dessem_linear.sp_2024_11_15_residuo_numerico") %in% vapply(ex, function(e) e$id, "")))
+  expect_length(ex, 0L)                                       # ADR-0041: as 3 entradas contra o oraculo sairam; hoje a lista e vazia
   item <- "{id: x.y, membro: m, estagio: A, condicao: \"minute(available_until) == 30\", justificativa: j, adr: ADR-1}"
   load1 <- function(...) { f <- tempfile(fileext = ".yaml"); writeLines(c("excecoes:", paste0("  - ", sub("^\\{", "{", paste0(...)))), f); tryCatch(AB$pc_ab_load_excecoes(f), prevcarga_error = function(e) e) }
   expect_type(load1(item), "list")

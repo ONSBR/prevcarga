@@ -17,10 +17,9 @@ for (m in c("receipts", "fixture_store", "ab_cases", "ab_relayout", "ab_stages",
   sys.source(file.path(ab_root, "scripts", "tools", paste0(m, ".R")), envir = AB)
 
 AB_TZ <- "Etc/GMT+3"
-AB_RUNNER <- file.path(ab_root, "scripts", "tools", "ab_oracle_run.sh")
 AB_EXC <- file.path(ab_root, "tests", "ab", "ab_excecoes.yaml")
 
-## Excecoes do enunciado do ticket (AC 21), SO para os testes de injecao: o arquivo real e do Gabriel e nao as contem todas.
+## Excecoes de FIXTURE (AC 21 + mecanismos de limite e janela), SO para os testes: o arquivo real e do Gabriel e esta vazio (ADR-0041).
 ab_fixture_excecoes <- function(dir = tempfile("exc-")) {
   dir.create(dir, recursive = TRUE)
   f <- file.path(dir, "ab_excecoes.yaml")
@@ -28,7 +27,9 @@ ab_fixture_excecoes <- function(dir = tempfile("exc-")) {
     "  - {id: reconcile.apply_profile_reuse, membro: reconcile, estagio: B, condicao: \"modo == 'apply' && khat_origin < origem\", justificativa: \"fixture\", adr: \"ADR-0015\"}",
     "  - {id: regdin.mm_horas_completas, membro: dessem-regdin, estagio: A, condicao: \"minute(available_until) == 30\", justificativa: \"fixture\", adr: \"ADR-0035\"}",
     "  - {id: regdin.sem_manha_0000, membro: dessem-regdin, estagio: A, condicao: \"hour(available_until) == 0 && minute(available_until) == 0\", justificativa: \"fixture\", adr: \"ADR-0023\"}",
-    "  - {id: regdin.mxmn_recusado, membro: dessem-regdin/RGD_MXMN, estagio: A, condicao: \"exogena == 'MXMN'\", justificativa: \"fixture\", adr: \"ADR-0021\"}"), f)
+    "  - {id: regdin.mxmn_recusado, membro: dessem-regdin/RGD_MXMN, estagio: A, condicao: \"exogena == 'MXMN'\", justificativa: \"fixture\", adr: \"ADR-0021\"}",
+    "  - {id: fixture.limite_relativo, membro: dessem-regdin, estagio: A, condicao: \"mdir == 'dessem-regdin'\", justificativa: \"fixture\", adr: \"ADR-0041\", limite: {max_rel: 1.3e-5}}",
+    "  - {id: fixture.janela_final, membro: dessem-linear, estagio: A, condicao: \"mdir == 'dessem-linear'\", justificativa: \"fixture\", adr: \"ADR-0041\", janela_final_h: 3}"), f)
   f
 }
 

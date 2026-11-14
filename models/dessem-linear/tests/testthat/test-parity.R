@@ -27,15 +27,15 @@ DLP_UNITS <- function() file.path(DLP_PARITY(), "units.yaml")
 DLP_LOCK <- function() file.path(DLP_PARITY(), "golden.lock")
 DLP_REPORT <- function() file.path(DLP_PARITY(), "foundation_report.json")
 DLP_GOLDEN <- function() file.path(dl_root(), ".state", "golden")
-DLP_ORACLE_RSCRIPT <- "/opt/R/4.4.3/bin/Rscript"  # runtime do oraculo (WeightSVM/rlist na biblioteca do oracle_env)
-DLP_ORACLE <- "/opt/ons-source/prevcargadessem3"
+DLP_ORACLE_RSCRIPT <- file.path(R.home("bin"), "Rscript")   # ADR-0041: o golden e gerado no R da tag (4.5.3), nao no do oraculo
 DLP_REGEN <- "golden ausente ou divergente: regere com scripts/tools/plugin_golden.R --model dessem-linear"
 DLP_BASE <- "seco-2024-10-15"                    # unidade-base dos CONTROLs
 DLP_WMAPE_TAIL <- 0.01
 ## EXCECAO NUMERICA DOCUMENTADA (Gabriel 2026-10-30, DL9-GAP-2): sp-2024-11-15 (O e feriado) tem residuo de 0.446 MW (3e-5 rel) por
 ## 1 ulp em `mm` (oraculo: media de 18 slots; clean-room: media de 9 medias horarias) amplificado pelo SVM da DM(O) (nSV 1683 x 1685).
 ## So essa unidade tem teto (max_abs, max_rel sobre o maior valor do golden); todas as outras ficam EXATAS (<= 1e-5).
-DLP_NUMERIC_EXCEPTION <- list("sp-2024-11-15" = list(max_abs = 0.5, max_rel = 5e-5))
+## ADR-0041: a excecao numerica sp-2024-11-15 (DL9-GAP-2) existia so contra o oraculo; o golden e a saida da v0.1.5 (Delta = 0)
+DLP_NUMERIC_EXCEPTION <- list()
 dlp_limit <- function(u) { ex <- DLP_NUMERIC_EXCEPTION[[u$id]]; if (is.null(ex)) DLP_TOL else ex$max_abs }
 
 dlp_tier <- function() if (exists(".pc_gates_state", envir = globalenv())) get(".pc_gates_state", envir = globalenv())$tier else "parity"
@@ -398,11 +398,11 @@ test_that("[PLUGINS] paridade: values O..O+8 e delivery vs oraculo, max|d| <= 1e
     expect_identical(r$day0_source, "native")
     expect_true(isTRUE(r$shape_ok) && isTRUE(r$na_ok), info = u$id)                       # values 9x48: mesma forma e mesmo padrao de NA
     expect_identical(dim(run$env$values), c(9L, 48L))
-    expect_identical(dim(gold$native$values), c(10L, 48L))                                # O..O+9 do oraculo
+    expect_identical(dim(gold$native$values), c(9L, 48L))                                 # O..O+8 da v0.1.5 (ADR-0041)
     expect_identical(as.integer(r$delivery_missing), 0L)                                  # toda celula da entrega tem par no long do oraculo
     expect_true(isTRUE(r$cut_ok), info = u$id)
-    expect_identical(as.integer(r$fora_da_faixa), 48L)                                    # O+9 do oraculo (1 dia x 48)
-    expect_identical(as.integer(r$fora_da_faixa_long), 48L)
+    expect_identical(as.integer(r$fora_da_faixa), 0L)                                     # sem O+9: o golden e a entrega da v0.1.5 (ADR-0041)
+    expect_identical(as.integer(r$fora_da_faixa_long), 0L)
     expect_identical(run$env$available_until, u$available_until)
     expect_lte(r$max_abs_delta, dlp_limit(u))                                             # Delta = 0 (1e-5) fora da cauda nomeada; teto so na excecao numerica
     expect_true(isTRUE(r$ok), info = dlp_report_line(r))
@@ -428,8 +428,7 @@ test_that("[PLUGINS] paridade: values O..O+8 e delivery vs oraculo, max|d| <= 1e
                   paste(r$delivery_over, collapse = " ")), file = stderr())
     cat(sprintf("EMU %s max=%.3g\n", u$id, emu$r$max_abs_delta), file = stderr())
     expect_gt(emu$added, 0L)                                                              # o painel de teste teve hora parcial acrescentada
-    expect_lte(emu$r$max_abs_delta, dlp_limit(u))                                              # CONTROL: com a regra do oraculo a cauda tambem fecha
-    expect_true(isTRUE(emu$r$ok) || !is.null(DLP_NUMERIC_EXCEPTION[[u$id]]), info = dlp_report_line(emu$r))   # excecao numerica: so o teto acima
+    ## ADR-0041: o CONTROL da media de hora parcial do oraculo (fechava a cauda contra o golden do oraculo) saiu; a emulacao so e medida
     if (!is.null(DLP_NUMERIC_EXCEPTION[[u$id]])) {
       ## CONTROL: o residuo vem de `mm`/ruido de 1 ulp: perturbar a carga do painel de infer em 1 ulp (x (1 + eps)) move a previsao
       ## desta unidade alem de 1e-5 (e ainda dentro do teto); a perturbacao e relativa, nao muda o desenho
@@ -437,7 +436,7 @@ test_that("[PLUGINS] paridade: values O..O+8 e delivery vs oraculo, max|d| <= 1e
       expect_gt(pert, DLP_TOL)                                                   # 1 ulp de carga move a previsao alem de 1e-5 (medido 1.8 MW)
       cat(sprintf("ULP %s shift=%.3g rel=%.3g\n", u$id, pert, r$rel_delta), file = stderr())
     }
-    entries[[u$id]] <- dlp_report_entry(u, r, lock, sp, emu$r)
+    entries[[u$id]] <- dlp_report_entry(u, r, lock, sp)
   }
   ## o grupo `foundation` inteiro rodou: grava o relatorio da fundacao (pre-condicao do fan-out, DL.10)
   found <- dlp_spec()$groups$foundation
@@ -492,15 +491,12 @@ test_that("[PLUGINS] paridade_control: exogena MED->MAX e seed 42->43 acusam > 1
   inv <- jsonlite::read_json(file.path(dlp_tools()$.pc_golden_unit_dir(DLP_GOLDEN(), DLP_MODEL, u), "invocation.json"), simplifyVector = TRUE)
   expect_identical(inv$args[which(inv$args == "--available-until") + 1L], paste0(format(u$origin), "T08:30"))
   expect_identical(inv$oracle_commit, lk$units[[u$id]]$oracle_commit)
-  ## CONTROL: --out dentro da arvore do oraculo => exit 2 (tools.out_inside_oracle)
-  if (dir.exists(file.path(DLP_ORACLE, ".git"))) {
-    out <- suppressWarnings(system2(file.path(R.home("bin"), "Rscript"),
-      c("--vanilla", shQuote(file.path(dl_root(), "scripts", "tools", "plugin_golden.R")), "--model", DLP_MODEL, "--units", "smoke",
-        "--oracle", DLP_ORACLE, "--out", file.path(DLP_ORACLE, "golden-fora"), "--data", dlp_store()), stdout = TRUE, stderr = TRUE))
-    expect_identical(attr(out, "status"), 2L)
-    expect_false(dir.exists(file.path(DLP_ORACLE, "golden-fora")))
-    ## oraculo intacto: o codigo do oraculo (tracked, e untracked fora dos planos docs/roadmap) nao foi modificado
-    st <- suppressWarnings(system2("git", c("--no-optional-locks", "-C", shQuote(DLP_ORACLE), "status", "--porcelain"), stdout = TRUE, stderr = FALSE))
-    expect_length(st[!grepl("docs/roadmap/", st, fixed = TRUE)], 0L)
-  }
+  ## ADR-0041: CONTROL: --out dentro da arvore de referencia (clean-room) => exit 2 (tools.out_inside_oracle); o oraculo nao e mais tocado
+  ref <- dl_root()
+  out <- suppressWarnings(system2(file.path(R.home("bin"), "Rscript"),
+    c("--vanilla", shQuote(file.path(ref, "scripts", "tools", "plugin_golden.R")), "--model", DLP_MODEL, "--units", "smoke",
+      "--source", "reference", "--ref", shQuote(ref), "--ref-tag", "v0.1.5", "--out", shQuote(file.path(ref, "golden-fora")),
+      "--data", dlp_store()), stdout = TRUE, stderr = TRUE))
+  expect_identical(attr(out, "status"), 2L)
+  expect_false(dir.exists(file.path(ref, "golden-fora")))
 })

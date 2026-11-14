@@ -293,17 +293,30 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
   ## cortes e parametros LITERAIS da unidade (nunca os defaults do run.yaml quando a unidade os declara)
   if (length(unit$params)) sp$params <- utils::modifyList(sp$params, unit$params)
   if (!is.null(unit$seed)) sp$seed <- unit$seed
+  ## variante da unidade (EXOGENA do DESSEM: MED/MAX/MXMN) => param `exogena` do plugin, quando ele o declara
+  if (!is.null(unit$variant) && "exogena" %in% names(sp$params)) sp$params$exogena <- unit$variant
   if (!is.null(unit$cuts$train$train_origin) && !identical(format(row$train_origin), unit$cuts$train$train_origin))
     prevcarga_abort("tools.parity_failed", where = unit$id,
                     details = list(unit = unit$id, field = "train_origin", unit_value = unit$cuts$train$train_origin,
                                    derived = format(row$train_origin)))
+  ## plugin com `history_infer_equals_train` (DESSEM): as DUAS fases leem a MESMA janela (infer = historico + 1 dia de aquecimento, o
+  ## treino termina em last_data_day) e as emissoes previstas ate o limite de O (o previsto entra na normalizacao do treino)
+  eq <- isTRUE(plugin$descriptor$history_infer_equals_train)
   read <- function(origin, hist) {
     p <- suppressWarnings(prevcarga_read_panel(ctx, origin, unit$area, sp$horizon_days, hist))
     ## previsto: o painel do leitor entrega so a emissao mais fresca; o plugin precisa de TODAS as emissoes ate o limite
     ## (safra por origem nativa), como nos testes do plugin (rf_fx_panel)
-    lim <- attr(p$weather_forecast, "weather_issue_limit")
-    fc <- prevcarga_read_weather(ctx, "forecast", unit$area, origin - hist, origin + sp$horizon_days + 1L)
+    lim <- if (eq) cuts$weather_issue_limit else attr(p$weather_forecast, "weather_issue_limit")
+    fc <- prevcarga_read_weather(ctx, "forecast", unit$area, origin - hist, (if (eq) unit$origin else origin) + sp$horizon_days + (if (eq) 2L else 1L))
     p$weather_forecast <- fc[issue_time <= lim]
+    ## areas de dado extras da unidade (`data_areas`, p.ex. a heat_area do LGBM): o clima delas entra no painel, cortado como o da area
+    for (xa in setdiff(unit$data_areas, unit$area)) {
+      xo <- prevcarga_read_weather(ctx, "observed", xa, origin - hist, origin)
+      xo <- xo[valid_time <= max(p$weather_observed$valid_time)]
+      xf <- prevcarga_read_weather(ctx, "forecast", xa, origin - hist, origin + sp$horizon_days + 1L)
+      p$weather_observed <- data.table::rbindlist(list(p$weather_observed, xo), use.names = TRUE, fill = TRUE)
+      p$weather_forecast <- data.table::rbindlist(list(p$weather_forecast, xf[issue_time <= lim]), use.names = TRUE, fill = TRUE)
+    }
     ## painel de 30 min CRU: o despachante reamostra (granularity_min + weather_resample do descriptor; FIX 7)
     p
   }
@@ -313,8 +326,14 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
     h <- unit$cuts[[phase]]$history_start
     if (is.null(h)) default else as.integer(origin - lubridate::ymd(h))
   }
+  ## plugin origem-escopado sem janela propria da fase (HW): o despachante `forecast` (treino + infer sobre UM painel lido em O, janela
+  ## [O - history_days, O]), como o HW roda em producao; o treino em last_data_day deslocaria a janela em 1 dia
+  if (identical(row$split, "origin_scoped") && !eq) {
+    fc_cuts <- c(cuts, list(horizon_days = row$horizon_days, data_lag_days = row$data_lag_days))
+    return(prevcarga_plugin_forecast(plugin, read(unit$origin, hist("train", unit$origin, sp$history_days$train)), fc_cuts, sp, list()))
+  }
   art <- prevcarga_plugin_train(plugin, read(row$last_data_day, hist("train", row$last_data_day, sp$history_days$train)), c(cuts, list(spec = sp, phase = "train")), sp, list())
-  prevcarga_plugin_infer(plugin, art, read(unit$origin, hist("infer", unit$origin, sp$history_days$infer)), c(cuts, list(spec = sp, phase = "infer")), list())
+  prevcarga_plugin_infer(plugin, art, read(unit$origin, hist("infer", unit$origin, sp$history_days$infer) + (if (eq) 1L else 0L)), c(cuts, list(spec = sp, phase = "infer")), list())
 }
 
 ## --- 6. relatorio e CLI -----------------------------------------------------------------------------------------

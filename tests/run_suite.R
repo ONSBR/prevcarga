@@ -13,10 +13,10 @@
 PC_SUITE_DIRS <- c("scripts/lib/tests", "tests/bundle", "tests/install", "tests/ab")
 ## Motivos de skip aceitos: os 4 do ticket (`[TBD: ADR-0036]` generalizado para qualquer decisao ADR pendente do Gabriel: "TBD: ADR-") + o tier parity-full (so no fechamento do porte) + adiamentos declarados com dono: o gate da VM Windows ("[DEFERRED windows-vm do M8", "[DEFERRED M8" do build Windows),
 ## o build duplo do mesmo commit (M8.1; "dist/repro-1", ja provado no M8.1), o teste que nao consegue simular a ausencia de pacote com a library do bundle
-## e os bracos do A/B que dependem da referencia do oraculo (matriz completa nao rodada: CORTE-BLOQUEADO, dono Gabriel) ou da perna Windows (DEFERIDO ao gate windows-vm). Qualquer outro skip reprova.
+## e os bracos do A/B que dependem da referencia v0.1.5 do clean-room (ADR-0041; matriz completa nao rodada: CORTE-BLOQUEADO, dono Gabriel) ou da perna Windows (DEFERIDO ao gate windows-vm). Qualquer outro skip reprova.
 PC_SUITE_ALLOWED_SKIP <- c("nao-windows", "nao-linux", "deck-real-ausente", "[TBD: ADR-0036]", "TBD: ADR-", "parity-full so no fechamento", "[DEFERRED windows-vm do M8", "[DEFERRED M8",
                           "dist/repro-1", "nao ha como simular a ausencia",
-                          "[TBD] referencia do oraculo ausente", "[TBD] saida do clean-room", "[TBD] smoke nao-gating", "paridade pinada ao BLAS do golden",
+                          "[TBD] referencia v0.1.5 ausente", "[TBD] saida do clean-room", "[TBD] smoke nao-gating", "paridade pinada ao BLAS do golden",
                           "sem options(prevcarga.ab.shared)", "DEFERIDO ao gate windows-vm")
 
 pc_suite_arg <- function(args, name, default = NULL) {
