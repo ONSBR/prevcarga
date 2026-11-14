@@ -144,6 +144,34 @@ Dois pontos de uso:
 
 `timezone.dst_periods` é aceita só como chave de fuso. O dataset de horário de verão não é lido nem validado (ver [o fim desta página](#o-que-a-validação-não-confere)).
 
+### kind e bloco inference
+
+O manifest ganha o campo `kind`, que diz o papel do deck: `train` (deck de treino) ou `inference` (deck de inferencia, entregue pronto para uma origem). `kind` ausente vale `train`, entao todo deck atual segue valido sem mudanca. Valor fora de `train`/`inference` (ou nao texto) reprova com `contract.manifest_invalid` (`onde` = `manifest.json:kind`).
+
+O deck `kind: "inference"` exige o bloco `inference`; o deck `kind: "train"` nao pode ter o bloco (`contract.manifest_invalid`, `onde` = `manifest.json:inference`). Chave fora da lista dentro do bloco reprova com `contract.manifest_unknown_key` (`onde` = `inference.<chave>`).
+
+| Campo de `inference` | Formato | Observacao |
+|---|---|---|
+| `origin` | `AAAA-MM-DD` | so a data, sem hora |
+| `available_until` | `AAAA-MM-DDTHH:MM:SS` | no fuso da carga (`timezone.load`); sem segundos reprova |
+| `train_deck_hash` | sha256, 64 hex minusculos | hash do deck de treino; maiusculo ou curto reprova |
+| `windows` | mapa `dataset -> {from, to}` | datas `AAAA-MM-DD`, com `from <= to`; mapa vazio e aceito |
+
+```json title="deck de inferencia (trecho)"
+{
+  "schema_version": 1,
+  "kind": "inference",
+  "inference": {
+    "origin": "2023-06-01",
+    "available_until": "2023-06-01T08:00:00",
+    "train_deck_hash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "windows": { "load": { "from": "2023-01-01", "to": "2023-06-01" } }
+  }
+}
+```
+
+Os verbos conferem o `kind` do deck com o papel da opcao (`--data-train` ou `--data-inference`): divergencia aborta `contract.deck_kind_mismatch` (exit 2). Num deck de inferencia com `--origin`, a origem do bloco tem de coincidir: senao `contract.deck_origin_mismatch` (exit 2). Sem `--origin`, a origem vem do deck.
+
 <Pendente titulo="Pendente · valores do template">
 O template versionado `config/deck-manifest.store.json` traz rótulo `start`, fusos `Etc/GMT+3` (o store histórico está em relógio de parede BRT com horário de verão até 2019, então no verão 2018-19 o `issue_time` lido como `Etc/GMT+3` erra 1 hora), `issue_time` em `UTC` e atraso de 6 horas. Esses valores ainda aguardam confirmação. Declare no manifest do seu deck o que vale para o seu dado.
 </Pendente>

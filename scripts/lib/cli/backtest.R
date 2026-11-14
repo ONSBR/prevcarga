@@ -7,7 +7,7 @@
 ## Requer errors.R, config.R, topology.R, provenance.R, deck_reader.R, dates.R, registry.R, training.R, inference.R, build_long_output.R, evaluation.R, combination.R, reconcile.R, cache.R, orchestrate.R, backtest.R (M7.3 MAP, M7.7 REDUCE).
 
 cmd_backtest <- function(ctx, args) {
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   if (isTRUE(args[["--dry-run"]])) {
     res <- prevcarga_plan_result(prevcarga_plan_request(ctx, args))
     return(if (identical(ctx$format, "json")) res else .m7_plan_text(res))

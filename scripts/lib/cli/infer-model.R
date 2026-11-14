@@ -37,7 +37,7 @@ cmd_infer_model <- function(ctx, args) {
   if (is.null(model)) prevcarga_abort("config.usage", where = "--model")
   if (is.null(area)) prevcarga_abort("config.usage", where = "--area")
   prevcarga_model_spec(model, root = ctx$root)                       # config.unknown_model antes de qualquer IO
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   out <- .prevcarga_im_opt(args, "--out")
   if (!is.null(out) && !dir.exists(dirname(out)))
     prevcarga_abort("io.out_unwritable", where = out, details = list(reason = "diretorio ausente"))

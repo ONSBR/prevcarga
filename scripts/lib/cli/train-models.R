@@ -54,7 +54,7 @@ cmd_train_models <- function(ctx, args) {
     ctx$spec_overrides <- list(horizon_days = if (is.na(h)) as.character(hz) else h)   # tipo errado => config.override_bad_value
   }
   cells <- prevcarga_train_matrix(args, ctx)                  # seletores e modelos validados antes de qualquer leitura do deck
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   ctx$lib_dir <- getOption("prevcarga.lib")
   origin <- prevcarga_resolve_origin(ctx)$origin
   rc <- prevcarga_resolve_cuts(ctx, origin)

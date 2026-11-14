@@ -441,7 +441,7 @@ prevcarga_outlier_min_days <- 3L
 ## --- 9. Orquestrador publico ---------------------------------------------------------------------------------------
 ## scope = list(model = NULL, area = NULL); origin: Date ou NULL (cai em ctx$origin e, depois, no ultimo dia de carga).
 prevcarga_validate_deck <- function(ctx, origin = NULL, scope = NULL, data_lag_days = NULL) {
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   acc <- .pc_acc()
   scope <- list(model = scope$model, area = scope$area)
   if (is.character(origin)) origin <- prevcarga_parse_origin(origin)

@@ -70,7 +70,7 @@ cmd_forecast <- function(ctx, args) {
   if (length(area) && !is.null(ss))
     prevcarga_abort("config.usage", where = "--area/--subsistema", details = list(hint = "--area e --subsistema sao exclusivos"))
   jobs <- if (is.null(.prevcarga_fc_opt(args, "--jobs"))) 1L else .prevcarga_fc_jobs(args[["--jobs"]])
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   sc <- .prevcarga_fc_resolve_areas(area, ss, .prevcarga_fc_topology(ctx))
   ctx$generated_at <- .prevcarga_fc_generated_at(ctx$run_id)
   ctx$step_clock <- function() proc.time()[["elapsed"]]           # relogio injetado: so o result do envelope leva o tempo (M8.10), nunca a entrega

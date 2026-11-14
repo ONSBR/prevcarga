@@ -74,7 +74,7 @@ prevcarga_build_combine <- function(ctx, opts) {
     if (is.null(out)) prevcarga_abort("config.usage", where = "--out")
     if (!dir.exists(dirname(out))) prevcarga_abort("config.usage", where = paste0("--out=", out))
   }
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   root <- .prevcarga_cb_opt(opts, "--root")
   if (is.null(root)) prevcarga_abort("config.usage", where = "--root")
   artifact_dir <- .prevcarga_cb_opt(opts, "--artifact-dir")

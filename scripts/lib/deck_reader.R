@@ -12,16 +12,80 @@
                               holidays = file.path("auxiliary", "holidays"))
 
 ## --- Manifest estrito (schema v1 fechado) --------------------------------------------------------
-.PREVCARGA_MANIFEST_KEYS <- c("schema_version", "load_label", "timezone", "weather_forecast_publication_lag_hours")
+.PREVCARGA_MANIFEST_KEYS <- c("schema_version", "load_label", "timezone", "weather_forecast_publication_lag_hours",
+                              "kind", "inference")
+.PREVCARGA_MANIFEST_INFERENCE_KEYS <- c("origin", "available_until", "train_deck_hash", "windows")
 .PREVCARGA_MANIFEST_TZ_KEYS <- c("load", "weather_observed", "weather_forecast", "holidays", "dst_periods")
 .PREVCARGA_MANIFEST_FC_KEYS <- c("valid_time", "issue_time")
 
-.prevcarga_manifest_tz <- function(tz, where) {
+## olson injetavel (teste). Base de fusos vazia e falha do ambiente (runtime.tzdata_missing), nao do deck.
+.prevcarga_manifest_tz <- function(tz, where, olson = OlsonNames) {
   if (is.null(tz) || !is.character(tz) || length(tz) != 1L || is.na(tz) || !nzchar(tz))
     prevcarga_abort("contract.tz_missing", where = where)
-  if (!tz %in% OlsonNames())
+  known <- olson()
+  if (!length(known)) prevcarga_abort("runtime.tzdata_missing", where = where, details = list(tz = tz))
+  if (!tz %in% known)
     prevcarga_abort("contract.tz_invalid", where = where, details = list(tz = tz))
   tz
+}
+
+## Fusos declarados no manifest, sem validar (insumo do doctor). Vetor unico, sem NA/vazio.
+prevcarga_deck_manifest_timezones <- function(data_dir) {
+  m <- .prevcarga_manifest_read_json(data_dir)
+  tzm <- if (is.list(m)) m[["timezone"]] else NULL
+  if (!is.list(tzm)) return(character())
+  fc <- tzm[["weather_forecast"]]
+  vals <- c(tzm[["load"]], tzm[["weather_observed"]],
+            if (is.list(fc)) c(fc[["valid_time"]], fc[["issue_time"]]),
+            tzm[["holidays"]], tzm[["dst_periods"]])
+  vals <- unlist(vals[vapply(vals, function(v) is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v), logical(1))])
+  unique(as.character(vals))
+}
+
+## Bloco inference do manifest (kind inference): origem, corte, hash do deck de treino e janelas por dataset.
+.prevcarga_manifest_inference <- function(inf, tz_load) {
+  w <- "manifest.json:inference"
+  bad_ <- function(field, reason = NULL)
+    prevcarga_abort("contract.manifest_invalid", where = paste0(w, ".", field),
+                    details = if (is.null(reason)) list() else list(reason = reason))
+  if (!is.list(inf) || (length(inf) && is.null(names(inf))))
+    prevcarga_abort("contract.manifest_invalid", where = w, details = list(reason = "mapa"))
+  badk <- setdiff(names(inf), .PREVCARGA_MANIFEST_INFERENCE_KEYS)
+  if (length(badk)) prevcarga_abort("contract.manifest_unknown_key", where = paste0("inference.", badk[[1L]]))
+  for (k in .PREVCARGA_MANIFEST_INFERENCE_KEYS) if (is.null(inf[[k]])) bad_(k, "ausente")
+
+  iso_date <- function(x, field) {
+    if (!(is.character(x) && length(x) == 1L && !is.na(x) && grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", x))) bad_(field, "AAAA-MM-DD")
+    d <- suppressWarnings(lubridate::ymd(x, tz = "UTC"))
+    if (is.na(d)) bad_(field, "AAAA-MM-DD")
+    lubridate::as_date(d)
+  }
+  origin <- iso_date(inf[["origin"]], "origin")
+
+  au <- inf[["available_until"]]
+  if (!(is.character(au) && length(au) == 1L && !is.na(au) && grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$", au)))
+    bad_("available_until", "AAAA-MM-DDTHH:MM:SS")
+  au_t <- suppressWarnings(lubridate::ymd_hms(au, tz = tz_load, quiet = TRUE))
+  if (is.na(au_t)) bad_("available_until", "AAAA-MM-DDTHH:MM:SS")
+
+  h <- inf[["train_deck_hash"]]
+  if (!(is.character(h) && length(h) == 1L && !is.na(h) && grepl("^[0-9a-f]{64}$", h)))
+    bad_("train_deck_hash", "sha256 com 64 hex minusculos")
+
+  win <- inf[["windows"]]
+  if (!is.list(win) || (length(win) && (is.null(names(win)) || any(!nzchar(names(win))))))
+    bad_("windows", "mapa dataset -> from/to")
+  wout <- list()
+  for (nm in names(win)) {
+    ft <- win[[nm]]
+    fld <- paste0("windows.", nm)
+    if (!is.list(ft) || is.null(names(ft)) || !setequal(names(ft), c("from", "to"))) bad_(fld, "from/to")
+    f <- iso_date(ft[["from"]], paste0(fld, ".from"))
+    t <- iso_date(ft[["to"]], paste0(fld, ".to"))
+    if (f > t) bad_(fld, "from > to")
+    wout[[nm]] <- list(from = f, to = t)
+  }
+  list(origin = origin, available_until = au_t, train_deck_hash = h, windows = wout)
 }
 
 ## Atraso de publicacao do clima previsto (ADR-0024): horas inteiras >= 0 entre issue_time e a emissao estar disponivel.
@@ -90,9 +154,41 @@ prevcarga_deck_manifest <- function(data_dir) {
   if (!is.null(tzm[["dst_periods"]]))
     out_tz$dst_periods <- .prevcarga_manifest_tz(tzm[["dst_periods"]], "dst_periods.date")
 
+  kind <- m[["kind"]]
+  if (is.null(kind)) kind <- "train"
+  if (!(is.character(kind) && length(kind) == 1L && !is.na(kind) && kind %in% c("train", "inference")))
+    prevcarga_abort("contract.manifest_invalid", where = "manifest.json:kind",
+                    details = list(allowed = c("train", "inference")))
+  inf <- m[["inference"]]
+  if (identical(kind, "inference") && is.null(inf))
+    prevcarga_abort("contract.manifest_invalid", where = "manifest.json:inference", details = list(reason = "ausente"))
+  if (identical(kind, "train") && !is.null(inf))
+    prevcarga_abort("contract.manifest_invalid", where = "manifest.json:inference", details = list(reason = "kind train"))
+
   out <- list(schema_version = 1L, load_label = ll, timezone = out_tz)
   if (!is.null(lag)) out$weather_forecast_publication_lag_hours <- lag
+  out["kind"] <- list(kind)
+  out["inference"] <- list(if (is.null(inf)) NULL else .prevcarga_manifest_inference(inf, out_tz$load))
   out
+}
+
+## Guarda dos verbos que leem deck: data_dir + manifest + conferencia de kind (papel) e de origem (deck de inferencia).
+## ctx$data_role NULL = train (ate o E1-T3 resolver o papel). Nenhuma leitura de dataset aqui.
+prevcarga_require_deck <- function(ctx) {
+  prevcarga_require_data_dir(ctx)
+  man <- prevcarga_deck_manifest(ctx$data_dir)
+  role <- if (is.null(ctx$data_role)) "train" else ctx$data_role
+  opt <- if (is.null(ctx$data_role_option)) c(train = "--data-train", inference = "--data-inference")[[role]] else ctx$data_role_option
+  if (!identical(man$kind, role))
+    prevcarga_abort("contract.deck_kind_mismatch", where = opt, details = list(kind = man$kind, expected = role))
+  if (identical(man$kind, "inference") && !is.null(ctx$origin)) {
+    want <- lubridate::as_date(lubridate::ymd(format(ctx$origin), tz = "UTC"))
+    if (!identical(man$inference$origin, want))
+      prevcarga_abort("contract.deck_origin_mismatch", where = "--origin",
+                      details = list(deck_origin = format(man$inference$origin, "%Y-%m-%d"),
+                                     requested_origin = format(want, "%Y-%m-%d")))
+  }
+  invisible(list(ctx = ctx, manifest = man))
 }
 
 ## --- Precedencia do rotulo da carga: manifest > --load-label > config.yaml > end (ADR-0035) -----------

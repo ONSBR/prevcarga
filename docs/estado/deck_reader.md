@@ -82,3 +82,16 @@
   coberto em sequencia a partir de O, 48 instantes, predicado `prevcarga_forecast_coverage_end` de validation.R) e `attrs$weather_forecast_next` (`data.table(area_code, n_next)`:
   instantes consecutivos de until+1 a partir de 00:00, para o membro com offset). Toda conta de data fica no leitor; `pc_panel_attrs(load, obs, fc, origin = NULL)` so as calcula com `origin`.
 - Depende de `validation.R` carregado (os chamadores de `prevcarga_read_panel` ja o carregam; `test-read-panel.R` passou a carrega-lo).
+
+## E1-T1: kind, bloco inference e guarda unica do deck (regdin-linear-refactor)
+- Manifest ganha `kind` (`train` | `inference`; ausente = `train`) e o bloco `inference` (`origin` AAAA-MM-DD, `available_until` AAAA-MM-DDTHH:MM:SS no fuso da carga,
+  `train_deck_hash` sha256 64 hex minusculos, `windows` mapa dataset -> `{from, to}`, `from <= to`, vazio aceito). `prevcarga_deck_manifest` devolve `kind` e `inference`
+  (NULL no train; `origin` Date, `available_until` POSIXct na tz da carga). Valor fora do enum, bloco ausente no `inference`, bloco no `train`, campo mal formado =>
+  `contract.manifest_invalid` (`manifest.json:kind|inference|inference.<campo>`); chave estranha em `inference` => `contract.manifest_unknown_key` (`inference.<chave>`).
+- `prevcarga_require_deck(ctx)`: `prevcarga_require_data_dir` + manifest + `contract.deck_kind_mismatch` (`where` = `ctx$data_role_option` ou `--data-train|--data-inference`;
+  `details` kind/expected; `ctx$data_role` NULL = train ate o E1-T3) + `contract.deck_origin_mismatch` (deck inference com `ctx$origin`; sem `--origin` nao confere).
+  Devolve `invisible(list(ctx, manifest))`; nenhuma leitura de dataset. Usada nos handlers forecast, train-models, backtest, plan, score, combine, reconcile,
+  infer-model, features e em `prevcarga_validate_deck`; forecast.R (resolucao do manifest), orchestrate.R e as guardas internas do leitor seguem com `prevcarga_require_data_dir`.
+- `.prevcarga_manifest_tz(tz, where, olson = OlsonNames)`: `olson()` vazio => `runtime.tzdata_missing` (exit 7), no lugar de `contract.tz_invalid`; nome fora da lista segue `contract.tz_invalid`.
+- `prevcarga_deck_manifest_timezones(data_dir)`: fusos declarados (unicos), lidos do JSON cru sem validar; consumido pelo doctor (E1-T6).
+- Catalogo: `scripts/lib/errors/deck_contract.tsv`. Testes: `scripts/lib/tests/test-deck-kind.R`.
