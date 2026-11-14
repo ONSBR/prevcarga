@@ -1,0 +1,1436 @@
+{
+  "model": "dessem-linear",
+  "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742",
+  "reference_tag": "v0.1.5",
+  "source": "reference",
+  "units": {
+    "ac-2025-06-30": {
+      "data_digest": {
+        "aggregate": "d0d4a4f4d76b5cdf9712666a991f8c322937929392d694014ec246b55b7e6687",
+        "partitions": {
+          "auxiliary/holidays/area_code=AC/year=2020": "eac71316592d87502e82165250820c16a8c634c852b4fc4abd78a1ee0e6e3f4e",
+          "auxiliary/holidays/area_code=AC/year=2021": "1c69b86e383b11d9927d686536b96a12436a112c1c6ef7410baed9ac19ef3ad9",
+          "auxiliary/holidays/area_code=AC/year=2022": "472227d9e5d225800da05e62776b7a8a2041a63a3a7ccba5932450a36eb5b987",
+          "auxiliary/holidays/area_code=AC/year=2023": "ed258b1a629372b37a40a9493425e1bfcb9f31b9d66a5a8ebb96c56bbafd9c55",
+          "auxiliary/holidays/area_code=AC/year=2024": "d04c2f6a1e153a08522b1a84b5c1cb36f1c0fadff55490f56fbda5c79d5ba0b3",
+          "auxiliary/holidays/area_code=AC/year=2025": "d79a1c82433b3e60e1359a426fb52c9c985c6076b727a2c09130f745615611d2",
+          "load/area_code=AC/year=2020": "5cf5546bc635eac1be610825cf426fffdbd7b776261b4c068b9c8be8569aa740",
+          "load/area_code=AC/year=2021": "0c5e4dfc1d74f2f2e40caf254738a5394164e9f73af73f496eb63b659fbe55c3",
+          "load/area_code=AC/year=2022": "9a01310336a23e48d7df41fe43d21c9c8c5cac7155cf72351897e683bc595b39",
+          "load/area_code=AC/year=2023": "9c6d542df6c91b16c029d8c9cd14776b6dae7cb26f093ba170a6df92f14ed040",
+          "load/area_code=AC/year=2024": "80184a317c6fc4a859e85049f6f747db71e49bc1289401dfabc8d5fd688223ff",
+          "load/area_code=AC/year=2025": "3b4a7b75cd9bd1363d95c3671a8b21444e1a089420d79cc1ba65df3b9811952e",
+          "weather/forecast/area_code=AC/year=2020": "790a8e1cfbe10d148813db4352dc1b6e8b2123176dfc7a1dcd37faa33b799be3",
+          "weather/forecast/area_code=AC/year=2021": "1df2a096b5c763959147dbc4ecb857f953e4958a84811927071f4a82f80072cd",
+          "weather/forecast/area_code=AC/year=2022": "7f5e424006f006d18d6eaebc3e97a6e43928f002d5e4daa06a3039d9a02d47d1",
+          "weather/forecast/area_code=AC/year=2023": "d77f122669f0871925e340b2e442148b622f00c9014f51f3283c7500f06cea00",
+          "weather/forecast/area_code=AC/year=2024": "2a8e04ca658a73bde2e3f67ff3c7d16c6ac1e4ef8c57ad02e1927b5c3d04c135",
+          "weather/forecast/area_code=AC/year=2025": "5502f1009e38bfc6b127c941c52730ee2619a2405a01b9bde912ff4f9bfd28e1",
+          "weather/observed/area_code=AC/year=2020": "ac05099dad1b250f77155db025fb705ad2d590673bca72d5447bb5bdc8201497",
+          "weather/observed/area_code=AC/year=2021": "cb946a54d48b69b2952abd48e8970a946be04a7a424ffe818b9b9808c7a76961",
+          "weather/observed/area_code=AC/year=2022": "395142166e47545bbf643af42877ccbee66a943cce2328acb426e0d690503aa0",
+          "weather/observed/area_code=AC/year=2023": "685d8a7b9db9726096a9d57b75d732b3f64d3ed42c698faec73da36b8db16f84",
+          "weather/observed/area_code=AC/year=2024": "39eccc5f2c7379c17377dd076649f80cf1113d32df1afe6c1a872442793b9c50",
+          "weather/observed/area_code=AC/year=2025": "10c55f57f7bd01887b78a998f3d65089835df148d63666e1ddcd711e84c4ad6e"
+        }
+      },
+      "files": {
+        "invocation.json": "a6512b78efcadf39365485ac48d401eedfd1e1008e0450bb859930a58a79d627",
+        "long.parquet": "db7af880a413ea0731f0a8131b4025a294f86c69d25c52de2499624e3f323119",
+        "native.rds": "2ccdceeb34117f7d9ada60f56ca256d9431ec7883816c1975ee0a04096868974"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "go-2024-10-05": {
+      "data_digest": {
+        "aggregate": "8017ef97bf65e64255d75f02ecb27a321e05bcb87eff84f2b9aea4cd349c5c5a",
+        "partitions": {
+          "auxiliary/holidays/area_code=GO/year=2019": "b468ce7c54bf8e427fc0eb698f02dcdbffc53dfeefb0d4c5dafda949396b6bcc",
+          "auxiliary/holidays/area_code=GO/year=2020": "959a131cfa87dbddd422ef507ed5d2100a87c1d6a710e1f11cc40a1c94f88cee",
+          "auxiliary/holidays/area_code=GO/year=2021": "22b51ad068a171c5b312220cddf87526888537506ff73610c1932ceea198ddb1",
+          "auxiliary/holidays/area_code=GO/year=2022": "b2a2e1f134f29de4b24ec235e4787392406bc8bfae8645b89be4aeac22437bdb",
+          "auxiliary/holidays/area_code=GO/year=2023": "4107319b040f71a2bb7b05a46ad4f49c111f9d171f2cf6484f2a766bbe265770",
+          "auxiliary/holidays/area_code=GO/year=2024": "290927c2f1254da1884d3455a9d15c3536cdd120742e30140274f102edeeda7c",
+          "load/area_code=GO/year=2019": "f2d2f524595badf6f6cfd4c7e271ffa2e8268401528988d3d50fb01eb88cae4b",
+          "load/area_code=GO/year=2020": "4034fcc87ba7db2bc53fab6fa740afb9c8be3bde65830bf42f4f43b929de1d44",
+          "load/area_code=GO/year=2021": "b07fa781da8e853f15660a17f83617fe677acb2c43e50542237198ef20458ad3",
+          "load/area_code=GO/year=2022": "83327c437ad9bc3595238ee69c9274303c953933494877c9d8b6e628f1c6c2aa",
+          "load/area_code=GO/year=2023": "6d2d2c3d3fcc39cfc4d74a70ff0fb52284ed9927752679cef319d778fb432bd1",
+          "load/area_code=GO/year=2024": "e3eb37cc345986e7c1238f7b8f2799dbdeaf82fb2d591a08631dae12d095e2d9",
+          "weather/forecast/area_code=GO/year=2019": "2bac518ee2880b3097333dd8b646c24f5087b28314c2d563da418e32bf180633",
+          "weather/forecast/area_code=GO/year=2020": "a540d26721defb175c830664ab77002efef2cc65d2eaba5d033410d76094c439",
+          "weather/forecast/area_code=GO/year=2021": "d3e2718a111758e8f74648057f9acefa7765b124a2e22fd35e53550a9224331f",
+          "weather/forecast/area_code=GO/year=2022": "177af33a8d0443d69e73eebe6d1555fefe22c4b25197e8c85248ea2656424652",
+          "weather/forecast/area_code=GO/year=2023": "f3b8d673048e087ac593d5fb69810965831c67623a8a452b1f64f2908fd08d94",
+          "weather/forecast/area_code=GO/year=2024": "9d8eb114243044fe1f88852a6ed7a55557cdb4520639aae534724203f73e59a7",
+          "weather/observed/area_code=GO/year=2019": "e1f71201bfc710330b7c00ad2fc0fb84103681929934d943e045614dba6dffdf",
+          "weather/observed/area_code=GO/year=2020": "ba17547dbdd9f6ddfe95ba82e86fca19a9bedb3663d55c3e25d4898164ec5fdc",
+          "weather/observed/area_code=GO/year=2021": "f683ff311882b81bd1cf5d026c2e1b154aa903e93d2719a34ca1a5d39da276db",
+          "weather/observed/area_code=GO/year=2022": "5b1e76ddb9a1be0ddb42fe87e2aef3b3fad93bc368822a1237e79a13ade6e50d",
+          "weather/observed/area_code=GO/year=2023": "de4bd42700ecf6698048426babe7ca46fdefe46dc2223f04fcdb493d62c481e1",
+          "weather/observed/area_code=GO/year=2024": "d39c53cd3f95d87a355d0b650aff8771739879b51b841e5b0ab252dca8b33382"
+        }
+      },
+      "files": {
+        "invocation.json": "c27c9dd8795b03c04214e945780b61b7e70a0dbd0a83c9ee88f03ff8a2c85399",
+        "long.parquet": "f19d580d1ffb5c3115b4d43f47273c37c2a4a6495c17430028506e42cb4f7e3f",
+        "native.rds": "1022157816fa2de90f89a235040d57e431b4c10371b781d008083ec06f62106a"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "max-ce-2024-10-15": {
+      "data_digest": {
+        "aggregate": "db5e4ee4a67647d240206810c26f966a49ea00d2ed3fada841eee79e8aa37c4f",
+        "partitions": {
+          "auxiliary/holidays/area_code=CE/year=2019": "b7f45f56192670e2fa0783e4445b3149753b96331c78bf122af767011d10865a",
+          "auxiliary/holidays/area_code=CE/year=2020": "3059d0059f812f4c3f397570212775e757549f286fe03e49d125e9b3372b6970",
+          "auxiliary/holidays/area_code=CE/year=2021": "11a6dfb84073a27822148cd8c2df0690f2e3f66aded5cdc069ec5138c5d6da6c",
+          "auxiliary/holidays/area_code=CE/year=2022": "99931b4f40150371a056aa70c84ef19a83b0578f070fb3bb2d0e3c5240b8845d",
+          "auxiliary/holidays/area_code=CE/year=2023": "a0babbd71404ffda03b2551c6472ea4c8bcfa65e155f4b676fd0b51a8dfcba5b",
+          "auxiliary/holidays/area_code=CE/year=2024": "6697ea83ba65aac5a79db40afb6c88cc772d52287f7d7f66420725b5cfead7f7",
+          "load/area_code=CE/year=2019": "58e21b2fec7f078a11da0649bce747eaca06dd32808c34723171cc3c38c71260",
+          "load/area_code=CE/year=2020": "7ef242f1e0939a8d09a2a32caf6d6d44ddf536dfc0703da712e754a31a966584",
+          "load/area_code=CE/year=2021": "d0449060af830e411381eb95902e7ab44cd356b1aa0454d1e3f060bdc5c74d85",
+          "load/area_code=CE/year=2022": "46cff10c6b6190c3a6d4f4396a9ddc692703c35647abd4412f4ecde9a86d123f",
+          "load/area_code=CE/year=2023": "54f09b45d676001419ae911b149aa8d7d32c6020f71c023096a5d7fc4dfdd32c",
+          "load/area_code=CE/year=2024": "c7ca64472f9d96500abb7ef6f131a46ab05db2f95a227588ecfd4902a67e0dbb",
+          "weather/forecast/area_code=CE/year=2019": "e8f8de251cfcc9f794f7f8d0cd293acc262d42a4c7955731ef18fd5644c0016d",
+          "weather/forecast/area_code=CE/year=2020": "beb5de86e7c7e6460937c99afc4251ed8a99b1e85c01f5961895789ff0f07aa6",
+          "weather/forecast/area_code=CE/year=2021": "5b937d5ccb60cd92b467814e55367d64dda85f148610e28f333e8a54304e6b0e",
+          "weather/forecast/area_code=CE/year=2022": "0281c41acf704a530b8ceae8a99bad457323957e183c9c9756086a1623beffdd",
+          "weather/forecast/area_code=CE/year=2023": "b81dc290896957bc8302c725d936a5e6bfeb46b8b1d3dc271735d2abbf0dd2b6",
+          "weather/forecast/area_code=CE/year=2024": "6bf1f0405b381c754a89f0a6753c8976c1228f4abb55927579afa9f4e17e1f20",
+          "weather/observed/area_code=CE/year=2019": "2be38a1f839fec9e2adc46ca52b525574931452dfe6e5a5ee41df2ac31f41e38",
+          "weather/observed/area_code=CE/year=2020": "d2dae1421feaf901f5c2b9bc2f88a0801155afc28c1fb55adc07844bed939aa7",
+          "weather/observed/area_code=CE/year=2021": "352d94e87eed0c3cda48c46fdd041cedeaf9cd7a43394ee1e81d108f94a63b42",
+          "weather/observed/area_code=CE/year=2022": "72f1e89848497e74bee198eb7bc8a2039cd3b87096434868db4c63366f47b998",
+          "weather/observed/area_code=CE/year=2023": "5bc0611c77bc33ec6b92d40e0aaaa49de90a814638874737e037cf453b5649e9",
+          "weather/observed/area_code=CE/year=2024": "b052800520c102e6f2a492d38bb78a2a99ea8d33178f1ee3e14457b844c858a6"
+        }
+      },
+      "files": {
+        "invocation.json": "a10e79dc980046b8389a220e774261220af38c493fee0062f83b1b111e04f5c4",
+        "long.parquet": "072bc795be7c0eb4f9906b027412b46144343ddf1dbf63d30c9b2b7f869e2391",
+        "native.rds": "3b6631bb25ce644bc8f03e11667b71e70e1247ddd42183c008b7821c429365fd"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "max-pa-2024-10-15": {
+      "data_digest": {
+        "aggregate": "fb034ba5fd9e01ccf416d417fc4aeb4c7fa4dbd3ecc3e08ad599f35ef2231bca",
+        "partitions": {
+          "auxiliary/holidays/area_code=PA/year=2019": "3292d7b7668696c4cdd5f86b008abd01d4c0fc8b5f916d4e24053808884c8666",
+          "auxiliary/holidays/area_code=PA/year=2020": "6ada0b7baccb2740c5f8e7859a380bfe736df283a9acf9e2df6ba366cee6697a",
+          "auxiliary/holidays/area_code=PA/year=2021": "3e22bca01d9283b433199700fb029bcfb19019aff7a02bea8d4a2d98fc6553bc",
+          "auxiliary/holidays/area_code=PA/year=2022": "f35afeaca3797695374096aa9e7d608c4d1bd454874ac3a5dd1c0c0fbd3ed212",
+          "auxiliary/holidays/area_code=PA/year=2023": "020af87c7b8c400d61a46f51cf72a3c6b34acad1d307a8f840525ae2e485c565",
+          "auxiliary/holidays/area_code=PA/year=2024": "44cab02e3d7c2bfcbbd0e15d7f6fc09636820a4250be73087cceb7926b699ae6",
+          "load/area_code=PA/year=2019": "16cee42a5f8250d8c39fc901487b4be22a69c9fe05e624f47410436a19cb6652",
+          "load/area_code=PA/year=2020": "b98de60d046d3e466993fd3b3f805a3f03fec3d09b15dd66f0f6f17db8e7517c",
+          "load/area_code=PA/year=2021": "dbd89625022742629bd7865477daa7adaaa41931ff93330db51b506f2a5c008d",
+          "load/area_code=PA/year=2022": "d6022d196592615f317e1a970dd53217909636147648a66fe122afdd5b28802c",
+          "load/area_code=PA/year=2023": "d2ef8765e6bab6c9df498bb1c12ba1d38204d5899cd803ad3bcacbaf29ed41a0",
+          "load/area_code=PA/year=2024": "f78c325c93d749439465ca3c4bb0f690cbdb4bd82cc020bd9f47295da3408597",
+          "weather/forecast/area_code=PA/year=2019": "7f22fe605d8a3e3e1faf9e337d0abd4e724982de68dca8fc45eedf8ea40d7b03",
+          "weather/forecast/area_code=PA/year=2020": "5163fd400060e3cdab7d88d1a4701bcfc1142398f8c5f2f900493f2ed036d039",
+          "weather/forecast/area_code=PA/year=2021": "fe083e66104a96f122bc8c68e7e5b228d5299621ed9e7e41a51a30f21d0a511c",
+          "weather/forecast/area_code=PA/year=2022": "7bd0a392593008881d96a86630032ec7f8a99736ba518fff1870df580ebeeb17",
+          "weather/forecast/area_code=PA/year=2023": "bbd02f5b69fbede775099627d43bead50378214c26f422b072a81f03a6fc4019",
+          "weather/forecast/area_code=PA/year=2024": "d936da6c73b0c8567391b1d0c322aa3a1a52d043693620cfbd27bb94e7f286f7",
+          "weather/observed/area_code=PA/year=2019": "e17e639df84db8bde9bd5d9982f580a7f68ea1d5bf921379cf35e65a103ed49c",
+          "weather/observed/area_code=PA/year=2020": "b6e8eb3bb409f40d78937ee06c5569583b36fff7d6f1bc73b05a5932b4b9771a",
+          "weather/observed/area_code=PA/year=2021": "ac4ff8170daab135a5a26afce74cc7cc3e079c8c97296f0f0f0a9ba491297c6e",
+          "weather/observed/area_code=PA/year=2022": "4adbefa20517faafbdc6f6c3c4fcdc05969929901c9758333495354fdc15c82e",
+          "weather/observed/area_code=PA/year=2023": "5e266916fba533c0db47273e16905d663b26ae82ee4c09a27bd795c6d5c0ae59",
+          "weather/observed/area_code=PA/year=2024": "489e0e75f063fc40601b31f4237df26f5e3f91ce59b1b2ca136a3f99c1010403"
+        }
+      },
+      "files": {
+        "invocation.json": "d26356a9c1e60f44c790332655a95f69ae778f3ff909ffd752e31817c2aeed47",
+        "long.parquet": "047e8a53eb5c171debedf485dee8d6c497686e616ef0fb6fac068e8e2799a124",
+        "native.rds": "ad46a42911b7210ad8d1c20caf2fe9f2b956b0fa62b0e87cc727ad972d0c72c8"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "max-rs-2024-10-15": {
+      "data_digest": {
+        "aggregate": "ec6df3015fb04170583adf980a0c570fb39422d1ee80e10b869fa6e317d44c8a",
+        "partitions": {
+          "auxiliary/holidays/area_code=RS/year=2019": "f587bfd8f5c36e2ca6bfcd4001f168288d7e371a3fe4c290082e5e16ee532b1a",
+          "auxiliary/holidays/area_code=RS/year=2020": "88afdf8103fc926ac68c4a6a10df86a433a3360cca0cee97dc2ca6cb0d0e6e5f",
+          "auxiliary/holidays/area_code=RS/year=2021": "cdf3cbf0d656eb0a0eb2452a8388765fa0aa0d43c24b22a691f79c621b4ad422",
+          "auxiliary/holidays/area_code=RS/year=2022": "a84986b03af50d8f05bd6f09a5c07f66171aca681442fbcd20dcf3d892ac056f",
+          "auxiliary/holidays/area_code=RS/year=2023": "303a514f3dde9b70c76e7efdb38fd51c5153e1ef977a7a52133ea2fdd2c22351",
+          "auxiliary/holidays/area_code=RS/year=2024": "506f1bb96d1e9ea4bb4616ba58d690d29dbf73feefe2e1c9183272869da997d2",
+          "load/area_code=RS/year=2019": "6ff39ae2e5f0cbe1c86c614580761487a632d3efeb77bd25ee0e4daf844d78f8",
+          "load/area_code=RS/year=2020": "85f78438e52d743cd8460eaf6876425b69db13d90c69dbe0d4887b65152bd0ca",
+          "load/area_code=RS/year=2021": "dc64cec7dbf1465b1c0b344e50f0c33aff5ff5e56c9d14a40be99cad8999d728",
+          "load/area_code=RS/year=2022": "965728b770996d1faba57729b755b14af35954d3344c78035af5afcd1d5f91b5",
+          "load/area_code=RS/year=2023": "9544388de3806eb4a1a2be1bff6868b4915f8623b6d448c87766d1aa21bcd2b9",
+          "load/area_code=RS/year=2024": "d92f0bf43b1dc4dab417e5591cf4b316b410362f9f8de1f9474535c266584bb3",
+          "weather/forecast/area_code=RS/year=2019": "2c989af84834d8d82fc03d303bcdde7dbb964e20c78c5c848e0dda3b6edbe140",
+          "weather/forecast/area_code=RS/year=2020": "0d0c68cac834376a1de12f7b26765174c5dba0b47549fdf98a5f340be988afb4",
+          "weather/forecast/area_code=RS/year=2021": "1607186df2eb30ae454fa2b16a1b7809567e71e046dd9887eb582289ee134a9e",
+          "weather/forecast/area_code=RS/year=2022": "f82fc838a454ced24fd36afe9607f51a081ba4bbf39c82167404f5b1ab1e894a",
+          "weather/forecast/area_code=RS/year=2023": "7d1ba0e4aeb869cd0b783a03a50ae06ff1b27b862097cbc1289fea90f530f286",
+          "weather/forecast/area_code=RS/year=2024": "7746b14c75ce69c9283074a81524dd52054a9377923199fa84f79f3a8022702b",
+          "weather/observed/area_code=RS/year=2019": "7c76b06275d92ab65e4c31973b9c78228c0fab26f9c1b5a9f6e3787ba8f20e7f",
+          "weather/observed/area_code=RS/year=2020": "f94e30d336ccbed5b93986366d8d285f473290e97b31ae92e60051f2016e432a",
+          "weather/observed/area_code=RS/year=2021": "2f22aa7e021794244e348b78eff14142b4d78b185502b71f319e5a85f2d109b1",
+          "weather/observed/area_code=RS/year=2022": "53a6a30868043261c5f86149880cc79f5a126aa226a4dae9f65c24be56212b42",
+          "weather/observed/area_code=RS/year=2023": "aadecad180783a0ba86a3c91e4b22ff384c9de1190eeeeb0595c48d5ba675de3",
+          "weather/observed/area_code=RS/year=2024": "83c679bc03eede104c433e9460ca23b4246831b867b199e6ae06bde0d42357cd"
+        }
+      },
+      "files": {
+        "invocation.json": "360307940f1da8b5191feacbadf96111a774d45258cea1cb748159922bce19be",
+        "long.parquet": "efe35efc7c0f1d0d137b2600e9bf2cfe335ddadd24d9baee7ed5dba5c463b45f",
+        "native.rds": "7df4e1ab7c3e22e310beb1219c26d8a9fc16bd9d466b0e28c783c75961b43e06"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "max-seco-2024-10-01": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "713dfddf66b0ef55d23e554e09cb637ad3a3fcf86b2696d1ae8b1c4100f0f4c1",
+        "long.parquet": "2511c5974db93a0bcc65b503f553ef705a72e92185f0a1da999fca33a2486e79",
+        "native.rds": "1cc49014282b1aeedc575c4626f9c1db796e1f8594bc6f08315963c1653f6ba2"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "max-seco-2024-10-08": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "e435c45ac531bd09cae6fa05a3452c3602053036aa0415fc5f3927ebfdf35df2",
+        "long.parquet": "2948b4a0338e6fd4a99636eaff6281932b98a6e775ef47cf0a985a61167cd8f5",
+        "native.rds": "2c835b2f44b11aff57773c800247f0f364271f5a182e0c61974e12ca8806b758"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "max-seco-2024-10-15": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "9708a25320cd0eef26cc93a5fa756459087c540d5fd080e2d513a59387583446",
+        "long.parquet": "02fa276bc35644ae8876aa7986e9f13f516429e1f88e9245928ce0519db5d50b",
+        "native.rds": "79cc1425be1749bcdb90cfdb58498e120e2195add367ef1eaa4941ed8f44270b"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "max-seco-2024-10-22": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "5af6464769310ecae46da58329852c05d92019fce4ee4843803fc60410d6574c",
+        "long.parquet": "7c56ad2be50a4c4b3acfc7dfb716d9e68f482b2304d7688e2dd53e300ee54f11",
+        "native.rds": "19224713c752e458cd0965f91c9915556583c413a15442eba24ba490f641c55e"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "max-seco-2024-10-29": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "b837c460ba11d0fd69c637a3e8bfa2410b0e2479f9ce0628c4a60d505652c4b9",
+        "long.parquet": "6a4e5662e7b9ca1e689f8d017ec1275a283fa02e34c4ad26cb804f8bcde5655f",
+        "native.rds": "41882f6f287fc0f5d5e0a47e12298971d9c1667cf31b348ae910f2e8664f2936"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "med-ce-2024-10-15": {
+      "data_digest": {
+        "aggregate": "db5e4ee4a67647d240206810c26f966a49ea00d2ed3fada841eee79e8aa37c4f",
+        "partitions": {
+          "auxiliary/holidays/area_code=CE/year=2019": "b7f45f56192670e2fa0783e4445b3149753b96331c78bf122af767011d10865a",
+          "auxiliary/holidays/area_code=CE/year=2020": "3059d0059f812f4c3f397570212775e757549f286fe03e49d125e9b3372b6970",
+          "auxiliary/holidays/area_code=CE/year=2021": "11a6dfb84073a27822148cd8c2df0690f2e3f66aded5cdc069ec5138c5d6da6c",
+          "auxiliary/holidays/area_code=CE/year=2022": "99931b4f40150371a056aa70c84ef19a83b0578f070fb3bb2d0e3c5240b8845d",
+          "auxiliary/holidays/area_code=CE/year=2023": "a0babbd71404ffda03b2551c6472ea4c8bcfa65e155f4b676fd0b51a8dfcba5b",
+          "auxiliary/holidays/area_code=CE/year=2024": "6697ea83ba65aac5a79db40afb6c88cc772d52287f7d7f66420725b5cfead7f7",
+          "load/area_code=CE/year=2019": "58e21b2fec7f078a11da0649bce747eaca06dd32808c34723171cc3c38c71260",
+          "load/area_code=CE/year=2020": "7ef242f1e0939a8d09a2a32caf6d6d44ddf536dfc0703da712e754a31a966584",
+          "load/area_code=CE/year=2021": "d0449060af830e411381eb95902e7ab44cd356b1aa0454d1e3f060bdc5c74d85",
+          "load/area_code=CE/year=2022": "46cff10c6b6190c3a6d4f4396a9ddc692703c35647abd4412f4ecde9a86d123f",
+          "load/area_code=CE/year=2023": "54f09b45d676001419ae911b149aa8d7d32c6020f71c023096a5d7fc4dfdd32c",
+          "load/area_code=CE/year=2024": "c7ca64472f9d96500abb7ef6f131a46ab05db2f95a227588ecfd4902a67e0dbb",
+          "weather/forecast/area_code=CE/year=2019": "e8f8de251cfcc9f794f7f8d0cd293acc262d42a4c7955731ef18fd5644c0016d",
+          "weather/forecast/area_code=CE/year=2020": "beb5de86e7c7e6460937c99afc4251ed8a99b1e85c01f5961895789ff0f07aa6",
+          "weather/forecast/area_code=CE/year=2021": "5b937d5ccb60cd92b467814e55367d64dda85f148610e28f333e8a54304e6b0e",
+          "weather/forecast/area_code=CE/year=2022": "0281c41acf704a530b8ceae8a99bad457323957e183c9c9756086a1623beffdd",
+          "weather/forecast/area_code=CE/year=2023": "b81dc290896957bc8302c725d936a5e6bfeb46b8b1d3dc271735d2abbf0dd2b6",
+          "weather/forecast/area_code=CE/year=2024": "6bf1f0405b381c754a89f0a6753c8976c1228f4abb55927579afa9f4e17e1f20",
+          "weather/observed/area_code=CE/year=2019": "2be38a1f839fec9e2adc46ca52b525574931452dfe6e5a5ee41df2ac31f41e38",
+          "weather/observed/area_code=CE/year=2020": "d2dae1421feaf901f5c2b9bc2f88a0801155afc28c1fb55adc07844bed939aa7",
+          "weather/observed/area_code=CE/year=2021": "352d94e87eed0c3cda48c46fdd041cedeaf9cd7a43394ee1e81d108f94a63b42",
+          "weather/observed/area_code=CE/year=2022": "72f1e89848497e74bee198eb7bc8a2039cd3b87096434868db4c63366f47b998",
+          "weather/observed/area_code=CE/year=2023": "5bc0611c77bc33ec6b92d40e0aaaa49de90a814638874737e037cf453b5649e9",
+          "weather/observed/area_code=CE/year=2024": "b052800520c102e6f2a492d38bb78a2a99ea8d33178f1ee3e14457b844c858a6"
+        }
+      },
+      "files": {
+        "invocation.json": "3fbe0fbeb0ac00d5e7d6768357990a52261a663945011dd25dead5d7a6533dfd",
+        "long.parquet": "0e008bd33a96b3f0e907b22390c1a5b80e27aae98f03b4ffb60350380789e8bd",
+        "native.rds": "9cb34d4c549f10649e34000bb3ef048a279aa64ce905fb97fd45fff8545d78f0"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "med-pa-2024-10-15": {
+      "data_digest": {
+        "aggregate": "fb034ba5fd9e01ccf416d417fc4aeb4c7fa4dbd3ecc3e08ad599f35ef2231bca",
+        "partitions": {
+          "auxiliary/holidays/area_code=PA/year=2019": "3292d7b7668696c4cdd5f86b008abd01d4c0fc8b5f916d4e24053808884c8666",
+          "auxiliary/holidays/area_code=PA/year=2020": "6ada0b7baccb2740c5f8e7859a380bfe736df283a9acf9e2df6ba366cee6697a",
+          "auxiliary/holidays/area_code=PA/year=2021": "3e22bca01d9283b433199700fb029bcfb19019aff7a02bea8d4a2d98fc6553bc",
+          "auxiliary/holidays/area_code=PA/year=2022": "f35afeaca3797695374096aa9e7d608c4d1bd454874ac3a5dd1c0c0fbd3ed212",
+          "auxiliary/holidays/area_code=PA/year=2023": "020af87c7b8c400d61a46f51cf72a3c6b34acad1d307a8f840525ae2e485c565",
+          "auxiliary/holidays/area_code=PA/year=2024": "44cab02e3d7c2bfcbbd0e15d7f6fc09636820a4250be73087cceb7926b699ae6",
+          "load/area_code=PA/year=2019": "16cee42a5f8250d8c39fc901487b4be22a69c9fe05e624f47410436a19cb6652",
+          "load/area_code=PA/year=2020": "b98de60d046d3e466993fd3b3f805a3f03fec3d09b15dd66f0f6f17db8e7517c",
+          "load/area_code=PA/year=2021": "dbd89625022742629bd7865477daa7adaaa41931ff93330db51b506f2a5c008d",
+          "load/area_code=PA/year=2022": "d6022d196592615f317e1a970dd53217909636147648a66fe122afdd5b28802c",
+          "load/area_code=PA/year=2023": "d2ef8765e6bab6c9df498bb1c12ba1d38204d5899cd803ad3bcacbaf29ed41a0",
+          "load/area_code=PA/year=2024": "f78c325c93d749439465ca3c4bb0f690cbdb4bd82cc020bd9f47295da3408597",
+          "weather/forecast/area_code=PA/year=2019": "7f22fe605d8a3e3e1faf9e337d0abd4e724982de68dca8fc45eedf8ea40d7b03",
+          "weather/forecast/area_code=PA/year=2020": "5163fd400060e3cdab7d88d1a4701bcfc1142398f8c5f2f900493f2ed036d039",
+          "weather/forecast/area_code=PA/year=2021": "fe083e66104a96f122bc8c68e7e5b228d5299621ed9e7e41a51a30f21d0a511c",
+          "weather/forecast/area_code=PA/year=2022": "7bd0a392593008881d96a86630032ec7f8a99736ba518fff1870df580ebeeb17",
+          "weather/forecast/area_code=PA/year=2023": "bbd02f5b69fbede775099627d43bead50378214c26f422b072a81f03a6fc4019",
+          "weather/forecast/area_code=PA/year=2024": "d936da6c73b0c8567391b1d0c322aa3a1a52d043693620cfbd27bb94e7f286f7",
+          "weather/observed/area_code=PA/year=2019": "e17e639df84db8bde9bd5d9982f580a7f68ea1d5bf921379cf35e65a103ed49c",
+          "weather/observed/area_code=PA/year=2020": "b6e8eb3bb409f40d78937ee06c5569583b36fff7d6f1bc73b05a5932b4b9771a",
+          "weather/observed/area_code=PA/year=2021": "ac4ff8170daab135a5a26afce74cc7cc3e079c8c97296f0f0f0a9ba491297c6e",
+          "weather/observed/area_code=PA/year=2022": "4adbefa20517faafbdc6f6c3c4fcdc05969929901c9758333495354fdc15c82e",
+          "weather/observed/area_code=PA/year=2023": "5e266916fba533c0db47273e16905d663b26ae82ee4c09a27bd795c6d5c0ae59",
+          "weather/observed/area_code=PA/year=2024": "489e0e75f063fc40601b31f4237df26f5e3f91ce59b1b2ca136a3f99c1010403"
+        }
+      },
+      "files": {
+        "invocation.json": "34902122edb703ed05b0a471e76f004f93f434f804ffbdf5a48b7fa111d3172a",
+        "long.parquet": "3e236f82532d2abe9d31821541862a96ceb8ce8b456ddc771cff432a7615498e",
+        "native.rds": "04820fb166fbcf6ec96824037e85d97d0c380d3fe3674d3ca939bf717d8d6e5f"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "med-rs-2024-10-15": {
+      "data_digest": {
+        "aggregate": "ec6df3015fb04170583adf980a0c570fb39422d1ee80e10b869fa6e317d44c8a",
+        "partitions": {
+          "auxiliary/holidays/area_code=RS/year=2019": "f587bfd8f5c36e2ca6bfcd4001f168288d7e371a3fe4c290082e5e16ee532b1a",
+          "auxiliary/holidays/area_code=RS/year=2020": "88afdf8103fc926ac68c4a6a10df86a433a3360cca0cee97dc2ca6cb0d0e6e5f",
+          "auxiliary/holidays/area_code=RS/year=2021": "cdf3cbf0d656eb0a0eb2452a8388765fa0aa0d43c24b22a691f79c621b4ad422",
+          "auxiliary/holidays/area_code=RS/year=2022": "a84986b03af50d8f05bd6f09a5c07f66171aca681442fbcd20dcf3d892ac056f",
+          "auxiliary/holidays/area_code=RS/year=2023": "303a514f3dde9b70c76e7efdb38fd51c5153e1ef977a7a52133ea2fdd2c22351",
+          "auxiliary/holidays/area_code=RS/year=2024": "506f1bb96d1e9ea4bb4616ba58d690d29dbf73feefe2e1c9183272869da997d2",
+          "load/area_code=RS/year=2019": "6ff39ae2e5f0cbe1c86c614580761487a632d3efeb77bd25ee0e4daf844d78f8",
+          "load/area_code=RS/year=2020": "85f78438e52d743cd8460eaf6876425b69db13d90c69dbe0d4887b65152bd0ca",
+          "load/area_code=RS/year=2021": "dc64cec7dbf1465b1c0b344e50f0c33aff5ff5e56c9d14a40be99cad8999d728",
+          "load/area_code=RS/year=2022": "965728b770996d1faba57729b755b14af35954d3344c78035af5afcd1d5f91b5",
+          "load/area_code=RS/year=2023": "9544388de3806eb4a1a2be1bff6868b4915f8623b6d448c87766d1aa21bcd2b9",
+          "load/area_code=RS/year=2024": "d92f0bf43b1dc4dab417e5591cf4b316b410362f9f8de1f9474535c266584bb3",
+          "weather/forecast/area_code=RS/year=2019": "2c989af84834d8d82fc03d303bcdde7dbb964e20c78c5c848e0dda3b6edbe140",
+          "weather/forecast/area_code=RS/year=2020": "0d0c68cac834376a1de12f7b26765174c5dba0b47549fdf98a5f340be988afb4",
+          "weather/forecast/area_code=RS/year=2021": "1607186df2eb30ae454fa2b16a1b7809567e71e046dd9887eb582289ee134a9e",
+          "weather/forecast/area_code=RS/year=2022": "f82fc838a454ced24fd36afe9607f51a081ba4bbf39c82167404f5b1ab1e894a",
+          "weather/forecast/area_code=RS/year=2023": "7d1ba0e4aeb869cd0b783a03a50ae06ff1b27b862097cbc1289fea90f530f286",
+          "weather/forecast/area_code=RS/year=2024": "7746b14c75ce69c9283074a81524dd52054a9377923199fa84f79f3a8022702b",
+          "weather/observed/area_code=RS/year=2019": "7c76b06275d92ab65e4c31973b9c78228c0fab26f9c1b5a9f6e3787ba8f20e7f",
+          "weather/observed/area_code=RS/year=2020": "f94e30d336ccbed5b93986366d8d285f473290e97b31ae92e60051f2016e432a",
+          "weather/observed/area_code=RS/year=2021": "2f22aa7e021794244e348b78eff14142b4d78b185502b71f319e5a85f2d109b1",
+          "weather/observed/area_code=RS/year=2022": "53a6a30868043261c5f86149880cc79f5a126aa226a4dae9f65c24be56212b42",
+          "weather/observed/area_code=RS/year=2023": "aadecad180783a0ba86a3c91e4b22ff384c9de1190eeeeb0595c48d5ba675de3",
+          "weather/observed/area_code=RS/year=2024": "83c679bc03eede104c433e9460ca23b4246831b867b199e6ae06bde0d42357cd"
+        }
+      },
+      "files": {
+        "invocation.json": "4318ae46ef67617e9fd0589f1cc27e2ce6b5f80ca0a890bb9fb8d789fb0ed05d",
+        "long.parquet": "5573e5a0ef933fe4043bcc5f5ddf147d70537d63e8862e51ec511ba37a73b5b3",
+        "native.rds": "0896f76ef409d55fe05572f80cf8a48789dbb9677b0769495b5945a5594e04ec"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "mxmn-ce-2024-10-15": {
+      "data_digest": {
+        "aggregate": "db5e4ee4a67647d240206810c26f966a49ea00d2ed3fada841eee79e8aa37c4f",
+        "partitions": {
+          "auxiliary/holidays/area_code=CE/year=2019": "b7f45f56192670e2fa0783e4445b3149753b96331c78bf122af767011d10865a",
+          "auxiliary/holidays/area_code=CE/year=2020": "3059d0059f812f4c3f397570212775e757549f286fe03e49d125e9b3372b6970",
+          "auxiliary/holidays/area_code=CE/year=2021": "11a6dfb84073a27822148cd8c2df0690f2e3f66aded5cdc069ec5138c5d6da6c",
+          "auxiliary/holidays/area_code=CE/year=2022": "99931b4f40150371a056aa70c84ef19a83b0578f070fb3bb2d0e3c5240b8845d",
+          "auxiliary/holidays/area_code=CE/year=2023": "a0babbd71404ffda03b2551c6472ea4c8bcfa65e155f4b676fd0b51a8dfcba5b",
+          "auxiliary/holidays/area_code=CE/year=2024": "6697ea83ba65aac5a79db40afb6c88cc772d52287f7d7f66420725b5cfead7f7",
+          "load/area_code=CE/year=2019": "58e21b2fec7f078a11da0649bce747eaca06dd32808c34723171cc3c38c71260",
+          "load/area_code=CE/year=2020": "7ef242f1e0939a8d09a2a32caf6d6d44ddf536dfc0703da712e754a31a966584",
+          "load/area_code=CE/year=2021": "d0449060af830e411381eb95902e7ab44cd356b1aa0454d1e3f060bdc5c74d85",
+          "load/area_code=CE/year=2022": "46cff10c6b6190c3a6d4f4396a9ddc692703c35647abd4412f4ecde9a86d123f",
+          "load/area_code=CE/year=2023": "54f09b45d676001419ae911b149aa8d7d32c6020f71c023096a5d7fc4dfdd32c",
+          "load/area_code=CE/year=2024": "c7ca64472f9d96500abb7ef6f131a46ab05db2f95a227588ecfd4902a67e0dbb",
+          "weather/forecast/area_code=CE/year=2019": "e8f8de251cfcc9f794f7f8d0cd293acc262d42a4c7955731ef18fd5644c0016d",
+          "weather/forecast/area_code=CE/year=2020": "beb5de86e7c7e6460937c99afc4251ed8a99b1e85c01f5961895789ff0f07aa6",
+          "weather/forecast/area_code=CE/year=2021": "5b937d5ccb60cd92b467814e55367d64dda85f148610e28f333e8a54304e6b0e",
+          "weather/forecast/area_code=CE/year=2022": "0281c41acf704a530b8ceae8a99bad457323957e183c9c9756086a1623beffdd",
+          "weather/forecast/area_code=CE/year=2023": "b81dc290896957bc8302c725d936a5e6bfeb46b8b1d3dc271735d2abbf0dd2b6",
+          "weather/forecast/area_code=CE/year=2024": "6bf1f0405b381c754a89f0a6753c8976c1228f4abb55927579afa9f4e17e1f20",
+          "weather/observed/area_code=CE/year=2019": "2be38a1f839fec9e2adc46ca52b525574931452dfe6e5a5ee41df2ac31f41e38",
+          "weather/observed/area_code=CE/year=2020": "d2dae1421feaf901f5c2b9bc2f88a0801155afc28c1fb55adc07844bed939aa7",
+          "weather/observed/area_code=CE/year=2021": "352d94e87eed0c3cda48c46fdd041cedeaf9cd7a43394ee1e81d108f94a63b42",
+          "weather/observed/area_code=CE/year=2022": "72f1e89848497e74bee198eb7bc8a2039cd3b87096434868db4c63366f47b998",
+          "weather/observed/area_code=CE/year=2023": "5bc0611c77bc33ec6b92d40e0aaaa49de90a814638874737e037cf453b5649e9",
+          "weather/observed/area_code=CE/year=2024": "b052800520c102e6f2a492d38bb78a2a99ea8d33178f1ee3e14457b844c858a6"
+        }
+      },
+      "files": {
+        "invocation.json": "de4b8aefc5692bb307e17ae7ada6790a9a1c81ce8ef5af662875a647e05fdc37",
+        "long.parquet": "28704e5f2426879e9c09408175b73f28adec3beeceec07aa2ed929f4cd3123ea",
+        "native.rds": "8121a8919c277ac501a03f1a48dd63fbee49ff1783c256382f96674d0a12d224"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "mxmn-pa-2024-10-15": {
+      "data_digest": {
+        "aggregate": "fb034ba5fd9e01ccf416d417fc4aeb4c7fa4dbd3ecc3e08ad599f35ef2231bca",
+        "partitions": {
+          "auxiliary/holidays/area_code=PA/year=2019": "3292d7b7668696c4cdd5f86b008abd01d4c0fc8b5f916d4e24053808884c8666",
+          "auxiliary/holidays/area_code=PA/year=2020": "6ada0b7baccb2740c5f8e7859a380bfe736df283a9acf9e2df6ba366cee6697a",
+          "auxiliary/holidays/area_code=PA/year=2021": "3e22bca01d9283b433199700fb029bcfb19019aff7a02bea8d4a2d98fc6553bc",
+          "auxiliary/holidays/area_code=PA/year=2022": "f35afeaca3797695374096aa9e7d608c4d1bd454874ac3a5dd1c0c0fbd3ed212",
+          "auxiliary/holidays/area_code=PA/year=2023": "020af87c7b8c400d61a46f51cf72a3c6b34acad1d307a8f840525ae2e485c565",
+          "auxiliary/holidays/area_code=PA/year=2024": "44cab02e3d7c2bfcbbd0e15d7f6fc09636820a4250be73087cceb7926b699ae6",
+          "load/area_code=PA/year=2019": "16cee42a5f8250d8c39fc901487b4be22a69c9fe05e624f47410436a19cb6652",
+          "load/area_code=PA/year=2020": "b98de60d046d3e466993fd3b3f805a3f03fec3d09b15dd66f0f6f17db8e7517c",
+          "load/area_code=PA/year=2021": "dbd89625022742629bd7865477daa7adaaa41931ff93330db51b506f2a5c008d",
+          "load/area_code=PA/year=2022": "d6022d196592615f317e1a970dd53217909636147648a66fe122afdd5b28802c",
+          "load/area_code=PA/year=2023": "d2ef8765e6bab6c9df498bb1c12ba1d38204d5899cd803ad3bcacbaf29ed41a0",
+          "load/area_code=PA/year=2024": "f78c325c93d749439465ca3c4bb0f690cbdb4bd82cc020bd9f47295da3408597",
+          "weather/forecast/area_code=PA/year=2019": "7f22fe605d8a3e3e1faf9e337d0abd4e724982de68dca8fc45eedf8ea40d7b03",
+          "weather/forecast/area_code=PA/year=2020": "5163fd400060e3cdab7d88d1a4701bcfc1142398f8c5f2f900493f2ed036d039",
+          "weather/forecast/area_code=PA/year=2021": "fe083e66104a96f122bc8c68e7e5b228d5299621ed9e7e41a51a30f21d0a511c",
+          "weather/forecast/area_code=PA/year=2022": "7bd0a392593008881d96a86630032ec7f8a99736ba518fff1870df580ebeeb17",
+          "weather/forecast/area_code=PA/year=2023": "bbd02f5b69fbede775099627d43bead50378214c26f422b072a81f03a6fc4019",
+          "weather/forecast/area_code=PA/year=2024": "d936da6c73b0c8567391b1d0c322aa3a1a52d043693620cfbd27bb94e7f286f7",
+          "weather/observed/area_code=PA/year=2019": "e17e639df84db8bde9bd5d9982f580a7f68ea1d5bf921379cf35e65a103ed49c",
+          "weather/observed/area_code=PA/year=2020": "b6e8eb3bb409f40d78937ee06c5569583b36fff7d6f1bc73b05a5932b4b9771a",
+          "weather/observed/area_code=PA/year=2021": "ac4ff8170daab135a5a26afce74cc7cc3e079c8c97296f0f0f0a9ba491297c6e",
+          "weather/observed/area_code=PA/year=2022": "4adbefa20517faafbdc6f6c3c4fcdc05969929901c9758333495354fdc15c82e",
+          "weather/observed/area_code=PA/year=2023": "5e266916fba533c0db47273e16905d663b26ae82ee4c09a27bd795c6d5c0ae59",
+          "weather/observed/area_code=PA/year=2024": "489e0e75f063fc40601b31f4237df26f5e3f91ce59b1b2ca136a3f99c1010403"
+        }
+      },
+      "files": {
+        "invocation.json": "81e5d983c0bf7d0621c652390d2f3b977b4667da154c425a820077adeb221d05",
+        "long.parquet": "9dc47450158ee1c6b543568e97105a51acf2d352849f053386f8d89079f26649",
+        "native.rds": "10607ef2ded460245d2a7dcb0002f231f35be3c509004b1b54b0ca1fb84601d9"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "mxmn-rs-2024-10-15": {
+      "data_digest": {
+        "aggregate": "ec6df3015fb04170583adf980a0c570fb39422d1ee80e10b869fa6e317d44c8a",
+        "partitions": {
+          "auxiliary/holidays/area_code=RS/year=2019": "f587bfd8f5c36e2ca6bfcd4001f168288d7e371a3fe4c290082e5e16ee532b1a",
+          "auxiliary/holidays/area_code=RS/year=2020": "88afdf8103fc926ac68c4a6a10df86a433a3360cca0cee97dc2ca6cb0d0e6e5f",
+          "auxiliary/holidays/area_code=RS/year=2021": "cdf3cbf0d656eb0a0eb2452a8388765fa0aa0d43c24b22a691f79c621b4ad422",
+          "auxiliary/holidays/area_code=RS/year=2022": "a84986b03af50d8f05bd6f09a5c07f66171aca681442fbcd20dcf3d892ac056f",
+          "auxiliary/holidays/area_code=RS/year=2023": "303a514f3dde9b70c76e7efdb38fd51c5153e1ef977a7a52133ea2fdd2c22351",
+          "auxiliary/holidays/area_code=RS/year=2024": "506f1bb96d1e9ea4bb4616ba58d690d29dbf73feefe2e1c9183272869da997d2",
+          "load/area_code=RS/year=2019": "6ff39ae2e5f0cbe1c86c614580761487a632d3efeb77bd25ee0e4daf844d78f8",
+          "load/area_code=RS/year=2020": "85f78438e52d743cd8460eaf6876425b69db13d90c69dbe0d4887b65152bd0ca",
+          "load/area_code=RS/year=2021": "dc64cec7dbf1465b1c0b344e50f0c33aff5ff5e56c9d14a40be99cad8999d728",
+          "load/area_code=RS/year=2022": "965728b770996d1faba57729b755b14af35954d3344c78035af5afcd1d5f91b5",
+          "load/area_code=RS/year=2023": "9544388de3806eb4a1a2be1bff6868b4915f8623b6d448c87766d1aa21bcd2b9",
+          "load/area_code=RS/year=2024": "d92f0bf43b1dc4dab417e5591cf4b316b410362f9f8de1f9474535c266584bb3",
+          "weather/forecast/area_code=RS/year=2019": "2c989af84834d8d82fc03d303bcdde7dbb964e20c78c5c848e0dda3b6edbe140",
+          "weather/forecast/area_code=RS/year=2020": "0d0c68cac834376a1de12f7b26765174c5dba0b47549fdf98a5f340be988afb4",
+          "weather/forecast/area_code=RS/year=2021": "1607186df2eb30ae454fa2b16a1b7809567e71e046dd9887eb582289ee134a9e",
+          "weather/forecast/area_code=RS/year=2022": "f82fc838a454ced24fd36afe9607f51a081ba4bbf39c82167404f5b1ab1e894a",
+          "weather/forecast/area_code=RS/year=2023": "7d1ba0e4aeb869cd0b783a03a50ae06ff1b27b862097cbc1289fea90f530f286",
+          "weather/forecast/area_code=RS/year=2024": "7746b14c75ce69c9283074a81524dd52054a9377923199fa84f79f3a8022702b",
+          "weather/observed/area_code=RS/year=2019": "7c76b06275d92ab65e4c31973b9c78228c0fab26f9c1b5a9f6e3787ba8f20e7f",
+          "weather/observed/area_code=RS/year=2020": "f94e30d336ccbed5b93986366d8d285f473290e97b31ae92e60051f2016e432a",
+          "weather/observed/area_code=RS/year=2021": "2f22aa7e021794244e348b78eff14142b4d78b185502b71f319e5a85f2d109b1",
+          "weather/observed/area_code=RS/year=2022": "53a6a30868043261c5f86149880cc79f5a126aa226a4dae9f65c24be56212b42",
+          "weather/observed/area_code=RS/year=2023": "aadecad180783a0ba86a3c91e4b22ff384c9de1190eeeeb0595c48d5ba675de3",
+          "weather/observed/area_code=RS/year=2024": "83c679bc03eede104c433e9460ca23b4246831b867b199e6ae06bde0d42357cd"
+        }
+      },
+      "files": {
+        "invocation.json": "572c6c0ff1422bc33a4b625104b65d74395ede53619d224f4850707074b08d0b",
+        "long.parquet": "4e13bee4e0bae093292bef3aba5884755994ab961824b9c5287c569b3ba904d9",
+        "native.rds": "e15500cc3f16cd4c289d5ebda1d2e88f3105dec6c11d78de37a298bdeaa33738"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "mxmn-seco-2024-10-01": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "438f5f7ae2255e35569f85d3c90d8803111db1a0f0123de63d5d5d63acc0ff14",
+        "long.parquet": "7d4abe938830db58f07694e115341ef57ffb43b592eb36291560271ecf8883c7",
+        "native.rds": "fced547d3772f9e678673f4131f504ab105e7de9bbe90429122d8170d87fd040"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "mxmn-seco-2024-10-08": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "166036ecf1d67e778cd652909cf68e0af07bd0948ed46eefec9df25789ee26df",
+        "long.parquet": "1afba1d7675da2a620904a642d152f6cc225e41de0f4b045e601f1fe21f0b88a",
+        "native.rds": "daf1e14ff23c7e5940aeb22a179bc37982ce557b120324a57696fcee66c962c0"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "mxmn-seco-2024-10-15": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "5f609d977c8b509d8b6f4b4553d12ec80d9a480e926f7bb0cd88b5fd565b63f8",
+        "long.parquet": "d36a5852e67081c4b0931dc002e4e11a7be95c4cf0f6f4508af45a5078ab159d",
+        "native.rds": "fbf483cbaa7c0a0fa6042ae52fb432a78dafef6bb11444d5704e7e10e78c4246"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "mxmn-seco-2024-10-22": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "65f4eee0135256b280c2252dd80e01216406908aa0be0b69ba36d61ee5e7b0c9",
+        "long.parquet": "40b7704efa568838953d7cdfc63c14001badd4361f8dc42ac775c5f9085a9639",
+        "native.rds": "453737880ac8bd9623468786f8577e1bb37a2570adf533b9c0f72ee456c2ef6e"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "mxmn-seco-2024-10-29": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "b07f2e5ecd12f83411f426587c84fdaf29a7928602175ee249a6bece0b399c62",
+        "long.parquet": "048be9f210b5eff6f151b05535eb6e210ed1c4de1384e3c2675bed521b76e670",
+        "native.rds": "afbefacf9fe5923c1c5a16ccc954d8cdca2e858dbc641ce263141e5a72822df6"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "seco-2024-10-01": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "517be48c96636389a75bdb4b911917909caba0080ab8d2d9534b26afcc75fe0b",
+        "long.parquet": "c792052d4c1820b94186f7d8cb995c8e1daa701945ca13a198ba052dc9e98899",
+        "native.rds": "cbe39c37fe99508550700f4dcbe5adc9ffc49d1ef6e917aba8f357c7b16ac44f"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "seco-2024-10-08": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "18c41ab968641ea7e22e75c2f47b1730527cf2eb3511220379551445bebfbfef",
+        "long.parquet": "74543a90485d9cca8d4819b9ca1518a0da85e0998f7fc4766ef648ae4fb9f849",
+        "native.rds": "d6dc5007e130c35e88e222fcedfc78a6a6f0ac89d8d908f19d736c53736028c0"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "seco-2024-10-15": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "2f6af696bded12ed2562cce479f76f3d7c3a98d455944d6401a84520a40a5141",
+        "long.parquet": "d2b48ff04cd0cb3ec6fa1bab5b022cb98af3f3e58ee45352957ff40505c73abd",
+        "native.rds": "ff42b42e1b6ac376562f6aaf01d680e12cfbfa66f5bc74ddaf9910f648987018"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "seco-2024-10-22": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "480a8e413bb58fd034eb609555cf9d45e3768d29213c5dc6a369aae779eae175",
+        "long.parquet": "ded218a5dc3a8b6adda64edb78d49ca160b0fb96acb4c3f482009f380cb4ea24",
+        "native.rds": "c98dc5402f5834b9999ef7597707955d65384767db451c697176bbe76daff734"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "seco-2024-10-29": {
+      "data_digest": {
+        "aggregate": "3bc3198296b22d968d6079988a4cc8838d1d62e89ff6beafdcfa7f78b20774e4",
+        "partitions": {
+          "auxiliary/holidays/area_code=SECO/year=2019": "f09e7cfcdef948493b823a0dde3abb4ec4b7a47fae13c3a7469761868cc8ff50",
+          "auxiliary/holidays/area_code=SECO/year=2020": "bce4e1ead622e1fba143cf65f1268732d5bf0dc25524dbb50025297100708710",
+          "auxiliary/holidays/area_code=SECO/year=2021": "baf488fb8d5b4517dfb1bd81c09e6e6e2d1ee16b1f97ae245bc6970a1580dc12",
+          "auxiliary/holidays/area_code=SECO/year=2022": "8b9f4b484eeefd75e1a8126ed7464218407345a96a6131af7a40db6f6c98dc70",
+          "auxiliary/holidays/area_code=SECO/year=2023": "d543c76000932719c4454d93b9b104a7167527b98900fb671fae380fc3180f88",
+          "auxiliary/holidays/area_code=SECO/year=2024": "8e257b0939ec5ed5bc6047a6eb55cb173abf5066a2e91c1780c1374dfc406c46",
+          "load/area_code=SECO/year=2019": "c590fe96ec08e985658d88472a264f7e040fd00148a600333af3418fcfc73982",
+          "load/area_code=SECO/year=2020": "ef9066be3fd284b55ab82ba9466cc50284229c1d7bbd1576b3b2cbafa50a9ae9",
+          "load/area_code=SECO/year=2021": "1c9f115a2aea94666fe0f6ec875cb64b069bfe845de23e43be028dc27b327b92",
+          "load/area_code=SECO/year=2022": "0c5721e1a6d573eeec919adb4ec566a18521e1ef22a2873487ee283cfd611d41",
+          "load/area_code=SECO/year=2023": "65a0ca5710cd7d9a5eacc14c8031c1dabf6894073bf54dabf3762b8477e06e4b",
+          "load/area_code=SECO/year=2024": "78d2a0f4188df642f75fe58a0790d376a50bb4b82c8d41a48c3164f7cb5329ec",
+          "weather/forecast/area_code=SECO/year=2019": "694611104442b0b9c8fe1517c6c9fc7f11d8b1a85a596938a0ad7d2a12140417",
+          "weather/forecast/area_code=SECO/year=2020": "a8dca0dc42422228808e0c5c73a648e9bf48e0f6229f4aed51120f15e984084e",
+          "weather/forecast/area_code=SECO/year=2021": "7d499d28f02ee6be8bdfc4ea448a38da6b0649b4e46601aa0893f832f230c41e",
+          "weather/forecast/area_code=SECO/year=2022": "ee119636643271f6de4a3e1cc648780f8376445dacb6311b8cbef568deaebc45",
+          "weather/forecast/area_code=SECO/year=2023": "a956a11f6dcdd6684662e2754316d33eba08a75a8dcea99860fda277526adecc",
+          "weather/forecast/area_code=SECO/year=2024": "d49e21afec1123ab94723c867bc77e42b8b937da63b4d50a5eb7ec6a5c7caa5c",
+          "weather/observed/area_code=SECO/year=2019": "9ed74b4047b846a614b9f66ad2598c477a299b75b5f3cc34da2a806e17373ec2",
+          "weather/observed/area_code=SECO/year=2020": "08a7013a6366d263f4df52609aec2aeeefbcdcd2bff7668dca11e6b0df3bbff1",
+          "weather/observed/area_code=SECO/year=2021": "dbf887b95e588ee34134a2a8772c4f6421d315f80e8993d783dd3a957a9493a0",
+          "weather/observed/area_code=SECO/year=2022": "6b99f6265367e6ce2d9aabd39e71320938455d399ad1ada617ac80867604b862",
+          "weather/observed/area_code=SECO/year=2023": "d2ee13077155f9ae3e508b032f237a9f9349cb01c737a97274eb8e99ad7fa06a",
+          "weather/observed/area_code=SECO/year=2024": "a744ec60d6eed0840423e5d063a1ffc1ab8be51b89c118cd519fa2c8019d8149"
+        }
+      },
+      "files": {
+        "invocation.json": "9155439c9b2a63874dc349702d1b15917540a7d5b09a0700b706d5e93d11f4af",
+        "long.parquet": "59c7d9d3cea47ee5b2e3b23f08b72e5d1a2bb1e2757ef06caaecc9f1725c949a",
+        "native.rds": "5f85565d1334801740f6ef83cefc54c8114ac23e8a3baad92c325f33437557b3"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "sp-2024-11-15": {
+      "data_digest": {
+        "aggregate": "b22391d0cf063607fe4894510a2d7b6badfe11eb4d88cfb5bf97f301103ba133",
+        "partitions": {
+          "auxiliary/holidays/area_code=SP/year=2019": "04d803b40fde7756293663ef748745ce5140bb64b3176ab52ea28a0abcb6c800",
+          "auxiliary/holidays/area_code=SP/year=2020": "75c7b209c87723d4d4847271ebb16202c3f143f946ee60e92f56b4e594d4b82b",
+          "auxiliary/holidays/area_code=SP/year=2021": "4c2e1f73943b8a3de816fae11b526f94c96a7f7b872278d14aeb0fe7a6857fbe",
+          "auxiliary/holidays/area_code=SP/year=2022": "f4eee56011359ebec6f6abef13c8722338fc7925a3d68b3d6159fcdd5dbce1da",
+          "auxiliary/holidays/area_code=SP/year=2023": "d95e9a86be6de7c4a1303d71b1364e447f6fad55f3174d05471a1ec04f6bf9b3",
+          "auxiliary/holidays/area_code=SP/year=2024": "d0d4cd4b8acb868a81e9b02a4263d739ca4857e36682d9f35f4b207965b051ef",
+          "load/area_code=SP/year=2019": "145b0a46e0ed8d57061f62f6fcdb767b2855e7fc41fbc41bcdd91aa720124dfa",
+          "load/area_code=SP/year=2020": "dee011408342abad6a5600c094a044e95e2d727e40655d3f589e8aa78d7fb083",
+          "load/area_code=SP/year=2021": "ab3b84e9fe99182f3a17d38dd5069d4e447f386eeca0f88b15568531aed52f16",
+          "load/area_code=SP/year=2022": "fa6f22456d2e15adf27dd8f152b019ba8c29aab1cb3183e7228faba72630bafd",
+          "load/area_code=SP/year=2023": "ed31a43a97d2f378e5e20e06ffca521c7b89408e48a4ba734a7b423c160def31",
+          "load/area_code=SP/year=2024": "e73a0a451623b63d277620cdda3a6696641f06bb9c343d6a66dc3e5277842f50",
+          "weather/forecast/area_code=SP/year=2019": "553160145250839246b71b736bd1a9a600c22d467cdcab52317c180edbcf4587",
+          "weather/forecast/area_code=SP/year=2020": "7b045ab576ed370cfce809154a7e22a62c60162a118a80d8bcaa0cb0d09955dc",
+          "weather/forecast/area_code=SP/year=2021": "de82016d991bd13052ce66be9905f8548fde6e421e8862997ecad0a8b7ec4815",
+          "weather/forecast/area_code=SP/year=2022": "74c3f9b5b4bb3da97d51c0d63497bb1d35fa04a637fb97258bd7f101c66a1618",
+          "weather/forecast/area_code=SP/year=2023": "cf48f4f9e1dd9d6de81edbc08ad00b83e4fdda3205aa77150eefce85acf7b1e1",
+          "weather/forecast/area_code=SP/year=2024": "ef41afe364b4e6c6d92069576aa34cb069c2866dbd25e6a4c5c073489dba3598",
+          "weather/observed/area_code=SP/year=2019": "ea3bbfc19a0090ef0cd506e74f0608dd52d6b1791330f3a3fd5fe75ebb695f1c",
+          "weather/observed/area_code=SP/year=2020": "76b73a652d4c5e0e8e9a58d168f46866627c06625adaea81b79a4bdbdefee9f9",
+          "weather/observed/area_code=SP/year=2021": "58dbc606f85d5a8cd4de18eb261f2e1c81c96022fe22154878137f76f02ef5b0",
+          "weather/observed/area_code=SP/year=2022": "57b94d2b8acd19f799d791d002f94aed219e67156ef74729c27eb26ce95b4ea9",
+          "weather/observed/area_code=SP/year=2023": "fc9d849e551e510fc528c9572ec6f146bc5ff1449a7017820efcee3c9ee5f0ef",
+          "weather/observed/area_code=SP/year=2024": "fad3ea038c9e375a4d6c02769d6a49605a3f76567bb4052192ac8000b03d98ab"
+        }
+      },
+      "files": {
+        "invocation.json": "468d319eb6c8de71fda7c5ce5969f651cd88ff9ad1f7ed01faea2642ab4dda27",
+        "long.parquet": "9dbb42e596d9c05b5867e477993e581c93e6561414e9830182bcc9e002a02874",
+        "native.rds": "ce9c759c27dd5d080a17f719d408fafdd2ad00a80f704dbf209aa7d4770e7003"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    },
+    "sp-2024-12-22": {
+      "data_digest": {
+        "aggregate": "b22391d0cf063607fe4894510a2d7b6badfe11eb4d88cfb5bf97f301103ba133",
+        "partitions": {
+          "auxiliary/holidays/area_code=SP/year=2019": "04d803b40fde7756293663ef748745ce5140bb64b3176ab52ea28a0abcb6c800",
+          "auxiliary/holidays/area_code=SP/year=2020": "75c7b209c87723d4d4847271ebb16202c3f143f946ee60e92f56b4e594d4b82b",
+          "auxiliary/holidays/area_code=SP/year=2021": "4c2e1f73943b8a3de816fae11b526f94c96a7f7b872278d14aeb0fe7a6857fbe",
+          "auxiliary/holidays/area_code=SP/year=2022": "f4eee56011359ebec6f6abef13c8722338fc7925a3d68b3d6159fcdd5dbce1da",
+          "auxiliary/holidays/area_code=SP/year=2023": "d95e9a86be6de7c4a1303d71b1364e447f6fad55f3174d05471a1ec04f6bf9b3",
+          "auxiliary/holidays/area_code=SP/year=2024": "d0d4cd4b8acb868a81e9b02a4263d739ca4857e36682d9f35f4b207965b051ef",
+          "load/area_code=SP/year=2019": "145b0a46e0ed8d57061f62f6fcdb767b2855e7fc41fbc41bcdd91aa720124dfa",
+          "load/area_code=SP/year=2020": "dee011408342abad6a5600c094a044e95e2d727e40655d3f589e8aa78d7fb083",
+          "load/area_code=SP/year=2021": "ab3b84e9fe99182f3a17d38dd5069d4e447f386eeca0f88b15568531aed52f16",
+          "load/area_code=SP/year=2022": "fa6f22456d2e15adf27dd8f152b019ba8c29aab1cb3183e7228faba72630bafd",
+          "load/area_code=SP/year=2023": "ed31a43a97d2f378e5e20e06ffca521c7b89408e48a4ba734a7b423c160def31",
+          "load/area_code=SP/year=2024": "e73a0a451623b63d277620cdda3a6696641f06bb9c343d6a66dc3e5277842f50",
+          "weather/forecast/area_code=SP/year=2019": "553160145250839246b71b736bd1a9a600c22d467cdcab52317c180edbcf4587",
+          "weather/forecast/area_code=SP/year=2020": "7b045ab576ed370cfce809154a7e22a62c60162a118a80d8bcaa0cb0d09955dc",
+          "weather/forecast/area_code=SP/year=2021": "de82016d991bd13052ce66be9905f8548fde6e421e8862997ecad0a8b7ec4815",
+          "weather/forecast/area_code=SP/year=2022": "74c3f9b5b4bb3da97d51c0d63497bb1d35fa04a637fb97258bd7f101c66a1618",
+          "weather/forecast/area_code=SP/year=2023": "cf48f4f9e1dd9d6de81edbc08ad00b83e4fdda3205aa77150eefce85acf7b1e1",
+          "weather/forecast/area_code=SP/year=2024": "ef41afe364b4e6c6d92069576aa34cb069c2866dbd25e6a4c5c073489dba3598",
+          "weather/observed/area_code=SP/year=2019": "ea3bbfc19a0090ef0cd506e74f0608dd52d6b1791330f3a3fd5fe75ebb695f1c",
+          "weather/observed/area_code=SP/year=2020": "76b73a652d4c5e0e8e9a58d168f46866627c06625adaea81b79a4bdbdefee9f9",
+          "weather/observed/area_code=SP/year=2021": "58dbc606f85d5a8cd4de18eb261f2e1c81c96022fe22154878137f76f02ef5b0",
+          "weather/observed/area_code=SP/year=2022": "57b94d2b8acd19f799d791d002f94aed219e67156ef74729c27eb26ce95b4ea9",
+          "weather/observed/area_code=SP/year=2023": "fc9d849e551e510fc528c9572ec6f146bc5ff1449a7017820efcee3c9ee5f0ef",
+          "weather/observed/area_code=SP/year=2024": "fad3ea038c9e375a4d6c02769d6a49605a3f76567bb4052192ac8000b03d98ab"
+        }
+      },
+      "files": {
+        "invocation.json": "13333257b17a62b52a9f756f7f640a3a6541c5f912a3db60ca4dc3641119b442",
+        "long.parquet": "630305eb1024a2d043a6fe0e46e1d2ea8ff12c834c0a5743a3578d22c7a2a656",
+        "native.rds": "5d972806aa16be0d067ab09e2fee6ca376f2087ce8143317ab625cbaa70a269e"
+      },
+      "fingerprint": {
+        "R": "4.5.3",
+        "blas": "/usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3",
+        "packages": {
+          "WeightSVM": "1.7.16",
+          "arrow": "26.0.0",
+          "data.table": "1.18.6.1",
+          "e1071": "1.7.17",
+          "jsonlite": "2.0.0",
+          "lubridate": "1.9.5",
+          "rlist": "0.4.6.2"
+        },
+        "platform": "x86_64-pc-linux-gnu"
+      },
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
+    }
+  }
+}

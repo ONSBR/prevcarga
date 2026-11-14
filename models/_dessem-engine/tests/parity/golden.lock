@@ -1,6 +1,6 @@
 {
   "model": "_dessem-engine",
-  "oracle_commit": "7c0f83d0416fce18554e28175dc5f295590badb8",
+  "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742",
   "reference_tag": "v0.1.5",
   "source": "reference",
   "units": {
@@ -35,7 +35,7 @@
         }
       },
       "files": {
-        "invocation.json": "650e0914de1ef0d11caae4ac497ad11845f9036796c834f3e676018e0d515a36",
+        "invocation.json": "e2fc5e39115be94395d7b94eff777d777a4e6a6d0e9f8bbcc9e889b790c87f8f",
         "long.parquet": "40e0222ff0e9298008e3cd9f518c748f741d4d2818de8f89533cbafa5ed2c3f1",
         "native.rds": "6d80351b01bb07ff71cce58cb94fbd251f890173e56aa0af11ff15d454e81b18"
       },
@@ -53,7 +53,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "7c0f83d0416fce18554e28175dc5f295590badb8"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "engine_med_seco_20241015": {
       "data_digest": {
@@ -86,7 +86,7 @@
         }
       },
       "files": {
-        "invocation.json": "3c8be18039903976d363c57f98202edc3e5f594487451473583fff287685f550",
+        "invocation.json": "031802741ab6a369b49e05de4ff5fc84d8eebf1c1c833080de8fcc41e484e237",
         "long.parquet": "44222925390c9c102c4e3d7140d2867b5cb87b77829d697710e953c653a4f0f4",
         "native.rds": "1caae1d05d0da91ec7452d2307aafa95174ffacaacc3f8877e48836755936c31"
       },
@@ -104,7 +104,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "7c0f83d0416fce18554e28175dc5f295590badb8"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "engine_mxmn_seco_20241015": {
       "data_digest": {
@@ -137,7 +137,7 @@
         }
       },
       "files": {
-        "invocation.json": "188ce39a748498e40a36e6addf2846e88bc40e0507748279923cf069539fb86c",
+        "invocation.json": "86550eac32b69ea24326ce5a4d27e5f351b74eda789094077e1e01c3a7f562fa",
         "long.parquet": "af12f7d4ecc14c4111c0b7e09227f13b67a9fe13d9640e2b2d1633496feb6f58",
         "native.rds": "cfd2d092da52d19db4f9d8f170baffa2aa15d361a57e8167c9fd2e50e8dbae73"
       },
@@ -155,7 +155,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "7c0f83d0416fce18554e28175dc5f295590badb8"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "robustez_flag12_sp_20241222": {
       "data_digest": {
@@ -188,7 +188,7 @@
         }
       },
       "files": {
-        "invocation.json": "dd5499fd7c3ea9763d32e75cada12568eec3a3c8c45ef9b5f4c2618707272286",
+        "invocation.json": "e94ddeadded17810a64c14207ea5c0df6982b65087ba7bdc34d089aee57ea0f1",
         "long.parquet": "ff22df55521b8e67bf943de445884a03be7d03d225e4fc7f6979a7e64734389c",
         "native.rds": "fe8f0b898faf8694badd1f9edcff433b89d625967de1cd8f8e55520580d19f85"
       },
@@ -206,7 +206,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "7c0f83d0416fce18554e28175dc5f295590badb8"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "robustez_go_20241005": {
       "data_digest": {
@@ -239,7 +239,7 @@
         }
       },
       "files": {
-        "invocation.json": "156d0872be96855d7429d16efc8a251751df5e0b7941f648648630b958b9b3fa",
+        "invocation.json": "ead8a13c976a92c97cfbc971b6f407b40c9f6c6faa5238e07ec2007213b91636",
         "long.parquet": "880a858fed0ea0bfe18d452686e58b3fe31f39f8a0d136d1ab485253486f7155",
         "native.rds": "37ea55bd140cc89914ffa2647008da38c6de70eb1cca81e42c6a794e772b2db3"
       },
@@ -257,7 +257,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "7c0f83d0416fce18554e28175dc5f295590badb8"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     },
     "robustez_ton_sp_20241119": {
       "data_digest": {
@@ -278,7 +278,7 @@
         }
       },
       "files": {
-        "invocation.json": "0cf25d1c3ab1aeaa9fee6b4a1c8a0d8e5908090f08211a876ddf4bb94dec3218",
+        "invocation.json": "bb6dc666460d30416b20851d387553dfd8402c75b949506a366b8e15cd1cf1e0",
         "long.parquet": "701d9eccb7aead1bc00a957fcdb01bc48bad1f7ce230e76b518033d22beee6de",
         "native.rds": "e98fdfc5bca07acaa16dc8fb9c32297c0b6d7cb365bc0cfc8643b53ecc9530f0"
       },
@@ -296,7 +296,7 @@
         },
         "platform": "x86_64-pc-linux-gnu"
       },
-      "oracle_commit": "7c0f83d0416fce18554e28175dc5f295590badb8"
+      "oracle_commit": "00acf8f121d6e8d9e6ea46262093115b2dfea742"
     }
   }
 }

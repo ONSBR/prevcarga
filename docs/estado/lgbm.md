@@ -136,3 +136,9 @@ Estado duravel do epico Plugin LGBM (este arquivo e o unico do epico; `docs/ESTA
 - Decisoes taticas e desvios conscientes do oraculo (Desvios conscientes): sem auto-deteccao de corte (o plugin le `cuts`), sem fallback silencioso de feriados (`holidays` ausente aborta), sem heranca de flags por env
   (artefato carrega os `params` do treino), rotulos de calendario na FE por mapa fixo (sem `weekdays()`/locale) e sem re-extracao de ondaletas em O+1 como o oraculo.
 - Dependencia pendente: `fix/foundation-w1-f4-lag` (FIX 6 entrega todos os feriados ao painel). Qualquer delta de janela de feriado no `parity-full` e dessa fundacao, sem excecao no `ab_excecoes.yaml`.
+
+## Lacuna de cobertura da paridade: BASE no heat_area (F2.1, ADR-0041)
+- Nenhuma unidade de `models/lgbm/tests/parity/units.yaml` exercita `BASE` no `heat_area`: as areas das unidades sao SECO (heat SP), RS, SP, PA e BAOE.
+  A entrada `BASE = "BASE"` de `heat_area` (F2.1) so e coberta pelos testes unitarios do plugin (`test-heat-area.R`), nao pelo golden da v0.1.5.
+- Como o golden agora e a saida da propria v0.1.5, ele nao teria detectado uma regressao nessa entrada de qualquer forma; se o Gabriel quiser a
+  rede Delta=0 sobre BASE, falta acrescentar uma unidade `BASE` ao `units.yaml` e regerar o baseline numa tag nova.
