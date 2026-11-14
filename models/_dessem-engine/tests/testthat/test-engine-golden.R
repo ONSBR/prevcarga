@@ -43,7 +43,9 @@ test_that("ac-11/12 processaModelosDMPerfil e desagregaModeloSH == oraculo (<= 1
   mine <- run_clean("42", deck, eng)
   expect_equal(mine$diasprev, ref$diasprev)
   expect_identical(nrow(mine$horaria), length(ref$diasprev) * 24L)
-  expect_equal(mine$seriecomp, ref$seriecomp, tolerance = 0)
+  ## E3-T3: o SERIECOMP ganha `Bloco` (0 em todas as linhas sem anexo); o oraculo nao o tem
+  expect_true(all(mine$seriecomp$Bloco == 0L))
+  expect_equal(data.table::copy(mine$seriecomp)[, Bloco := NULL], ref$seriecomp, tolerance = 0)
   expect_identical(lubridate::tz(mine$horaria$DataHora), "Etc/GMT+3")
   ## o motor devolve o frame de modelagem; o despachante devolve ao frame de exibicao (+60 min) e o oraculo
   ## ja entrega a hora de inicio: mesmos instantes

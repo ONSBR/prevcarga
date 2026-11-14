@@ -9,6 +9,8 @@
 #' Exige o mesmo `tzone` em DataHora de CARGAHIST/EXOGENAHIST/EXOGENAPREV (e igual a `tz`, se dado)
 .engine_assert_tz <- function(deck,tz = NULL){
    cols <- c("CARGAHIST","EXOGENAHIST","EXOGENAPREV")
+   ## anexo de feriados (opcional): mesmo tzone de CARGAHIST
+   cols <- c(cols,intersect(c("CARGAFER","EXOGENAFER"),names(deck)[!vapply(deck,is.null,NA)]))
    got <- vapply(cols,function(n) tz(deck[[n]]$DataHora),"")
    want <- if(is.null(tz)) got[[1L]] else tz
    bad <- which(got != want)
@@ -66,6 +68,14 @@ TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","
 
    dtCarga <- copy(deck[["CARGAHIST"]])
    dtCarga <- dtCarga[,.(DataHora,Data = as_date(DataHora),Prev = F,Variavel = "Carga",Valor = Carga)]
+   ## anexo de feriados (opcional): dias de ilha empilhados na serie historica (Prev = F)
+   diasFer <- as_date(character())
+   if(!is.null(deck[["CARGAFER"]])){
+      dtCargaFer <- copy(deck[["CARGAFER"]])
+      dtCargaFer <- dtCargaFer[,.(DataHora,Data = as_date(DataHora),Prev = F,Variavel = "Carga",Valor = Carga)]
+      diasFer <- sort(unique(dtCargaFer$Data))
+      dtCarga <- rbind(dtCarga,dtCargaFer)
+   }
 
    message("CONCLUIDA LEITURA DOS DADOS DE CARGA")
 
@@ -84,6 +94,11 @@ TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","
 
    dtExogena <- copy(deck[["EXOGENAHIST"]])
    dtExogena[,`:=` (Data = as_date(DataHora), Prev = F)]
+   if(!is.null(deck[["EXOGENAFER"]])){
+      dtExogenaFer <- copy(deck[["EXOGENAFER"]])
+      dtExogenaFer[,`:=` (Data = as_date(DataHora), Prev = F)]
+      dtExogena <- rbind(dtExogena,dtExogenaFer,use.names = TRUE)
+   }
    dtExogena <- melt(dtExogena,id.vars = c("DataHora","Data","Prev"),variable.name = "Variavel",value.name = "Valor")
 
    message("CONCLUIDA LEITURA DOS DADOS DE EXOGENA HISTORICA")
@@ -110,6 +125,13 @@ TransformaDeck <- function(deck,dataInicioPrev,horizonteprevisao = c("SEMOPER","
    dtDados[HVZ == "-02",HV := 1]
    dtDados[!HVZ == "-02",HV := 0]
    dtDados[,HVZ := NULL]
+   ## Bloco: 0 = janela comum + horizonte; k = k-esima corrida contigua de dias do anexo (ordem de data).
+   ## Dia adjacente a janela comum continua sendo bloco proprio (os lags nao atravessam).
+   dtDados[,Bloco := 0L]
+   if(length(diasFer)){
+      blocoDia <- cumsum(c(1L,as.integer(diff(diasFer) > 1L)))
+      dtDados[,Bloco := ifelse(Data %in% diasFer,blocoDia[match(Data,diasFer)],0L)]
+   }
 
    DADOSLIDOS= c(deck[names(deck) %in% c("COMBINA","PATAMARES")],
                  list(SERIECOMP=dtDados,DIASPREV = dias_previsao,NDIASPREV = numdiasprev))

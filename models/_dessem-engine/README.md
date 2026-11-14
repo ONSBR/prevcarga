@@ -13,7 +13,7 @@ o motor nao a contem. Cada arquivo de `R/` so cria funcoes (sem estado, sem expr
 ## Ordem de avaliacao
 
 `R/manifest.R` (lido primeiro pelo loader) e depois `engine_manifest()$files`:
-`funcoes_apoio.R`, `dados_entrada.R`, `entrada_demanda_media.R`, `entrada_perfil.R`,
+`ilhas.R`, `funcoes_apoio.R`, `dados_entrada.R`, `entrada_demanda_media.R`, `entrada_perfil.R`,
 `modelos_demanda_media.R`, `modelos_perfil.R`, `exec_modelos.R`, `engine.R`, e (DL.2) `robustez.R`, `feriados.R`,
 `exogena.R`, `svm_serial.R`.
 
@@ -28,6 +28,7 @@ O env do motor so enxerga `base` e os pacotes que o descriptor do plugin lista e
 obterEntradaFormulaDM -> funcoes_apoio.R -> pkgfun_funcoesApoio.R:316
 getConfig -> funcoes_apoio.R -> pkgfun_funcoesApoio.R:361
 engine_svm_freeze -> svm_serial.R -> novo (sem equivalente no oraculo)
+.engine_by_block -> ilhas.R -> novo (sem equivalente no oraculo)
 engine_svm_thaw -> svm_serial.R -> novo (sem equivalente no oraculo)
 normalize_special_day_codes -> feriados.R -> scripts/lib/normalize_holiday_codes.R:33
 fill_forecast_tail -> exogena.R -> scripts/lib/fill_forecast_tail.R:68
