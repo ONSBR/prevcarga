@@ -18,15 +18,24 @@
 - Testes: `scripts/lib/tests/test-config.R`.
 
 ## set-data-dir (2026-11-10)
-- `prevcarga_config_set_data_dir(ctx, dir)` (config.R) e o unico escritor do `config.yaml` dentro do pacote; o verbo
-  `set-data-dir <dir>` (`scripts/lib/cli/set-data-dir.R`) so chama e formata. Alvo: `ctx$config_path` (`--config`, o da raiz do
+- `prevcarga_config_set_keys(ctx, values)` (config.R; E1-T5) e o unico escritor do `config.yaml` dentro do pacote; o verbo
+  `set-data-dir [<dir>] [--train=] [--inference=] [--artifacts=]` (`scripts/lib/cli/set-data-dir.R`) so chama e formata.
+  `prevcarga_config_set_data_dir(ctx, dir)` virou wrapper fino de `set_keys(list(data_train_dir = dir))`. Alvo: `ctx$config_path` (`--config`, o da raiz do
   codigo ou o da instalacao); sem nenhum, `<R>/config.yaml` da instalacao, criado com `schema_version: 1`. Fora do layout instalado
   e sem config.yaml: `config.usage` (hint: `--config`).
-- O diretorio tem de existir (`config.data_dir_missing`); o valor vai por `normalizePath(winslash = "/")` e entre aspas simples
+- `values` e lista nomeada de `data_train_dir`, `data_inference_dir`, `artifacts_dir`; so as chaves dadas mudam (com `data_train_dir` sai
+  tambem a `data_dir:` legada); devolve `changes` `{key, old, new}`. `data_train_dir` tem de existir (`config.data_dir_missing`); os outros o chamador cria.
+- O valor o valor vai por `normalizePath(winslash = "/")` e entre aspas simples
   com `''` (a forma do `pc_yaml_q`/`ConvertTo-PcYamlQuoted` do instalador, cujo leitor o preserva no upgrade). As outras linhas do
-  arquivo ficam como estavam (so as `data_dir:` saem). Escrita atomica: temporario no mesmo diretorio, fechado e validado por
+  arquivo ficam como estavam (so saem as linhas das chaves gravadas e a `data_dir:` legada). Escrita atomica: temporario no mesmo diretorio, fechado e validado por
   `prevcarga_config_load` antes do `file.rename`; falha de escrita ou rename = `config.write_failed` (core.tsv, exit 8).
-- Testes: `scripts/lib/tests/test-set-data-dir.R` (criacao, troca com preservacao, aspas, `--config`, recusas sem escrita).
+- **Modo interativo** (sem chave): `prevcarga_set_data_dir_interactive(ctx, base, input, is_tty, output)`; `base` = `<dir>` | `data_train_dir`/`data_dir`
+  atual | `getwd()`. Sem terminal aborta `contract.set_data_dir_noninteractive` (exit 2) antes de ler e sem tocar no arquivo. Pergunta treino,
+  artefatos e inferencia (sugestao `<base>/train|artifacts|inference`; linha vazia aceita), mostra `chave: antigo -> novo` e so `s`/`S` grava
+  (outra resposta ou EOF: `gravado` FALSE, exit 0). Cria os diretorios de artefatos e inferencia que faltam; treino tem de existir.
+  Entrada por `readLines(input, n = 1L)`, nunca a leitura interativa do R base. JSON: `{schema_version 1, config_path, changes, gravado}`.
+- Testes: `scripts/lib/tests/test-set-data-dir.R` (chaves parciais, JSON pela fachada, preservacao, aspas, `--config`, recusas) e
+  `test-set-data-dir-interactive.R` (sugestoes, N/EOF byte a byte, sem terminal).
 
 ## F3.6 -- artifacts_dir (raiz de artefatos apontada)
 - Chave `artifacts_dir` (chr, default NULL) no schema; `prevcarga_ctx` resolve `ctx$artifacts_dir` por flag `--artifacts-dir` > config.yaml > NULL

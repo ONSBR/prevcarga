@@ -258,11 +258,23 @@ prevcarga_require_data_dir <- function(ctx) {
 ## upgrade). Escrita atomica: arquivo temporario no mesmo diretorio, validado com prevcarga_config_load antes do rename.
 .prevcarga_yaml_q <- function(x) paste0("'", gsub("'", "''", x, fixed = TRUE), "'")
 
-prevcarga_config_set_data_dir <- function(ctx, dir) {
-  if (!.prevcarga_chr_ok(dir) || !dir.exists(dir))
-    prevcarga_abort("config.data_dir_missing", where = as.character(dir)[1L],
+## Chaves de dados gravaveis pelo set-data-dir (E1-T5). data_train_dir tem de existir; os outros o chamador pode criar.
+.prevcarga_data_keys <- c("data_train_dir", "data_inference_dir", "artifacts_dir")
+
+## Troca so as linhas das chaves dadas em `values` (lista nomeada); com data_train_dir remove tambem a linha legada data_dir.
+## Preserva comentarios e demais linhas. Devolve list(config_path, changes = list({key, old, new})).
+prevcarga_config_set_keys <- function(ctx, values) {
+  bad <- setdiff(names(values), .prevcarga_data_keys)
+  if (!length(values) || is.null(names(values)) || length(bad))
+    prevcarga_abort("config.usage", where = "set-data-dir",
+                    details = list(hint = "chaves aceitas: data_train_dir, data_inference_dir, artifacts_dir"))
+  for (k in names(values))
+    if (!.prevcarga_chr_ok(values[[k]]))
+      prevcarga_abort("config.usage", where = k, details = list(hint = "informe um caminho de diretorio"))
+  if ("data_train_dir" %in% names(values) && !dir.exists(values[["data_train_dir"]]))
+    prevcarga_abort("config.data_dir_missing", where = as.character(values[["data_train_dir"]]),
                     details = list(hint = "aponte para um diretorio que exista (o deck)"))
-  d <- normalizePath(dir, winslash = "/", mustWork = TRUE)
+  vals <- lapply(values, function(v) .prevcarga_norm_path(v))
   target <- ctx$config_path
   if (is.null(target) && !is.null(ctx$install_root)) target <- file.path(ctx$install_root, "config.yaml")
   if (is.null(target))
@@ -270,8 +282,11 @@ prevcarga_config_set_data_dir <- function(ctx, dir) {
                     details = list(hint = "fora de uma instalacao, passe --config=<arquivo>"))
   old <- if (file.exists(target)) readLines(target, warn = FALSE, encoding = "UTF-8") else
     c("# config.yaml da instalacao (schema v1). Precedencia: flag da CLI > este arquivo > default.", "schema_version: 1")
-  prev <- if (file.exists(target)) prevcarga_config_load(target)$data_dir else NULL
-  lines <- c(old[!startsWith(old, "data_dir:")], paste0("data_dir: ", .prevcarga_yaml_q(d)))
+  prev <- if (file.exists(target)) prevcarga_config_load(target) else list()
+  drop <- c(names(vals), if ("data_train_dir" %in% names(vals)) "data_dir")
+  gone <- vapply(old, function(l) any(startsWith(l, paste0(drop, ":"))), NA)
+  new_lines <- vapply(names(vals), function(k) paste0(k, ": ", .prevcarga_yaml_q(vals[[k]])), "")
+  lines <- c(old[!gone], unname(new_lines))
   tmp <- tempfile(".config.yaml.", tmpdir = dirname(target))
   ok <- tryCatch({
     con <- file(tmp, open = "wb")
@@ -287,5 +302,68 @@ prevcarga_config_set_data_dir <- function(ctx, dir) {
     unlink(tmp)
     prevcarga_abort("config.write_failed", where = target)
   }
-  list(data_dir = d, config_path = .prevcarga_norm_path(target), previous = prev)
+  changes <- lapply(names(vals), function(k) {
+    o <- prev[[k]]
+    if (is.null(o) && identical(k, "data_train_dir")) o <- prev$data_dir
+    list(key = k, old = o, new = vals[[k]])
+  })
+  list(config_path = .prevcarga_norm_path(target), changes = changes)
+}
+
+## Wrapper dos chamadores antigos: grava so data_train_dir (e remove a legada data_dir).
+prevcarga_config_set_data_dir <- function(ctx, dir) {
+  if (!.prevcarga_chr_ok(dir) || !dir.exists(dir))
+    prevcarga_abort("config.data_dir_missing", where = as.character(dir)[1L],
+                    details = list(hint = "aponte para um diretorio que exista (o deck)"))
+  res <- prevcarga_config_set_keys(ctx, list(data_train_dir = dir))
+  ch <- res$changes[[1L]]
+  list(data_dir = ch$new, config_path = res$config_path, previous = ch$old)
+}
+
+## Modo interativo (sem chave): pergunta treino, artefatos e inferencia (linha vazia aceita a sugestao <base>/train|artifacts|
+## inference), mostra o resumo 'chave: antigo -> novo' e so grava com 's'/'S'. Sem terminal aborta antes de ler qualquer coisa.
+## Entrada por readLines(input, n = 1L), sem a leitura interativa do R base. O de treino tem de existir; artefatos e inferencia sao criados.
+prevcarga_set_data_dir_interactive <- function(ctx, base, input = stdin(), is_tty = isatty(stdin()), output = stdout()) {
+  if (!isTRUE(is_tty))
+    prevcarga_abort("contract.set_data_dir_noninteractive", where = "set-data-dir",
+                    details = list(hint = "passe --train / --inference / --artifacts"))
+  ask <- function(key, sug) {
+    cat(sprintf("%s [%s]: ", key, sug), file = output)
+    a <- readLines(input, n = 1L, warn = FALSE)
+    if (!length(a)) return(NULL)
+    a <- trimws(a)
+    if (nzchar(a)) a else sug
+  }
+  keys <- c(data_train_dir = "train", artifacts_dir = "artifacts", data_inference_dir = "inference")
+  want <- list()
+  for (k in names(keys)) {
+    a <- ask(k, file.path(base, keys[[k]]))
+    if (is.null(a)) {
+      cat("\nnada gravado\n", file = output)
+      return(list(config_path = ctx$config_path, changes = list(), gravado = FALSE))
+    }
+    want[[k]] <- .prevcarga_norm_path(a)
+  }
+  prev <- if (!is.null(ctx$config_path) && file.exists(ctx$config_path)) prevcarga_config_load(ctx$config_path) else list()
+  oldv <- function(k) { o <- prev[[k]]; if (is.null(o) && identical(k, "data_train_dir")) o <- prev$data_dir; o }
+  chg <- Filter(function(k) !identical(oldv(k), want[[k]]), names(want))
+  for (k in chg)
+    cat(sprintf("%s: %s -> %s\n", k, if (is.null(oldv(k))) "-" else oldv(k), want[[k]]), file = output)
+  if (!length(chg)) {
+    cat("nada a mudar\n", file = output)
+    return(list(config_path = ctx$config_path, changes = list(), gravado = FALSE))
+  }
+  cat("gravar? [s/N]: ", file = output)
+  r <- readLines(input, n = 1L, warn = FALSE)
+  if (!length(r) || !(trimws(r) %in% c("s", "S"))) {
+    cat("\nnada gravado\n", file = output)
+    return(list(config_path = ctx$config_path, changes = list(), gravado = FALSE))
+  }
+  if ("data_train_dir" %in% chg && !dir.exists(want$data_train_dir))
+    prevcarga_abort("config.data_dir_missing", where = want$data_train_dir,
+                    details = list(hint = "o diretorio de treino tem de existir"))
+  for (k in setdiff(chg, "data_train_dir"))
+    if (!dir.exists(want[[k]])) dir.create(want[[k]], recursive = TRUE, showWarnings = FALSE)
+  res <- prevcarga_config_set_keys(ctx, want[chg])
+  c(res, list(gravado = TRUE))
 }

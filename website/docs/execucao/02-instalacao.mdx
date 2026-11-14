@@ -109,7 +109,10 @@ O `install.sh` é POSIX sh e só recebe argumentos; nenhuma variável de ambient
 | `--bundle <arq>` | Instala de um arquivo local, sem rede. |
 | `--sha256 <h>` | sha256 esperado do `--bundle`. Sem ele, o instalador procura um `SHA256SUMS` ao lado do arquivo. Só vale com `--bundle`. |
 | `--root <dir>` | Raiz `<R>` da instalação. |
-| `--data <dir>` | Grava `data_dir` no `config.yaml` da instalação. |
+| `--data-train <dir>` | Grava `data_train_dir` (deck de treino) no `config.yaml` da instalação. |
+| `--data-inference <dir>` | Grava `data_inference_dir` (deck de inferência). |
+| `--data-artifacts <dir>` | Grava `artifacts_dir` (raiz de artefatos). |
+| `--data <dir>` | Apelido de `--data-train` por uma versão; avisa em stderr. Valor diferente de `--data-train` sai com `install.usage`. |
 | `--state <dir>` | Grava `state_dir` (default `<R>/state`). Recusado se estiver dentro de `<R>/versions`. |
 | `--skip-platform-check` | Preflight vira aviso. |
 | `--add-to-path` | Acrescenta `<R>/bin` ao `PATH` num bloco marcado do perfil. |
@@ -184,7 +187,7 @@ O `install.ps1` espelha o `install.sh`: mesmo layout, mesma ordem, mesmos `error
   {type:'cmd',text:'powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Bundle prevcarga-<v>-windows-x86_64.zip -Sha256 <hash>'}
 ]} />
 
-Os parâmetros são `-Version`, `-ReleaseBase`, `-Bundle`, `-Sha256`, `-Root`, `-Data`, `-State`, `-SkipPlatformCheck`, `-Format`, `-Rollback`, `-Uninstall`, `-Yes`, `-Purge` e `-Help`. A grafia do Linux (`--bundle`, `--sha256`, `--root`, `--release-base`, `--skip-platform-check`...) também é aceita: o script a captura em `ValueFromRemainingArguments` e trata ali argumento desconhecido e valor ausente como `install.usage` (exit 8). Um `-Format` fora de `text` e `json` sai igual. Não há `--add-to-path` nem `--profile`: no Windows o `PATH` é sempre ajustado.
+Os parâmetros são `-Version`, `-ReleaseBase`, `-Bundle`, `-Sha256`, `-Root`, `-DataTrain`, `-DataInference`, `-DataArtifacts`, `-Data` (apelido de `-DataTrain` por uma versão), `-State`, `-SkipPlatformCheck`, `-Format`, `-Rollback`, `-Uninstall`, `-Yes`, `-Purge` e `-Help`. A grafia do Linux (`--bundle`, `--sha256`, `--root`, `--release-base`, `--skip-platform-check`...) também é aceita: o script a captura em `ValueFromRemainingArguments` e trata ali argumento desconhecido e valor ausente como `install.usage` (exit 8). Um `-Format` fora de `text` e `json` sai igual. Não há `--add-to-path` nem `--profile`: no Windows o `PATH` é sempre ajustado.
 
 | Aspecto | Como o `install.ps1` faz |
 |---|---|
@@ -241,7 +244,7 @@ prevcarga: instalado 0.1.1 em C:\Users\<voce>\AppData\Local\prevcarga (bin: C:\U
 proximos passos:
   - abra um terminal novo para o PATH valer (C:\Users\<voce>\AppData\Local\prevcarga\bin entrou no PATH do usuario)
   - rode: prevcarga doctor (confere runtime, config e deck)
-  - aponte o deck: prevcarga set-data-dir <dir> (grava data_dir em C:\Users\<voce>\AppData\Local\prevcarga\config.yaml)
+  - aponte o deck: prevcarga set-data-dir (grava data_train_dir em C:\Users\<voce>\AppData\Local\prevcarga\config.yaml)
 ```
 
 ```text title="Linux: sh install.sh --bundle prevcarga-0.1.1-linux-x86_64.tar.zst"
@@ -278,7 +281,7 @@ prevcarga: instalado 0.1.1 em /home/<voce>/.local/share/prevcarga (bin: /home/<v
 proximos passos:
   - ponha /home/<voce>/.local/share/prevcarga/bin no PATH: export PATH="/home/<voce>/.local/share/prevcarga/bin:$PATH" (ou reinstale com --add-to-path)
   - rode: prevcarga doctor (confere runtime, config e deck)
-  - aponte o deck: prevcarga set-data-dir <dir> (grava data_dir em /home/<voce>/.local/share/prevcarga/config.yaml)
+  - aponte o deck: prevcarga set-data-dir (grava data_train_dir em /home/<voce>/.local/share/prevcarga/config.yaml)
 ```
 
 Tudo isso sai em stderr, e só quando o stderr é um terminal e o formato é texto. Com `--format json`, ou com a saída redirecionada para um arquivo ou outro programa, o instalador continua imprimindo só a linha final ou o JSON único.
@@ -291,7 +294,7 @@ O instalador grava esta árvore em `<R>`. No Windows os separadores são `\` e o
 <R>/
   current            # 1 linha: a versão ativa (ex.: 0.12.0)
   previous           # 1 linha: a versão que estava em current antes da última instalação
-  config.yaml        # config da instalação (schema v1): data_dir, state_dir, format, color
+  config.yaml        # config da instalação (schema v1): data_train_dir, data_inference_dir, artifacts_dir, state_dir, format, color
   bin/
     prevcarga        # lançador fino (Windows: prevcarga.cmd)
     prevcarga-sync   # utilitário de leitura do repositório online (Windows: .ps1 e .cmd)
@@ -306,7 +309,7 @@ O ponteiro `current` é um arquivo de uma linha trocado por arquivo temporário 
 
 A retenção é N=2: depois de uma instalação ficam a versão nova (`current`) e a que estava ativa antes (`previous`). Qualquer outra pasta de `versions/` é apagada. Reinstalar a mesma versão troca o diretório dela (via `versions/.old-<v>`) e preserva o `previous` que já existia.
 
-O `config.yaml` da instalação é reescrito a cada instalação. Num upgrade, as chaves existentes são preservadas; só `data_dir` e `state_dir` são regravadas, com o valor da flag quando ela é passada e com o valor anterior quando não é. Ver [Configuração](/execucao/configuracao).
+O `config.yaml` da instalação é reescrito a cada instalação. Num upgrade, as chaves existentes são preservadas; só `data_train_dir`, `data_inference_dir`, `artifacts_dir` e `state_dir` são regravadas (a `data_dir` legada sai), com o valor da flag quando ela é passada e com o valor anterior quando não é. Ver [Configuração](/execucao/configuracao).
 
 <Figura id="FIG-E03" titulo="Troca de versão: install, upgrade e rollback" natureza="Estrutura" fontes={['install/install.sh', 'docs/estado/install.md']} adrs={['ADR-0038']}>
 

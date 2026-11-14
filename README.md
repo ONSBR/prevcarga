@@ -73,7 +73,7 @@ sh install.sh --add-to-path
 sh install.sh --bundle prevcarga-<v>-linux-x86_64.tar.zst
 ```
 
-`--add-to-path` acrescenta `<raiz>/bin` ao `PATH` num bloco marcado do `~/.profile`. Para apontar o deck e o estado já na instalação, use `--data <dir>` e `--state <dir>`; para outra raiz, `--root <dir>`. Na forma em uma linha, as opções vão depois de `sh -s --`.
+`--add-to-path` acrescenta `<raiz>/bin` ao `PATH` num bloco marcado do `~/.profile`. Para apontar o deck e o estado já na instalação, use `--data-train <dir>`, `--data-inference <dir>`, `--data-artifacts <dir>` e `--state <dir>` (`--data` segue como apelido de `--data-train` por uma versão, com aviso); para outra raiz, `--root <dir>`. Na forma em uma linha, as opções vão depois de `sh -s --`.
 
 ### Windows
 
@@ -93,7 +93,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Bundle prevcarga-<v>-windows-x86_64.zip
 ```
 
-No Windows o `PATH` é ajustado sempre, só no registro do usuário (`HKCU`). Os parâmetros espelham os do Linux: `-Root`, `-Data`, `-State`, `-Rollback`, `-Uninstall -Yes`, `-Purge`; na forma em uma linha, vão depois do `-File ...\install.ps1`. O `Tls12` do começo é para o Windows PowerShell 5.1, que nem sempre oferece TLS 1.2 por padrão.
+No Windows o `PATH` é ajustado sempre, só no registro do usuário (`HKCU`). Os parâmetros espelham os do Linux: `-Root`, `-DataTrain`, `-DataInference`, `-DataArtifacts` (`-Data` é apelido de `-DataTrain`), `-State`, `-Rollback`, `-Uninstall -Yes`, `-Purge`; na forma em uma linha, vão depois do `-File ...\install.ps1`. O `Tls12` do começo é para o Windows PowerShell 5.1, que nem sempre oferece TLS 1.2 por padrão.
 
 > [!NOTE]
 > O bundle vem das GitHub Releases de `onsbr/prevcarga` (tag `v<v>`). Para um espelho, passe `--release-base <url>` (ou `-ReleaseBase`); fora do `github.com` vale o layout `<base>/releases/<v>/`. Sem rede, instale de um arquivo local com `--bundle`. Os artefatos oficiais continuam vindo do repositório online, pelo `prevcarga-sync`.
@@ -111,8 +111,11 @@ O `doctor` mostra a versão ativa, o runtime do bundle, a configuração e o est
 A rodada precisa de um **deck canônico** num diretório local: carga verificada, clima previsto e observado, feriados e um `manifest.json` na raiz.
 
 ```sh
-# 1. apontar o deck (uma vez; grava data_dir no config.yaml da instalação)
-prevcarga set-data-dir /caminho/do/deck
+# 1. apontar os diretórios de dados (uma vez; grava data_train_dir, data_inference_dir e artifacts_dir no config.yaml)
+#    sem chave, o verbo é interativo (pergunta treino, artefatos e inferência; só 's' grava; exige terminal)
+prevcarga set-data-dir /caminho/base
+#    ou direto, só as chaves passadas:
+prevcarga set-data-dir --train=/caminho/do/deck --artifacts=/caminho/artefatos
 
 # 2. artefatos oficiais: modelos, pesos da combinação e perfis k-hat (em breve)
 prevcarga-sync --what artifacts
@@ -129,7 +132,7 @@ prevcarga forecast --origin 2026-10-15
 
 - `--origin` é o único flag de data. Sem ele, a origem é o último dia de carga do deck.
 - O corte intradiário sai do próprio dado de carga; não há flag de corte.
-- O deck vem do `data_dir` gravado pelo `set-data-dir` (ou pelo `--data` da instalação); `--data <dir>` num comando vence o `config.yaml` só naquele comando.
+- O deck de treino vem do `data_train_dir` gravado pelo `set-data-dir` (ou pelo `--data-train` da instalação); `--data-train <dir>` num comando vence o `config.yaml` só naquele comando.
 - A entrega fica em `<state>/forecasts/<origem>/…`, com chave imutável. `--report` gera também o relatório da rodada.
 
 Para conferir que a sua entrega reproduz a oficial:
@@ -159,7 +162,7 @@ Ficam retidas duas versões, a atual e a anterior. O rollback vale um nível só
 <raiz>/
   current            # 1 linha: a versão ativa
   previous           # 1 linha: a versão anterior
-  config.yaml        # data_dir, state_dir, format, color
+  config.yaml        # data_train_dir, data_inference_dir, artifacts_dir, state_dir, format, color
   bin/               # prevcarga, prevcarga-sync, catálogo de erros
   versions/<v>/      # imutável: runtime, código e RUNTIME.json
   state/             # entregas, artefatos, cache (nunca tocado por atualização)

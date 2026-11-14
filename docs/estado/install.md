@@ -7,8 +7,8 @@ publicado nem baixado nos testes**: o upload e de outro ticket; os testes usam `
 `install/prevcarga` e o lancador fino copiado para `<R>/bin/prevcarga`.
 
 ## Uso (so por argumentos; sem variavel de ambiente)
-`install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]] [--root <dir>] [--data <dir>] [--state <dir>]
-[--skip-platform-check] [--add-to-path] [--profile <arq>] [--format text|json]`; `--rollback`; `--uninstall --yes [--purge]`.
+`install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]] [--root <dir>] [--data-train <dir>] [--data-inference <dir>]
+[--data-artifacts <dir>] [--state <dir>] [--skip-platform-check] [--add-to-path] [--profile <arq>] [--format text|json]`; `--rollback`; `--uninstall --yes [--purge]`.
 Sem `--bundle` baixa `<release-base>/releases/<v>/prevcarga-<v>-linux-x86_64.tar.zst` e `SHA256SUMS` (HTTPS; falha => exit 10);
 `latest` le `<release-base>/releases/latest.txt` (1 linha) (publicado pelo `release-pack --what runtime --latest`, M8.5).
 Dois layouts, escolhidos pela `--release-base` (2026-11-03, decisao do Gabriel: o instalador pode vir do GitHub Releases; artefatos
@@ -40,7 +40,7 @@ O runtime do bundle e `runtime/bin/Rscript` (wrapper do M8.1, ja relocavel: o in
    do proprio stage (`prevcarga_runtime_validate(strict=TRUE)`; falha => `install.manifest_invalid`, exit 6, `current` intacto), rename do stage para
    `versions/<v>/`, copia do lancador, troca atomica de `current`.
 5. Retencao N=2: ficam `current` e `previous`; o resto de `versions/` sai. Reinstalar a mesma versao preserva a anterior.
-6. `config.yaml` (schema v1 do M1.4a) com `data_dir`/`state_dir` (default `<R>/state`); upgrade preserva chaves existentes; `state/` e criado e NUNCA tocado
+6. `config.yaml` (schema v1 do M1.4a) com `data_train_dir`/`data_inference_dir`/`artifacts_dir`/`state_dir` (default `<R>/state`; a `data_dir:` legada sai ao regravar); upgrade preserva chaves existentes; `state/` e criado e NUNCA tocado
    por upgrade/rollback/uninstall (so `--uninstall --yes --purge` o remove).
 7. `--add-to-path` grava um bloco `# >>> prevcarga >>>` ... `# <<< prevcarga <<<` no perfil (`--profile`, default `~/.profile`), idempotente; o uninstall o remove.
 8. Fim: `<R>/bin/prevcarga doctor --format json` e devolvido em `result.doctor` (JSON unico em `--format json`).
@@ -90,7 +90,7 @@ sobreposto; variante `slim` sem as libs pesadas; `pc_tree_sha`; variante de test
 Raiz default `%LOCALAPPDATA%\prevcarga` lida por `[Environment]::GetFolderPath('LocalApplicationData')` (nenhum `$env:` no instalador).
 
 ## Uso
-`install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-Data <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]`;
+`install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-DataTrain <dir>] [-DataInference <dir>] [-DataArtifacts <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]`;
 `-Rollback`; `-Uninstall -Yes [-Purge]`. A grafia `--bundle`/`--sha256`/... dos docs tambem e aceita (captura em `ValueFromRemainingArguments`).
 Argumento desconhecido/valor ausente/`-Format` invalido => `install.usage` (exit 8) pelo contrato, nao pelo erro nativo do PowerShell.
 
@@ -165,7 +165,7 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
   ou de uma anterior, num upgrade sem a flag), diz que `<raiz>/bin` esta no PATH por ele, que o perfil so e lido no login, e manda rodar
   `. <perfil>` neste terminal (ou logar de novo) -- nao promete "terminal novo" (terminal grafico abre bash sem login); sem o bloco,
   `export PATH="<raiz>/bin:$PATH"` (ou reinstalar com `--add-to-path`);
-  `prevcarga doctor`; e, so se `data_dir` NAO estiver no `<raiz>/config.yaml`, apontar o deck (`--data`/`-Data` ou `data_dir:` no config).
+  `prevcarga doctor`; e, so se `data_dir` NAO estiver no `<raiz>/config.yaml`, apontar o deck (`--data-train`/`-DataTrain` ou `data_train_dir:` no config; cai em `data_dir`).
   Com `data_dir` ja configurado, so informa o valor. Texto pt-BR sem acento (ASCII; `install.sh` entrou no teste de bytes > 127).
 - Testes: `test-install-etapas-linux.R` (redirecionado: stderr vazio, stdout 1 linha; CONTROL sob pty: banner = as 14 linhas da CLI + `  prevcarga 9.9.9 | instalador | linux-x86_64`,
   intro antes da etapa 1, `proximos passos:` depois da linha final, sem/com `--data`, nota de rollback na 2a versao, perfil com o bloco via
@@ -194,4 +194,5 @@ O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO pa
   (`$script:PcBarOpen`), o `Write-PcStream` quebra a linha antes de qualquer escrita, entao um erro no meio da extracao sai na linha
   de baixo. Mesma guarda das etapas (`$script:PcProgress`: texto e stderr no terminal). **[DEFERRED windows-vm, dono Gabriel]**
   ver a barra num console real (5.1 e pwsh 7).
-- Proximos passos sem `data_dir`: os dois instaladores sugerem `prevcarga set-data-dir <dir>`.
+- Proximos passos sem `data_train_dir`: os dois instaladores sugerem `prevcarga set-data-dir` (interativo ou com chaves).
+- `--data`/`-Data` e apelido de `--data-train`/`-DataTrain` por uma versao: aviso ASCII em stderr; valor diferente de `--data-train` = `install.usage`.

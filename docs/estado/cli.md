@@ -44,7 +44,7 @@
   `--artifacts-dir` ficam como apelidos (uma versao). Nenhuma opcao nova e prefixo de outra (docopt so casa prefixo sem casamento exato).
   Ver `docs/estado/config.md`; teste `test-data-options.R`.
 
-- **set-data-dir (2026-11-10):** 21o verbo, `prevcarga set-data-dir <dir>`, dono M8, nao isento. A escrita mora em config.R
+- **set-data-dir (2026-11-10):** 21o verbo, `prevcarga set-data-dir [<dir>] [--train=<dir>] [--inference=<dir>] [--artifacts=<dir>]` (E1-T5; interativo sem chave), dono M8, nao isento. A escrita mora em config.R
   (ver `docs/estado/config.md`). O instalador sugere o verbo nos proximos passos quando o `data_dir` falta.
 
 - **Ajuda por verbo (F2.3):** `prevcarga <verbo> -h|--help` imprime `prevcarga_usage_verb(verbs, verb)` (stdout, ASCII, rc 0, sem JSON
