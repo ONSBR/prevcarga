@@ -95,6 +95,7 @@ prevcarga_verb_forecast <- list(
     "--incluir-membros       Inclui membros/<m>/<a>.parquet na entrega"),
   scoped  = c("--incluir-membros", "--report", "--report-format"),   # cli.R .prevcarga_check_scoped
   handler = function(ctx, args) cmd_forecast(ctx, args),
+  deck_roles = c("train", "inference"),
   owner   = "M6",
   exempt  = FALSE,
   modules = c("topology.R", "provenance.R", "schema_long.R", "evaluation.R", "deck_reader.R", "dates.R", "validation.R",

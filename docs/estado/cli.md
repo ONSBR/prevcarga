@@ -17,6 +17,23 @@
   (`sys.source` relativo a root) e handler. Isencao fechada: `exempt = TRUE` (doctor/status); config.yaml quebrado
   nesses verbos nao aborta: ctx de defaults+flags com `ctx$config_error`. Handler pode devolver
   `attr(result, "exit_code")` (impresso e usado como exit). Avisos `prevcarga_warning` viram `warnings` do envelope.
+- `deck_roles` (campo opcional do registro `prevcarga_verb_<v>`; ausente = `train`): subconjunto de `c("train","inference")`
+  ou `function(args)` que o devolve; validado em `.prevcarga_load_verb_file` (invalido = `stop` de bug do pacote) e exposto na
+  list-col `deck_roles` de `prevcarga_verbs_discover()`. Ordem em `.prevcarga_run_verb` (verbo nao exempt): `runtime()` ->
+  `prevcarga_ctx` -> `prevcarga_resolve_deck_role(ctx, roles, args)` -> `modules` -> handler. Verbos exempt (doctor, describe,
+  models, status, areas) nao resolvem papel. Resolucao: flag (`--data-inference` => inference; `--data-train`/`--data` => train)
+  > `data_train_dir` > `data_inference_dir` > train com `data_dir` NULL (a guarda do verbo segue abortando
+  `config.data_dir_missing`). Flag de treino junto com `--data-inference` = `config.usage` (exit 8, `where` =
+  `--data-train x --data-inference`). Papel fora de `roles` = `contract.deck_role_refused` (exit 2, `where` = opcao,
+  `details` role/verb/accepted) antes de qualquer leitura. Define `ctx$data_role`, `ctx$data_role_option` e `ctx$data_dir`
+  (deck ativo, lido por `prevcarga_require_deck`).
+
+  | Verbo | Papeis aceitos |
+  |---|---|
+  | forecast, infer-model, validate-deck | train, inference |
+  | reconcile | train com `--mode=train` ou `--eval`; senao train e inference (apply) |
+  | combine | train com `--mode=train` ou `full`; senao train e inference (apply) |
+  | demais verbos de deck (train-models, backtest, plan, score, features) | train (campo ausente) |
 - Handler de topo = `prevcarga_with_errors` (errors.R): classificado => exit da tabela; resto => `generic.unexpected`
   exit 1; traceback so com `--debug` (stderr). `--format json` = um unico envelope em stdout (erro tambem), stderr vazio.
 - Contrato do handler: `function(ctx, args)` (ou `function(ctx)`) -> list(schema_version = 1L, ...); texto via

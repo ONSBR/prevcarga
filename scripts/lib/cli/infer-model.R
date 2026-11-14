@@ -59,6 +59,7 @@ prevcarga_verb_infer_model <- list(
     "--artifact-version=<v>  v_<hash> explicito (senao latest.txt)",
     "--pin                   Usa a versao pinada (.pin) da celula"),
   handler = function(ctx, args) cmd_infer_model(ctx, args),
+  deck_roles = c("train", "inference"),
   owner   = "M5",
   exempt  = FALSE,
   modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference.R")
