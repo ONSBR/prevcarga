@@ -54,16 +54,23 @@ test_that("[AC1] tres config invalidos abortam classe config sem lista parcial",
 
 test_that("[AC2] flag vence YAML; CONTROL: sem flag o valor do YAML volta", {
   root <- fake_root()
-  f <- yaml_file(c("schema_version: 1", "data_dir: A", "weather_issue_cutoff: available_until"))
+  f <- yaml_file(c("schema_version: 1", "data_train_dir: A", "weather_issue_cutoff: available_until"))
   c1 <- prevcarga_ctx(list("--config" = f), root)
   expect_identical(c1$data_dir, normalizePath("A", winslash = "/", mustWork = FALSE))
   expect_identical(c1$weather_issue_cutoff, "available_until")
-  c2 <- prevcarga_ctx(list("--config" = f, "--data" = "B", "--weather-cutoff" = "origin_midnight_utc"), root)
+  c2 <- prevcarga_ctx(list("--config" = f, "--data-train" = "B", "--weather-cutoff" = "origin_midnight_utc"), root)
   expect_identical(c2$data_dir, normalizePath("B", winslash = "/", mustWork = FALSE))
   expect_identical(c2$weather_issue_cutoff, "origin_midnight_utc")
   c3 <- prevcarga_ctx(list("--config" = f), root)
   expect_identical(c3$data_dir, c1$data_dir)
   expect_identical(c3$weather_issue_cutoff, "available_until")
+})
+
+test_that("[AC1b] chaves data_train_dir e data_inference_dir entram no schema; tipo nao character => config.bad_type", {
+  ok <- prevcarga_config_load(yaml_file(c("schema_version: 1", "data_train_dir: /t", "data_inference_dir: /i")))
+  expect_identical(ok$data_train_dir, "/t"); expect_identical(ok$data_inference_dir, "/i")
+  expect_abort(prevcarga_config_load(yaml_file(c("schema_version: 1", "data_train_dir: 3"))), "config.bad_type", "data_train_dir")
+  expect_abort(prevcarga_config_load(yaml_file(c("schema_version: 1", "data_inference_dir: 3"))), "config.bad_type", "data_inference_dir")
 })
 
 test_that("[AC3] defaults sem --config e config da raiz; guarda de data_dir", {
@@ -81,7 +88,7 @@ test_that("[AC3] defaults sem --config e config da raiz; guarda de data_dir", {
   root2 <- fake_root(c("schema_version: 1", "format: json"))
   expect_identical(prevcarga_ctx(list(), root2)$format, "json")
   expect_identical(prevcarga_ctx(list("--format" = "text"), root2)$format, "text")
-  expect_identical(prevcarga_require_data_dir(prevcarga_ctx(list("--data" = "X"), root)) $data_dir,
+  expect_identical(prevcarga_require_data_dir(prevcarga_ctx(list("--data-train" = "X"), root)) $data_dir,
                    normalizePath("X", winslash = "/", mustWork = FALSE))
 })
 

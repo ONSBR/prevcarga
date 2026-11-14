@@ -55,10 +55,13 @@ Estas flags valem em qualquer verbo. A precedência é flag, depois `config.yaml
 | Flag | Valores | Uso |
 |---|---|---|
 | `--origin=<data>` | `AAAA-MM-DD`; `A..B` só em `plan` e `backtest` | Origem O da previsão. É o único flag de data humano. Faixa fora de `plan`/`backtest` ou data inválida sai com 8 (`config.bad_origin`). |
-| `--data=<dir>` | diretório | Deck canônico. Verbos que leem o deck sem ele saem com 8 (`config.data_dir_missing`). |
+| `--data-train=<dir>` | diretório | Deck de treino (kind `train`); chave `data_train_dir`. Verbos que leem o deck sem ele saem com 8 (`config.data_dir_missing`). |
+| `--data-inference=<dir>` | diretório | Deck de inferência (kind `inference`); chave `data_inference_dir`. |
+| `--data-artifacts=<dir>` | caminho | Raiz de artefatos (default `<state_dir>/artifacts`); chave `artifacts_dir`. Inexistente sai com 8 (`config.artifacts_dir_missing`). |
+| `--data=<dir>` | diretório | Apelido de `--data-train`; sai na próxima versão e emite `warning.option_alias`. Valor diferente de `--data-train` sai com 8 (`config.usage`). |
 | `--state=<dir>` | diretório | Estado local: artefatos, scratch, entregas. |
 | `--config=<arquivo>` | caminho | `config.yaml` a usar. |
-| `--artifacts-dir=<dir>` | caminho | Raiz de artefatos só de leitura (membros, combina, k-hat); também `artifacts_dir` no `config.yaml`. Hoje só o `forecast` a usa. |
+| `--artifacts-dir=<dir>` | caminho | Apelido de `--data-artifacts`; sai na próxima versão e emite `warning.option_alias`. A raiz é só de leitura (membros, combina, k-hat); hoje só o `forecast` a usa. |
 | `--load-label=<l>` | `end`, `start` | Rótulo da carga, quando o deck não declara. |
 | `--weather-cutoff=<w>` | `available_until`, `origin_midnight_utc` | Regra de corte do clima previsto. |
 | `--format=<fmt>` | `text` (default), `json` | Formato da saída. |
