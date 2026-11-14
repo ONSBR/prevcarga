@@ -98,7 +98,7 @@ m2_run <- function(root, args = character(), preset = NULL, skip_runtime = FALSE
        raw = c(bytes(tf1), bytes(tf2)))
 }
 m2_vd <- function(root, deck, extra = character(), fmt = "json", ...)
-  m2_run(root, c("validate-deck", "--data", deck, extra, "--format", fmt), ...)
+  m2_run(root, c("validate-deck", "--data-train", deck, extra, "--format", fmt), ...)
 m2_doc <- function(r) jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE)
 m2_strip <- function(r) { d <- m2_doc(r); d$run_id <- NULL; d }
 
