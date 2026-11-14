@@ -31,14 +31,15 @@
 - Baseline: tag `v0.1.5` = `00acf8f121d6e8d9e6ea46262093115b2dfea742` (congelada). Arvore testada: commit de integracao `f324e32` (chore/fixes-v014-base; goldens regerados em `3e470ef` e `7211791`, relatorios do dessem-linear em `a8e333e` e `54e800c`). Os 6 `golden.lock` trazem `oracle_commit` = `00acf8f`, `data_digest` e `fingerprint` preenchidos (conferido em F7.5 sem rodar plugin).
 - Comando por plugin (R 4.5.3, uma execucao por modelo, sobre o store atual somente leitura): `Rscript --vanilla models/<m>/tests/run_all_gates.R --tier parity`. O tier nao foi rerodado em F7.5; este registro e a fonte duravel.
 
-| plugin | exit | tempo | N/A e SKIP (dono) |
-|---|---|---|---|
-| holt-winters | 0 | 184 s | `harness_parity` DEFERRED M7 (harness de backtest); `portabilidade_cross_os` DEFERRED M8 (VM Windows, dono Gabriel) |
-| random-forest | 0 | 361 s | `gate12` DEFERRED M7 (A/B); `cross_os` DEFERRED M8 |
-| lgbm | 0 | 1208 s | `cross_os` DEFERRED M8 |
-| dessem-linear | 0 | 4199 s | `fanout_parity` N/A (so no tier parity-full; coberto pelo `fanout_report` regerado em `54e800c`: 19 unidades, 0 divergencias); `gate03_sem_crash` DEFERRED M7; `cross_os` DEFERRED M8 |
-| dessem-regdin | 0 | 4092 s | `paridade_foundation` e `paridade_fanout` N/A (so parity-full); `sem_crash_harness` DEFERRED M7; `cross_os` DEFERRED M8 |
-| _dessem-engine | 0 | n/d | nenhum (suites `engine-*`, sem tempo registrado) |
+| plugin | exit | tempo | arvore rodada | N/A e SKIP (dono) |
+|---|---|---|---|---|
+| holt-winters | 0 | 184 s | `2e69430` | `harness_parity` DEFERRED M7 (harness de backtest); `portabilidade_cross_os` DEFERRED M8 (VM Windows, dono Gabriel) |
+| random-forest | 0 | 361 s | `2e69430` | `gate12` DEFERRED M7 (A/B); `cross_os` DEFERRED M8 |
+| lgbm | 0 | 1208 s | `2e69430` | `cross_os` DEFERRED M8 |
+| dessem-linear | 0 | 4199 s | `54e800c` | `fanout_parity` N/A (so no tier parity-full; coberto pelo `fanout_report` regerado em `54e800c`: 19 unidades, 0 divergencias); `gate03_sem_crash` DEFERRED M7; `cross_os` DEFERRED M8 |
+| dessem-regdin | 0 | 4092 s | `a8e333e` | `paridade_foundation` e `paridade_fanout` N/A (so parity-full); `sem_crash_harness` DEFERRED M7; `cross_os` DEFERRED M8 |
+| _dessem-engine | 0 | n/d | `2e69430` | nenhum (suites `engine-*`, sem tempo registrado) |
 
 - O dessem-linear so fechou com exit 0 depois das correcoes `2e69430`, `a8e333e` e `54e800c` (rodadas anteriores saiam 1 em `fanout_parity`/`readme`).
 - Rodadas de 2026-11-13/14, feitas pelo passo operacional do F7.4; a rodada de cada plugin e posterior ao commit dos seus locks.
+- Equivalencia de arvore com o commit de integracao `f324e32` (o registro vale para ele sem rerodar): `git diff --stat 54e800c f324e32 -- models scripts tests` e vazio (dessem-linear); `git diff --stat a8e333e f324e32 -- models scripts tests` so toca `models/dessem-linear/README.md` e `fanout_report.json` (dessem-regdin inalterado); `git diff 2e69430 f324e32 -- models scripts tests` so toca arquivos de `models/dessem-linear/` e `models/dessem-regdin/tests/parity/units.yaml` (holt-winters, random-forest, lgbm e _dessem-engine inalterados). O commit de cada rodada foi inferido pelo horario do fim do log contra o `git log` (sem hash gravado no log).
