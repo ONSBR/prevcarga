@@ -13,7 +13,7 @@ PCC_SEED <- 20241015L
 PCC_DECK_DAYS <- 460L
 PCC_CUTOFF <- "origin_midnight_utc"           # a emissao 00Z de O cobre o dia O inteiro (o do available_until nao cobre 00-03h)
 PCC_FOUNDATION <- c("runtime", "errors", "config", "provenance", "topology", "deck_reader", "validation", "dates",
-                    "registry", "features", "training", "inference")
+                    "registry", "features", "inference_needs", "training", "inference")
 
 ## ---- caminhos e escopos -----------------------------------------------------------------------------------------
 pcc_models_dir <- function(root = pc_root()) file.path(root, "models")

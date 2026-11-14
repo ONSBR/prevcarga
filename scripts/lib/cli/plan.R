@@ -25,5 +25,5 @@ prevcarga_verb_plan <- list(
   owner   = "M7",
   exempt  = FALSE,
   modules = c("topology.R", "schema_long.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R",
-              "features.R", "registry.R", "training.R", "cache.R", "orchestrate.R")
+              "features.R", "registry.R", "inference_needs.R", "training.R", "cache.R", "orchestrate.R")
 )

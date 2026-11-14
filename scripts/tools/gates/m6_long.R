@@ -18,7 +18,7 @@ M6L_GATES <- c(paste0("m6_", M6L_SUBGATES), "m6_nowcast_dplus0")
 M6L_TZ <- "Etc/GMT+3"
 M6L_LIBS <- c("errors", "schema_long", "features", "build_long_output")
 M6L_FOUNDATION <- c("runtime", "errors", "config", "provenance", "topology", "schema_long", "deck_reader", "validation", "dates",
-                    "registry", "features", "training", "inference")
+                    "registry", "features", "inference_needs", "training", "inference")
 
 .m6l_state <- new.env(parent = emptyenv())
 

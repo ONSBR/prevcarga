@@ -4,7 +4,7 @@
 ## tem o seu CONTROL (delta != 0). Tudo em tempdir; sem variaveis de ambiente.
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
 env <- pc_source_lib(c("runtime", "errors", "config", "provenance", "topology", "deck_reader", "validation", "dates",
-                       "registry", "features", "training"))
+                       "registry", "features", "inference_needs", "training"))
 sys.source(file.path(pc_root(), "scripts", "tools", "fixture_store.R"), envir = env)
 suppressMessages(env$prevcarga_runtime_enforce())
 env$prevcarga_registry_reset(); env$prevcarga_plugin_unload_all()

@@ -99,5 +99,5 @@ prevcarga_verb_train_models <- list(
   owner   = "M5",
   exempt  = FALSE,
   modules = c("topology.R", "schema_long.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R",
-              "features.R", "registry.R", "training.R")
+              "features.R", "registry.R", "inference_needs.R", "training.R")
 )

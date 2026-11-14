@@ -61,7 +61,7 @@ pc_m7_deck <- function(origins, issues = c("00", "06", "18"), areas = c("A", "B"
 ## sessao de teste. Os brinquedos sao sensiveis a ultima carga VISTA (y_pred = nivel do artefato + ultima carga); `noise` soma um
 ## sorteio SEM semente propria (a semente vem do run.yaml, pelo orquestrador) para o gate de determinismo.
 PC_M7H_MODULES <- c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-                    "features", "registry", "training", "inference", "build_long_output", "evaluation", "honesty_gate", "combination",
+                    "features", "registry", "inference_needs", "training", "inference", "build_long_output", "evaluation", "honesty_gate", "combination",
                     "reconcile", "cache", "reporting", "orchestrate", "backtest")
 PC_M7H_AREAS <- c("A", "B", "X")
 .pc_m7h <- new.env()

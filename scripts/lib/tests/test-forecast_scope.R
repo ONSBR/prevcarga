@@ -5,7 +5,7 @@
 library(testthat)
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
 env <- pc_source_lib(c("errors", "runtime", "config", "topology", "provenance", "registry", "schema_long", "deck_reader",
-                       "dates", "evaluation", "validation", "features", "training", "inference", "combination",
+                       "dates", "evaluation", "validation", "features", "inference_needs", "training", "inference", "combination",
                        "build_long_output", "reconcile", "exports", "forecast"))
 sys.source(file.path(pc_root(), "scripts", "tools", "fixture_store.R"), envir = env)
 suppressMessages(env$prevcarga_runtime_enforce())

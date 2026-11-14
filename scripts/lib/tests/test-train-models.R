@@ -99,7 +99,7 @@ test_that("errors/train_models.tsv carrega via prevcarga_errors_load sem id dupl
 ## --- seletores (matriz in-process sobre a topologia real; nenhuma sigla literal) ---------------------------------------
 mod <- new.env()
 for (m in c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-            "features", "registry", "training")) sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
+            "features", "registry", "inference_needs", "training")) sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
 topo <- mod$prevcarga_topology(root = pc_root())
 real_ctx <- list(root = pc_root())
 mat <- function(...) mod$prevcarga_train_matrix(list(...), real_ctx)
