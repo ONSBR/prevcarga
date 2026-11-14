@@ -58,27 +58,54 @@
                         if (is.null(ctx$config_path)) "nenhum (defaults)" else ctx$config_path, "valido")
 }
 
-.prevcarga_doctor_data_row <- function(ctx) {
-  if (is.null(ctx$data_dir)) .prevcarga_doctor_row("data_dir", "WARN", "ausente", "-")
-  else .prevcarga_doctor_row("data_dir", "PASS", ctx$data_dir, ctx$data_dir)
+## Uma linha por papel de dados: data_train_dir, data_inference_dir e artifacts_dir (NULL = default <state_dir>/artifacts).
+.prevcarga_doctor_data_rows <- function(ctx) {
+  one <- function(nm, path, eff_absent = "-")
+    if (is.null(path)) .prevcarga_doctor_row(nm, "WARN", "ausente", eff_absent)
+    else .prevcarga_doctor_row(nm, "PASS", path, path)
+  rbind(one("data_train_dir", ctx$data_train_dir),
+        one("data_inference_dir", ctx$data_inference_dir),
+        one("artifacts_dir", ctx$artifacts_dir, file.path(ctx$state_dir, "artifacts")))
+}
+
+## Sentinela do verao 2018-19: 2019-01-15 12:00 UTC em America/Sao_Paulo deve dar -0200 (tzdata real).
+.prevcarga_doctor_sp_offset <- function()
+  format(lubridate::with_tz(lubridate::ymd_hms("2019-01-15 12:00:00", tz = "UTC"), "America/Sao_Paulo"), "%z")
+
+## Linhas 'fuso <tz>': America/Sao_Paulo + fusos unicos declarados nos manifests dos decks (deck ausente/ilegivel: nenhuma).
+## Sempre constroi todas as linhas (o numero nao depende de haver tzdata).
+.prevcarga_doctor_tz_rows <- function(ctx, olson = OlsonNames, offset = .prevcarga_doctor_sp_offset) {
+  from_deck <- function(d) if (is.null(d)) character() else
+    tryCatch(prevcarga_deck_manifest_timezones(d), error = function(e) character())
+  tzs <- unique(c("America/Sao_Paulo", from_deck(ctx$data_train_dir), from_deck(ctx$data_inference_dir)))
+  known <- tryCatch(olson(), error = function(e) character())
+  rows <- lapply(tzs, function(tz) {
+    ok <- tz %in% known &&
+      (!identical(tz, "America/Sao_Paulo") || identical(tryCatch(offset(), error = function(e) NA), "-0200"))
+    if (ok) .prevcarga_doctor_row(paste("fuso", tz), "PASS", tz, tz)
+    else .prevcarga_doctor_row(paste("fuso", tz), "FAIL", "runtime.tzdata_missing", "instale o pacote tzdata do sistema")
+  })
+  do.call(rbind, rows)
 }
 
 ## Constroi TODAS as linhas antes de calcular o exit (nunca aborta no meio): o numero de linhas e constante.
 prevcarga_build_doctor <- function(ctx, check = prevcarga_runtime_apply,
                                    has_pkg = function(p) requireNamespace(p, quietly = TRUE),
-                                   r_version = as.character(getRversion())) {
+                                   r_version = as.character(getRversion()),
+                                   olson = OlsonNames) {
   chk <- check()
   rv <- .prevcarga_doctor_row("versao do R", if (identical(r_version, .prevcarga_doctor_r_expected)) "PASS" else "WARN",
                               r_version, .prevcarga_doctor_r_expected)
   runtime_rows <- .prevcarga_doctor_runtime_rows(chk)
   pkg_rows <- .prevcarga_doctor_pkg_rows(has_pkg)
   cfg_row <- .prevcarga_doctor_config_row(ctx)
-  checks <- rbind(runtime_rows, rv, pkg_rows, cfg_row, .prevcarga_doctor_data_row(ctx))
+  tz_rows <- .prevcarga_doctor_tz_rows(ctx, olson = olson)
+  checks <- rbind(runtime_rows, rv, pkg_rows, cfg_row, .prevcarga_doctor_data_rows(ctx), tz_rows)
   rownames(checks) <- NULL
   counts <- stats::setNames(lapply(.prevcarga_doctor_status, function(s) sum(checks$status == s)),
                             .prevcarga_doctor_status)
   counts <- lapply(counts, as.integer)
-  classes <- c(if (any(runtime_rows$status == "FAIL")) "runtime",
+  classes <- c(if (any(runtime_rows$status == "FAIL") || any(tz_rows$status == "FAIL")) "runtime",
                if (any(pkg_rows$status == "FAIL")) "bundle",
                if (cfg_row$status == "FAIL") "config")
   code <- if (length(classes)) unname(prevcarga_exit_codes[[prevcarga_exit_precedence(classes)]]) else 0L

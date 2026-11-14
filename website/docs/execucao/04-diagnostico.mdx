@@ -84,7 +84,11 @@ Nas linhas de runtime, `found` é o valor que o processo herdou do shell e `effe
 | `docopt`, `yaml`, `jsonlite`, `digest`, `lubridate`, `RhpcBLASctl` | instalado | FAIL se ausente (pacote obrigatório) | bundle (6) |
 | `arrow`, `withr` | instalado | WARN se ausente (pacote opcional) | — |
 | `config.yaml` | válido, ou nenhum (defaults) | FAIL se o arquivo não carrega; `found` traz o id do erro e `effective` diz `defaults + flags` | config (8) |
-| `data_dir` | diretório do store resolvido | WARN se nenhum diretório de dados foi configurado | — |
+| `data_train_dir`, `data_inference_dir` | diretório do deck de cada papel | WARN `ausente` se o papel não foi configurado | — |
+| `artifacts_dir` | raiz de artefatos (`--data-artifacts`); sem ela, `<state_dir>/artifacts` | WARN `ausente` se não foi apontada (o `effective` mostra o padrão) | — |
+| `fuso America/Sao_Paulo`, `fuso <tz>` | uma linha por fuso: `America/Sao_Paulo` e cada fuso único declarado nos manifests dos decks de treino e de inferência | FAIL com `found` `runtime.tzdata_missing` se a base de fusos (tzdata) do sistema não tem o fuso, ou, para `America/Sao_Paulo`, se o sentinela do verão 2018-19 não dá `-0200` | runtime (7) |
+
+O store é lido em relógio de parede BRT, com horário de verão até 2019. Um R sem tzdata devolve `OlsonNames()` vazio ou erra o deslocamento em silêncio. Por isso o doctor confere o sentinela `2019-01-15 12:00 UTC` em `America/Sao_Paulo`, que deve dar `-0200`. Deck ausente ou manifest ilegível não gera linha de fuso nem aborta o doctor. O número de linhas não depende de haver tzdata. O `hint` manda instalar o pacote tzdata do sistema.
 
 A linha `locale` mostra em `found` e `effective` só o `LC_CTYPE`, mas o veredito considera os três. O locale UTF-8 esperado é `C.UTF-8` no Linux; no Windows o runtime tenta `.UTF-8` e depois `English_United States.utf8`.
 
@@ -99,7 +103,7 @@ Além das 18 linhas fixas, o `doctor` confere o bundle instalado e os artefatos 
 | `bundle.integridade` | os arquivos de `files[]` do `RUNTIME.json` (`prevcarga_runtime_validate`); `found` lista até 3 divergentes | PASS ou FAIL | bundle (6) |
 | `bundle.versao` | versão do bundle; `effective` traz o `runtime_id` | sempre PASS | — |
 | `bundle.current` | o arquivo-ponteiro `current` na raiz da instalação, ao lado de `versions/` | PASS se aponta para esta versão, WARN se aponta para outra, N/A se ausente | — |
-| `artefatos.presenca` | cada `latest.txt` sob `<state_dir>/artifacts/` aponta para um diretório `v_<hash>` existente | PASS ou FAIL; `found` cita o primeiro ausente | state (13) |
+| `artefatos.presenca` | cada `latest.txt` sob a raiz de artefatos (`--data-artifacts`, ou `<state_dir>/artifacts/` sem ela) aponta para um diretório `v_<hash>` existente | PASS ou FAIL; `found` cita o primeiro ausente | state (13) |
 | `artefatos.sha` | o `SHA256SUMS` de cada versão apontada bate com os arquivos | PASS ou FAIL; `found` cita o primeiro arquivo divergente | integrity (9) |
 
 O ponteiro `current` é um arquivo de texto com a versão, não um symlink, no layout criado pelo instalador (ver [Instalação](/execucao/instalacao)). Os artefatos e o `latest.txt` estão em [Ciclo de vida dos artefatos](/execucao/artefatos).

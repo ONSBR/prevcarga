@@ -14,3 +14,5 @@
   pc_rscript, pc_run_cli, pc_probe_script). Pacote adicionado no R 4.5.3: RhpcBLASctl.
 - `scripts/tools/export_error_catalog.R` ainda guarda `prevcarga_runtime_fix()` com `exists()`; este ticket nao o define.
 - M8.1: `runtime.R` ganhou o contrato do RUNTIME.json do bundle (`prevcarga_runtime_json_canonical/_id/_validate`, `prevcarga_bundle_require`); nenhuma leitura de env nova. Ver `m8-bundle.md`.
+- E1-T6: `.prevcarga_artifact_scan(base)` recebe a raiz de artefatos ja resolvida (nao mais `state_dir`); `prevcarga_platform_check`
+  passa `ctx$artifacts_dir` (`--data-artifacts`) ou, sem ele, `<state_dir>/artifacts`. `artefatos.presenca`/`artefatos.sha` leem essa raiz.

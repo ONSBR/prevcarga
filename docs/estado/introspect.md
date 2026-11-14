@@ -7,8 +7,9 @@
   `exempt = TRUE` (ADR-0022, sem enforce; config quebrado vira `ctx$config_error`). O handler e um wrapper
   `function(ctx, args) cmd_<verbo>(ctx, args)` (resolvido em tempo de chamada, pois `modules` so e carregado depois da
   descoberta). `scripts/prevcarga` e `cli.R` nao foram tocados.
-- `doctor`: 18 linhas fixas (TZ, locale, 4 pins, pool BLAS, versao do R [WARN != 4.5.3], 6 pacotes obrigatorios [FAIL],
-  arrow/withr [WARN], config.yaml, data_dir [WARN ausente]); found x effective vem de `prevcarga_runtime_apply()` (shell
+- `doctor`: linhas fixas (TZ, locale, 4 pins, pool BLAS, versao do R [WARN != 4.5.3], 6 pacotes obrigatorios [FAIL],
+  arrow/withr [WARN], config.yaml, data_train_dir/data_inference_dir/artifacts_dir [WARN ausente; artifacts_dir ausente = <state_dir>/artifacts],
+  mais `fuso <tz>`); found x effective vem de `prevcarga_runtime_apply()` (shell
   sujo nao e erro). Exit calculado DEPOIS de montar todas as linhas: `prevcarga_exit_precedence` entre runtime (7),
   config (8) e bundle (6); atributo `exit_code`. Vocabulario PASS/WARN/FAIL/N/A aberto para o M8 acrescentar linhas.
 - `status`: resumo do doctor + deck (best-effort; manifest lido pelo leitor unico `prevcarga_deck_manifest`, nunca por
@@ -20,3 +21,9 @@
   `scripts/lib/cli/describe.R` com dates.R). `--model` aceita o `mdir`; desconhecido => `config.unknown_model` (exit 8).
 - Erros de topology/run.yaml chegam como `contract` (exit 2) pela fachada.
 - Testes: `scripts/lib/tests/test-introspection.R` (o main roda com a pilha da CLI em globalenv, como o shim).
+
+- `.prevcarga_doctor_tz_rows(ctx, olson = OlsonNames, offset = .prevcarga_doctor_sp_offset)` (E1-T6): linha `fuso America/Sao_Paulo`
+  e uma `fuso <tz>` por fuso unico de `prevcarga_deck_manifest_timezones()` dos decks de treino e inferencia (deck ausente ou
+  manifest ilegivel: nenhuma linha, sem abortar). PASS = tz em `olson()` e, para Sao_Paulo, sentinela 2019-01-15 12:00 UTC == `-0200`;
+  senao FAIL `runtime.tzdata_missing` (classe runtime, exit 7). Todas as linhas sao construidas antes do exit; `olson` e injetavel
+  em `prevcarga_build_doctor`.
