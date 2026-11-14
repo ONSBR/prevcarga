@@ -14,7 +14,7 @@ O <- M6F_ORIGIN
 base <- withr::local_tempdir("fad-base-")
 DECK <- m6f_deck(env, file.path(base, "deck"))
 TOPO <- m6f_topology_file(base)
-FX <- m6f_ctx(DECK, file.path(base, "state"), TOPO)
+FX <- m6f_ctx(DECK, file.path(base, "state"), TOPO, list(data_role = "train"))
 dir.create(FX$state_dir, recursive = TRUE)
 m6f_prepare_origin(env, FX)                       # combina + k-hat no registry do FX
 MEM <- env$prevcarga_members(path = TOPO, root = pc_root())
@@ -39,7 +39,7 @@ make_art <- function(sem = character(), .frame = parent.frame()) {
 }
 run_fc <- function(extra, .frame = parent.frame()) {
   st <- withr::local_tempdir("fad-state-", .local_envir = .frame)
-  ctx <- m6f_ctx(DECK, st, TOPO, extra)
+  ctx <- m6f_ctx(DECK, st, TOPO, utils::modifyList(list(data_role = "train"), extra))
   log <- new.env(); log$infer <- list(); log$train <- list()
   mock(prevcarga_infer_cell = m6f_infer_spy(env, log), prevcarga_train = m6f_train_spy(env, log), .frame = .frame)
   r <- env$prevcarga_forecast(ctx, skip_validate = TRUE, escopo = "sin")
@@ -84,7 +84,7 @@ test_that("origin_scoped sem versao de O na raiz apontada: zero treino e membro 
             recursive = TRUE)
   log <- new.env(); log$infer <- list(); log$train <- list()
   mock(prevcarga_infer_cell = m6f_infer_spy(env, log), prevcarga_train = m6f_train_spy(env, log))
-  ctl <- env$prevcarga_forecast(m6f_ctx(DECK, st, TOPO), skip_validate = TRUE, escopo = "sin")$result
+  ctl <- env$prevcarga_forecast(m6f_ctx(DECK, st, TOPO, list(data_role = "train")), skip_validate = TRUE, escopo = "sin")$result
   expect_identical(ctl$artefatos$modo, "registry")
   expect_true(any(vapply(log$train, function(x) identical(x$member, "HW") && identical(x$area, "A1"), NA)))
   expect_length(ctl$membros_ausentes, 0L)

@@ -113,7 +113,25 @@
 }
 
 ## Classes que abortam a rodada (nunca viram membro ausente): erro de uso/config, de topologia, de honestidade e de runtime.
-.FORECAST_FATAL <- "^(config|topology|honesty|runtime)\\."
+.FORECAST_FATAL <- "^(config|topology|honesty|runtime)\\.|^state\\.inference_artifact_missing$"
+
+## Preflight do deck de inferencia (E1-T4): so leitura (nenhuma escrita na raiz). Cada membro x folha precisa ter o artefato na raiz
+## resolvida: origin_scoped = versao da origem O; origin_agnostic = latest. A primeira falta (ordem radix de folha/sigla) aborta
+## state.inference_artifact_missing (exit 13, fatal): com deck de inferencia nada treina (o deck curto nao tem historico de treino).
+.forecast_inference_preflight <- function(ctx, plan, mem, origin) {
+  for (a in sort(plan$leaves, method = "radix")) for (i in order(as.character(mem$sigla), method = "radix")) {
+    m <- mem[i, ]
+    split <- prevcarga_model_spec(m$mdir, ctx$root)$split
+    ok <- if (identical(split, "origin_scoped")) !is.null(.forecast_scoped_version(ctx, m, a, origin)) else {
+      key <- prevcarga_registry_key(m, a, ctx)
+      dir.exists(key) && !is.na(tryCatch(prevcarga_resolve_version(key, "latest"), prevcarga_error = function(e) NA_character_))
+    }
+    if (!ok) prevcarga_abort("state.inference_artifact_missing", where = paste0(m$sigla, "/", a),
+                             details = list(membro = as.character(m$sigla), area = a, origem = format(origin, "%Y-%m-%d"),
+                                            split = split, raiz = prevcarga_registry_root(ctx)))
+  }
+  invisible(TRUE)
+}
 
 ## Uma celula (membro x folha): origin_agnostic so le o artefato (ausente => state.artifact_missing, exit 13: nunca treina);
 ## origin_scoped treina UMA vez, pela fachada de treino (que deriva os cortes de dates.R), so se nao ha artefato da origem O.
@@ -127,6 +145,10 @@
     ver <- NULL
     if (identical(split, "origin_scoped")) {
       ver <- .forecast_scoped_version(ctx, m, a, g$origin)
+      if (is.null(ver) && identical(ctx$data_role, "inference"))   # defesa em profundidade: a versao sumiu depois do preflight
+        prevcarga_abort("state.inference_artifact_missing", where = paste0(sigla, "/", a),
+                        details = list(membro = sigla, area = a, origem = format(g$origin, "%Y-%m-%d"), split = split,
+                                       raiz = prevcarga_registry_root(ctx)))
       if (is.null(ver) && identical(prevcarga_registry_mode(ctx), "apontado"))
         prevcarga_abort("state.artifact_missing", where = paste0(sigla, "/", a),
                         details = list(reason = "sem versao da origem na raiz apontada (somente leitura)"))
@@ -528,6 +550,7 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   g <- .forecast_gate0(ctx, origin, skip_validate, mem, sink)
   tk$lap("validate-deck")
   plan <- .forecast_plan(ctx, escopo, areas, subsistema)
+  if (identical(ctx$data_role, "inference")) .forecast_inference_preflight(ctx, plan, mem, g$origin)
   rctx <- ctx                                    # convencao da rodada para o que vem depois do infer (build_long, combina, reconcile)
   rctx$tz <- g$cuts$tz
   rctx$load_label <- g$cuts$load_label

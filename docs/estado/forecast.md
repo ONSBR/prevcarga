@@ -99,6 +99,17 @@
   `raiz` e caminho da maquina (como `saida`): fora da comparacao de determinismo entre estados.
 - Testes: `scripts/lib/tests/test-forecast_artifacts_dir.R`.
 
+## E1-T4 -- deck de inferencia: sem treino implicito
+- Com `ctx$data_role == "inference"` (E1-T3) o forecast so infere. `.forecast_inference_preflight(ctx, plan, mem, origin)` roda logo depois de
+  `.forecast_plan`: para cada folha x sigla (ordem radix) exige, na raiz `prevcarga_registry_root(ctx)`, a versao da origem O (origin_scoped,
+  `.forecast_scoped_version`) ou o `latest` (origin_agnostic). A primeira falta aborta `state.inference_artifact_missing` (exit 13) com
+  `details = {membro, area, origem, split, raiz}`. So leitura: a raiz tem listagem identica antes/depois.
+- `.FORECAST_FATAL` casa `state.inference_artifact_missing`: o erro nunca vira membro ausente. `.forecast_cell_safe` com papel inference nunca
+  chama `prevcarga_train` (mesmo erro se a versao sumir entre o preflight e a celula).
+- Papel train (`--data-train`, ou sem flag com `data_train_dir`): delta 0. Raiz default treina origin_scoped faltante; raiz apontada segue so leitura
+  com membro ausente (F3.6).
+- Testes: `scripts/lib/tests/test-forecast-inference-preflight.R`.
+
 ## Verbos da CLI (M6.9; dono M6)
 - `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]` (`--artifacts-dir` e global, linha de opcao em `cli.R`; `prevcarga forecast --help` imprime so a ajuda do verbo, F2.3, ver `docs/estado/cli.md`).
   `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options
