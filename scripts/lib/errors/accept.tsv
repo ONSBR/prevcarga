@@ -1,0 +1,10 @@
+id	class	message	hint
+contract.accept_bad_args	contract	argumentos invalidos ou estagio ainda nao implementado em accept_docker.sh	use: accept_docker.sh --stage smoke --out DIR --data DIR [--ref-bundle TAR --new-bundle TAR] [--jobs 12-14] [--format text|json]
+contract.accept_out_forbidden	contract	--out dentro do store, do repo ou do DockerRootDir	use um diretorio proprio fora de /var, do repo e do store, ex. /opt/ons-source/prevcarga-runs/accept-<RUN_ID>
+contract.accept_disk_low	contract	espaco livre abaixo do minimo no DockerRootDir ou em --out	libere espaco ou ajuste --min-free-gb-docker/--min-free-gb-out
+bundle.accept_image_build	bundle	falha ao montar o bundle ou ao construir a imagem do aceite	veja o stderr do build; a limpeza do RUN_ID ja rodou
+bundle.accept_image_smoke	bundle	smoke da imagem do aceite falhou (doctor, rede none, tzdata ou aws presente)	reconstrua o bundle; a imagem deve ter tzdata (America/Sao_Paulo), TZ=UTC e nenhum AWS CLI
+integrity.accept_residue	integrity	container, imagem ou cache do RUN_ID sobrou apos a limpeza	veja residue.json e remova pelos ids listados; nunca use docker system prune
+integrity.accept_store_changed	integrity	o store montado em /data mudou durante o aceite (store.before.tsv diferente de store.after.tsv)	o store e somente leitura: confira o diff das duas listagens e restaure o store
+partial.accept_units_failed	partial	alguma unidade do aceite terminou failed (sem envelope ou rc inesperado)	veja index.tsv e o stderr.log da unidade; recusas classificadas nao contam como falha
+runtime.accept_oom_killed	runtime	unidade morta por falta de memoria (rc 137) com --memory 8g	registrada em index.tsv; rode a unidade isolada ou revise o limite de memoria
