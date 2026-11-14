@@ -45,7 +45,7 @@ cmd_features <- function(ctx, args) {
   area <- .prevcarga_ft_opt(args, "--area")
   if (is.null(model)) prevcarga_abort("config.usage", where = "--model")
   if (is.null(area)) prevcarga_abort("config.usage", where = "--area")
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   topo <- if (is.null(ctx$topology_path)) prevcarga_topology(root = ctx$root) else
     prevcarga_topology(path = ctx$topology_path, root = ctx$root)
   mem <- if (is.null(ctx$topology_path)) prevcarga_members(root = ctx$root) else

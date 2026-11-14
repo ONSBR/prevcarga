@@ -7,7 +7,7 @@
 ## Requer errors.R, config.R, topology.R, provenance.R, deck_reader.R, dates.R, registry.R, training.R, cache.R, orchestrate.R.
 
 cmd_plan <- function(ctx, args) {
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   res <- prevcarga_plan_result(prevcarga_plan_request(ctx, args))
   if (identical(ctx$format, "json")) res else .m7_plan_text(res)
 }

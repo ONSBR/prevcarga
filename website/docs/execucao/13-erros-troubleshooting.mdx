@@ -161,6 +161,15 @@ Três comportamentos ajudam a ler essa tabela:
 
 Os avisos da rodada (validação do deck, membros, combina, reconcile, export) não mudam o código de saída. Eles saem como linhas de aviso no stderr, ou em `warnings` do JSON.
 
+### Contrato de decks (kind e tzdata)
+
+| Id | Exit | Quando | O que fazer |
+|---|---|---|---|
+| `contract.deck_kind_mismatch` | 2 | o `kind` do `manifest.json` difere do papel da opcao (`details.kind` x `details.expected`) | use `--data-train` para deck `train` e `--data-inference` para deck `inference` |
+| `contract.deck_origin_mismatch` | 2 | `inference.origin` do deck difere de `--origin` (`details.deck_origin`, `details.requested_origin`) | gere o deck de inferencia da origem pedida ou ajuste `--origin` |
+| `contract.deck_role_refused` | 2 | o verbo nao aceita deck de inferencia | passe `--data-train=<dir>` com o deck de treino |
+| `runtime.tzdata_missing` | 7 | a base de fusos (tzdata) do sistema esta vazia; nao e culpa do deck | instale o pacote `tzdata` do sistema e rode `prevcarga doctor` |
+
 ### Outros verbos
 
 | Verbo | Ids característicos | O que fazer |

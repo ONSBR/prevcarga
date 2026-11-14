@@ -99,7 +99,7 @@ cmd_reconcile <- function(ctx, args) {
   fl <- .prevcarga_rc_flags(args)
   topo <- .prevcarga_reconcile_topo(ctx)
   prevcarga_reconcile_check_subsystem(if (identical(fl$subsystem, "all")) NULL else fl$subsystem, topo)
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   ctx$tz <- .prevcarga_eval_tz(ctx)
   res <- if (identical(fl$mode, "train")) .prevcarga_rc_train(ctx, fl, topo) else .prevcarga_rc_apply(ctx, args, fl, topo)
   if (identical(ctx$format, "json")) res else .render_reconcile_text(res)
