@@ -63,10 +63,12 @@ test_that("doctor conforme: schema, linhas, vocabulario e exit 0 (ac-7)", {
   expect_identical(names(d$checks), c("check", "status", "found", "effective"))
   expect_identical(d$checks$check, c("TZ", "locale", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
     "VECLIB_MAXIMUM_THREADS", "pool BLAS", "versao do R", "docopt", "yaml", "jsonlite", "digest", "lubridate",
-    "RhpcBLASctl", "arrow", "withr", "config.yaml", "data_dir"))
+    "RhpcBLASctl", "arrow", "withr", "config.yaml", "data_train_dir", "data_inference_dir", "artifacts_dir",
+    "fuso America/Sao_Paulo"))
   expect_true(all(d$checks$status %in% c("PASS", "WARN", "FAIL", "N/A")))
-  expect_identical(d$checks$status[d$checks$check == "data_dir"], "WARN")
-  expect_identical(d$checks$found[d$checks$check == "data_dir"], "ausente")
+  expect_identical(d$checks$status[d$checks$check == "data_train_dir"], "WARN")
+  expect_identical(d$checks$found[d$checks$check == "data_train_dir"], "ausente")
+  expect_identical(d$checks$status[d$checks$check == "fuso America/Sao_Paulo"], "PASS")
   expect_identical(attr(d, "exit_code"), 0L)
   rv <- E$prevcarga_build_doctor(mk_ctx(E), check = fixed_check(), has_pkg = all_pkgs, r_version = "4.2.3")
   expect_identical(rv$checks$status[rv$checks$check == "versao do R"], "WARN")
@@ -258,7 +260,7 @@ test_that("paridade texto x JSON, ASCII e exit igual nos dois formatos (ac-14)",
     expect_identical(j$verb, v)
   }
   doc <- run_main(E, "doctor", root = pc_root())
-  for (ch in c("TZ", "locale", "pool BLAS", "config.yaml", "data_dir")) expect_true(any(grepl(ch, doc$out, fixed = TRUE)))
+  for (ch in c("TZ", "locale", "pool BLAS", "config.yaml", "data_train_dir", "fuso America/Sao_Paulo")) expect_true(any(grepl(ch, doc$out, fixed = TRUE)))
   mod <- run_main(E, "models")
   for (s in E$prevcarga_members(root = pc_root())$sigla) expect_true(any(grepl(s, mod$out, fixed = TRUE)))
   ar <- run_main(E, "areas")
