@@ -81,12 +81,12 @@ test_that("CONTROL: sob pty o texto mostra o banner da CLI (nome + curva + eixo 
   tail <- x[pp:length(x)]
   expect_true(any(grepl("prevcarga doctor", tail, fixed = TRUE)))
   expect_true(any(grepl(paste0("ponha ", b$root, "/bin no PATH"), tail, fixed = TRUE)))   # sem --add-to-path
-  expect_true(any(grepl("aponte o deck: prevcarga set-data-dir <dir>", tail, fixed = TRUE)))   # sem data_dir
-  # deck ja configurado (--data): nao sugere configurar; mostra o data_dir
+  expect_true(any(grepl("aponte o deck: prevcarga set-data-dir (grava data_train_dir", tail, fixed = TRUE)))   # sem data_train_dir
+  # deck ja configurado (--data-train): nao sugere configurar; mostra o data_train_dir
   b2 <- fake_bundle(); dd <- file.path(dirname(b2$root), "deck"); dir.create(dd)
-  y <- run_pty(c(args_for(b2, "text"), "--data", dd))
+  y <- run_pty(c(args_for(b2, "text"), "--data-train", dd))
   expect_false(any(grepl("aponte o deck", y, fixed = TRUE)))
-  expect_true(any(grepl(paste0("deck configurado: data_dir = ", dd), y, fixed = TRUE)))
+  expect_true(any(grepl(paste0("deck configurado: data_train_dir = ", dd), y, fixed = TRUE)))
   # 2a versao: a anterior fica guardada para --rollback
   b3 <- fake_bundle()
   run_pty(c(args_for(b3, "text"), "--version", "9.9.10"))
@@ -107,4 +107,25 @@ test_that("CONTROL: sob pty o texto mostra o banner da CLI (nome + curva + eixo 
   expect_true(any(grepl(paste0("ponha ", b4$root, "/bin no PATH"), w3, fixed = TRUE)))
   expect_false(any(grepl("esta no PATH pelo bloco", w3, fixed = TRUE)))
   expect_true(all(utf8ToInt(paste(c(x, y, z, w1, w2, w3), collapse = "")) <= 127L))   # ASCII puro
+})
+
+test_that("[AC4] install.sh grava data_train_dir/artifacts_dir/data_inference_dir; --data e apelido de --data-train com aviso ASCII em stderr", {
+  b <- fake_bundle(); w <- dirname(b$root)
+  dt <- file.path(w, "t"); da <- file.path(w, "a"); di <- file.path(w, "i")
+  r <- pc_install(c(args_for(b, "json"), "--data-train", dt, "--data-artifacts", da, "--data-inference", di))
+  expect_identical(r$status, 0L, info = r$stderr)
+  y <- readLines(file.path(b$root, "config.yaml"))
+  expect_true(all(c(paste0("data_train_dir: '", dt, "'"), paste0("artifacts_dir: '", da, "'"),
+                    paste0("data_inference_dir: '", di, "'")) %in% y))
+  expect_false(any(startsWith(y, "data_dir:")))
+  expect_false(grepl("apelido", r$stderr, fixed = TRUE))
+  b2 <- fake_bundle(); d2 <- file.path(dirname(b2$root), "d")
+  r2 <- pc_install(c(args_for(b2, "json"), "--data", d2))              # CONTROL: o apelido avisa e grava a chave nova
+  expect_identical(r2$status, 0L, info = r2$stderr)
+  expect_match(r2$stderr, "--data e apelido de --data-train", fixed = TRUE)
+  expect_true(all(utf8ToInt(r2$stderr) <= 127L))
+  y2 <- readLines(file.path(b2$root, "config.yaml"))
+  expect_true(paste0("data_train_dir: '", d2, "'") %in% y2); expect_false(any(startsWith(y2, "data_dir:")))
+  r3 <- pc_install(c(args_for(b2, "json"), "--data-train", file.path(d2, "x"), "--data", d2))   # conflito => install.usage
+  expect_false(identical(r3$status, 0L)); expect_match(r3$stdout, "install.usage", fixed = TRUE)
 })

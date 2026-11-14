@@ -4,7 +4,8 @@
 #
 # Uso:
 #   install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]]
-#              [--root <dir>] [--data <dir>] [--state <dir>] [--skip-platform-check] [--add-to-path]
+#              [--root <dir>] [--data-train <dir>] [--data-inference <dir>] [--data-artifacts <dir>] [--state <dir>]
+#              [--skip-platform-check] [--add-to-path]
 #              [--profile <arq>] [--format text|json]
 #   install.sh --rollback [--root <dir>] [--format json]
 #   install.sh --uninstall --yes [--purge] [--root <dir>] [--profile <arq>] [--format json]
@@ -120,7 +121,7 @@ pc_intro() { # pc_intro <versao|vazio>: banner + o que vai acontecer (antes da e
 
 pc_next_steps() { # proximos passos, depois da linha 'prevcarga: instalado ...' (que fica em stdout)
   pc_ui || return 0
-  d="$(pc_config_get data_dir)"
+  d="$(pc_config_get data_train_dir)"; [ -n "$d" ] || d="$(pc_config_get data_dir)"
   {
     printf '\nproximos passos:\n'
     # o bloco marcado no perfil vale tanto desta execucao (--add-to-path) quanto de uma instalacao anterior (upgrade sem a flag)
@@ -132,9 +133,9 @@ pc_next_steps() { # proximos passos, depois da linha 'prevcarga: instalado ...' 
     fi
     printf '  - rode: prevcarga doctor (confere runtime, config e deck)\n'
     if [ -n "$d" ]; then
-      printf '  - deck configurado: data_dir = %s (em %s/config.yaml)\n' "$d" "$ROOT"
+      printf '  - deck configurado: data_train_dir = %s (em %s/config.yaml)\n' "$d" "$ROOT"
     else
-      printf '  - aponte o deck: prevcarga set-data-dir <dir> (grava data_dir em %s/config.yaml)\n' "$ROOT"
+      printf '  - aponte o deck: prevcarga set-data-dir (grava data_train_dir em %s/config.yaml)\n' "$ROOT"
     fi
   } >&2
 }
@@ -142,15 +143,15 @@ pc_next_steps() { # proximos passos, depois da linha 'prevcarga: instalado ...' 
 pc_usage_text() {
   cat <<'EOF'
 uso: install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]]
-                [--root <dir>] [--data <dir>] [--state <dir>] [--skip-platform-check]
-                [--add-to-path] [--profile <arq>] [--format text|json]
+                [--root <dir>] [--data-train <dir>] [--data-inference <dir>] [--data-artifacts <dir>]
+                [--state <dir>] [--skip-platform-check] [--add-to-path] [--profile <arq>] [--format text|json]
      install.sh --rollback [--root <dir>] [--format json]
      install.sh --uninstall --yes [--purge] [--root <dir>] [--profile <arq>] [--format json]
 EOF
 }
 
 # --- argumentos ------------------------------------------------------------------------------------------------
-VER=""; BASE=""; BUNDLE=""; SHA=""; ROOT=""; DATA=""; STATE=""; PROFILE=""
+VER=""; BASE=""; BUNDLE=""; SHA=""; ROOT=""; DATA_TRAIN=""; DATA_INF=""; DATA_ART=""; STATE=""; PROFILE=""
 SKIP=0; ROLLBACK=0; UNINSTALL=0; YES=0; PURGE=0; ADDPATH=0
 
 # pre-passe: o formato vale tambem para erros de argumento
@@ -165,7 +166,7 @@ while [ $# -gt 0 ]; do
   k="$1"; v=""; has_v=0
   case "$k" in --*=*) v="${k#*=}"; k="${k%%=*}"; has_v=1;; esac
   case "$k" in
-    --version|--release-base|--bundle|--sha256|--root|--data|--state|--profile|--format)
+    --version|--release-base|--bundle|--sha256|--root|--data|--data-train|--data-inference|--data-artifacts|--state|--profile|--format)
       if [ "$has_v" = 0 ]; then
         [ $# -ge 2 ] || pc_die install.usage "$k" "falta o valor"
         v="$2"; shift
@@ -173,7 +174,12 @@ while [ $# -gt 0 ]; do
       [ -n "$v" ] || pc_die install.usage "$k" "valor vazio"
       case "$k" in
         --version) VER="$v";; --release-base) BASE="$v";; --bundle) BUNDLE="$v";; --sha256) SHA="$v";;
-        --root) ROOT="$v";; --data) DATA="$v";; --state) STATE="$v";; --profile) PROFILE="$v";;
+        --root) ROOT="$v";; --state) STATE="$v";;
+        --data-train) DATA_TRAIN="$v";; --data-inference) DATA_INF="$v";; --data-artifacts) DATA_ART="$v";;
+        --data)
+          printf 'aviso: --data e apelido de --data-train e sai na proxima versao\n' >&2
+          [ -z "$DATA_TRAIN" ] || [ "$DATA_TRAIN" = "$v" ] || pc_die install.usage --data "conflita com --data-train"
+          DATA_TRAIN="$v";; --profile) PROFILE="$v";;
         --format) case "$v" in json|text) PC_FORMAT="$v";; *) pc_die install.usage "--format" "use text ou json";; esac;;
       esac;;
     --skip-platform-check) SKIP=1;;
@@ -201,7 +207,9 @@ pc_abs() { case "$1" in /*) printf '%s\n' "$1";; *) printf '%s/%s\n' "$(pwd)" "$
 ROOT="$(pc_abs "$ROOT")"; ROOT="${ROOT%/}"
 [ -n "$ROOT" ] || pc_die install.usage "--root" "raiz nao pode ser /"
 [ -z "$STATE" ] || STATE="$(pc_abs "$STATE")"
-[ -z "$DATA" ] || DATA="$(pc_abs "$DATA")"
+[ -z "$DATA_TRAIN" ] || DATA_TRAIN="$(pc_abs "$DATA_TRAIN")"
+[ -z "$DATA_INF" ] || DATA_INF="$(pc_abs "$DATA_INF")"
+[ -z "$DATA_ART" ] || DATA_ART="$(pc_abs "$DATA_ART")"
 [ -z "$BUNDLE" ] || BUNDLE="$(pc_abs "$BUNDLE")"
 [ -n "$PROFILE" ] || PROFILE="${HOME:-/nonexistent}/.profile"
 PROFILE="$(pc_abs "$PROFILE")"
@@ -233,18 +241,22 @@ pc_config_get() { # <chave>: valor de uma chave de topo do config.yaml existente
 pc_yaml_q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"; }
 
 pc_write_config() { # config.yaml da instalacao (schema v1 do M1.4a); preserva as chaves ja existentes num upgrade
-  d="${DATA:-$(pc_config_get data_dir)}"
+  d="${DATA_TRAIN:-$(pc_config_get data_train_dir)}"; [ -n "$d" ] || d="$(pc_config_get data_dir)"
+  di="${DATA_INF:-$(pc_config_get data_inference_dir)}"
+  da="${DATA_ART:-$(pc_config_get artifacts_dir)}"
   s="${STATE:-$(pc_config_get state_dir)}"; [ -n "$s" ] || s="$ROOT/state"
   t="$(mktemp "$ROOT/.config.XXXXXX")" || pc_die install.io_failed "$ROOT"
   {
     if [ -f "$ROOT/config.yaml" ]; then
-      grep -v -e '^data_dir:' -e '^state_dir:' "$ROOT/config.yaml"
+      grep -v -e '^data_dir:' -e '^data_train_dir:' -e '^data_inference_dir:' -e '^artifacts_dir:' -e '^state_dir:' "$ROOT/config.yaml"
       grep -q '^schema_version:' "$ROOT/config.yaml" || echo 'schema_version: 1'
     else
       printf '%s\n' '# config.yaml da instalacao (gerado por install.sh; schema v1). Precedencia: flag da CLI > este arquivo > default.' \
         'schema_version: 1' 'format: text' 'color: auto'
     fi
-    [ -z "$d" ] || printf 'data_dir: %s\n' "$(pc_yaml_q "$d")"
+    [ -z "$d" ] || printf 'data_train_dir: %s\n' "$(pc_yaml_q "$d")"
+    [ -z "$di" ] || printf 'data_inference_dir: %s\n' "$(pc_yaml_q "$di")"
+    [ -z "$da" ] || printf 'artifacts_dir: %s\n' "$(pc_yaml_q "$da")"
     printf 'state_dir: %s\n' "$(pc_yaml_q "$s")"
   } > "$t" && chmod 0644 "$t" && mv -f "$t" "$ROOT/config.yaml" || { rm -f "$t"; pc_die install.io_failed "$ROOT/config.yaml"; }
   STATE_EFFECTIVE="$s"

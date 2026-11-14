@@ -1,4 +1,4 @@
-## test-set-data-dir.R -- verbo set-data-dir (config.R: prevcarga_config_set_data_dir): alvo, forma da chave, preservacao,
+## test-set-data-dir.R -- verbo set-data-dir (config.R: prevcarga_config_set_keys e o wrapper prevcarga_config_set_data_dir): alvo, forma da chave, preservacao,
 ## recusas. CONTROL: sem o verbo, o ctx da instalacao nao tem data_dir; depois dele, tem.
 library(testthat)
 local({
@@ -24,19 +24,22 @@ test_that("cria <R>/config.yaml quando falta; caminho absoluto com /; CONTROL: a
   res <- prevcarga_config_set_data_dir(ctx, deck)
   d <- normalizePath(deck, winslash = "/")
   expect_identical(res$data_dir, d)
+  expect_identical(prevcarga_ctx(list(), i$code)$data_train_dir, d)
   expect_identical(res$config_path, normalizePath(file.path(i$R, "config.yaml"), winslash = "/"))
   expect_null(res$previous)
   expect_identical(prevcarga_ctx(list(), i$code)$data_dir, d)
   expect_true("schema_version: 1" %in% readLines(file.path(i$R, "config.yaml")))
 })
 
-test_that("troca o data_dir e preserva as outras linhas (comentario, state_dir, format); uma so chave data_dir", {
+test_that("troca o data_dir legado por data_train_dir e preserva as outras linhas; sem data_dir e sem warning.option_alias", {
   i <- sdd_install(c("# meu comentario", "schema_version: 1", "format: json", "data_dir: '/velho'", "state_dir: '/estado'"))
   deck <- tempfile("deck"); dir.create(deck)
-  res <- prevcarga_config_set_data_dir(prevcarga_ctx(list(), i$code), deck)
+  res <- prevcarga_config_set_data_dir(suppressWarnings(prevcarga_ctx(list(), i$code)), deck)   # legado => warning.option_alias
   expect_identical(res$previous, "/velho")
   y <- readLines(file.path(i$R, "config.yaml"))
-  expect_identical(sum(startsWith(y, "data_dir:")), 1L)
+  expect_identical(sum(startsWith(y, "data_dir:")), 0L)
+  expect_identical(sum(startsWith(y, "data_train_dir:")), 1L)
+  expect_silent(prevcarga_ctx(list(), i$code))
   expect_true(all(c("# meu comentario", "format: json", "state_dir: '/estado'") %in% y))
   cfg <- prevcarga_config_load(file.path(i$R, "config.yaml"))
   expect_identical(cfg$state_dir, "/estado"); expect_identical(cfg$format, "json")
@@ -46,7 +49,7 @@ test_that("aspas simples no caminho: YAML com '' (a forma que o instalador le e 
   i <- sdd_install(); deck <- file.path(tempfile("d"), "it's um deck"); dir.create(deck, recursive = TRUE)
   res <- prevcarga_config_set_data_dir(prevcarga_ctx(list(), i$code), deck)
   y <- readLines(file.path(i$R, "config.yaml"))
-  expect_identical(y[startsWith(y, "data_dir:")], paste0("data_dir: '", gsub("'", "''", res$data_dir), "'"))
+  expect_identical(y[startsWith(y, "data_train_dir:")], paste0("data_train_dir: '", gsub("'", "''", res$data_dir), "'"))
   expect_identical(prevcarga_ctx(list(), i$code)$data_dir, res$data_dir)
 })
 
@@ -57,6 +60,8 @@ test_that("--config explicito e o alvo; o config.yaml da instalacao fica intacto
   res <- prevcarga_config_set_data_dir(prevcarga_ctx(list(`--config` = alt), i$code), deck)
   expect_identical(res$config_path, normalizePath(alt, winslash = "/"))
   expect_true("data_dir: '/inst'" %in% readLines(file.path(i$R, "config.yaml")))
+  expect_true("data_train_dir" %in% vapply(prevcarga_config_set_keys(prevcarga_ctx(list(`--config` = alt), i$code),
+                                            list(data_train_dir = deck))$changes, function(x) x$key, ""))
 })
 
 test_that("recusas: diretorio inexistente (data_dir_missing) e fora da instalacao sem config.yaml (usage); nada escrito", {
@@ -75,7 +80,49 @@ test_that("recusas: diretorio inexistente (data_dir_missing) e fora da instalaca
 test_that("o verbo e descoberto pela fachada com <dir> posicional e o id config.write_failed esta no catalogo", {
   e <- pc_source_lib(c("errors", "config", "banner", "runtime", "cli"))
   v <- e$prevcarga_verbs_discover(file.path(pc_root(), "scripts", "lib", "cli"))
-  expect_identical(v$usage[v$verb == "set-data-dir"], "prevcarga set-data-dir <dir>")
+  expect_identical(v$usage[v$verb == "set-data-dir"],
+                   "prevcarga set-data-dir [<dir>] [--train=<dir>] [--inference=<dir>] [--artifacts=<dir>]")
   expect_false(v$exempt[v$verb == "set-data-dir"])
   expect_identical(prevcarga_error_lookup("config.write_failed")$class, "config")
+})
+
+test_that("[AC3] set_keys parcial: so as chaves dadas mudam, data_inference_dir fica intacta, changes {key, old, new}", {
+  va <- tempfile("va"); dir.create(va); va <- normalizePath(va, winslash = "/")
+  i <- sdd_install(c("# c", "schema_version: 1", "data_inference_dir: '/inf'", paste0("artifacts_dir: '", va, "'")))
+  t <- tempfile("t"); a <- tempfile("a"); dir.create(t); dir.create(a)
+  res <- prevcarga_config_set_keys(prevcarga_ctx(list(), i$code), list(data_train_dir = t, artifacts_dir = a))
+  expect_identical(vapply(res$changes, function(x) x$key, ""), c("data_train_dir", "artifacts_dir"))
+  expect_identical(res$changes[[2]]$old, va)
+  expect_null(res$changes[[1]]$old)
+  y <- readLines(file.path(i$R, "config.yaml"))
+  expect_true(all(c("# c", "data_inference_dir: '/inf'") %in% y))
+  expect_identical(prevcarga_config_load(file.path(i$R, "config.yaml"))$artifacts_dir, normalizePath(a, winslash = "/"))
+  e <- sdd_abort(prevcarga_config_set_keys(prevcarga_ctx(list(), i$code), list(data_train_dir = file.path(t, "nao"))))
+  expect_identical(e$id, "config.data_dir_missing"); expect_identical(e$exit_code, 8L)
+})
+
+test_that("[AC3] pela fachada: --train/--artifacts com --format=json grava so as duas chaves; --train inexistente = exit 8", {
+  skip_if_not_installed("processx")
+  i <- sdd_install(); cfg <- file.path(i$R, "config.yaml")
+  t <- tempfile("t"); a <- tempfile("a"); dir.create(t); dir.create(a)
+  writeLines(c("schema_version: 1", "data_inference_dir: '/inf'"), cfg)
+  run <- function(...) processx::run(file.path(R.home("bin"), "Rscript"),
+           c("--vanilla", file.path(pc_root(), "scripts", "prevcarga"), "set-data-dir", paste0("--config=", cfg), ...),
+           error_on_status = FALSE, stdin = "")
+  r <- run(paste0("--train=", t), paste0("--artifacts=", a), "--format=json")
+  expect_identical(r$status, 0L)
+  j <- jsonlite::fromJSON(r$stdout, simplifyVector = FALSE)$result
+  expect_identical(j$schema_version, 1L); expect_true(j$gravado)
+  expect_identical(vapply(j$changes, function(x) x$key, ""), c("data_train_dir", "artifacts_dir"))
+  expect_true("data_inference_dir: '/inf'" %in% readLines(cfg))
+  expect_identical(run(paste0("--train=", file.path(t, "nao")))$status, 8L)
+  r2 <- run()                                                   # sem chave e sem terminal: exit 2, sem tocar no arquivo
+  expect_identical(r2$status, 2L); expect_match(r2$stderr, "contract.set_data_dir_noninteractive|exige terminal")
+})
+
+test_that("nenhum readline() em scripts/lib (a entrada e readLines(input, n = 1L))", {
+  fs <- list.files(file.path(pc_root(), "scripts", "lib"), pattern = "[.]R$", recursive = TRUE, full.names = TRUE)
+  fs <- fs[!grepl("/tests/", fs, fixed = TRUE)]
+  hits <- unlist(lapply(fs, function(f) grep("(^|[^A-Za-z_.])readline\\(", readLines(f, warn = FALSE), value = TRUE)))
+  expect_length(hits, 0L)
 })

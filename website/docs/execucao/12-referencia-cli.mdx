@@ -143,12 +143,12 @@ prevcarga describe [--origin=<data>] [--model=<m>]
 Grava no `config.yaml` o que o operador aponta uma vez. As chaves estão em [Configuração](/execucao/configuracao).
 
 ```text title="Sintaxe (scripts/lib/cli/set-data-dir.R)"
-prevcarga set-data-dir <dir>
+prevcarga set-data-dir [<dir>] [--train=<dir>] [--inference=<dir>] [--artifacts=<dir>]
 ```
 
 | Verbo | O que faz | Flags principais | Saídas características |
 |---|---|---|---|
-| `set-data-dir` | Grava `data_dir` (o deck) no `config.yaml` da instalação, `<R>/config.yaml`, ou no de `--config`. O diretório tem de existir; o caminho vai absoluto, e as outras chaves do arquivo ficam como estavam. | `<dir>`, `--config` | 0; 8 com diretório inexistente (`config.data_dir_missing`), fora de uma instalação sem `--config` (`config.usage`) ou falha de escrita (`config.write_failed`) |
+| `set-data-dir` | Grava `data_train_dir`, `data_inference_dir` e `artifacts_dir` no `config.yaml` da instalação, `<R>/config.yaml`, ou no de `--config`. Com chave (`--train`, `--inference`, `--artifacts`) grava só as passadas. Sem chave é interativo: pergunta treino, artefatos e inferência (linha vazia aceita `<base>/train`, `<base>/artifacts`, `<base>/inference`, com `<base>` = `<dir>`, a chave atual ou o diretório corrente), mostra `chave: antigo -> novo` e só `s` grava; cria os diretórios de artefatos e inferência que faltam. O diretório de treino tem de existir; o caminho vai absoluto, e as outras chaves do arquivo ficam como estavam. | `<dir>`, `--train`, `--inference`, `--artifacts`, `--config` | 0 (também quando o usuário não confirma, com `gravado` falso); 2 sem chave e sem terminal (`contract.set_data_dir_noninteractive`); 8 com diretório de treino inexistente (`config.data_dir_missing`), fora de uma instalação sem `--config` (`config.usage`) ou falha de escrita (`config.write_failed`) |
 
 ### Rodada
 
@@ -272,8 +272,8 @@ Estes programas não são verbos e não passam pela fachada. Do lado de quem exe
 
 ```text title="Sintaxe (cabeçalhos dos utilitários)"
 install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]]
-           [--root <dir>] [--data <dir>] [--state <dir>] [--skip-platform-check] [--add-to-path]
-           [--profile <arq>] [--format text|json]
+           [--root <dir>] [--data-train <dir>] [--data-inference <dir>] [--data-artifacts <dir>]
+           [--state <dir>] [--skip-platform-check] [--add-to-path] [--profile <arq>] [--format text|json]
 install.sh --rollback [--root <dir>] [--format json]
 install.sh --uninstall --yes [--purge] [--root <dir>] [--profile <arq>] [--format json]
 
