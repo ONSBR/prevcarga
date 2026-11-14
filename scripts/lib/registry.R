@@ -357,7 +357,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     weather_forecast_in_train = flags$weather_forecast_in_train, uses_rng = flags$uses_rng,
     history_infer_equals_train = flags$history_infer_equals_train, rng_deviation = rd,
     packages = pk, attach = at, engine = eng, freeze = d[["freeze"]], thaw = d[["thaw"]], stages = stages,
-    weather_cut = wcut, variants = vars, data_needs = dn)
+    data_needs = dn, weather_cut = wcut, variants = vars)
   out
 }
 
