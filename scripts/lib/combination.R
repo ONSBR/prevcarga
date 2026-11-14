@@ -157,7 +157,15 @@ prevcarga_combina_train_mask <- function(panel, m) {
                          grad_norm = numeric(), nonstationary = logical())
 }
 
-prevcarga_combina_fit <- function(panel, n_min = 24L, iters = 500L, grad_tol = 1e-6) {
+## Mes seguinte (YYYY-MM) por lubridate, no tz explicito; valida ym/tz pelo mesmo month_start (contract.combina_input).
+.prevcarga_cmb_next_ym <- function(ym, tz) {
+  m0 <- prevcarga_combina_month_start(ym, tz)
+  format(m0 + lubridate::period(1L, "month"), "%Y-%m", tz = tz)
+}
+
+## next_month = TRUE (so o train): cada (lead, cut) ganha a celula m_next = max(ym) + 1 mes, com os presentes do ultimo mes,
+## a mesma mascara train_mask(grp, m_next), o mesmo n_min/taxonomia e o warm start do ultimo mes. Default = delta 0.
+prevcarga_combina_fit <- function(panel, n_min = 24L, iters = 500L, grad_tol = 1e-6, next_month = FALSE) {
   .prevcarga_cmb_need(panel, c("lead", "cut", "ym", "target_datetime", "y_true"), "combina_fit")
   fcols <- .prevcarga_cmb_fcols(panel, "combina_fit")
   dt <- data.table::as.data.table(panel)
@@ -171,10 +179,14 @@ prevcarga_combina_fit <- function(panel, n_min = 24L, iters = 500L, grad_tol = 1
     months <- sort(unique(grp$ym))
     Fm <- as.matrix(grp[, fcols, with = FALSE])
     w_prev <- NULL
-    for (m in months) {
-      in_cell <- grp$ym == m
+    cells <- months
+    if (isTRUE(next_month))
+      cells <- c(months, .prevcarga_cmb_next_ym(max(months), attr(grp$target_datetime, "tzone")[1L]))
+    for (m in cells) {
+      is_next <- !m %in% months
+      in_cell <- grp$ym == if (is_next) max(months) else m
       present <- fcols[colSums(!is.na(Fm[in_cell, , drop = FALSE])) > 0L]
-      fb <- if (m == months[1L]) "first_month" else if (!length(present)) "no_member" else NA_character_
+      fb <- if (!is_next && m == months[1L]) "first_month" else if (!length(present)) "no_member" else NA_character_
       n <- 0L
       if (is.na(fb)) {
         ok <- prevcarga_combina_train_mask(grp, m) &
@@ -740,11 +752,12 @@ prevcarga_combina_full <- function(panel, ctx, t_cut = NULL, n_min = 24L, iters 
   x
 }
 
-.prevcarga_cmb_fingerprint <- function(area, panel, weights, cfg, members, root) {
+.prevcarga_cmb_fingerprint <- function(area, panel, weights, cfg, members, root, next_ym = NULL) {
   prov   <- attr(panel, "provenance")
   fitted <- weights$ym[is.na(weights$fallback)]
   tz     <- attr(panel$target_datetime, "tzone")[1L]
   last_m <- if (length(fitted)) max(fitted) else min(weights$ym)
+  if (!is.null(next_ym)) last_m <- next_ym                       # train: o cutoff e a celula do mes seguinte
   prevcarga_combina_month_start(last_m, tz)                      # valida ym/tz; o corte ISO e o 1o dia do mes
   dd <- unique(data.table::as.data.table(prov)[, c("member", "cut", "delivery_days"), with = FALSE])
   dd <- dd[order(dd$member, dd$cut, method = "radix")]
@@ -784,9 +797,11 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
   if (!is.character(artifact_dir) || length(artifact_dir) != 1L || is.na(artifact_dir) || !nzchar(artifact_dir))
     prevcarga_abort("contract.combina_input", where = "train:artifact_dir")
   .prevcarga_cmb_need(panel, c("area", "forecast_origin", "cut"), "train")
-  weights <- prevcarga_combina_fit(panel, n_min = n_min, iters = iters, grad_tol = grad_tol)
+  weights <- prevcarga_combina_fit(panel, n_min = n_min, iters = iters, grad_tol = grad_tol, next_month = TRUE)
   cfg <- list(n_min = as.integer(n_min), iters = as.integer(iters), grad_tol = grad_tol)
-  vh  <- prevcarga_version_hash(.prevcarga_cmb_fingerprint(area, panel, weights, cfg, members, root))
+  last_ym <- if (nrow(panel)) max(panel$ym) else NA_character_
+  next_ym <- if (nrow(panel)) .prevcarga_cmb_next_ym(last_ym, attr(panel$target_datetime, "tzone")[1L]) else NULL
+  vh  <- prevcarga_version_hash(.prevcarga_cmb_fingerprint(area, panel, weights, cfg, members, root, next_ym = next_ym))
   area_dir <- file.path(artifact_dir, area)
   final <- file.path(area_dir, vh)
   if (dir.exists(final)) {                         # versao imutavel: nao reescreve; so reaponta o latest
@@ -807,6 +822,8 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
     seeds = list(combination = 0L), root = root, trained_at = trained_at, members = members,
     area = area, version_hash = vh, members_by_lead = .prevcarga_cmb_plain_table(mbl))
   meta$model_versions <- structure(list(), names = character())    # provisorio (decisao do Gabriel): lista nomeada vazia
+  meta$panel_last_ym <- last_ym                                    # E6: ultimo ym com origem no painel de train
+  meta$next_ym <- next_ym                                          # E6: celula extra por (lead, cut) = cutoff do fingerprint
   obj <- list(meta = meta, weights = .prevcarga_cmb_plain_table(weights))
   pure <- list(meta = meta[setdiff(names(meta), "trained_at")], weights = obj$weights)
   prevcarga_plugin_scan_pure(pure)                                 # pureza (P.0d); trained_at e lateral declarada
