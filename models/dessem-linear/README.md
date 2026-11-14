@@ -151,7 +151,7 @@ sha256 dos arquivos em `tests/parity/` (o teste de documentacao os recalcula):
 | Relatorio | sha256 do arquivo | campo `sha256` (bloco `units`) |
 |---|---|---|
 | `foundation_report.json` | `82e989cfdd2baad010e9bb082fbfc5460464d4e36df21bba379298b046a40a35` | `2b60208c606af4bce3919aa55f37ce4bf2b9f3b5ea88f3929f73a6abae35c13f` |
-| `fanout_report.json` | `3ffd718964eab52b84716f4f0549973abd887b6cef5fd070134557ff58ec4a50` | `81667f1123fa6c7a7fe145e331bbc5c999f71458ec480c5c9fe64a3aaa9c3af8` |
+| `fanout_report.json` | `d8c30e6880e15cde48cfef8cac5dee6d7d4a8bea1a4f4f9501358464786f637f` | `f46f2c1fd299619443757a9f68a9f7a882def75e0ba5aa9586f332264d8101db` |
 
 Regerar um relatorio muda o sha256 do arquivo e exige atualizar esta tabela e `docs/estado/dessem_linear.md`.
 
