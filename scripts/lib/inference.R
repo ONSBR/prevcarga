@@ -208,15 +208,19 @@ prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, tr
 ## --- Corte do horizonte pelo clima previsto (F3.7; ADR-0023, decisao do Gabriel) --------------------------------------
 ## O leitor calcula weather_forecast_until/weather_forecast_next (deck_reader.R, predicado unico de validation.R); aqui so se
 ## le a tabela: nenhuma conta de data nova. Membro SEM estagio com requires "data.weather_forecast.*" (HW univariado) nunca e cortado.
-.prevcarga_inf_weather_dependent <- function(plugin)
-  any(vapply(plugin$descriptor$stages, function(s) any(startsWith(as.character(s$requires), "data.weather_forecast.")), NA))
+## A dependencia e decidida pelo requires EFETIVO da variante (prevcarga_plugin_variant_requires), nunca por nome.
+.prevcarga_inf_weather_dependent <- function(plugin, variant = NA_character_) {
+  d <- plugin$descriptor
+  any(vapply(names(d$stages), function(s)
+    any(startsWith(prevcarga_plugin_variant_requires(d, s, variant), "data.weather_forecast.")), NA))
+}
 
 ## Dias entregues efetivos = min(delivery_days, dias cobertos). O membro com model_time_offset_min > 0 perde o ultimo dia
 ## coberto quando a emissao nao traz os instantes de D+1 que o ultimo intervalo no quadro do modelo exige (offset/30).
-.prevcarga_inf_effective_days <- function(plugin, attrs, area, origin) {
+.prevcarga_inf_effective_days <- function(plugin, attrs, area, origin, variant = NA_character_) {
   d <- plugin$descriptor
   dd <- as.integer(d$delivery_days)
-  if (!.prevcarga_inf_weather_dependent(plugin)) return(dd)
+  if (!.prevcarga_inf_weather_dependent(plugin, variant)) return(dd)
   fu <- attrs$weather_forecast_until
   u <- fu$until[fu$area_code == area]
   if (!length(u) || is.na(u[[1L]])) return(0L)
@@ -238,8 +242,8 @@ prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, tr
 ## Aplica o corte aos `cuts` da celula: grava cuts$delivery_days (efetivo) e cuts$weather_forecast_until. Efetivo < declarado:
 ## membro de horizonte fixo (weather_cut "absent") ou sem nenhum dia coberto aborta completude.weather_forecast_short ANTES de
 ## qualquer estagio; os demais entregam ate o ultimo dia coberto com warning.forecast_weather_horizon_cut (data coberta).
-.prevcarga_inf_apply_weather_cut <- function(plugin, mdir, area, origin, panel_attrs, cuts) {
-  eff <- .prevcarga_inf_effective_days(plugin, panel_attrs, area, origin)
+.prevcarga_inf_apply_weather_cut <- function(plugin, mdir, area, origin, panel_attrs, cuts, variant = NA_character_) {
+  eff <- .prevcarga_inf_effective_days(plugin, panel_attrs, area, origin, variant)
   dd <- as.integer(plugin$descriptor$delivery_days)
   if (eff < dd) {
     if (eff < 1L || identical(plugin$descriptor$weather_cut, "absent"))
@@ -280,7 +284,8 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
   .prevcarga_inf_check_artifact_cut(art, spec, cuts, member$mdir)
   rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, origin, ctx, truncate_at = truncate_at)
   panel <- rp$panel
-  cuts <- .prevcarga_inf_apply_weather_cut(plugin, member$mdir, area, origin, panel$attrs, rp$cuts)
+  cuts <- .prevcarga_inf_apply_weather_cut(plugin, member$mdir, area, origin, panel$attrs, rp$cuts,
+                                         variant = want_variant)
 
   pred <- prevcarga_infer(plugin, art, panel, cuts, list(), spec = NULL)
   prevcarga_infer_check_alignment(pred, cuts, plugin$descriptor)

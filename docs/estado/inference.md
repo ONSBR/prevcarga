@@ -56,8 +56,8 @@ so o RF tem inferencia entre os modelos reais). Espelha a fachada de treino (`do
 
 ## Horizonte efetivo pelo clima previsto (F3.7)
 - Descriptor ganha `weather_cut` ("truncate" default | "absent"); RF (tmax/tmin sobre 9 dias fixos, features intocadas) e os dois DESSEM (so horizonte inteiro, por ora) declaram `absent`; LGBM e HW ficam `truncate`.
-- `.prevcarga_inf_weather_dependent(plugin)`: algum estagio com `requires` de prefixo `data.weather_forecast.` (HW univariado: nao => nunca cortado).
-- `.prevcarga_inf_effective_days(plugin, attrs, area, origin)` = `min(delivery_days, until - O + 1)`, menos 1 dia quando `model_time_offset_min > 0` e a emissao nao traz os
+- `.prevcarga_inf_weather_dependent(plugin, variant)`: algum estagio com `requires` EFETIVO da variante (`prevcarga_plugin_variant_requires`) de prefixo `data.weather_forecast.` (HW univariado e variante sem clima: nao => nunca cortado). A variante vem de `.prevcarga_inf_variant(member)` em `prevcarga_infer_cell` e e repassada por `.prevcarga_inf_apply_weather_cut` e `.prevcarga_inf_effective_days`; NA = requires do estagio (comportamento anterior).
+- `.prevcarga_inf_effective_days(plugin, attrs, area, origin, variant)` = `min(delivery_days, until - O + 1)`, menos 1 dia quando `model_time_offset_min > 0` e a emissao nao traz os
   `offset/30` primeiros instantes do dia seguinte ao ultimo coberto (`attrs$weather_forecast_next`). Sem dia O coberto => 0.
 - `.prevcarga_inf_apply_weather_cut`: efetivo < declarado e (`weather_cut = "absent"` ou efetivo < 1) => `completude.weather_forecast_short` ANTES de qualquer estagio;
   senao `warning.forecast_weather_horizon_cut` (`details$ate`, `membro`). Grava `cuts$delivery_days` e `cuts$weather_forecast_until`; o despachante do registry e
