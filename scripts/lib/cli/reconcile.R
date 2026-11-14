@@ -117,6 +117,10 @@ prevcarga_verb_reconcile <- list(
     "--khat-version=<v>      v_<hash> do k-hat ajustado EM O (apply; senao o latest)"),
   scoped  = c("--khat-window", "--eval", "--leaves-dir", "--khat-version"),   # so reconcile (cli.R .prevcarga_check_scoped)
   handler = function(ctx, args) cmd_reconcile(ctx, args),
+  deck_roles = function(args) {
+    mode <- args[["--mode"]]
+    if (isTRUE(args[["--eval"]]) || identical(mode, "train")) "train" else c("train", "inference")
+  },
   owner   = "Reconcile",
   exempt  = FALSE,
   modules = c("topology.R", "schema_long.R", "provenance.R", "deck_reader.R", "dates.R", "evaluation.R", "registry.R",

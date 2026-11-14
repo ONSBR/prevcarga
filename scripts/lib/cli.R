@@ -49,11 +49,12 @@ prevcarga_verbs_planned <- c(
 .prevcarga_verb_row <- function(rec, planned_owner = NULL) {
   if (is.null(rec)) {
     list(verb = NA_character_, owner = planned_owner, exempt = FALSE, modules = character(),
-         usage = NA_character_, options = character(), handler = NULL)
+         usage = NA_character_, options = character(), handler = NULL, deck_roles = NULL)
   } else {
     list(verb = rec$name, owner = as.character(rec$owner), exempt = isTRUE(rec$exempt),
          modules = as.character(rec$modules), usage = rec$usage,
-         options = as.character(rec$options), scoped = as.character(rec$scoped), handler = rec$handler)
+         options = as.character(rec$options), scoped = as.character(rec$scoped), handler = rec$handler,
+         deck_roles = rec$deck_roles)
   }
 }
 
@@ -69,6 +70,7 @@ prevcarga_verbs_planned <- c(
   df$options <- lapply(rows, function(r) r$options)
   df$scoped <- lapply(rows, function(r) r$scoped)
   df$handler <- lapply(rows, function(r) r$handler)
+  df$deck_roles <- lapply(rows, function(r) r$deck_roles)
   if (n == 0L) df <- df[0, , drop = FALSE]
   rownames(df) <- NULL
   df
@@ -91,6 +93,11 @@ prevcarga_verbs_planned <- c(
     stop("cli.R: ", basename(f), ": handler nao e funcao (bug do pacote)", call. = FALSE)
   if (!(is.character(rec$usage) && length(rec$usage) == 1L && nzchar(rec$usage)))
     stop("cli.R: ", basename(f), ": usage ausente (bug do pacote)", call. = FALSE)
+  dr <- rec$deck_roles
+  if (!is.null(dr) && !is.function(dr) &&
+      !(is.character(dr) && length(dr) > 0L && all(dr %in% c("train", "inference"))))
+    stop("cli.R: ", basename(f), ": deck_roles deve ser subconjunto de c('train','inference') ou funcao (bug do pacote)",
+         call. = FALSE)
   if (is.null(rec$owner)) rec$owner <- NA_character_
   rec
 }
@@ -284,6 +291,12 @@ prevcarga_emit <- function(out, ctx, verb, warnings = list(), exit_code = 0L) {
              prevcarga_error = function(e) .prevcarga_ctx_tolerant(args, root, verb, error = e))
   } else prevcarga_ctx(args, root, verb)
   st$ctx <- ctx
+  if (!isTRUE(row$exempt)) {                                # papel do deck: antes de modules e do handler
+    dr <- row$deck_roles[[1L]]
+    roles <- if (is.function(dr)) dr(args) else if (is.null(dr)) "train" else dr
+    ctx <- prevcarga_resolve_deck_role(ctx, roles, args)
+    st$ctx <- ctx
+  }
   h <- .prevcarga_pick_handler(verb, row, handlers)
   if (is.null(h)) {                                         # planejado, sem scripts/lib/cli/<verbo>.R
     prevcarga_abort("todo.not_implemented", where = sprintf("%s -> %s", verb, row$owner),

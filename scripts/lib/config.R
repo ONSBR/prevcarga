@@ -207,7 +207,7 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
     config_path = if (is.null(cfg_path)) NULL else .prevcarga_norm_path(cfg_path),
     data_train_dir = train,
     data_inference_dir = infer,
-    data_dir = train,  # deck ATIVO: = data_train_dir ate o E1-T3 escolher por papel
+    data_dir = train,  # deck ATIVO provisorio; prevcarga_resolve_deck_role escolhe por papel (verbo nao exempt)
     state_dir = .prevcarga_norm_path(.prevcarga_pick(flag("--state"), cfg$state_dir, file.path(root, ".state"))),
     artifacts_dir = ad,
     origin = origin,
@@ -221,6 +221,26 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
     version = version,
     run_id = prevcarga_run_id(),
     verb = verb)
+}
+
+## Papel do deck do verbo (ADR de papeis de deck): flag > chave de treino > chave de inferencia > train.
+## roles = subconjunto de c("train","inference") aceito pelo verbo. Define ctx$data_role, ctx$data_role_option e ctx$data_dir
+## (o deck ativo). Recusa de papel (contract.deck_role_refused) e conflito de flags (config.usage) antes de qualquer leitura.
+prevcarga_resolve_deck_role <- function(ctx, roles = "train", args = list()) {
+  has <- function(n) { v <- args[[n]]; !(is.null(v) || !length(v) || identical(v, FALSE) || all(is.na(v))) }
+  f_train <- has("--data-train") || has("--data")
+  f_inf <- has("--data-inference")
+  if (f_train && f_inf) prevcarga_abort("config.usage", where = "--data-train x --data-inference")
+  role <- if (f_inf) "inference" else if (f_train) "train" else if (!is.null(ctx$data_train_dir)) "train" else
+    if (!is.null(ctx$data_inference_dir)) "inference" else "train"
+  opt <- c(train = "--data-train", inference = "--data-inference")[[role]]
+  if (!role %in% roles)
+    prevcarga_abort("contract.deck_role_refused", where = opt,
+                    details = list(role = role, verb = ctx$verb, accepted = as.list(roles)))
+  ctx$data_role <- role
+  ctx$data_role_option <- opt
+  ctx$data_dir <- if (identical(role, "inference")) ctx$data_inference_dir else ctx$data_train_dir
+  ctx
 }
 
 ## Guarda para verbos que leem o deck (validate-deck e demais do M2+).

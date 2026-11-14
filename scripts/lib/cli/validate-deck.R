@@ -117,6 +117,7 @@ prevcarga_verb_validate_deck <- list(
   usage   = "prevcarga validate-deck [--area=<a>]",
   options = "--area=<a>              Restringe o escopo a uma area (subsistema expande para as folhas)",
   handler = function(ctx, args) cmd_validate_deck(ctx, args),
+  deck_roles = c("train", "inference"),
   owner   = "M2",
   exempt  = FALSE,
   modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R")
