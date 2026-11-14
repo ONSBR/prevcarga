@@ -980,6 +980,7 @@ prevcarga_plugin_forecast <- function(plugin, panel, cuts, spec, ctx = list()) {
   paste0(head, paste(out, collapse = "/"))
 }
 
+## raiz de artefatos: --data-artifacts (apelido --artifacts-dir) / artifacts_dir; sem isso <state_dir>/artifacts
 prevcarga_registry_root <- function(ctx) {
   if (!is.null(ctx$artifacts_dir)) return(.prevcarga_reg_norm(ctx$artifacts_dir))
   if (!is.character(ctx$state_dir) || length(ctx$state_dir) != 1L || is.na(ctx$state_dir) || !nzchar(ctx$state_dir))

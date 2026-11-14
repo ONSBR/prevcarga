@@ -29,9 +29,12 @@ prevcarga_verbs_planned <- c(
 ## --- Flags globais (bloco Options do docopt). Default e do config.R, nunca do docopt. ------------------
 .prevcarga_global_options <- function() c(
   "  --origin=<data>          Forecast-origin YYYY-MM-DD (unico flag de data humano; A..B so em backtest/plan)",
-  "  --data=<dir>             Diretorio do store de dados",
+  "  --data-train=<dir>       Deck de treino (kind train; chave data_train_dir)",
+  "  --data-inference=<dir>   Deck de inferencia (kind inference; chave data_inference_dir)",
+  "  --data-artifacts=<dir>   Raiz de artefatos (default <state_dir>/artifacts; chave artifacts_dir)",
+  "  --data=<dir>             (apelido de --data-train; sai na proxima versao)",
   "  --state=<dir>            Diretorio de estado",
-  "  --artifacts-dir=<dir>    Raiz de artefatos so leitura (membros, combina, k-hat)",
+  "  --artifacts-dir=<dir>    (apelido de --data-artifacts; sai na proxima versao)",
   "  --config=<arquivo>       Arquivo config.yaml",
   "  --load-label=<l>         Rotulo da carga: end ou start",
   "  --weather-cutoff=<w>     Corte do tempo: available_until ou origin_midnight_utc",

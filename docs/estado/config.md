@@ -7,7 +7,12 @@
 - `prevcarga_ctx(args, root, verb)` monta o ctx (campos em `config.R`); `--origin` aceita `YYYY-MM-DD` estrito
   (via `lubridate::ymd`) e `A..B` so em `backtest`/`plan`; `state_dir` default `<root>/.state` e so resolvido (nunca criado).
   `load_label_flag`/`load_label_config` ficam separados e `--load-label`/`--weather-cutoff` so sao validados no M1 (aplicar e do M2).
-- `prevcarga_require_data_dir(ctx)` => `config.data_dir_missing` (exportada; usada pelos verbos do M2+).
+- `prevcarga_require_data_dir(ctx)` => `config.data_dir_missing` (exportada; usada pelos verbos do M2+); a dica cita `--data-train`/`--data-inference`.
+- **Dados por papel (E1-T2):** `prevcarga_ctx` traz `data_train_dir` (`--data-train` | `--data` | `data_train_dir` | `data_dir`),
+  `data_inference_dir` (`--data-inference` | `data_inference_dir`) e `artifacts_dir` (`--data-artifacts` | `--artifacts-dir` | `artifacts_dir` | NULL).
+  `ctx$data_dir` = deck ATIVO = `data_train_dir` ate o E1-T3 escolher por papel. Apelidos (`--data`, `--artifacts-dir`, `data_dir`) emitem
+  `warning.option_alias {alias, novo}` (`.prevcarga_pick_alias`); apelido x nome novo diferentes => `config.usage` (exit 8); no config.yaml
+  `data_dir` x `data_train_dir` diferentes => vence `data_train_dir` com aviso. Testes: `test-data-options.R`, `test-config.R`.
 - `config/config.yaml` e o modelo versionado (o instalador do M8 copia para `<root>/config.yaml`); `config/VERSION` = `0.0.0-dev`;
   `/config.yaml` e `/.state/` no `.gitignore`.
 - Testes: `scripts/lib/tests/test-config.R`.
