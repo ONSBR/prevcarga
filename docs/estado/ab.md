@@ -13,7 +13,8 @@ corte, e depois descartado: sem periodo paralelo nem comparacao recorrente (ADR-
 - REMOVIDOS: `ab_oracle_run.sh`, `ab_oracle_patches/`, `test-ab-oracle-intact.R`, `oracle_untracked_allow.txt`. As secoes abaixo sobre o runner do oraculo
   (docker, R 4.2.3, patches do HW) sao historico do M8.8.
 - Regeracao completa (24 areas x membros x 3 origens = 576 casos executaveis; horas): gerar `cases.tsv`, rodar o gerador sobre a tag e sobre a arvore, depois
-  o teste. A rodada de F7.4 usou o subconjunto RS e SP em 2024-10-01 09:00.
+  o teste. A rodada de F7.4 usou o subconjunto RS e SP em 2024-10-01 09:00 (16 casos, tag v0.1.5 em 00acf8f): estagio A com 8 membros em Delta = 0, 0 FAIL, 0 excecoes (lista vazia); veredito CORTE-BLOQUEADO so por estagios B/C/D ausentes e recibos.
+- **pendencia: matriz completa de 576 casos** (24 areas x membros x 3 origens de `ab_origens.yaml`); adiada por decisao do Gabriel (custo de horas de maquina).
 
 ## Pecas
 - `tests/ab/ab_origens.yaml` + `scripts/tools/ab_cases.R`: `pc_ab_cases(origens, deck_dir, ctx, oracle, membros, areas)` monta a matriz (membro x area) de

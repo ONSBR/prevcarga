@@ -80,7 +80,7 @@ dlf_report_write <- function(entries, found_sha, path = DLF_REPORT()) {
   div <- dlf_divergences(units)
   rep <- list(model = DLP_MODEL, group = DLF_GROUP, tolerance = DLP_TOL, foundation_sha256 = found_sha,
               oracle_commit = jsonlite::read_json(DLP_LOCK())$oracle_commit,
-              all_ok = all(vapply(units, function(e) isTRUE(e$ok), NA)) && !length(div)   # ADR-0041: sem divergencia nomeada contra o golden da v0.1.5,
+              all_ok = all(vapply(units, function(e) isTRUE(e$ok), NA)) && !length(div),   # ADR-0041: sem divergencia nomeada contra o golden da v0.1.5
               units = units, divergences = div)
   rep$sha256 <- dlp_sha_obj(units)
   txt <- jsonlite::toJSON(rep, auto_unbox = TRUE, null = "null", digits = 15, na = "null", pretty = TRUE)
