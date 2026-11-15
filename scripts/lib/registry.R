@@ -78,7 +78,7 @@ prevcarga_plugin_signatures <- list(
   ingestion = c("panel", "cuts"), feature_engineering = c("frame", "params"),
   training = c("features", "params", "seed"), inference_features = c("frame", "payload"),
   inference = c("payload", "inf_features", "cuts"), forecast = c("payload", "inf_features", "cuts"),
-  freeze = "model", thaw = "payload")
+  freeze = "model", thaw = "payload", data_needs = c("spec", "area"))
 
 ## Layouts nativos de saida aceitos no descriptor (conjunto provisorio, ver discovery do P.0b).
 prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list", "dessem_hourly_24",
@@ -90,7 +90,8 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
 .prevcarga_plugin_fields <- c("model_id", "contract_version", "granularity_supported", "modes_implemented",
   "params_schema", "variant_param", "native_layout", "semihourly_rule", "weather_resample", "delivery_days", "data_lag_days",
   "model_time_offset_min", "reads_day_O", "weather_forecast_in_train", "uses_rng", "history_infer_equals_train",
-  "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages", "weather_cut", "variants")
+  "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages", "weather_cut", "variants",
+  "data_needs")
 .prevcarga_plugin_param_types <- c("integer", "numeric", "logical", "character")
 
 .prevcarga_plugin_cache <- new.env(parent = emptyenv())
@@ -330,6 +331,12 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     if (!is.function(d[[f]])) bad(f)
     .prevcarga_plugin_check_signature(d[[f]], f, model)
   }
+  ## data_needs (E2): necessidade de dados de inferencia por membro, opcional; pura, function(spec, area).
+  dn <- d[["data_needs"]]
+  if (!is.null(dn)) {
+    if (!is.function(dn)) bad("data_needs")
+    .prevcarga_plugin_check_signature(dn, "data_needs", model)
+  }
   stages <- d[["stages"]]
   if (!is.list(stages) || is.null(names(stages))) bad("stages")
   extra <- setdiff(names(stages), c(prevcarga_plugin_stages, "forecast"))
@@ -350,7 +357,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     weather_forecast_in_train = flags$weather_forecast_in_train, uses_rng = flags$uses_rng,
     history_infer_equals_train = flags$history_infer_equals_train, rng_deviation = rd,
     packages = pk, attach = at, engine = eng, freeze = d[["freeze"]], thaw = d[["thaw"]], stages = stages,
-    weather_cut = wcut, variants = vars)
+    data_needs = dn, weather_cut = wcut, variants = vars)
   out
 }
 

@@ -120,5 +120,5 @@ prevcarga_verb_validate_deck <- list(
   deck_roles = c("train", "inference"),
   owner   = "M2",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R")
+  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R")
 )

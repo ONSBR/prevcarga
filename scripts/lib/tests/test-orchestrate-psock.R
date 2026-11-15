@@ -55,7 +55,7 @@ DECK <- local({
 })
 
 MODULES <- c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-             "features", "registry", "training", "inference", "build_long_output", "evaluation", "combination", "reconcile", "cache", "orchestrate", "backtest")
+             "features", "registry", "inference_needs", "training", "inference", "build_long_output", "evaluation", "combination", "reconcile", "cache", "orchestrate", "backtest")
 
 ## roda `body` (linhas R) num R novo com a lib em globalenv, runtime fixado e `ctx` pronto. env = vetor nomeado do shell.
 child <- function(body, env = character(), hooks = "NULL") {

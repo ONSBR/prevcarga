@@ -20,7 +20,7 @@
 
 BENCH_BUDGET_S <- 1800
 BENCH_LIBS <- c("config", "topology", "provenance", "schema_long", "evaluation", "deck_reader", "dates", "validation", "features",
-                "registry", "training", "inference", "combination", "build_long_output", "reconcile", "exports", "reporting", "forecast")
+                "registry", "inference_needs", "training", "inference", "combination", "build_long_output", "reconcile", "exports", "reporting", "forecast")
 
 ## --- listagem de data/ (nome, tamanho, sha256), ordem radix ---------------------------------------------------------------------
 ## Percorre sem seguir symlink de DIRETORIO (o store real tem ciclos, ex.: data/data -> .): o link entra na listagem como `nome -> alvo`

@@ -61,7 +61,7 @@ cli <- function(args, root = root_small, state = pc5_state_tmp(parent.frame()), 
 ## --- orquestrador in-process --------------------------------------------------------------------------------------
 mod <- new.env()
 for (m in c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-            "features", "registry", "training", "cache", "orchestrate")) sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
+            "features", "registry", "inference_needs", "training", "cache", "orchestrate")) sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
 
 ictx <- function(root = root_small, data = deck, state = pc5_state_tmp(parent.frame()), weather = NULL, label_flag = NULL) {
   a <- list("--data" = data, "--state" = state)

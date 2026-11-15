@@ -21,7 +21,7 @@
 M7H_TZ <- "Etc/GMT+3"
 M7H_LOAD_SCALE <- 8      # a carga do fixture (~1 GW por area) sobe para a ordem de grandeza real (mediana > 5000 MW do gate08)
 M7H_FOUNDATION <- c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-                    "features", "registry", "training", "inference", "build_long_output", "evaluation", "combination",
+                    "features", "registry", "inference_needs", "training", "inference", "build_long_output", "evaluation", "combination",
                     "reconcile", "cache", "orchestrate", "backtest")
 
 ## plano por modelo: ultima origem, no de origens, filtro de membro (sigla|mdir), protocolo, janela do deck, overrides rapidos

@@ -99,7 +99,7 @@ test_that("errors/train_models.tsv carrega via prevcarga_errors_load sem id dupl
 ## --- seletores (matriz in-process sobre a topologia real; nenhuma sigla literal) ---------------------------------------
 mod <- new.env()
 for (m in c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-            "features", "registry", "training")) sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
+            "features", "registry", "inference_needs", "training")) sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
 topo <- mod$prevcarga_topology(root = pc_root())
 real_ctx <- list(root = pc_root())
 mat <- function(...) mod$prevcarga_train_matrix(list(...), real_ctx)
@@ -211,7 +211,7 @@ child <- function(mode, jobs = 2L, state = pc5_state_tmp(parent.frame())) {
     none = "NULL")[[mode]]
   writeLines(c(
     sprintf("lib <- %s; options(prevcarga.lib = lib)", deparse(lib)),
-    "for (m in c('errors.R','runtime.R','config.R','topology.R','schema_long.R','provenance.R','deck_reader.R','dates.R','validation.R','features.R','registry.R','training.R')) source(file.path(lib, m))",
+    "for (m in c('errors.R','runtime.R','config.R','topology.R','schema_long.R','provenance.R','deck_reader.R','dates.R','validation.R','features.R','registry.R','inference_needs.R','training.R')) source(file.path(lib, m))",
     "prevcarga_runtime_enforce()",
     sprintf("ctx <- prevcarga_ctx(list(`--data` = %s, `--state` = %s), %s, 'train-models')", deparse(deck), deparse(state), deparse(root_small)),
     "ctx$lib_dir <- lib; ctx$code_commit <- 'c0ffee'; ctx$renv_lock_hash <- 'ab12'",

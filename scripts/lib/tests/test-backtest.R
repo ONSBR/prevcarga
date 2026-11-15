@@ -73,7 +73,7 @@ DECK <- local({
 
 mod <- new.env()
 for (m in c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
-            "features", "registry", "training", "inference", "build_long_output", "evaluation", "combination", "reconcile", "cache", "orchestrate", "backtest"))
+            "features", "registry", "inference_needs", "training", "inference", "build_long_output", "evaluation", "combination", "reconcile", "cache", "orchestrate", "backtest"))
   sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
 suppressMessages(mod$prevcarga_runtime_enforce())
 

@@ -332,7 +332,7 @@ test_that("AC5: --niveis (removida) => exit 8 config.usage; scratch sem run.json
 ## AC4 -- features: passthrough da FE-fachada, sem train/infer; modelo/area fora => exit 4
 ## =====================================================================================================
 fe <- pc_source_lib(c("runtime", "errors", "config", "provenance", "topology", "deck_reader", "validation", "dates",
-                      "registry", "features", "training", "inference"))
+                      "registry", "features", "inference_needs", "training", "inference"))
 sys.source(file.path(pc_root(), "scripts", "tools", "fixture_store.R"), envir = fe)
 sys.source(file.path(pc_root(), "scripts", "lib", "cli", "features.R"), envir = fe)
 suppressMessages(fe$prevcarga_runtime_enforce())

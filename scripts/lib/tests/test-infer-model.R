@@ -4,7 +4,7 @@
 ## etapas (so o RF tem inferencia). Cada braco FORBIDDEN tem o seu CONTROL. Tudo em tempdir; sem variaveis de ambiente.
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
 env <- pc_source_lib(c("runtime", "errors", "config", "provenance", "topology", "deck_reader", "validation", "dates",
-                       "registry", "features", "training", "inference"))
+                       "registry", "features", "inference_needs", "training", "inference"))
 sys.source(file.path(pc_root(), "scripts", "tools", "fixture_store.R"), envir = env)
 cli <- pc_source_lib(c("errors", "runtime", "config", "banner", "cli"))
 suppressMessages(env$prevcarga_runtime_enforce())

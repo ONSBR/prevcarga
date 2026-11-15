@@ -23,7 +23,7 @@ PC5G_AREA <- "SP"                      # folha da topologia real; unica com heat
 PC5G_HIST <- 60L                       # history_days.train do fixture (o run.yaml pede 365..1825)
 PC5G_TOL <- 1e-5
 PC5G_FOUNDATION <- c("runtime", "errors", "config", "provenance", "topology", "schema_long", "deck_reader", "validation", "dates",
-                     "registry", "features", "training", "inference")
+                     "registry", "features", "inference_needs", "training", "inference")
 
 ## --- tabela de bracos esperados (matriz de campos) e verificacao cruzada --------------------------------------------
 ## `arms`: lista nomeada por gate com os bracos que o modelo DEVE exibir (a partir de campos do spec/descriptor).

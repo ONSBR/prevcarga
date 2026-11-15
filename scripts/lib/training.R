@@ -138,6 +138,8 @@ prevcarga_artifact_build <- function(member, area, inp, fit) {
             weather_issue_cutoff = inp$cuts$weather_issue_cutoff,
             fit = fit,
             contract = lapply(d$stages, function(s) list(requires = s$requires, provides = s$provides)))
+  ## E2: necessidade de dados de inferencia (fora do stamp, do check_artifact e do fingerprint); aborta antes de gravar.
+  a$inference_needs <- prevcarga_inference_needs_of(inp$plugin, inp$spec, area)
   if (identical(inp$spec$split, "origin_scoped")) a$origin <- inp$cuts$origin
   prevcarga_plugin_scan_pure(a)
   structure(a, class = "prevcarga_train_artifact")
@@ -196,7 +198,7 @@ prevcarga_train <- function(member, area, origin, ctx, force = FALSE) {
 ## dentro do worker. Resultado reordenado pela chave (model, variant, area): independe de --jobs e da ordem de chegada.
 
 .prevcarga_tr_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R",
-                                  "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "training.R")
+                                  "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "training.R")
 
 .prevcarga_tr_topo <- function(ctx) {
   if (!is.null(ctx$topology_path)) prevcarga_topology(path = ctx$topology_path, root = ctx$root)

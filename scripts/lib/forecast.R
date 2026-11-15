@@ -182,7 +182,7 @@
 ## --- despacho por celula (--jobs, F3.5) -----------------------------------------------------------------------
 ## Modulos que cada worker PSOCK (R novo) carrega, em ordem fixa, do MESMO lib do pai (ctx$lib_dir / options prevcarga.lib).
 .forecast_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R", "deck_reader.R",
-                              "dates.R", "validation.R", "features.R", "registry.R", "training.R", "inference.R", "combination.R",
+                              "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "training.R", "inference.R", "combination.R",
                               "build_long_output.R", "forecast.R")
 
 ## Cluster PSOCK (ADR-0038: sem fork). A falha do init de qualquer worker fecha o cluster e sobe como o pai (training.R).
