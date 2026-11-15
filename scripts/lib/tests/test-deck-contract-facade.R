@@ -122,7 +122,10 @@ fc_inference_deck <- function(.frame = parent.frame()) {
   d
 }
 ## handler do forecast: o real, com topologia sintetica e espioes de infer/train no ambiente global (onde a fachada sourceia os modulos)
-fc_forecast_handler <- function(log) function(ctx, args) {
+fc_forecast_handler <- function(log, stub_needs_gate = FALSE) function(ctx, args) {
+  ## fixture com artefatos falsos (sem inference_needs gravado): o gate de necessidade (E2-T5) tem teste proprio
+  ## (test-validate-deck-inference.R); so o CONTROL do E1-AC3 o substitui, o preflight de artefatos segue real
+  if (stub_needs_gate) assign(".forecast_inference_needs_gate", function(...) invisible(NULL), envir = globalenv())
   assign("prevcarga_infer_cell", m6f_infer_spy(globalenv(), log), envir = globalenv())
   assign("prevcarga_train", m6f_train_spy(globalenv(), log), envir = globalenv())
   suppressMessages(get("prevcarga_runtime_enforce", envir = globalenv())())     # o runtime injetado da fachada e NULL; o carimbo do forecast pede o enforce
@@ -131,11 +134,11 @@ fc_forecast_handler <- function(log) function(ctx, args) {
   if (is.null(ctx$code_commit)) ctx$code_commit <- "c0ffee"
   real_handler("forecast")(ctx, args)
 }
-fc_forecast <- function(opts, extra = character(), .frame = parent.frame()) {
+fc_forecast <- function(opts, extra = character(), stub_needs_gate = FALSE, .frame = parent.frame()) {
   log <- new.env(); log$infer <- list(); log$train <- list()
   st <- withr::local_tempdir("fc-state-", .local_envir = .frame)
-  r <- fc_run(c("forecast", opts, "--origin", OS, "--state", st, "--skip-validate", extra), handlers = list(forecast = fc_forecast_handler(log)))
-  withr::defer(suppressWarnings(rm(list = c("prevcarga_infer_cell", "prevcarga_train"), envir = globalenv())), envir = .frame)
+  r <- fc_run(c("forecast", opts, "--origin", OS, "--state", st, "--skip-validate", extra), handlers = list(forecast = fc_forecast_handler(log, stub_needs_gate)))
+  withr::defer(suppressWarnings(rm(list = c("prevcarga_infer_cell", "prevcarga_train", ".forecast_inference_needs_gate"), envir = globalenv())), envir = .frame)
   r$log <- log; r$state <- st
   r
 }
@@ -162,7 +165,7 @@ test_that("[E1-AC3] forecast --data-inference com raiz sem a versao de O: exit 1
   expect_true(ascii(c(r$stdout, r$stderr)))
   ## CONTROL: raiz completa => o mesmo deck de inferencia entrega, sem treinar
   ok <- make_root()
-  s <- fc_forecast(c(paste0("--data-inference=", inf), paste0("--data-artifacts=", ok), "--format=json"))
+  s <- fc_forecast(c(paste0("--data-inference=", inf), paste0("--data-artifacts=", ok), "--format=json"), stub_needs_gate = TRUE)
   expect_identical(s$code, 0L)
   expect_length(s$log$train, 0L)
   expect_gt(length(s$log$infer), 0L)

@@ -41,7 +41,7 @@
 - Testes: `scripts/lib/tests/test-facade.R` (verbos-fixture em dir temporario; lista de verbos/stubs derivada da descoberta).
 
 - **Opcoes de dados (E1-T2):** `.prevcarga_global_options` ganha `--data-train`, `--data-inference` e `--data-artifacts`; `--data` e
-  `--artifacts-dir` ficam como apelidos (uma versao). Nenhuma opcao nova e prefixo de outra (docopt so casa prefixo sem casamento exato).
+  `--artifacts-dir` NAO existem (ADR-044, clean break): sem apelidos, a opcao antiga e opcao desconhecida (erro de uso, exit 8). Nenhuma opcao nova e prefixo de outra (docopt so casa prefixo sem casamento exato).
   Ver `docs/estado/config.md`; teste `test-data-options.R`.
 
 - **set-data-dir (2026-11-10):** 21o verbo, `prevcarga set-data-dir [<dir>] [--train=<dir>] [--inference=<dir>] [--artifacts=<dir>]` (E1-T5; interativo sem chave), dono M8, nao isento. A escrita mora em config.R
