@@ -13,7 +13,7 @@ source(file.path(dirname(dirname(dirname(dirname(.hw_runner)))), "scripts", "too
 ## HW univariado: sairam ingest_weather, efeito_temp, infer_clima, clima_honesto (gate08) e clima_fallback (gate09); entraram
 ## clima_cego (HW nao le clima: FORBIDDEN/CONTROL), ingest_calendario, infer_sem_clima e higiene_clima.
 .hw_gates <- list(
-  list("registro", "-", "PLUGINS", "fast"), list("catalogo_hw", "-", "PLUGINS", "fast"),
+  list("registro", "-", "PLUGINS", "fast"), list("infer_min", "-", "PLUGINS", "fast"), list("catalogo_hw", "-", "PLUGINS", "fast"),
   list("ingest_shape", "-", "PLUGINS", "fast"), list("ingest_contract", "-", "PLUGINS", "fast"),
   list("ingest_calendario", "-", "PLUGINS", "fast"), list("ingest_puro", "-", "PLUGINS", "fast"),
   list("hv_lubridate", "-", "PLUGINS", "fast"), list("fe_ordem", "-", "PLUGINS", "fast"),

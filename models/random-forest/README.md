@@ -83,7 +83,7 @@ A safra de clima de cada origem nativa T e a emissao mais fresca em `(limit(T) -
 | gate09 / gate10 | `weather`, `weather_limit` (canal de clima do honesty_gate, 2 regras) | [PLUGINS] | fast |
 | gate05 | `freeze` | [PLUGINS] | fast |
 | gate06 / gate07 | `no_env`, `determinismo` | [PLUGINS] | fast |
-| - | `completude`, `completude_infer`, `holidays`, `corte_horario`, `sentinela`, `spline_rule`, `units_yaml`, `aditividade`, `higiene`, `readme`, `runner_controle` | [PLUGINS] | fast |
+| - | `completude`, `completude_infer`, `infer_lag_window`, `holidays`, `corte_horario`, `sentinela`, `spline_rule`, `units_yaml`, `aditividade`, `higiene`, `readme`, `runner_controle` | [PLUGINS] | fast |
 | gate03 | `paridade`, `paridade_control` | [PLUGINS] | parity |
 | gate04 | `gate04` (schema LONG) | [DEFERRED M6] | - |
 | gate08 | `gate08` (y_true real / combina) | [DEFERRED M6] | - |

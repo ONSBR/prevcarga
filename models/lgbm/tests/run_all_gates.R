@@ -10,7 +10,7 @@
 source(file.path(dirname(dirname(dirname(dirname(.lgbm_runner)))), "scripts", "tools", "plugin_gates.R"))
 
 .lgbm_gates <- list(
-  list("contrato", "-", "PLUGINS", "fast"), list("ingest_cortes", "-", "PLUGINS", "fast"),
+  list("contrato", "-", "PLUGINS", "fast"), list("infer_min", "-", "PLUGINS", "fast"), list("ingest_cortes", "-", "PLUGINS", "fast"),
   list("ingest_safra", "-", "PLUGINS", "fast"), list("ingest_contrato", "-", "PLUGINS", "fast"),
   list("ingest_feriados", "-", "PLUGINS", "fast"), list("ingest_efeitos", "-", "PLUGINS", "fast"),
   list("gate_cal", "gate_cal", "PLUGINS", "fast"), list("gate_saz", "gate_saz", "PLUGINS", "fast"),

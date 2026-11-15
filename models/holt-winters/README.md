@@ -68,7 +68,7 @@ descobre os packs de `scripts/tools/gates/*.R` por `applies_to`).
 | gate06 | `determinismo` (+ `seed_medicao`, `sem_seed_literal`) | [PLUGINS] |
 | gate07 | `ytrue_real` | [DEFERRED M6] |
 | - | `clima_cego` (o HW nao le clima; substitui gate08/gate09 do oraculo) | [PLUGINS] |
-| - | `ingest_calendario`, `infer_sem_clima` | [PLUGINS] |
+| - | `ingest_calendario`, `infer_sem_clima`, `infer_min` | [PLUGINS] |
 | gate10 | `harness_parity` | [DEFERRED M7] |
 | gate11 | `sem_deslocamento` (tier parity) | [PLUGINS] |
 | - | `fachada` | [DEFERRED M5] |

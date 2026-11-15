@@ -19,7 +19,7 @@ source(file.path(dirname(dirname(dirname(dirname(normalizePath(.f, winslash = "/
   list("freeze", "gate05", "PLUGINS", "fast"), list("no_env", "gate06", "PLUGINS", "fast"),
   list("corte_dia_o", "gate01", "PLUGINS", "fast"), list("corte_horario", "-", "PLUGINS", "fast"),
   list("sentinela", "-", "PLUGINS", "fast"), list("spline_rule", "-", "PLUGINS", "fast"),
-  list("estagios", "gate02", "PLUGINS", "fast"), list("completude_infer", "-", "PLUGINS", "fast"),
+  list("estagios", "gate02", "PLUGINS", "fast"), list("completude_infer", "-", "PLUGINS", "fast"), list("infer_lag_window", "-", "PLUGINS", "fast"),
   list("weather", "gate09/gate10", "PLUGINS", "fast"), list("weather_limit", "gate09", "PLUGINS", "fast"),
   list("aditividade", "-", "PLUGINS", "fast"), list("higiene", "-", "PLUGINS", "fast"),
   list("readme", "-", "PLUGINS", "fast"), list("runner_controle", "-", "PLUGINS", "fast"),

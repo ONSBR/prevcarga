@@ -97,6 +97,7 @@ Todo gate [PLUGINS] do tier tem de passar (exit 0); [DEFERRED Mx] aparece como S
 | Gate (`gate_table`) | Gate do oraculo | Teste | Dono |
 |---|---|---|---|
 | `contrato` | - | `test-contract.R` | [PLUGINS] |
+| `infer_min` | - | `test-infer-window-min.R` | [PLUGINS] |
 | `ingest_cortes` | - | `test-ingestion.R` | [PLUGINS] |
 | `ingest_safra` | - | `test-ingestion.R` | [PLUGINS] |
 | `ingest_contrato` | - | `test-ingestion.R` | [PLUGINS] |
