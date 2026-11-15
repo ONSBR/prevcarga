@@ -16,7 +16,8 @@
                               "kind", "inference")
 .PREVCARGA_MANIFEST_INFERENCE_KEYS <- c("origin", "available_until", "train_deck_hash", "windows")
 ## Chaves opcionais do bloco inference (nao exigidas): holiday_annex = diretorio do anexo, relativo ao deck.
-.PREVCARGA_MANIFEST_INFERENCE_OPTIONAL <- "holiday_annex"
+## inference_needs_source (E2-T4): proveniencia das necessidades do gerador (artifacts | topology | mixed).
+.PREVCARGA_MANIFEST_INFERENCE_OPTIONAL <- c("holiday_annex", "inference_needs_source")
 .PREVCARGA_MANIFEST_TZ_KEYS <- c("load", "weather_observed", "weather_forecast", "holidays", "dst_periods")
 .PREVCARGA_MANIFEST_FC_KEYS <- c("valid_time", "issue_time")
 
@@ -91,8 +92,12 @@ prevcarga_deck_manifest_timezones <- function(data_dir) {
   if (!is.null(ann) && !(is.character(ann) && length(ann) == 1L && !is.na(ann) && nzchar(ann) &&
                          !grepl("^(/|[A-Za-z]:|\\\\)", ann) && !any(strsplit(ann, "[/\\\\]")[[1L]] == "..")))
     bad_("holiday_annex", "caminho relativo ao deck, sem ..")
+  src <- inf[["inference_needs_source"]]
+  if (!is.null(src) && !(is.character(src) && length(src) == 1L && !is.na(src) && src %in% c("artifacts", "topology", "mixed")))
+    bad_("inference_needs_source", "artifacts|topology|mixed")
   res <- list(origin = origin, available_until = au_t, train_deck_hash = h, windows = wout)
   if (!is.null(ann)) res$holiday_annex <- ann
+  if (!is.null(src)) res$inference_needs_source <- src
   res
 }
 
@@ -312,6 +317,12 @@ prevcarga_available_until <- function(load, origin, areas = NULL) {
        spread = length(unique(as.numeric(until))) > 1L)
 }
 
+## Rotulo da carga -> intervalo [start, end): unico lugar do rotulo de 30 min do deck (carga, geradores de deck derivados).
+.prevcarga_load_interval <- function(ts, label) {
+  start <- if (identical(label, "end")) ts - lubridate::minutes(30L) else ts
+  list(start = start, end = start + lubridate::minutes(30L))
+}
+
 ## --- Carga bruta (sem corte): area_code, interval_start, interval_end, load_mwh -----------------------------
 .prevcarga_load_raw <- function(d, areas, from, to) {
   ds <- .prevcarga_open(d$dir, .PREVCARGA_DECK_DATASETS[["load"]], "load")
@@ -319,8 +330,9 @@ prevcarga_available_until <- function(load, origin, areas = NULL) {
   dt <- .prevcarga_scan(ds, c("area_code", "timestamp", "load_mwh"), from, to, areas)
   ts <- .prevcarga_apply_tz(dt$timestamp, d$manifest$timezone$load, d$tz)
   dt[, timestamp := NULL]
-  dt[, interval_start := if (d$label$value == "end") ts - lubridate::minutes(30L) else ts]
-  dt[, interval_end := interval_start + lubridate::minutes(30L)]
+  iv <- .prevcarga_load_interval(ts, d$label$value)
+  dt[, interval_start := iv$start]
+  dt[, interval_end := iv$end]
   w <- .prevcarga_window(from, to, d$tz)
   dt <- dt[.prevcarga_in_window(interval_start, w)]
   data.table::setcolorder(dt, c("area_code", "interval_start", "interval_end", "load_mwh"))

@@ -121,29 +121,48 @@ prevcarga_inference_needs_aggregate <- function(rows) {
 }
 
 ## ctx: root, e (source = artifacts) o registro de artefatos (artifacts_dir/state_dir). `areas`: folhas da topologia.
-## Uma linha por membro x area, ordem (area, member) radix.
-prevcarga_inference_needs_resolve <- function(ctx, origin, areas, source = c("artifacts", "topology")) {
+## Uma linha por membro x area, ordem (area, member) radix. `on_missing` (so com source = artifacts): "abort" (default; validacao e
+## forecast) mantem contract.inference_needs_missing / state.*; "topology" (deck-inference, E2-T4) faz o membro x area cujo artefato
+## falta (state.*) ou nao traz inference_needs cair para prevcarga_inference_needs_of sobre o spec do run.yaml, com source "topology"
+## na linha e o aviso warning.inference_needs_from_topology {member, area}.
+prevcarga_inference_needs_resolve <- function(ctx, origin, areas, source = c("artifacts", "topology"),
+                                              on_missing = c("abort", "topology")) {
   source <- match.arg(source)
+  on_missing <- match.arg(on_missing)
   members <- if (is.null(ctx$topology_path)) prevcarga_members(root = ctx$root) else
     prevcarga_members(path = ctx$topology_path, root = ctx$root)
   rows <- list()
+  plugins <- list()
+  plugin_of <- function(mdir) {
+    if (is.null(plugins[[mdir]])) plugins[[mdir]] <<- prevcarga_plugin_load(mdir, prevcarga_models_root(ctx$root))
+    plugins[[mdir]]
+  }
+  from_topology <- function(m, a) prevcarga_inference_needs_of(plugin_of(m$mdir), prevcarga_model_spec(m$mdir, ctx$root), a)
   for (i in seq_len(nrow(members))) {
     m <- as.list(members[i, , drop = FALSE])
     label <- if (is.na(m$exogena)) m$mdir else paste(m$mdir, m$exogena, sep = "/")
-    plugin <- if (source == "topology") prevcarga_plugin_load(m$mdir, prevcarga_models_root(ctx$root)) else NULL
     for (a in areas) {
+      src <- source
       needs <- if (source == "artifacts") {
-        art <- prevcarga_infer_resolve(m, a, ctx)$artifact
-        if (is.null(art$inference_needs))
-          prevcarga_abort("contract.inference_needs_missing", where = m$mdir,
-                          details = list(member = label, area = a, origin = format(origin, "%Y-%m-%d")))
-        art$inference_needs
-      } else prevcarga_inference_needs_of(plugin, prevcarga_model_spec(m$mdir, ctx$root), a)
-      rows[[length(rows) + 1L]] <- list(member = label, mdir = m$mdir, area = a, needs = needs)
+        art <- if (identical(on_missing, "topology"))
+          tryCatch(prevcarga_infer_resolve(m, a, ctx)$artifact,
+                   prevcarga_error = function(e) if (startsWith(e$id, "state.")) NULL else stop(e))
+        else prevcarga_infer_resolve(m, a, ctx)$artifact
+        if (is.null(art$inference_needs)) {
+          if (!identical(on_missing, "topology"))
+            prevcarga_abort("contract.inference_needs_missing", where = m$mdir,
+                            details = list(member = label, area = a, origin = format(origin, "%Y-%m-%d")))
+          src <- "topology"
+          prevcarga_warn("warning.inference_needs_from_topology", where = paste(label, a, sep = "/"),
+                         details = list(member = label, area = a))
+          from_topology(m, a)
+        } else art$inference_needs
+      } else from_topology(m, a)
+      rows[[length(rows) + 1L]] <- list(member = label, mdir = m$mdir, area = a, needs = needs, source = src)
     }
   }
   out <- data.table::data.table(member = vapply(rows, `[[`, "", "member"), mdir = vapply(rows, `[[`, "", "mdir"),
                                 area = vapply(rows, `[[`, "", "area"), needs = lapply(rows, `[[`, "needs"),
-                                source = rep(source, length(rows)))
+                                source = vapply(rows, `[[`, "", "source"))
   out[order(out$area, out$member, method = "radix"), ]
 }
