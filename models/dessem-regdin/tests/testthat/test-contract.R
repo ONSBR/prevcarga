@@ -1,16 +1,17 @@
 ## test-contract.R -- RD.4 (AC1): contrato do plugin dessem-regdin. O run.yaml real registra Tier A; fixtures de run.yaml
-## invalidas (history_days.infer = 45, origin_agnostic, granularity_min 30, seed ausente, exogena MXMN) abortam
+## invalidas (origin_agnostic, granularity_min 30, seed ausente, exogena MXMN) abortam
 ## [prevcarga/contract] (exit 2) nomeando o campo ANTES de qualquer ajuste (espiao em .rd_fit_pass = 0); exogena fora de
 ## MED/MAX tambem no despachante. CONTROL: MED e MAX carregam e dao y_pred diferente (> 1e-5). Loader real, motor real,
 ## painel sintetico (nunca dado real do store); paineis crus ao despachante.
 
-test_that("[PLUGINS] contrato: o run.yaml real registra Tier A (modes, delivery_days 9, history_infer_equals_train, motor proprio)", {
+test_that("[PLUGINS] contrato: o run.yaml real registra Tier A (modes, delivery_days 9, history_infer_equals_train FALSE desde o E4-T3, motor proprio)", {
   p <- rd_fx_plugin(); d <- p$descriptor
   expect_setequal(p$spec$modes, c("train", "infer", "forecast"))
   expect_identical(d$modes_implemented, c("train", "infer", "forecast"))
   expect_identical(d$delivery_days, 9L); expect_identical(p$spec$horizon_days, 9L)
-  expect_true(d$history_infer_equals_train)
-  expect_identical(p$spec$history_days$infer, p$spec$history_days$train)
+  expect_false(d$history_infer_equals_train)                                  # E4-T3: a inferencia roda sobre o estado do artefato
+  expect_identical(p$spec$history_days$infer, 15L); expect_identical(p$spec$history_days$train, 1095L)
+  expect_false("infer_history_equals_train" %in% names(p$spec$constraints))
   expect_identical(p$spec$split, "origin_scoped"); expect_identical(p$spec$granularity_min, 60L)
   expect_false(is.null(p$spec$seed))
   expect_identical(d$engine, "_dessem-engine")
@@ -21,15 +22,13 @@ test_that("[PLUGINS] contrato: o run.yaml real registra Tier A (modes, delivery_
   expect_true(all(paste0("dessem-regdin/", names(d$stages)) %in% reg))
 })
 
-test_that("[PLUGINS] contrato: 5 fixtures de run.yaml abortam contract (exit 2) nomeando o campo, com 0 ajustes", {
+test_that("[PLUGINS] contrato: 4 fixtures de run.yaml abortam contract (exit 2) nomeando o campo, com 0 ajustes", {
   cases <- list(
-    history_days.infer = list(edit = function(x) sub("infer: 1095", "infer: 45", x), id = "plugin.history_window"),
     split = list(edit = function(x) sub("split: origin_scoped", "split: origin_agnostic", x), id = "plugin.bad_run_yaml"),
     granularity_min = list(edit = function(x) sub("granularity_min: 60", "granularity_min: 30", x), id = "plugin.bad_run_yaml"),
     seed = list(edit = function(x) x[!grepl("^seed:", x)], id = "plugin.bad_run_yaml"),
     exogena = list(edit = function(x) sub("exogena: MED", "exogena: MXMN", x), id = "plugin.bad_run_yaml"))
-  field_in_msg <- c(history_days.infer = "history_days.infer", split = "modes", granularity_min = "granularity_min",
-                    seed = "seed", exogena = "params$exogena")
+  field_in_msg <- c(split = "modes", granularity_min = "granularity_min", seed = "seed", exogena = "params$exogena")
   spy_fit <- rd_spy(".rd_fit_pass"); spy_train <- rd_spy("rd_training")
   for (field in names(cases)) {
     cond <- tryCatch(rd_load("dessem-regdin", rd_fx_root(cases[[field]]$edit)), prevcarga_error = function(e) e)
@@ -42,6 +41,19 @@ test_that("[PLUGINS] contrato: 5 fixtures de run.yaml abortam contract (exit 2) 
   }
   ## CONTROL: o run.yaml sem mutacao carrega
   expect_s3_class(rd_load("dessem-regdin", rd_fx_root()), "prevcarga_plugin")
+})
+
+test_that("[PLUGINS] contrato: history_days.infer != train carrega (flag FALSE, E4-T3); CONTROL: com a flag TRUE o loader recusa exit 2", {
+  root <- rd_fx_root(function(x) sub("infer: 15", "infer: 45", x))
+  expect_s3_class(rd_load("dessem-regdin", root), "prevcarga_plugin")
+  ## CONTROL: a mesma run.yaml com o descriptor no contrato antigo (flag TRUE) => plugin.history_window, contract, exit 2
+  root2 <- rd_fx_root(function(x) sub("infer: 15", "infer: 45", x))
+  rg <- file.path(root2, "dessem-regdin", "R", "register.R")
+  writeLines(sub("history_infer_equals_train = FALSE", "history_infer_equals_train = TRUE", readLines(rg), fixed = TRUE), rg)
+  cond <- tryCatch(rd_load("dessem-regdin", root2), prevcarga_error = function(e) e)
+  expect_s3_class(cond, "prevcarga_error")
+  expect_identical(cond$id, "plugin.history_window"); expect_identical(cond$exit_code, 2L); expect_identical(cond$class_name, "contract")
+  expect_match(conditionMessage(cond), "history_days.infer", fixed = TRUE)
 })
 
 test_that("[PLUGINS] params_schema: exogena fora de {MED, MAX} (MXMN incluido) aborta contract no despachante antes de qualquer ajuste", {

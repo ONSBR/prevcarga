@@ -16,23 +16,32 @@ test_that("[PLUGINS] inferencia: AC1: guarda de janela, FORBIDDEN/CONTROL e infe
   st <- rd3_state(); p <- st$p; au <- rd3_au(9L)
   e <- rd3_infer(p, st$med, au)
   expect_identical(dim(e$values), c(9L, 48L)); expect_false(anyNA(e$values))
-  ## painel 30 dias mais curto => window_mismatch (exit 5) antes de qualquer ajuste
+  ## E4-T3: o historico vem do artefato; painel 30 dias mais curto no inicio infere com delta 0 (antes: window_mismatch, exit 5)
   short <- rd3_panel(until = au, days = RD2_D - 30L)
+  e_short <- rd3_infer(p, st$med, au, pan = short)
+  expect_identical(e_short$values, e$values)
+  ## deck que termina em O-2: window_mismatch (exit 5) antes de qualquer ajuste
+  cu <- rd3_cuts(au); cu$last_data_day <- RD2_O - 2L
+  pan2 <- rd3_panel(until = au, days = 20L)
+  pan2$load <- pan2$load[lubridate::as_date(interval_end - 1) <= RD2_O - 2L | lubridate::as_date(interval_start) >= RD2_O]
+  pan2$weather_observed <- pan2$weather_observed[lubridate::as_date(valid_time) <= RD2_O - 2L | lubridate::as_date(valid_time) >= RD2_O]
+  pan2$weather_forecast <- pan2$weather_forecast[issue_time <= au]
+  m2 <- rd_model_panel(pan2, cu)
+  frame2 <- rd_with_cli(suppressMessages(p$descriptor$stages$ingestion$fn(m2$panel, m2$cuts)))
+  inf2 <- rd_with_cli(suppressMessages(p$descriptor$stages$inference_features$fn(frame2, st$med$payload)))
   spy <- rd2_spy(st$eng); on.exit(spy$restore(), add = TRUE)
-  cond <- tryCatch(rd3_infer(p, st$med, au, pan = short), prevcarga_error = function(c) c)
+  cond <- tryCatch(rd_with_cli(p$env$plugin_infer(st$med$payload, inf2, m2$cuts)), prevcarga_error = function(c) c)
   expect_s3_class(cond, "prevcarga_error")
   expect_identical(cond$id, "plugin.regdin_window_mismatch")
   expect_identical(cond$exit_code, 5L); expect_identical(cond$class_name, "window")
   expect_identical(spy$log$n, 0L)
   spy$restore()
-  ## CONTROL: com o bypass (so teste) o mesmo painel entrega e muda a previsao
-  s2 <- rd3_stage_inf(p, st$med, short, au)
-  expect_error(rd_with_cli(p$env$plugin_infer(st$med$payload, s2$inf, s2$cuts)), class = "prevcarga_error")
-  y_b <- rd_with_cli(suppressMessages(p$env$plugin_infer(st$med$payload, s2$inf, s2$cuts, .bypass_window_guard = TRUE)))
-  expect_false("bypass" %in% names(formals(p$descriptor$stages$inference$fn)))
+  ## CONTROL: com o bypass (so teste) o mesmo deck passa da guarda
+  expect_false(".bypass_window_guard" %in% names(formals(p$descriptor$stages$inference$fn)))
   expect_false(".bypass_window_guard" %in% names(p$descriptor))
-  cat(sprintf("\n[RD.3 medida] bypass x janela exata: max|Delta y_pred| = %.3f MW\n", rd3_ypos(e, y_b)))
-  expect_gt(rd3_ypos(e, y_b), 50)
+  y_b <- tryCatch(rd_with_cli(suppressMessages(p$env$plugin_infer(st$med$payload, inf2, m2$cuts, .bypass_window_guard = TRUE))),
+                  prevcarga_error = function(c) c)
+  expect_false(inherits(y_b, "prevcarga_error") && identical(y_b$id, "plugin.regdin_window_mismatch"))
   ## infer == forecast no dia D (09:00): o forecast acoplado treina e infere numa passada
   f <- rd3_forecast(p, au)
   expect_lte(max(abs(e$delivery$y_pred - f$delivery$y_pred)), 1e-5)
@@ -55,7 +64,8 @@ test_that("[PLUGINS] inferencia: AC2: arima_fingerprint divergente aborta nomean
   expect_identical(cond2$id, "plugin.regdin_arima_drift"); expect_identical(cond2$details$field, "order")
   art3 <- st$med; art3$payload$arima_fingerprint$dm_digest <- "0"
   cond3 <- tryCatch(rd3_infer(p, art3, au), prevcarga_error = function(c) c)
-  expect_identical(cond3$id, "plugin.regdin_arima_drift"); expect_identical(cond3$details$field, "dm_digest")
+  ## E4-T3: a guarda de janela confere serie_dm contra o digest antes do ARIMA => artifact_tampered (integrity, exit 9)
+  expect_identical(cond3$id, "plugin.regdin_artifact_tampered"); expect_identical(cond3$exit_code, 9L)
 })
 
 test_that("[PLUGINS] inferencia: AC3: cabeca so com mm (00:00 nao aciona), set.seed antes, FORBIDDEN/CONTROL de perturbacao, RNG do chamador", {

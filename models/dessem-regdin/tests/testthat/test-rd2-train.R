@@ -7,7 +7,8 @@ test_that("[PLUGINS] treino_freeze: ordem do oraculo: 1 cabeca de referencia (co
   expect_identical(lg$n, 241L)
   expect_identical(which(grepl("\\bmm\\b", lg$fml, perl = TRUE)), 1L)
   pl <- st$a09$payload
-  expect_setequal(names(pl), c("svm_perfil", "norm", "config_mdl", "day_types", "dias", "train_window", "arima_fingerprint", "seed"))
+  expect_setequal(names(pl), c("svm_perfil", "norm", "config_mdl", "day_types", "dias", "train_window", "arima_fingerprint", "seed",
+                              "serie_dm", "hol_profile", "columns", "inference_needs"))   # E4-T3: estado derivado
   expect_identical(names(pl$svm_perfil), format(O + 0:9))
   expect_true(all(vapply(pl$svm_perfil, length, 1L) == 24L))
   set.seed(42L); fresh <- get(".Random.seed", globalenv())

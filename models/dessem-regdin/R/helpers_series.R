@@ -18,20 +18,25 @@
 }
 
 ## norm injetado: as quatro constantes numericas, sem NA e diferentes de 0 (forma gravada no artefato).
-.rd_check_norm <- function(norm) {
+## Com `config_mdl`, a constante VAZIA (logical(0)) so vale para a flag de normalizacao que o motor nao liga: flag TRUE com
+## constante vazia falha alto (ADR-0005). A flag de cada constante e a que .rd_norm_constants usa para calcula-la (chaves do
+## regdin: carga/exogena da DM e perfil$cargadm/perfil$exogena). Sem `config_mdl` a conferencia de vazio fica como antes.
+.rd_check_norm <- function(norm, config_mdl = NULL) {
   need <- c("dm_carga", "dm_exo", "pf_cargadm", "pf_exo")
   have <- if (is.list(norm)) need[need %in% names(norm)] else character()
-  ## constante vazia e legitima: a flag de normalizacao desligada no config faz getNormaliza* devolver logical(0) e a
-  ## serie nao divide (a flag decide, nao a constante). Presente e nao vazia: numerica, sem NA e diferente de 0.
+  nz <- config_mdl$normalizacao
+  flag <- list(dm_carga = nz$carga$flag, dm_exo = nz$exogena$flag,
+               pf_cargadm = nz$perfil$cargadm$flag, pf_exo = nz$perfil$exogena$flag)
   bad <- have[vapply(have, function(k) {
     x <- norm[[k]]
-    length(x) > 0L && (!is.numeric(x) || anyNA(x) || any(x == 0))
+    if (length(x) == 0L) return(!is.null(config_mdl) && isTRUE(flag[[k]]))
+    !is.numeric(x) || anyNA(x) || any(x == 0)
   }, NA)]
   miss <- setdiff(need, have)
   if (length(miss) || length(bad)) {
     k <- c(miss, bad)
     rd_abort("plugin.regdin_artifact_mismatch", where = "dessem-regdin/build_series",
-             reason = sprintf("norm: constante ausente, NA ou 0 (%s)", paste(k, collapse = ",")),
+             reason = sprintf("norm: constante ausente, vazia com a flag ligada, NA ou 0 (%s)", paste(k, collapse = ",")),
              details = list(field = "norm", constante = k))
   }
   invisible(norm)
@@ -42,7 +47,7 @@
 ## norm = NULL: constantes sobre a base (treino). norm dado: vem do argumento, getNormaliza* nao sao chamadas.
 .rd_build_series <- function(SERIECOMP, config_mdl, norm = NULL) {
   nz <- config_mdl$normalizacao
-  if (!is.null(norm)) .rd_check_norm(norm)
+  if (!is.null(norm)) .rd_check_norm(norm, config_mdl)
   if (is.null(norm)) {
     hist <- .rd_common_base(SERIECOMP)
     k <- list(dm_carga = getNormalizaCarga(nz$carga, hist), dm_exo = getNormalizaExogena(nz$exogena, hist))

@@ -11,10 +11,10 @@ rd_muffle <- function(patterns, expr) {
 
 ## `spec` = list(params = ...); a variante e validada ANTES de qualquer chamada ao motor.
 plugin_build_features <- function(deck, spec, norm = NULL) {
-  if (!is.null(norm)) .rd_check_norm(norm)   # antes de qualquer chamada ao motor
   key <- .rd_variant_key(spec$params)
   eng <- rd_engine()
   config_mdl <- eng$getConfigModel(key)
+  if (!is.null(norm)) .rd_check_norm(norm, config_mdl)   # antes de TransformaDeck e de getNormaliza*
   eng_deck <- list(CARGAHIST = data.table::copy(deck$CARGAHIST), EXOGENAHIST = data.table::copy(deck$EXOGENAHIST),
                    EXOGENAPREV = data.table::copy(deck$EXOGENAPREV), FERIADOS = data.table::copy(deck$FERIADOS))
   ## anexo de feriados (ADR-046): so entra no deck do motor quando existe (sem anexo o deck e o de antes)

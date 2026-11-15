@@ -1,5 +1,6 @@
-## test-window-invariant.R -- RD.4 (AC2, AC3): invariante de janela do infer (history_days.infer == train, origin_scoped) e
-## deriva do ARIMA. FORBIDDEN/CONTROL de cada um; os dois bracos rodam, sem skip. Loader real, motor real, despachante real,
+## test-window-invariant.R -- RD.4 (AC2, AC3): invariante de janela do infer e deriva do ARIMA. E4-T3 (ADR-045 fase C): a janela
+## deixou de ser deck == train_window; o deck (curto ou longo) so precisa TERMINAR em train_window$end e o historico vem do
+## artefato (serie_dm). FORBIDDEN/CONTROL de cada um; os dois bracos rodam, sem skip. Loader real, motor real, despachante real,
 ## painel sintetico cru. Os artefatos MED/MAX sao os do cache de sessao (rd3_state; corte de treino 09:00).
 
 test_that("[PLUGINS] janela_infer_igual_treino: FORBIDDEN painel exato (fingerprint bate, infer == forecast no dia D)", {
@@ -20,31 +21,36 @@ test_that("[PLUGINS] janela_infer_igual_treino: FORBIDDEN painel exato (fingerpr
   expect_lte(rd_fx_ydelta(ok, fc), 1e-5)
 })
 
-test_that("[PLUGINS] janela_infer_igual_treino: painel 30 dias mais curto => window exit 5 antes de ajustar; CONTROL bypass > 50 MW nos dias entregues", {
-  st <- rd3_state(); p <- st$p; cuts <- rd_fx_cuts(); au <- cuts$available_until
+test_that("[PLUGINS] janela_infer_igual_treino: painel 30 dias mais curto no inicio passa com delta 0 (E4-T3); deck que termina em O-2 => window exit 5 antes de ajustar; CONTROL bypass entrega", {
+  st <- rd3_state(); p <- st$p; cuts <- rd_fx_cuts(); au <- cuts$available_until; O <- RD2_O
   ok <- rd_infer(st$med, cuts = cuts)
-  short <- rd_fx_shorten(until = au, days = 30L)
+  ## o historico vem do artefato: 30 dias a menos no INICIO do deck nao mudam nada (antes: window_mismatch)
+  short <- rd_infer(st$med, rd_fx_shorten(until = au, days = 30L), cuts)
+  expect_identical(short$values, ok$values)
+  expect_identical(short$delivery$y_pred, ok$delivery$y_pred)
+  ## deck valido que termina em O-2: aborta nomeando os dois dias, sem ajustar nada
+  pan <- rd_fx_shorten(until = au, days = 30L)
+  cu <- rd3_cuts(au); cu$last_data_day <- O - 2L
+  pan$load <- pan$load[lubridate::as_date(interval_end - 1) <= O - 2L | lubridate::as_date(interval_start) >= O]
+  pan$weather_observed <- pan$weather_observed[lubridate::as_date(valid_time) <= O - 2L | lubridate::as_date(valid_time) >= O]
+  m <- rd_model_panel(pan, cu)
+  frame <- rd_with_cli(suppressMessages(p$descriptor$stages$ingestion$fn(m$panel, m$cuts)))
+  inf <- rd_with_cli(suppressMessages(p$descriptor$stages$inference_features$fn(frame, st$med$payload)))
   spy_pass <- rd_spy(".rd_predict_pass"); spy_fp <- rd_spy(".rd_check_fingerprint")
-  cond <- tryCatch(rd_infer(st$med, short, cuts), prevcarga_error = function(e) e)
+  cond <- tryCatch(rd_with_cli(p$env$plugin_infer(st$med$payload, inf, m$cuts)), prevcarga_error = function(e) e)
   expect_s3_class(cond, "prevcarga_error")
   expect_identical(cond$id, "plugin.regdin_window_mismatch")
   expect_identical(cond$exit_code, 5L); expect_identical(cond$class_name, "window")
   expect_true(rd_ascii(conditionMessage(cond)))
-  expect_false(is.null(cond$details$expected)); expect_false(is.null(cond$details$got))
+  expect_identical(cond$details$expected_end, format(O - 1L)); expect_identical(cond$details$deck_end, format(O - 2L))
   expect_identical(spy_pass$count(), 0L); expect_identical(spy_fp$count(), 0L)    # nenhum ajuste, nem o refit do ARIMA
   spy_pass$restore(); spy_fp$restore()
-  ## CONTROL com dente: com o bypass (so teste; ausente do descriptor) o mesmo painel curto entrega e a previsao muda > 50 MW
-  s2 <- rd3_stage_inf(p, st$med, short, au)
-  ctl <- rd_with_cli(suppressMessages(p$env$plugin_infer(st$med$payload, s2$inf, s2$cuts, .bypass_window_guard = TRUE)))
+  ## CONTROL com dente: com o bypass (so teste; ausente do descriptor) o mesmo deck passa da guarda
+  ctl <- tryCatch(rd_with_cli(suppressMessages(p$env$plugin_infer(st$med$payload, inf, m$cuts, .bypass_window_guard = TRUE))),
+                  prevcarga_error = function(e) e)
+  expect_false(inherits(ctl, "prevcarga_error") && identical(ctl$id, "plugin.regdin_window_mismatch"))
   expect_false(".bypass_window_guard" %in% names(formals(p$descriptor$stages$inference$fn)))
   expect_false(".bypass_window_guard" %in% names(p$descriptor))
-  perday <- apply(abs(ctl$values - ok$values), 1L, max)                       # max|Delta| por dia entregue (D = O .. O+8)
-  cat(sprintf("[RD.4 medida] bypass x janela exata, por dia (MW): %s\n", paste(sprintf("%.1f", perday), collapse = " ")))
-  expect_gt(max(perday), 50)                                                   # dente: algum dia entregue muda > 50 MW
-  expect_gt(rd_fx_ydelta(ctl, ok), 50)
-  expect_gt(perday[[1L]], 1e-5)                                                # e o proprio dia O muda
-  ## o painel curto sem bypass seguia abortando (os dois bracos rodaram)
-  expect_error(rd_with_cli(p$env$plugin_infer(st$med$payload, s2$inf, s2$cuts)), class = "prevcarga_error")
 })
 
 test_that("[PLUGINS] arima_drift: coeficiente +1e-3, ordem e digest adulterados abortam nomeando o campo; CONTROL original infere", {
@@ -63,21 +69,30 @@ test_that("[PLUGINS] arima_drift: coeficiente +1e-3, ordem e digest adulterados 
   swap <- st$med; swap$payload$arima_fingerprint$order[["p"]] <- swap$payload$arima_fingerprint$order[["p"]] + 1L
   c2 <- tryCatch(rd_infer(swap, cuts = cuts), prevcarga_error = function(e) e)
   expect_identical(c2$id, "plugin.regdin_arima_drift"); expect_identical(c2$details$field, "order")
+  ## dm_digest adulterado: a guarda de janela (E4-T3) confere serie_dm contra o digest ANTES do ARIMA => artifact_tampered (exit 9)
   dig <- st$med; dig$payload$arima_fingerprint$dm_digest <- "0"
   c3 <- tryCatch(rd_infer(dig, cuts = cuts), prevcarga_error = function(e) e)
-  expect_identical(c3$id, "plugin.regdin_arima_drift"); expect_identical(c3$details$field, "dm_digest")
+  expect_identical(c3$id, "plugin.regdin_artifact_tampered"); expect_identical(c3$exit_code, 9L)
+  ## o campo dm_digest do refit continua nomeado quando a serie composta difere do digest (conferencia direta)
+  p <- st$p; au <- cuts$available_until
+  s <- rd3_stage_inf(p, st$med, rd_fx_panel(until = au), au)
+  c4 <- tryCatch(rd_with_cli(p$env$.rd_check_fingerprint(s$inf$features$series$serieDM, st$med$payload$config_mdl, dig$payload$arima_fingerprint)),
+                 prevcarga_error = function(e) e)
+  expect_identical(c4$id, "plugin.regdin_arima_drift"); expect_identical(c4$details$field, "dm_digest")
 })
 
-test_that("[PLUGINS] arima_drift: mable NULL do fable (janela sem os 12 meses / regressores colineares) aborta arima_drift nomeando a causa", {
+test_that("[PLUGINS] arima_drift: mable NULL do fable (serie sem os 12 meses / regressores colineares) aborta arima_drift nomeando a causa", {
   st <- rd3_state(); p <- st$p; au <- rd_fx_cuts()$available_until
-  short <- rd_fx_panel(until = au, days = 100L)                                # menos de 12 meses: fable devolve NULL model
-  s <- rd3_stage_inf(p, st$med, short, au)
+  ## E4-T3: o historico vem do artefato, entao o NULL model so surge de uma serie composta curta (artefato adulterado/outra fonte):
+  ## recorta a serieDM composta para os ultimos 100 dias historicos (menos de 12 meses)
+  full <- rd3_stage_inf(p, st$med, rd_fx_panel(until = au), au)
+  sdm <- data.table::copy(full$inf$features$series$serieDM)
+  ult <- max(sdm[Prev == FALSE]$Data)
+  short <- sdm[Prev == TRUE | Data > ult - 100L]
   eng <- parent.env(p$env)
-  raw <- suppressWarnings(eng$execDemandaMediaTS(data.table::copy(s$inf$features$series$serieDM), st$med$payload$config_mdl))
+  raw <- suppressWarnings(eng$execDemandaMediaTS(data.table::copy(short), st$med$payload$config_mdl))
   expect_true(inherits(raw$mdl$modeloTreinado[[1L]][[1L]]$fit, "null_mdl"))   # premissa: o motor nao avisa nem erra
-  ## direto no passo de conferencia
-  cond <- tryCatch(rd_with_cli(p$env$.rd_check_fingerprint(s$inf$features$series$serieDM, st$med$payload$config_mdl,
-                                                            st$med$payload$arima_fingerprint)),
+  cond <- tryCatch(rd_with_cli(p$env$.rd_check_fingerprint(short, st$med$payload$config_mdl, st$med$payload$arima_fingerprint)),
                    prevcarga_error = function(e) e)
   expect_s3_class(cond, "prevcarga_error")
   expect_identical(cond$id, "plugin.regdin_arima_drift"); expect_identical(cond$class_name, "contract")
@@ -85,13 +100,8 @@ test_that("[PLUGINS] arima_drift: mable NULL do fable (janela sem os 12 meses / 
   expect_match(conditionMessage(cond), "NULL", fixed = TRUE)
   expect_match(conditionMessage(cond), "12 meses", fixed = TRUE); expect_match(conditionMessage(cond), "colineares", fixed = TRUE)
   expect_true(rd_ascii(conditionMessage(cond)))
-  ## ponta a ponta: com a janela do artefato igualada a do painel curto a guarda de janela passa e o NULL mable aborta no infer
-  art <- st$med$payload; art$train_window <- s$inf$panel_window
-  c2 <- tryCatch(rd_with_cli(p$env$plugin_infer(art, s$inf, s$cuts)), prevcarga_error = function(e) e)
-  expect_identical(c2$id, "plugin.regdin_arima_drift"); expect_identical(c2$details$field, "null_model")
-  ## CONTROL: a janela exata (14 meses) nao produz NULL model
-  full <- rd3_stage_inf(p, st$med, rd_fx_panel(until = au), au)
-  ok <- suppressWarnings(eng$execDemandaMediaTS(data.table::copy(full$inf$features$series$serieDM), st$med$payload$config_mdl))
+  ## CONTROL: a serie composta inteira (14 meses) nao produz NULL model
+  ok <- suppressWarnings(eng$execDemandaMediaTS(data.table::copy(sdm), st$med$payload$config_mdl))
   expect_false(inherits(ok$mdl$modeloTreinado[[1L]][[1L]]$fit, "null_mdl"))
 })
 
@@ -145,7 +155,7 @@ rdw_ingest <- function(panel, janela = "ano_civil") {
 
 test_that("[PLUGINS] janela_infer_igual_treino: descriptor, run.yaml e history_window do regdin nos dois modos (E3-T4)", {
   p <- rd_load()
-  expect_identical(p$spec$history_days, list(train = 1095L, infer = 1095L))
+  expect_identical(p$spec$history_days, list(train = 1095L, infer = 15L))   # E4-T3: o deck de inferencia tem so 15 dias
   expect_identical(p$spec$params$janela_dessem, "ano_civil")
   expect_identical(p$descriptor$params_schema$janela_dessem$allowed, c("ano_civil", "referencia"))
   expect_identical(p$env$plugin_constants()$reference_history_days, 1825L)
@@ -218,31 +228,27 @@ test_that("[PLUGINS] janela_infer_igual_treino: serieDM, normalizacao e perfil d
   expect_gt(nrow(f$processado$SERIECOMP[Prev == FALSE]), nrow(p$env$.rd_common_base(f$processado$SERIECOMP)))
 })
 
-test_that("[PLUGINS] janela_infer_igual_treino: guarda compara o conjunto de ilhas; uma ilha a menos => window_mismatch com esperado e obtido (E3-T4)", {
-  p <- rd_load()
+test_that("[PLUGINS] janela_infer_igual_treino: a guarda confere o artefato e o fim do deck, nao o conjunto de ilhas (E4-T3; antes E3-T4)", {
+  st <- rd3_state(); p <- st$p; pl <- st$med$payload; O <- RD2_O
   mk <- function(from, to) data.frame(island_id = seq_along(from), from = as.numeric(lubridate::ymd(from)), to = as.numeric(lubridate::ymd(to)))
-  exp_isl <- mk(c("2019-04-12", "2019-12-18"), c("2019-04-19", "2019-12-25"))
-  win <- function(isl) list(start = lubridate::ymd("2020-06-01"), end = lubridate::ymd("2023-05-31"), islands = isl)
-  art <- list(train_window = win(exp_isl))
-  ## mesmo conjunto: a guarda passa
-  expect_true(rd_with_cli(p$env$.rd_check_window(list(panel_window = win(exp_isl)), art)))
-  ## uma ilha a menos: aborta, nomeando os dois conjuntos
-  cond <- expect_rd_error(p$env$.rd_check_window(list(panel_window = win(exp_isl[1L, ])), art), "plugin.regdin_window_mismatch")
+  isl <- mk(c("2019-04-12", "2019-12-18"), c("2019-04-19", "2019-12-25"))
+  win <- function(end, islands = NULL) list(start = O - 15L, end = end, islands = islands)
+  art <- p$env$rd_thaw(pl)
+  ## o deck de inferencia nao carrega anexo: com ou sem ilhas no painel a guarda passa quando o deck termina em train_window$end
+  expect_true(rd_with_cli(p$env$.rd_check_window(list(panel_window = win(O - 1L)), art)))
+  expect_true(rd_with_cli(p$env$.rd_check_window(list(panel_window = win(O - 1L, isl)), art)))
+  ## fim do deck diferente: aborta nomeando os dois dias (esperado e obtido)
+  cond <- expect_rd_error(p$env$.rd_check_window(list(panel_window = win(O - 3L)), art), "plugin.regdin_window_mismatch")
   expect_identical(cond$exit_code, 5L); expect_identical(cond$class_name, "window")
-  expect_match(conditionMessage(cond), "2019-12-18", fixed = TRUE)                     # a ilha esperada aparece no esperado
-  expect_match(cond$details$expected_islands, "2019-12-18", fixed = TRUE)
-  expect_false(grepl("2019-12-18", cond$details$got_islands, fixed = TRUE))
+  expect_match(conditionMessage(cond), format(O - 1L), fixed = TRUE); expect_match(conditionMessage(cond), format(O - 3L), fixed = TRUE)
   expect_true(rd_ascii(conditionMessage(cond)))
-  ## ilha com o mesmo numero mas outro intervalo tambem diverge
-  expect_rd_error(p$env$.rd_check_window(list(panel_window = win(mk(c("2019-04-12", "2019-12-17"), c("2019-04-19", "2019-12-25")))), art),
-                  "plugin.regdin_window_mismatch")
-  ## artefato antigo sem islands = conjunto vazio: painel sem ilhas passa, painel com ilhas diverge
-  old <- list(train_window = list(start = lubridate::ymd("2020-06-01"), end = lubridate::ymd("2023-05-31")))
-  expect_true(rd_with_cli(p$env$.rd_check_window(list(panel_window = win(NULL)), old)))
-  expect_rd_error(p$env$.rd_check_window(list(panel_window = win(exp_isl)), old), "plugin.regdin_window_mismatch")
+  ## serie_dm adulterada ou fora de train_window => tampered (exit 9), antes de olhar o deck
+  raw <- pl; raw$serie_dm$Carga[10L] <- raw$serie_dm$Carga[10L] + 1; bad <- p$env$rd_thaw(raw)
+  expect_identical(expect_rd_error(p$env$.rd_check_window(list(panel_window = win(O - 1L)), bad), "plugin.regdin_artifact_tampered")$exit_code, 9L)
+  bad2 <- art; bad2$train_window$start <- bad2$train_window$start + 1L
+  expect_rd_error(p$env$.rd_check_window(list(panel_window = win(O - 1L)), bad2), "plugin.regdin_artifact_tampered", "train_window")
   ## a guarda e a primeira coisa do infer: plugin_infer aborta antes de refazer o ARIMA
-  stub <- list(svm_perfil = list(), norm = list(), config_mdl = list(), day_types = list(), dias = character(),
-               train_window = win(exp_isl), arima_fingerprint = list(), seed = 1L)
-  cnd <- expect_rd_error(p$env$plugin_infer(stub, list(panel_window = win(exp_isl[1L, ])), list()), "plugin.regdin_window_mismatch")
-  expect_identical(cnd$id, "plugin.regdin_window_mismatch")
+  spy <- rd_spy(".rd_check_fingerprint")
+  cnd <- expect_rd_error(p$env$plugin_infer(pl, list(panel_window = win(O - 3L)), list()), "plugin.regdin_window_mismatch")
+  expect_identical(cnd$id, "plugin.regdin_window_mismatch"); expect_identical(spy$count(), 0L)
 })
