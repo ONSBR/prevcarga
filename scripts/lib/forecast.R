@@ -335,7 +335,7 @@
 ## Devolve LONG combinado por folha, LONG por membro x folha e a versao dos pesos por folha.
 .forecast_leaves <- function(ctx, members, g, plan, mem) {
   art_dir <- file.path(prevcarga_registry_root(ctx), "combina")
-  long <- list(); mlong <- list(); wver <- list(); wtab <- list(); cells <- list()
+  long <- list(); mlong <- list(); wver <- list(); wtab <- list(); cells <- list(); eqwr <- list()
   for (a in plan$leaves) {
     lp <- .forecast_leaf_panel(ctx, members[[a]], a, g, mem)
     ap <- prevcarga_combina_apply(a, art_dir, lp$panel, ctx, members = mem, detail = TRUE,
@@ -343,13 +343,14 @@
     long[[a]] <- ap$long
     if (!is.null(ap$cell_months)) cells[[a]] <- ap$cell_months
     wver[[a]] <- ap$version_hash
+    eqwr[[a]] <- ap$eqw_reason                  # E6-T3: not_trained | member_set | NA
     if (!is.null(ap$weights)) wtab[[a]] <- ap$weights     # EQW: sem pesos para a folha (relatorio sem pesos dela)
     for (d in lp$members_long) {
       sg <- d$member[[1L]]
       mlong[[sg]][[a]] <- d[, names(prevcarga_schema_long), with = FALSE]
     }
   }
-  list(long = long, members = mlong, weights_version = wver, weights = wtab, cells = cells)
+  list(long = long, members = mlong, weights_version = wver, weights = wtab, cells = cells, eqw_reason = eqwr)
 }
 
 ## --- 5. reconcile ----------------------------------------------------------------------------------------------
@@ -420,6 +421,16 @@
   stats::setNames(lapply(seq_len(nrow(b)), function(i) .forecast_iso_min(b$until[[i]], cuts$tz)), as.character(b$area_code))
 }
 
+## E6-T3: motivo do EQW por folha (not_trained | member_set); folha com pesos fica fora. Lista nomeada vazia sem EQW.
+.forecast_combina_motivo <- function(lv) {
+  mot <- structure(list(), names = character())
+  for (a in names(lv$eqw_reason)) {
+    r <- lv$eqw_reason[[a]]
+    if (length(r) == 1L && !is.na(r)) mot[[a]] <- as.character(r)
+  }
+  mot
+}
+
 ## E6-T2: bloco por folha com pesos {mes_pedido, mes_usado, stale} (texto/logico simples; folha EQW fica fora).
 .forecast_combina_celula <- function(lv) {
   cel <- structure(list(), names = character())
@@ -445,6 +456,7 @@
               covered = as.list(plan$covered), stray = as.list(plan$stray),
               closed = as.list(plan$closed), sin_closed = plan$sin_closed, members = mem_areas,
               combina_pesos = lv$weights_version, combina_celula = .forecast_combina_celula(lv),
+              combina_motivo = .forecast_combina_motivo(lv),
               membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
               clima_previsto_ate = cover$clima_previsto_ate, delivery_days_efetivo = cover$delivery_days_efetivo,
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,
@@ -484,6 +496,7 @@
   m$split <- stats::setNames(lapply(spec, function(s) s$split), sg)
   for (a in eqw) m$model_versions[[paste0("combina/", a)]] <- "EQW"
   m$combina_celula <- .forecast_combina_celula(lv)   # E6-T2: sobreposto depois do construtor, como split e combina/<folha> = EQW
+  m$combina_motivo <- .forecast_combina_motivo(lv)    # E6-T3: sobreposto depois do construtor
   if (!is.null(ctx$code_commit)) m$code_commit <- ctx$code_commit
   if (!is.null(ctx$renv_lock_hash)) m$renv_lock_hash <- ctx$renv_lock_hash
   m

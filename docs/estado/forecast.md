@@ -23,7 +23,7 @@
   com os pesos congelados de `<state_dir>/artifacts/combina/<area>/` (ausente => **media simples** `prevcarga_produce_eqw`, F3.4: `.forecast_leaves` passa
   `fallback_eqw = TRUE`, sai `warning.combina_eqw` com `where` = folha, `run_manifest.model_versions["combina/<folha>"] = "EQW"` (sobreposto depois do construtor,
   que so valida `v_<hash>`), `run.json$combina_pesos = {folha: "EQW" | v_<hash>}` e o relatorio omite pesos da folha; nunca grava pesos; retreino mensal da combina
-  tira a folha do EQW; latest.txt invalido/artefato de outro conjunto seguem abortando; sem corte da combina para o HHMM de
+  tira a folha do EQW; latest.txt invalido e rotulo/fuso divergente seguem abortando; artefato de outro conjunto de membros vira EQW com `warning.combina_member_set` (E6-T3); sem corte da combina para o HHMM de
   `available_until` => `contract.combina_input`). Por lead so combinam os membros que cobrem o lead (M4.2c).
 - Reconcile: `prevcarga_reconcile_apply(long_leaves[covered], ctx, subsystems = closed, khat_version = NULL, eval = FALSE)` uma vez; folhas soltas nunca passam por ele.
   `result$khat` = `[{ss, versao, khat_origin (texto), khat_age_days}]` (do reconcile) e `result$cobertura_descartada` identical ao do reconcile.
@@ -179,6 +179,10 @@
   `combina_pesos`. Valores em texto/logico simples (ASCII); mais de um mes diverge => lista separada por virgula; folha EQW fica fora do bloco.
 - `warning.combina_stale` (um por folha e mes pedido) chega a `warnings[]` com id, mensagem e where = folha: o coletor do cli.R descarta `details`, entao os campos
   mes_pedido/mes_usado ficam no `combina_celula` (mesmo contorno do E2-T4). A rodada sai exit 0. Teste: `test-combination-stale.R` [AC5].
+
+### E6 -- combina_motivo
+- `.forecast_leaves` guarda `lv$eqw_reason[[folha]] = ap$eqw_reason` (`not_trained` | `member_set` | NA). `.forecast_combina_motivo(lv)` monta a lista nomeada so com as folhas de motivo nao-NA  (lista vazia nomeada quando nenhuma folha cai em EQW); `run_manifest.json` ganha `combina_motivo` (sobreposto depois do construtor, ao lado de `combina/<folha> = EQW`) e o `run.json` grava o  mesmo bloco ao lado de `combina_pesos`.
+- Pesos de outro conjunto de membros (membro novo antes do retreino mensal, ou retirado) deixam de derrubar a rodada: a folha sai EQW com `warning.combina_member_set` (where = folha). O coletor do  cli.R descarta `details`, entao incluidos/retirados nao chegam a `warnings[]`; o motivo fica no `combina_motivo` (mesmo contorno do E2-T4/E6-T2). `load_label`/`load_tz` divergentes seguem abortando  `contract.combina_artifact_mismatch`. Teste: `test-combination-member-set.R` [AC4].
 
 ## Pendencias registradas (sem decisao nesta spec; doc-vs-codigo)
 - **Intercepto 0 no relatorio da rodada** (cli-backtest-ops-11, combina-reconcilia-02): `.forecast_weights_table` grava `intercept = 0` fixo e o `weight` e a media dos `w` de todas as celulas do corte (todos os leads e meses),
