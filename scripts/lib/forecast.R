@@ -335,12 +335,13 @@
 ## Devolve LONG combinado por folha, LONG por membro x folha e a versao dos pesos por folha.
 .forecast_leaves <- function(ctx, members, g, plan, mem) {
   art_dir <- file.path(prevcarga_registry_root(ctx), "combina")
-  long <- list(); mlong <- list(); wver <- list(); wtab <- list()
+  long <- list(); mlong <- list(); wver <- list(); wtab <- list(); cells <- list()
   for (a in plan$leaves) {
     lp <- .forecast_leaf_panel(ctx, members[[a]], a, g, mem)
     ap <- prevcarga_combina_apply(a, art_dir, lp$panel, ctx, members = mem, detail = TRUE,
-                                fallback_eqw = TRUE)
+                                fallback_eqw = TRUE, stale_ok = TRUE)   # so a rodada tolera celula stale (E6-T2)
     long[[a]] <- ap$long
+    if (!is.null(ap$cell_months)) cells[[a]] <- ap$cell_months
     wver[[a]] <- ap$version_hash
     if (!is.null(ap$weights)) wtab[[a]] <- ap$weights     # EQW: sem pesos para a folha (relatorio sem pesos dela)
     for (d in lp$members_long) {
@@ -348,7 +349,7 @@
       mlong[[sg]][[a]] <- d[, names(prevcarga_schema_long), with = FALSE]
     }
   }
-  list(long = long, members = mlong, weights_version = wver, weights = wtab)
+  list(long = long, members = mlong, weights_version = wver, weights = wtab, cells = cells)
 }
 
 ## --- 5. reconcile ----------------------------------------------------------------------------------------------
@@ -419,6 +420,19 @@
   stats::setNames(lapply(seq_len(nrow(b)), function(i) .forecast_iso_min(b$until[[i]], cuts$tz)), as.character(b$area_code))
 }
 
+## E6-T2: bloco por folha com pesos {mes_pedido, mes_usado, stale} (texto/logico simples; folha EQW fica fora).
+.forecast_combina_celula <- function(lv) {
+  cel <- structure(list(), names = character())
+  for (a in names(lv$cells)) {
+    cm <- lv$cells[[a]]
+    if (is.null(cm) || !nrow(cm)) next
+    cel[[a]] <- list(mes_pedido = paste(sort(unique(cm$mes_pedido), method = "radix"), collapse = ","),
+                     mes_usado  = paste(sort(unique(cm$mes_usado), method = "radix"), collapse = ","),
+                     stale      = any(cm$stale))
+  }
+  cel
+}
+
 .forecast_write_run_json <- function(ctx, scratch, g, plan, lv, rec, versao, sc, incluir_membros, ausentes = list(), cover = list()) {
   mem_areas <- structure(list(), names = character())
   if (isTRUE(incluir_membros))
@@ -430,7 +444,7 @@
               khat = .forecast_khat_rows(rec$khat), escopo = plan$escopo, subsistema = plan$subsistema,
               covered = as.list(plan$covered), stray = as.list(plan$stray),
               closed = as.list(plan$closed), sin_closed = plan$sin_closed, members = mem_areas,
-              combina_pesos = lv$weights_version,
+              combina_pesos = lv$weights_version, combina_celula = .forecast_combina_celula(lv),
               membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
               clima_previsto_ate = cover$clima_previsto_ate, delivery_days_efetivo = cover$delivery_days_efetivo,
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,
@@ -469,6 +483,7 @@
     members = mem, versao = key$versao)
   m$split <- stats::setNames(lapply(spec, function(s) s$split), sg)
   for (a in eqw) m$model_versions[[paste0("combina/", a)]] <- "EQW"
+  m$combina_celula <- .forecast_combina_celula(lv)   # E6-T2: sobreposto depois do construtor, como split e combina/<folha> = EQW
   if (!is.null(ctx$code_commit)) m$code_commit <- ctx$code_commit
   if (!is.null(ctx$renv_lock_hash)) m$renv_lock_hash <- ctx$renv_lock_hash
   m

@@ -839,10 +839,48 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
   list(version_hash = vh, path = final, reused = FALSE, cells = weights)
 }
 
+## --- E6-T2: celula stale. Para cada (lead, cut, ym) do painel sem celula exata usa a de maior ym anterior do mesmo
+## (lead, cut), re-chaveada para o ym pedido (a, w, fallback preservados). ym e texto YYYY-MM: ordem lexicografica =
+## cronologica, sem aritmetica de hora. Sem celula anterior (ou allow_stale = FALSE) aborta como hoje; nunca EQW silencioso.
+## Devolve list(weights, cells_used = (lead, cut, ym_pedido, ym_usado)); um aviso por (folha, mes_pedido).
+.prevcarga_cmb_resolve_cells <- function(rows, weights, area, allow_stale) {
+  w    <- data.table::as.data.table(weights)
+  need <- unique(data.table::as.data.table(rows)[, c("lead", "cut", "ym"), with = FALSE])
+  need <- need[order(need$ym, need$lead, as.character(need$cut), method = "radix")]
+  hit  <- paste(need$lead, need$cut, need$ym) %in% paste(w$lead, w$cut, w$ym)
+  used <- data.table::data.table(lead = need$lead, cut = as.character(need$cut), ym_pedido = as.character(need$ym),
+                                 ym_usado = ifelse(hit, as.character(need$ym), NA_character_))
+  add <- list()
+  for (i in which(!hit)) {
+    ## indice calculado fora do escopo do `[.data.table`: `w` e tambem o nome da coluna de pesos
+    ix   <- which(w$lead == need$lead[i] & as.character(w$cut) == as.character(need$cut[i]) & w$ym < need$ym[i])
+    prev <- w[ix, ]
+    if (!isTRUE(allow_stale) || !nrow(prev))
+      prevcarga_abort("contract.combina_input", where = sprintf("produce_combined:lead=%s cut=%s ym=%s",
+                                                               need$lead[i], need$cut[i], need$ym[i]))
+    ## ym e texto: which.max coage para numero; a maior celula e a ultima em ordem radix
+    k    <- order(prev$ym, method = "radix")[nrow(prev)]
+    src  <- prev[k, ]
+    used$ym_usado[i] <- src$ym
+    nw <- data.table::copy(src)
+    nw[, ym := as.character(need$ym[i])]
+    add[[length(add) + 1L]] <- nw
+  }
+  if (length(add)) w <- data.table::rbindlist(c(list(w), add), use.names = TRUE)
+  js <- which(used$ym_usado != used$ym_pedido)
+  st <- used[js, ]
+  for (m in sort(unique(st$ym_pedido), method = "radix")) {
+    us <- sort(unique(st$ym_usado[st$ym_pedido == m]), method = "radix")
+    prevcarga_warn("warning.combina_stale", where = area,
+                   details = list(folha = area, mes_pedido = m, mes_usado = paste(us, collapse = ",")))
+  }
+  list(weights = w, cells_used = used)
+}
+
 ## --- apply: aplica os pesos congelados, nunca re-fita --------------------------------------------------------
 prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL,
                                     members = prevcarga_members(root = ctx$root), detail = FALSE,
-                                    fallback_eqw = FALSE) {
+                                    fallback_eqw = FALSE, stale_ok = FALSE) {
   lp <- file.path(artifact_dir, area, "latest.txt")
   if (!file.exists(lp)) {
     if (!isTRUE(fallback_eqw))                     # so o forecast liga o fallback; combine --mode=apply segue abortando
@@ -851,7 +889,8 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
     long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_eqw(rows), ctx)
     prevcarga_warn("warning.combina_eqw", where = area)   # nunca grava pesos: so a ausencia de latest.txt vira EQW
     if (!detail) return(long)
-    return(list(long = long, weights = NULL, members_by_lead = NULL, version_hash = "EQW", path = NA_character_))
+    return(list(long = long, weights = NULL, members_by_lead = NULL, version_hash = "EQW", path = NA_character_,
+                cell_months = NULL, eqw_reason = "not_trained"))
   }
   vh <- readLines(lp, n = 1L, warn = FALSE)
   if (!length(vh) || !grepl("^v_[0-9a-f]{16}$", vh))
@@ -864,10 +903,14 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
       !identical(obj$meta$load_tz, .prevcarga_cmb_prov1(panel, "load_tz", "apply")))
     prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))
   rows <- .prevcarga_cmb_select_cut(panel, t_cut)
-  long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_combined(rows, obj$weights), ctx)
+  rc   <- .prevcarga_cmb_resolve_cells(rows, obj$weights, area, allow_stale = isTRUE(stale_ok))
+  long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_combined(rows, rc$weights), ctx)
   if (!detail) return(long)
+  cm <- unique(rc$cells_used[, list(mes_pedido = ym_pedido, mes_usado = ym_usado)])
+  cm[, stale := mes_usado != mes_pedido]
   list(long = long, weights = obj$weights, members_by_lead = prevcarga_combina_members_by_lead(obj$weights),
-       version_hash = vh, path = file.path(artifact_dir, area, vh, "weights.rds"))
+       version_hash = vh, path = file.path(artifact_dir, area, vh, "weights.rds"),
+       cell_months = cm[], eqw_reason = NA_character_)
 }
 
 ## =================================================================================================
