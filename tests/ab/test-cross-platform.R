@@ -83,7 +83,7 @@ test_that("[WINDOWS] --jobs 4 == --jobs 1 e verificar --trilho entre-plataformas
   O <- jsonlite::read_json(file.path(ref, "run_manifest.json"))$origin
   run <- function(jobs) {
     st <- file.path(tempfile("pc-ab-win-"), "state"); dir.create(dirname(st)); file.copy(list.files(state, full.names = TRUE), st, recursive = TRUE)
-    r <- pc_e2e_cli(root, c("forecast", paste0("--data=", deck), paste0("--state=", st), "--origin", O, "--skip-validate"))
+    r <- pc_e2e_cli(root, c("forecast", paste0("--data-train=", deck), paste0("--state=", st), "--origin", O, "--skip-validate"))
     expect_identical(r$status, 0L)
     r$json$result$saida
   }
