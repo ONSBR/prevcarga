@@ -111,7 +111,7 @@
 - Testes: `scripts/lib/tests/test-forecast-inference-preflight.R`.
 
 ## Verbos da CLI (M6.9; dono M6)
-- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]` (`--artifacts-dir` e global, linha de opcao em `cli.R`; `prevcarga forecast --help` imprime so a ajuda do verbo, F2.3, ver `docs/estado/cli.md`).
+- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--data-artifacts=<dir>]` (`--data-artifacts` e global, linha de opcao em `cli.R`; `prevcarga forecast --help` imprime so a ajuda do verbo, F2.3, ver `docs/estado/cli.md`).
   `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options
   de outros verbos (duplicata torna o docopt ambiguo): so a usage os cita, e o `scoped` do forecast os admite. `--subsistema all` = todas as folhas; subsistema fora => `topology.area_undeclared` (4).
   O flag `--from` do snippet do ticket NAO foi declarado no forecast: `prevcarga_forecast` nao reaproveita scratch (seria flag morta).
