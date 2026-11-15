@@ -2,9 +2,9 @@ name: dessem-regdin
 split: origin_scoped
 granularity_min: 60
 horizon_days: 9
-history_days: {train: 1095, infer: 1095}
+history_days: {train: 1095, infer: 15}   # inferencia so precisa de lagsPerfil (336 h) + 1 dia; serie diaria e perfil de feriado vem do artefato
 seed: 42
 modes: [train, infer, forecast]
 backtest: {protocol_default: retrain_harness}
-constraints: {infer_history_equals_train: true}
+constraints: {}
 params: {exogena: MED, janela_dessem: ano_civil}

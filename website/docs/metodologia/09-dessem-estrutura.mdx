@@ -38,6 +38,8 @@ fontes:
   - models/dessem-regdin/R/training.R
   - models/dessem-regdin/R/inference.R
   - models/dessem-regdin/R/helpers_nowcast.R
+  - models/dessem-regdin/R/helpers_state.R
+  - models/dessem-regdin/R/freeze.R
   - config/topology.yaml
   - scripts/lib/registry.R
   - scripts/lib/training.R
@@ -140,16 +142,16 @@ Dentro de uma família, as entradas de `model_parameters.json` diferem só em `e
 
 ## Janela de treino e o invariante infer == train
 
-Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `params.janela_dessem: ano_civil`. O do dessem-regdin declara `history_days: {train: 1095, infer: 1095}`; o do dessem-linear, `{train: 1095, infer: 15}`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
+Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `params.janela_dessem: ano_civil`. Os dois declaram `history_days: {train: 1095, infer: 15}`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
 
 | Fase | Janela no caminho da fundação |
 |---|---|
 | Treino (`scripts/lib/training.R`) | 1.095 dias de dias comuns, de O−1095 a O−1, mais o anexo de feriados |
-| Infer (`scripts/lib/inference.R`) | a mesma história, a partir de O−1095, mais o mesmo anexo e a carga do dia O até o corte intradiário |
+| Infer (`scripts/lib/inference.R`) | 15 dias de carga e de temperatura observada antes de O (a história longa fica no artefato) e a carga do dia O até o corte intradiário, sem o anexo de feriados |
 
 A janela é regra do plugin: o descriptor declara `history_window`, que delega a uma regra única de datas. Em `ano_civil` (padrão) os dias comuns cobrem três anos (O−1095 a O−1) e o histórico de feriados começa em 1º de janeiro do ano de O menos cinco. Cada feriado do histórico traz uma ilha de dias, de sete dias antes do feriado até o próprio feriado (`[d−7, d]`), cortada em O−1 e no primeiro dia disponível do store; ilhas que se encostam viram uma só. Os dias das ilhas entram como anexo (carga e temperatura observada) e a ingestão exige 24 horas em cada dia de ilha. A demanda média e a normalização usam só os dias comuns; o perfil de feriado enxerga os dias comuns e o anexo. O modo `referencia` (`params.janela_dessem: referencia`) mantém a janela anterior de 1.825 dias, sem anexo, e serve à paridade com a versão de referência.
 
-O dessem-regdin declara `history_infer_equals_train = TRUE`. O loader confere a declaração: com ela, `history_days.infer` diferente de `history_days.train` aborta com `plugin.history_window`. O dessem-linear declara `FALSE` e `history_days.infer = 15`: a inferência dele usa o estado que o treino grava no artefato (ver [Estado derivado no artefato](#estado-derivado-no-artefato)), então só precisa dos 14 dias de lag do perfil (336 h) mais um dia de aquecimento. O deck longo continua aceito. O `run.yaml` do dessem-regdin também declara `constraints: {infer_history_equals_train: true}`; o do dessem-linear tem `constraints: {}`.
+Os dois plugins declaram `history_infer_equals_train = FALSE` e `history_days.infer = 15`: a inferência usa o estado que o treino grava no artefato (ver [Estado derivado no artefato](#estado-derivado-no-artefato) e, para o regdin, [Estado derivado no regdin](#estado-derivado-no-regdin)), então só precisa dos 14 dias de lag do perfil (336 h) mais um dia de aquecimento. O deck longo continua aceito. Com a declaração `TRUE`, o loader recusaria `history_days.infer` diferente de `history_days.train` com `plugin.history_window`. Os dois `run.yaml` têm `constraints: {}`.
 
 Quando recebe o spec, o `plugin_ingest` do dessem-linear lê um dia de aquecimento antes da janela comum: a janela começa em `common_from`, termina em `last_data_day`, e o dia anterior serve de aquecimento. O despachante chama a ingestão sem spec, e a janela é a do painel que a fundação já recortou.
 
@@ -161,7 +163,7 @@ A ingestão confere a completude e não preenche lacunas, nem da história nem d
 | História menor que `history_days.train` (com spec) | `plugin.dessem_linear_window_short` | `plugin.regdin_history_short` |
 | Temperatura prevista com 24 horas em O..O+9 | `plugin.dessem_linear_series_gap` | `plugin.regdin_panel_contract` |
 
-As guardas extras do dessem-regdin no infer (janela do painel contra a do artefato e fingerprint do ARIMA) estão em [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
+As guardas extras do dessem-regdin no infer (serie diária do artefato e fim do deck contra a janela do treino, e fingerprint do ARIMA) estão em [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
 
 ## Faixa do motor e faixa de entrega
 
@@ -279,7 +281,7 @@ A cabeça de nowcast da DM(O) usa `Carga_l1` e `Carga_l7` e está em [DESSEM: ca
 | Dia-alvo | Modelo | Quando é ajustado |
 |---|---|---|
 | Normal | 24 wSVMs radiais (`SVMhorario`, entrada `DEFAULT`, as mesmas variáveis e filtros do dessem-linear) | No treino; congelados no artefato |
-| Especial | `RL_perfilFeriado`: padroniza a carga de cada dia, ajusta `lm` com a carga da mesma hora em dias da semana de referência, a temperatura e um fator de hora, e reconstrói a curva com o desvio padrão histórico do tipo de dia e a DM prevista; a forma e a `CargaMed` do dia saem dessa curva | Recalculado no infer; o treino não guarda SVM para esse dia |
+| Especial | `RL_perfilFeriado`: padroniza a carga de cada dia, ajusta `lm` com a carga da mesma hora em dias da semana de referência, a temperatura e um fator de hora, e reconstrói a curva com o desvio padrão histórico do tipo de dia e a DM prevista; a forma e a `CargaMed` do dia saem dessa curva | O treino grava o desvio padrão, a amostra e o `lm` do dia (sem SVM); o infer reconstrói a curva a partir deles |
 
 No perfil do regdin, a temperatura horária é normalizada pelo máximo do histórico horário × 1,25 (`normalizacao$perfil$exogena`, lida por `.rd_build_series`).
 
@@ -287,3 +289,19 @@ No perfil do regdin, a temperatura horária é normalizada pelo máximo do hist�
 
 A ingestão do dessem-regdin confere o painel e não corta nem preenche a história nem a temperatura prevista. Cada dia histórico tem de ter 24 horas de carga, sem NA; senão aborta com `plugin.regdin_series_gap`, nomeando o dia. A temperatura observada e a prevista seguem a mesma regra e abortam com `plugin.regdin_panel_contract`. Carga posterior ao dia O, ou do dia O além do que o corte intradiário libera, aborta com `plugin.regdin_train_panel_has_origin`.
 
+
+
+### Estado derivado no regdin
+
+Como no dessem-linear, o treino do dessem-regdin grava no artefato o que a inferência recalcularia sobre o histórico longo, e a inferência roda com um deck de 15 dias entregando os mesmos valores do deck longo. O anexo de feriados não entra na inferência: o `inference_needs` do artefato declara `holiday_annex = FALSE`, e é a única fonte das necessidades do deck de inferência. O deck de treino continua recebendo o anexo (o `data_needs` do descriptor segue com `holiday_annex = TRUE` em `ano_civil`).
+
+| Campo do artefato | O que guarda | Quem usa na inferência |
+|---|---|---|
+| `serie_dm` | A série diária histórica do treino (a que o ARIMA vê, já normalizada) e, para cada dia, o `mm` cru de cada hora de corte (`mm_h00` a `mm_h23`) | O ARIMA é refeito sobre `serie_dm` mais as linhas de O a O+9 do deck curto; a cabeça de nowcast lê o `mm` histórico da hora de corte |
+| `hol_profile` | Para cada dia especial do horizonte: desvio padrão histórico do tipo de dia, a amostra do `lm` (linhas históricas), os coeficientes, os níveis de fator, a fórmula e os parâmetros do dia | O perfil do dia especial usa os coeficientes congelados |
+| `columns` | Preditores e níveis de fator da linha do perfil de cada dia normal e hora | Cada linha do deck curto é alinhada a essas colunas antes de predizer |
+| `inference_needs` | 15 dias de carga e de temperatura observada antes de O, previsto de O a O+9, calendário de O−15 a O+9, sem anexo | Declaração para quem monta o deck |
+
+Nos feriados consecutivos do mesmo código, o `lm` do segundo é reajustado sobre a amostra gravada mais o feriado anterior, que o passe de predição já escreveu de volta na série, o que o deck longo também faria. Sem feriado anterior do mesmo código, a previsão usa os coeficientes congelados. Dias especiais consecutivos de códigos diferentes não se alimentam.
+
+A guarda de janela passou a conferir o artefato e o fim do deck: o intervalo de `serie_dm` tem de ser o `train_window` e o digest dela, o `dm_digest` do fingerprint, senão `plugin.regdin_artifact_tampered` (integridade, exit 9) antes do ARIMA; o último dia histórico do deck tem de ser o fim do `train_window`, senão `plugin.regdin_window_mismatch` (exit 5), nomeando os dois dias. Artefato treinado antes dessa mudança (sem `serie_dm`, `hol_profile` e `columns`) é recusado com `plugin.regdin_artifact_mismatch` (exit 2), nomeando o primeiro campo ausente: é preciso retreinar o membro.

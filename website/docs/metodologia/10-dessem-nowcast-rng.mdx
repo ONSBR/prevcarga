@@ -125,13 +125,13 @@ No regdin a DM é uma regressão dinâmica (`fable::ARIMA`) e o ARIMA não é co
 
 ## Invariante de janela no regdin
 
-O ARIMA é re-fitado no infer, então o infer só é honesto se vir exatamente a série do treino. O invariante `history_days.infer == train` tem três camadas:
+O ARIMA é re-fitado no infer, então o infer só é honesto se vir exatamente a série do treino. Desde o estado derivado no artefato, a série histórica vem do artefato (`serie_dm`), não do deck: o deck de inferência pode ter só 15 dias e precisa apenas terminar no último dia histórico do treino. O invariante tem três camadas:
 
 | Camada | Onde | Falha |
 |---|---|---|
-| 1. Declaração | `constraints: {infer_history_equals_train: true}` no `run.yaml` (os dois `history_days` valem 1.825) e `history_infer_equals_train = TRUE` no descriptor | `history_days.infer` diferente de `train` é recusado pela restrição do `run.yaml` (`contract.constraint_violated`) e pelo loader de plugins (`plugin.history_window`) |
-| 2. Guarda de painel | `.rd_check_window`: o painel do infer cobre exatamente o `train_window` do artefato, antes de qualquer ajuste | `plugin.regdin_window_mismatch` (classe `window`, exit 5) |
-| 3. Fingerprint do ARIMA | `.rd_check_fingerprint`: refaz o ARIMA base sobre uma cópia da série até O−1, sem cabeça, e compara com o `arima_fingerprint` do artefato | `plugin.regdin_arima_drift` (classe `contract`, exit 2) |
+| 1. Declaração | `history_infer_equals_train = FALSE` no descriptor e `history_days: {train: 1095, infer: 15}` no `run.yaml` (o deck longo continua aceito) | – |
+| 2. Guarda do artefato e do deck | `.rd_check_window`: o intervalo e o digest de `serie_dm` batem com o `train_window` e o `dm_digest` do artefato, antes do ARIMA; o deck termina em `train_window$end` | `plugin.regdin_artifact_tampered` (classe `integrity`, exit 9) e `plugin.regdin_window_mismatch` (classe `window`, exit 5) |
+| 3. Fingerprint do ARIMA | `.rd_check_fingerprint`: refaz o ARIMA base sobre a série composta (`serie_dm` mais O..O+9 do deck) e compara com o `arima_fingerprint` do artefato | `plugin.regdin_arima_drift` (classe `contract`, exit 2) |
 
 O artefato não guarda o modelo ARIMA (sem `mable`). Guarda só o fingerprint, montado por `.rd_arima_fingerprint`: a ordem `(p,d,q)(P,D,Q)`, os coeficientes nomeados e `dm_digest`, o sha256 da série DM histórica (`Data`, `Carga` e as colunas `Exo*`). A conferência exige ordem idêntica, o mesmo `dm_digest`, o mesmo conjunto de coeficientes e cada coeficiente igual com tolerância 0. A mensagem nomeia o campo que divergiu. Um refit que devolva o modelo nulo do `fable`, o que acontece quando a janela não cobre os 12 níveis do fator `Mes` ou os regressores são colineares, também aborta com `plugin.regdin_arima_drift`, campo `null_model`.
 
@@ -139,9 +139,9 @@ O artefato não guarda o modelo ARIMA (sem `mable`). Guarda só o fingerprint, m
 
 ```mermaid
 flowchart TB
-  T["plugin_thaw do artefato"]:::plugin --> W[".rd_check_window: painel = train_window?"]:::plugin
-  W -->|não| WE["plugin.regdin_window_mismatch (exit 5)"]:::erro
-  W -->|sim| FP[".rd_check_fingerprint: refit do ARIMA base até O−1"]:::plugin
+  T["plugin_thaw do artefato"]:::plugin --> W[".rd_check_window: serie_dm do artefato íntegra e deck termina em train_window$end?"]:::plugin
+  W -->|não| WE["plugin.regdin_artifact_tampered (exit 9) ou plugin.regdin_window_mismatch (exit 5)"]:::erro
+  W -->|sim| FP[".rd_check_fingerprint: refit do ARIMA base sobre serie_dm + O..O+9"]:::plugin
   FP -->|"refit falha, modelo nulo, ordem, coeficientes ou dm_digest divergem"| FE["plugin.regdin_arima_drift (exit 2)"]:::erro
   FP -->|confere| S["set.seed(artifact$seed)"]:::plugin
   S --> M{"mm não vazio?"}

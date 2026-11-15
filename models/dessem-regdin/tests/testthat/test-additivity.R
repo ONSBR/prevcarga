@@ -102,7 +102,7 @@ test_that("[PLUGINS] aditividade_epico: motor e outros plugins intocados (git + 
 })
 
 RDA_README_SECTIONS <- c("Mapa funcao -> arquivo:linha do oraculo", "Contrato do descriptor", "Layout `dessem_matrix_nx48` (`dessem_semihourly_48`)",
-                         "Faixa O..O+8", "Invariante de janela (`history_days.infer == train`, tres camadas)", "RNG preservado e plano B",
+                         "Faixa O..O+8", "Invariante de janela e estado derivado (E4-T3, ADR-045 fase C)", "RNG preservado e plano B",
                          "Tabela gate x dono", "Comandos", "Desvios conscientes do oraculo (para o A/B do M8)")
 
 test_that("[PLUGINS] readme: secoes, contrato, desvios do A/B, toda linha do runner, mapa do oraculo e estado duravel", {
