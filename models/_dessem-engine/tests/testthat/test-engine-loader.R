@@ -21,7 +21,7 @@ test_that("ac-8 o loader monta o env do motor com todas as required_functions e 
   m <- manifest_of()
   expect_identical(m$engine_id, "_dessem-engine")
   expect_identical(m$contract_version, 1L)
-  expect_length(m$required_functions, 17L)
+  expect_length(m$required_functions, 18L)
   expect_false(file.exists(file.path(eng_dir(), "run.yaml")))
   for (fn in m$required_functions) expect_true(is.function(get0(fn, envir = eng, inherits = FALSE)), info = fn)
   expect_true(all(c("desagregaModeloSH", "getConfig", "TransformaDeck") %in% m$required_functions))

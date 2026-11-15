@@ -7,3 +7,4 @@ engine.dessem_tz_mismatch	contract	DataHora do deck com fuso diferente do fuso d
 engine.dessem_bad_day	contract	valor de data de tipo nao suportado pelo motor (esperado character, Date ou POSIXct)	passe a data como 'YYYY-MM-DD', Date ou POSIXct
 engine.dessem_lag_grid_gap	contract	serie do lag de feature com slot faltante ou fora da grade regular	complete o deck (sem horas faltantes ou repetidas); veja details$row
 engine.dessem_tune_small_sample	window	amostra pequena demais para o tune_wsvm do perfil de dia especial mesmo com cross clampado e guarda de modelo vazio	aumente o historico de feriado (janela_dessem ano_civil) ou exclua a origem; veja n_eff e retry_message
+engine.dessem_exo_gap	completude	dia do EXOGENAHIST sem 24 horas nem no previsto lead 0 nem no observado	complete o clima observado do dia indicado em details$dia (24 horas) e rode de novo

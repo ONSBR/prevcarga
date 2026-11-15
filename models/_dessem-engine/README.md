@@ -32,6 +32,7 @@ engine_svm_freeze -> svm_serial.R -> novo (sem equivalente no oraculo)
 engine_svm_thaw -> svm_serial.R -> novo (sem equivalente no oraculo)
 normalize_special_day_codes -> feriados.R -> scripts/lib/normalize_holiday_codes.R:33
 fill_forecast_tail -> exogena.R -> scripts/lib/fill_forecast_tail.R:68
+exo_hist_lead0 -> exogena.R -> novo (EXOGENAHIST clima_hist = previsto_lead0; regra de lgbm_weather_vintage com lead 0)
 dessem_engine_guard -> robustez.R -> novo (condicao classificada no lugar do texto de message)
 desagregaModeloSH -> funcoes_apoio.R -> pkgfun_funcoesApoio.R:389
 TransformaDeck -> dados_entrada.R -> pkgfun_dadosEntrada.R:9
