@@ -10,23 +10,55 @@
   if ("Bloco" %in% names(SERIECOMP)) SERIECOMP[Bloco == 0L] else SERIECOMP
 }
 
+## Replica local de inclui_CargaMediaRef do motor com a constante DADA (sem getNormalizaCarga); muta seriePF por referencia.
+.rd_cargamed_ref <- function(seriePF, const) {
+  seriePF[, CargaMed := mean(Carga, na.rm = TRUE) / const, by = .(Data)]
+  seriePF[is.nan(CargaMed), CargaMed := NA_real_]
+  invisible(seriePF)
+}
+
+## norm injetado: as quatro constantes numericas, sem NA e diferentes de 0 (forma gravada no artefato).
+.rd_check_norm <- function(norm) {
+  need <- c("dm_carga", "dm_exo", "pf_cargadm", "pf_exo")
+  have <- if (is.list(norm)) need[need %in% names(norm)] else character()
+  ## constante vazia e legitima: a flag de normalizacao desligada no config faz getNormaliza* devolver logical(0) e a
+  ## serie nao divide (a flag decide, nao a constante). Presente e nao vazia: numerica, sem NA e diferente de 0.
+  bad <- have[vapply(have, function(k) {
+    x <- norm[[k]]
+    length(x) > 0L && (!is.numeric(x) || anyNA(x) || any(x == 0))
+  }, NA)]
+  miss <- setdiff(need, have)
+  if (length(miss) || length(bad)) {
+    k <- c(miss, bad)
+    rd_abort("plugin.regdin_artifact_mismatch", where = "dessem-regdin/build_series",
+             reason = sprintf("norm: constante ausente, NA ou 0 (%s)", paste(k, collapse = ",")),
+             details = list(field = "norm", constante = k))
+  }
+  invisible(norm)
+}
+
 ## serieDM (diaria) e seriePF (horaria) LIMPAS, VERBATIM do processaModelosDMTSPerfil. Chaves do regdin:
 ## DM = normalizacao$carga/$exogena; perfil = normalizacao$perfil$carga$oper e $perfil$exogena (!= linear, $dm$*).
-.rd_build_series <- function(SERIECOMP, config_mdl) {
+## norm = NULL: constantes sobre a base (treino). norm dado: vem do argumento, getNormaliza* nao sao chamadas.
+.rd_build_series <- function(SERIECOMP, config_mdl, norm = NULL) {
   nz <- config_mdl$normalizacao
-  hist <- .rd_common_base(SERIECOMP)
+  if (!is.null(norm)) .rd_check_norm(norm)
+  if (is.null(norm)) {
+    hist <- .rd_common_base(SERIECOMP)
+    k <- list(dm_carga = getNormalizaCarga(nz$carga, hist), dm_exo = getNormalizaExogena(nz$exogena, hist))
+  } else k <- norm
   serieDM <- aggregaSerie(
     serieHist     = data.table::copy(.rd_common_series(SERIECOMP)),
     tipotemp      = config_mdl$exogenaOper,
     normaliza     = any(nz$carga$flag, nz$exogena$flag),
-    constnorm     = getNormalizaCarga(nz$carga, hist),
-    constnormtemp = getNormalizaExogena(nz$exogena, hist))
+    constnorm     = k$dm_carga,
+    constnormtemp = k$dm_exo)
   seriePF <- data.table::copy(SERIECOMP)
-  inclui_CargaMediaRef(seriePF, nz$perfil$cargadm)
+  if (is.null(norm)) inclui_CargaMediaRef(seriePF, nz$perfil$cargadm) else .rd_cargamed_ref(seriePF, norm$pf_cargadm)
   normalizaSerieRef(
     serieHist     = seriePF,
     constnorm     = nz$perfil$carga$oper,
-    constnormtemp = getNormalizaExogena(nz$perfil$exogena, hist))
+    constnormtemp = if (is.null(norm)) getNormalizaExogena(nz$perfil$exogena, hist) else norm$pf_exo)
   list(serieDM = serieDM, seriePF = seriePF)
 }
 
