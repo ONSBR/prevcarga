@@ -360,7 +360,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     weather_forecast_in_train = flags$weather_forecast_in_train, uses_rng = flags$uses_rng,
     history_infer_equals_train = flags$history_infer_equals_train, rng_deviation = rd,
     packages = pk, attach = at, engine = eng, freeze = d[["freeze"]], thaw = d[["thaw"]], stages = stages,
-    data_needs = dn, weather_cut = wcut, variants = vars, history_window = hw)
+    data_needs = dn, history_window = hw, weather_cut = wcut, variants = vars)
   out
 }
 
@@ -455,6 +455,12 @@ prevcarga_plugin_check_params <- function(params, schema, model) {
   d <- .prevcarga_plugin_normalize_descriptor(raw, model)
   .prevcarga_plugin_check_packages(c(d$packages, d$attach), model)
   .prevcarga_plugin_imports_env(imports, d$attach)
+  ## regra unica de datas da janela do DESSEM (holiday_islands.R; E3-T1): so os plugins que declaram history_window a enxergam
+  ## (o env do plugin so ve base + attach). Sem o arquivo carregado, o plugin falha so quando history_window e chamada.
+  if (is.function(d$history_window)) {
+    wf <- get0("prevcarga_dessem_window", mode = "function")
+    if (!is.null(wf)) assign("prevcarga_dessem_window", wf, envir = imports)
+  }
   if (!is.null(d$engine)) {
     eng <- .prevcarga_plugin_engine_env(d$engine, root, imports, model)
     parent.env(env) <- eng

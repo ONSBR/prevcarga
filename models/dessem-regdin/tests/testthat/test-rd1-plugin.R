@@ -252,12 +252,12 @@ test_that("[PLUGINS] grep: RD.1 zero hits dos padroes proibidos em models/dessem
   }
   ## so ASCII
   for (f in files) expect_false(any(grepl("[\\x80-\\xFF]", readLines(f, warn = FALSE, encoding = "bytes"), perl = TRUE, useBytes = TRUE)), info = f)
-  ## divida interina do globalenv (mesmo padrao do dessem-linear, DL8-GAP-2): conjunto exato = rd_abort, rd_warn, rd_foundation (RD.3) e rd_history_window (E3-T4: prevcarga_dessem_window)
+  ## divida interina do globalenv (mesmo padrao do dessem-linear, DL8-GAP-2): conjunto exato = rd_abort, rd_warn e rd_foundation (RD.3)
   g <- unlist(lapply(files, function(f) {
     ln <- sub("#.*$", "", readLines(f, warn = FALSE)); i <- which(grepl("globalenv\\(\\)", ln))
     if (length(i)) paste0(basename(f), ":", trimws(ln[i])) else character()
   }))
-  expect_length(g, 4L)
-  expect_true(all(grepl("^register.R:.*get0\\(\"prevcarga_(condition|warn|dessem_window)\"", g) |
+  expect_length(g, 3L)
+  expect_true(all(grepl("^register.R:.*get0\\(\"prevcarga_(condition|warn)\"", g) |
                   grepl("^inference.R:.*get0\\(name, envir = globalenv\\(\\)", g)))   # RD.3: rd_foundation (to_semihourly)
 })

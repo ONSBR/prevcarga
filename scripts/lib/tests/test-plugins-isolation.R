@@ -58,7 +58,7 @@ test_that("[ac-40][CONTROL] RF com sementes 123 e 124 no spec: max|Delta| > 1e-5
 
 ## plugin-fixture em tempdir (toy da fundacao) cujo treino faz assign('x', 1, envir = globalenv())
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
-pc_source_lib(c("runtime", "errors", "provenance", "topology", "deck_reader", "validation", "dates", "registry", "features"),
+pc_source_lib(c("runtime", "errors", "provenance", "topology", "holiday_islands", "deck_reader", "validation", "dates", "registry", "features"),
               env = environment())
 prevcarga_registry_reset(); prevcarga_plugin_unload_all()
 

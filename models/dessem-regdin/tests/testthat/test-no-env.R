@@ -34,10 +34,10 @@ test_that("[PLUGINS] higiene: zero hits dos padroes proibidos, de bytes > 127 em
   expect_identical(nrow(b), 0L, info = rd5_fmt_hits(b))
   ar <- rd_lib$pc_grep_time_arith(file.path(rd_models(), "dessem-regdin"), allow = list())   # ZERO excecoes
   expect_identical(nrow(ar), 0L, info = rd5_fmt_hits(ar))
-  ## divida interina pinada: `globalenv()` so nos 4 usos conhecidos (rd_abort/rd_warn/rd_history_window em register.R, rd_foundation em inference.R)
+  ## divida interina pinada: `globalenv()` so nos 3 usos conhecidos (rd_abort/rd_warn em register.R, rd_foundation em inference.R)
   g <- rd_lib$pc_grep_code(fs, c(glob = "globalenv[(][)]"))
-  expect_identical(nrow(g), 4L, info = rd5_fmt_hits(g))
-  expect_identical(sort(basename(g$file)), c("inference.R", "register.R", "register.R", "register.R"))
+  expect_identical(nrow(g), 3L, info = rd5_fmt_hits(g))
+  expect_identical(sort(basename(g$file)), c("inference.R", "register.R", "register.R"))
 })
 
 test_that("[PLUGINS] higiene: CONTROL copia com cada padrao plantado (um por linha, arquivos em rodizio) e acusada com arquivo:linha", {

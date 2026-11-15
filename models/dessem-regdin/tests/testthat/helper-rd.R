@@ -30,7 +30,7 @@ rd_load <- function(model = "dessem-regdin", root = rd_models()) {
 
 ## a CLI fornece prevcarga_abort/_condition/_warn no globalenv; aqui entram so durante `code`
 rd_with_cli <- function(code) {
-  nm <- c("prevcarga_abort", "prevcarga_condition", "prevcarga_warn", "to_semihourly", "prevcarga_dessem_window")
+  nm <- c("prevcarga_abort", "prevcarga_condition", "prevcarga_warn", "to_semihourly")
   nm <- nm[!vapply(nm, exists, NA, envir = globalenv(), inherits = FALSE)]
   for (n in nm) assign(n, rd_lib[[n]], envir = globalenv())
   on.exit(rm(list = nm, envir = globalenv()), add = TRUE)

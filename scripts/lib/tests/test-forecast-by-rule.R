@@ -3,7 +3,7 @@
 ## schema do store, espioes por membro no treino e na inferencia, declaracoes reais normalizadas. Deck sintetico pequeno
 ## (helper-deck.R, 4 emissoes por dia) e fixture_store.R; tudo em tempdir; sem variaveis de ambiente.
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
-env <- pc_source_lib(c("runtime", "errors", "config", "provenance", "topology", "deck_reader", "validation", "dates",
+env <- pc_source_lib(c("runtime", "errors", "config", "provenance", "topology", "holiday_islands", "deck_reader", "validation", "dates",
                        "registry", "features", "inference_needs", "training", "inference"))
 sys.source(file.path(pc_root(), "scripts", "tools", "fixture_store.R"), envir = env)
 suppressMessages(env$prevcarga_runtime_enforce())

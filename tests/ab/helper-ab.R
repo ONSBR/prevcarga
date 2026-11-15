@@ -10,7 +10,7 @@ ab_root <- local({
 
 options(prevcarga.lib = file.path(ab_root, "scripts", "lib"))
 AB <- new.env(parent = globalenv())
-for (m in c("errors", "runtime", "config", "topology", "schema_long", "deck_reader", "dates", "features", "provenance", "registry", "validation",
+for (m in c("errors", "runtime", "config", "topology", "schema_long", "holiday_islands", "deck_reader", "dates", "features", "provenance", "registry", "validation",
             "evaluation", "reconcile", "combination", "verify_repro"))
   sys.source(file.path(ab_root, "scripts", "lib", paste0(m, ".R")), envir = AB)
 for (m in c("receipts", "fixture_store", "ab_cases", "ab_relayout", "ab_stages", "ab_report"))

@@ -30,7 +30,7 @@ dl_load <- function(root = dl_models()) {
 
 ## a CLI fornece prevcarga_abort/_condition/_warn no globalenv; aqui entram so durante `code`
 dl_with_cli <- function(code) {
-  nm <- c("prevcarga_abort", "prevcarga_condition", "prevcarga_warn", "to_semihourly", "prevcarga_dessem_window")
+  nm <- c("prevcarga_abort", "prevcarga_condition", "prevcarga_warn", "to_semihourly")
   nm <- nm[!vapply(nm, exists, NA, envir = globalenv(), inherits = FALSE)]   # aninhado: so o mais externo instala/remove
   for (n in nm) assign(n, dl_lib[[n]], envir = globalenv())
   on.exit(rm(list = nm, envir = globalenv()), add = TRUE)

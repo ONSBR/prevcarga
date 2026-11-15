@@ -79,17 +79,16 @@ dl_pick <- function(name, stub) {
   if (is.null(f)) stub else f
 }
 
-## Janela do DESSEM (ADR-046; E3-T1): puro; delega a regra unica da fundacao (scripts/lib/holiday_islands.R), resolvida no
-## globalenv como prevcarga_condition (o env do plugin so enxerga base + attach). Sem o param, ano_civil.
+## Janela do DESSEM (ADR-046; E3-T1): puro; delega a regra unica da fundacao (scripts/lib/holiday_islands.R), que o registry
+## expoe a este plugin (prevcarga_dessem_window). Sem o param, ano_civil.
 ## history_days.train ABAIXO da janela de ano_civil (1095) encurta a janela comum nos dois modos (override de teste/gate; o
 ## run.yaml declara 1095): common_from = O - history_days.train. Em producao (1095) a regra da fundacao vale como esta.
 dl_history_window <- function(origin, spec) {
   mode <- spec$params$janela_dessem
-  f <- get0("prevcarga_dessem_window", envir = globalenv(), mode = "function", inherits = FALSE)
-  w <- f(origin, if (is.null(mode)) "ano_civil" else mode)
+  w <- prevcarga_dessem_window(origin, if (is.null(mode)) "ano_civil" else mode)
   tr <- spec$history_days$train
-  if (!is.null(tr) && is.finite(tr) && w$common_from < lubridate::as_date(origin) - as.integer(tr) &&
-      as.integer(tr) < as.integer(lubridate::as_date(origin) - f(origin, "ano_civil")$common_from))
+  if (!is.null(tr) && is.finite(tr) &&
+      as.integer(tr) < as.integer(lubridate::as_date(origin) - prevcarga_dessem_window(origin, "ano_civil")$common_from))
     w$common_from <- lubridate::as_date(origin) - as.integer(tr)
   w
 }
