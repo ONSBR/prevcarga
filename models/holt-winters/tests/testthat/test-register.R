@@ -36,7 +36,7 @@ test_that("[PLUGINS] registro: run.yaml real traz o contrato e nenhuma chave ext
   expect_identical(y$split, "origin_scoped")
   expect_identical(y$granularity_min, 30L)
   expect_identical(y$horizon_days, 8L)
-  expect_identical(y$history_days, list(train = 730L, infer = 45L))
+  expect_identical(y$history_days, list(train = 730L, infer = 2L))
   expect_identical(y$seed, 1234L)
   expect_identical(y$modes, c("train", "infer", "forecast"))
   expect_identical(y$backtest$protocol_default, "retrain_harness")

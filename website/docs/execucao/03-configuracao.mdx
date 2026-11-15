@@ -201,12 +201,14 @@ Dois verbos mostram o que a CLI leu. Não leem o deck nem pedem `--origin`.
 
 O `prevcarga models` lista os 8 membros, um por linha, com o que vem do `run.yaml` de cada `mdir`: `split`, granularidade, horizonte, histórico de treino e de inferência, `seed`, modos, protocolo de backtest default e `exogena`.
 
+O segundo número de `historico` é o `history_days.infer`, o mínimo de dias que o deck de inferência precisa trazer antes de O: Holt-Winters 2 (sem temperatura), LGBM 5 (ondaleta e shift de 2 dias; o plugin ainda recusa menos de 4 dias completos) e random-forest 9 (lags de O−8 a O−1 e LOCF do clima desde O−9). A carga, o observado e os feriados pedidos ao deck derivam desse valor, então um deck com mais dias dá a mesma previsão que o mínimo.
+
 <Terminal title="prevcarga — bash" lines={[
   {type:'cmd', text:'prevcarga models'},
   {type:'out', text:'models: 8 membros'},
-  {type:'out', text:'RF        random-forest  split=origin_agnostic gran=60min horizonte=9d historico=365/45 seed=123 modos=train,infer protocolo=daily exogena=-'},
-  {type:'out', text:'LGBM      lgbm           split=origin_agnostic gran=30min horizonte=1d historico=730/45 seed=123 modos=train,infer protocolo=daily exogena=-'},
-  {type:'out', text:'HW        holt-winters   split=origin_scoped gran=30min horizonte=8d historico=730/45 seed=1234 modos=train,infer,forecast protocolo=retrain_harness exogena=-'},
+  {type:'out', text:'RF        random-forest  split=origin_agnostic gran=60min horizonte=9d historico=365/9 seed=123 modos=train,infer protocolo=daily exogena=-'},
+  {type:'out', text:'LGBM      lgbm           split=origin_agnostic gran=30min horizonte=1d historico=730/5 seed=123 modos=train,infer protocolo=daily exogena=-'},
+  {type:'out', text:'HW        holt-winters   split=origin_scoped gran=30min horizonte=8d historico=730/2 seed=1234 modos=train,infer,forecast protocolo=retrain_harness exogena=-'},
   {type:'out', text:'RGD_MED   dessem-regdin  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MED'},
   {type:'out', text:'RGD_MAX   dessem-regdin  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MAX'},
   {type:'out', text:'LIN_MED   dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MED'},

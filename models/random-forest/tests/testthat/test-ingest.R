@@ -41,12 +41,12 @@ test_that("[PLUGINS] ingest_frame: train -> 357 origens nativas, carga 2025-09-2
   expect_equal(fr$load[dia == lubridate::ymd("2026-03-10") & hora == 14L, load_mw], mean(one$load_mwh), tolerance = 0)
 })
 
-test_that("[PLUGINS] ingest_frame: infer -> origens c(O-1, O), carga termina em O-1 e comeca em O-45; o dia O nunca entra", {
+test_that("[PLUGINS] ingest_frame: infer -> origens c(O-1, O), carga termina em O-1 e comeca em O-9 (frame guarda o que o painel traz desde first_day); o dia O nunca entra", {
   fr <- P$plugin_ingest(infer_panel, infer_cuts, spec)
   expect_identical(fr$phase, "infer")
   expect_identical(fr$origins, c(O - 1L, O))
   expect_identical(max(fr$load$dia), O - 1L)
-  expect_identical(min(fr$load$dia), O - 45L)
+  expect_identical(min(fr$load$dia), O - 9L)
   expect_false(any(fr$load$dia >= O))
   expect_true(all(fr$load[, .N, by = dia]$N == 24L))
   expect_true(is.na(fr$train_origin))

@@ -17,7 +17,7 @@ test_that("[PLUGINS] contrato: [AC1] run.yaml real x descriptor passam no loader
   expect_identical(s$horizon_days, 1L)
   expect_identical(s$modes, c("train", "infer"))
   expect_identical(s$seed, 123L)
-  expect_identical(s$history_days, list(train = 730L, infer = 45L))
+  expect_identical(s$history_days, list(train = 730L, infer = 5L))
   expect_identical(d$delivery_days, 2L)
   expect_identical(d$data_lag_days, 2L)
   expect_identical(d$native_layout, "lgbm_day_48")

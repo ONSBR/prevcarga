@@ -2,7 +2,7 @@
 
 Escopo do LGBM.1: contrato (`run.yaml` + `register.R`) e ingestao. FE, treino e infer sao LGBM.2-LGBM.4.
 
-- `models/lgbm/run.yaml`: split `origin_agnostic`, 30 min, H=1, `history_days {train 730, infer 45}`, seed 123, modes `[train, infer]` e os 7 `params` que
+- `models/lgbm/run.yaml`: split `origin_agnostic`, 30 min, H=1, `history_days {train 730, infer 5}`, seed 123, modes `[train, infer]` e os 7 `params` que
   substituem as env flags `LGBM_*` do oraculo (efetivos: disable_loess, calendar_yearend, train_cv = true; tipodia_legacy, prevespera_1230 = false;
   cutoff_scheme `v2_old`; sazonalidade_scope `train`, `full_window` nao portado porque vaza). O pacote nao le env; params sem default no codigo.
 - `R/register.R` (so definicoes): `plugin_descriptor()` (`data_lag_days = 2` => `last_data_day = O-3`, ADR-0023; `delivery_days = 2`; `native_layout lgbm_day_48`),
@@ -136,3 +136,9 @@ Estado duravel do epico Plugin LGBM (este arquivo e o unico do epico; `docs/ESTA
 - Decisoes taticas e desvios conscientes do oraculo (Desvios conscientes): sem auto-deteccao de corte (o plugin le `cuts`), sem fallback silencioso de feriados (`holidays` ausente aborta), sem heranca de flags por env
   (artefato carrega os `params` do treino), rotulos de calendario na FE por mapa fixo (sem `weekdays()`/locale) e sem re-extracao de ondaletas em O+1 como o oraculo.
 - Dependencia pendente: `fix/foundation-w1-f4-lag` (FIX 6 entrega todos os feriados ao painel). Qualquer delta de janela de feriado no `parity-full` e dessa fundacao, sem excecao no `ab_excecoes.yaml`.
+
+## E2-T3 -- history_days.infer minimo (5)
+
+- `run.yaml`: `history_days {train 730, infer 5}` (era 45). Com 5 dias a ondaleta (32 meias-horas) e o shift CarWav de 2 dias ficam cobertos; `first_day = min(load)` passa a ser O-5. A predicao com painel de 45 dias e igual a do painel cortado (diff maxima 0, `test-infer-window-min.R`).
+- A guarda interna `min_history_days_infer = 4L` (`register.R`) segue: menos de 4 dias completos antes de O => `lgbm.window`. A janela do run.yaml (5) e o que o deck de inferencia precisa trazer; a guarda (4) e o piso do plugin.
+- `data_needs` (E2-T2) segue derivado de `spec$history_days$infer`: load 5 dias antes de O.

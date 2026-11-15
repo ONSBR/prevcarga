@@ -24,6 +24,9 @@ plugin_constants <- function() list(
   ## horas do dia local (0..23) das marcas de pico do oraculo; `day_daily_peak` usa 9:17 (estatistica por dia)
   daily_peak_hours = 9:18, evening_peak_hours = 18:23, minimum_hours = 0:8, daily_peak_stat_hours = 9:17,
   importance = TRUE, no_holiday_days = 365,
+  ## maior lag de carga usado por .rf_block_recent [T-7, T-1] e .rf_block_prev nas origens mantidas c(O-1, O): na fase infer a
+  ## carga e exigida de min(keep) - max_lag_days (O-8) a O-1
+  max_lag_days = 7L,
   ## janelas de Natal (12-23..12-29) e de Ano-Novo (12-30..12-31 e 01-01..01-04) como (mes, dia) inicial e final
   christmas_window = list(start = c(12L, 23L), end = c(12L, 29L)),
   newyear_windows = list(list(start = c(12L, 30L), end = c(12L, 31L)), list(start = c(1L, 1L), end = c(1L, 4L))),

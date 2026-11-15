@@ -14,7 +14,7 @@ test_that("[PLUGINS] contrato: run.yaml real + descriptor passam no loader e reg
   expect_identical(s$split, "origin_agnostic")
   expect_identical(s$granularity_min, 60L)
   expect_identical(s$horizon_days, 9L)
-  expect_identical(s$history_days, list(train = 365L, infer = 45L))
+  expect_identical(s$history_days, list(train = 365L, infer = 9L))
   expect_identical(s$seed, 123L)
   expect_identical(s$modes, c("train", "infer"))
   expect_identical(s$backtest$protocol_default, "daily")

@@ -8,11 +8,12 @@ O <- RF_O
 for (ph in c("train", "infer")) {
   cuts <- rf_fx_cuts(phase = ph)
   panel <- rf_fx_panel(cuts = cuts)
-  first_day <- if (ph == "train") cuts$train_origin - spec$history_days$train else O - spec$history_days$infer
+  ## infer: primeiro dia EXIGIDO = O-8 (min(keep) - max_lag_days); o frame ainda guarda desde O - history_days.infer
+  first_day <- if (ph == "train") cuts$train_origin - spec$history_days$train else O - 1L - P$plugin_constants()$max_lag_days
 
   test_that(sprintf("[PLUGINS] completude: %s -- dia com 23 horas => [prevcarga/completude] exit 3 nomeando area e dia (CONTROL completo)", ph), {
     expect_null(fail(P$plugin_ingest(panel, cuts, spec)))
-    day <- O - 30L
+    day <- if (ph == "train") O - 30L else O - 3L   # infer so confere O-8..O-1
     d <- rf_lib$prevcarga_fixture_drop_slots(rf_fx_store(), RF_AREA, day, "10:00", 2L)
     hole <- rf_fx_panel(d, cuts)
     e <- fail(P$plugin_ingest(hole, cuts, spec))
@@ -43,7 +44,7 @@ for (ph in c("train", "infer")) {
 test_that("[PLUGINS] completude: dia ausente por inteiro no meio da janela tambem e completude (0 horas)", {
   cuts <- rf_fx_cuts(phase = "infer")
   panel <- rf_fx_panel(cuts = cuts)
-  day <- O - 10L
+  day <- O - 4L
   p2 <- panel; p2$load <- panel$load[lubridate::as_date(interval_start, tz = cuts$tz) != day]
   e <- fail(P$plugin_ingest(p2, cuts, spec))
   expect_identical(e$id, "plugin.completude")
