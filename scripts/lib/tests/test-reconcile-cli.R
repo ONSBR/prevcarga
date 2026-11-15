@@ -15,7 +15,7 @@ deck <- pc_deck_sentinel("start", days = lubridate::ymd(O) + (-45:0), areas = ar
 
 ascii <- function(x) !any(as.integer(unlist(lapply(x, charToRaw))) > 127L)
 j1 <- function(r) jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE)
-rc <- function(state, args, fmt = "json") pc_cli(root, c("reconcile", args, paste0("--data=", deck), paste0("--state=", state),
+rc <- function(state, args, fmt = "json") pc_cli(root, c("reconcile", args, paste0("--data-train=", deck), paste0("--state=", state),
                                                           paste0("--format=", fmt)))
 new_state <- function() { d <- tempfile("state-", tmpdir = tmp); dir.create(d); d }
 write_from <- function(long, dir) {

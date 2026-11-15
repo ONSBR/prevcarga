@@ -74,8 +74,9 @@ test_that("[AC1-AC4] semantica espelhada do install.sh: hash antes da extracao (
   expect_true(any(grepl("'previous'", ps1, fixed = TRUE)))
   expect_true(any(grepl("Set-StrictMode -Version 3", ps1, fixed = TRUE)) && any(grepl("ErrorActionPreference = 'Stop'", ps1, fixed = TRUE)))
   # mesmos argumentos do install.sh
-  for (a in c("Version", "ReleaseBase", "Bundle", "Sha256", "Root", "Data", "State", "SkipPlatformCheck", "Rollback", "Uninstall", "Yes", "Purge", "Format"))
+  for (a in c("Version", "ReleaseBase", "Bundle", "Sha256", "Root", "DataTrain", "DataInference", "DataArtifacts", "State", "SkipPlatformCheck", "Rollback", "Uninstall", "Yes", "Purge", "Format"))
     expect_true(any(grepl(paste0("\\$", a, "\\b"), ps1[1:40])), info = a)
+  expect_false(any(grepl("\\$Data\\b", ps1[1:40])))                      # CONTROL: sem apelido -Data (ADR-044, clean break)
 })
 
 test_that("[AC7] install.ps1 le o catalogo GERADO pelo NOME das colunas (id,class,exit_code,message,hint), nao por posicao", {
@@ -105,6 +106,14 @@ ps1_fun <- function(name) {
   j <- grep("^\\}", ps1); j <- j[j > i][1]
   ps1[i:j]
 }
+test_that("upgrade com data_dir legado: aviso unico e ASCII de conversao para data_train_dir; proximos passos sem fallback em data_dir", {
+  wc <- ps1_fun("Write-PcConfig")                                          
+  expect_true(any(grepl("Add-PcWarning 'a chave data_dir do config.yaml foi convertida para data_train_dir", wc, fixed = TRUE)))
+  expect_identical(sum(grepl("foi convertida para data_train_dir", ps1, fixed = TRUE)), 1L)
+  expect_false(any(grepl("[^ -~]", grep("foi convertida para data_train_dir", ps1, value = TRUE))))
+  expect_false(any(grepl("Get-PcConfigValue 'data_dir'", ps1_fun("Write-PcNextSteps"), fixed = TRUE)))   # proximos passos nao caem em data_dir
+})
+
 test_that("extracao por ZipFile: zip-slip recusado (GetFullPath + separador final + sem caixa), dir so cria, ZipArchive fechado em finally", {
   f <- ps1_fun("Expand-PcZip")
   expect_true(any(grepl("Add-Type -AssemblyName System.IO.Compression.FileSystem", f, fixed = TRUE)))

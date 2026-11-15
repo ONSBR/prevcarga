@@ -61,5 +61,4 @@ partial.unclassified	partial	execucao parcial	reveja as falhas parciais reportad
 honesty.unclassified	honesty	violacao de honestidade	reveja o gate de honestidade do modulo
 config.write_failed	config	falha ao gravar o config.yaml	confira permissoes e espaco em disco do diretorio do config.yaml
 config.artifacts_dir_missing	config	diretorio de artefatos apontado nao existe	aponte --data-artifacts (ou artifacts_dir no config.yaml) para um diretorio que exista
-warning.option_alias	config	opcao ou chave usada e apelido e sai na proxima versao (aviso)	troque <alias> por <novo>
 contract.set_data_dir_noninteractive	contract	set-data-dir sem chave exige terminal interativo	passe --train / --inference / --artifacts ou rode em um terminal

@@ -2,14 +2,14 @@
 ## bench_forecast.R -- bench do NFR de 30 min do `forecast` completo (M6.6, AC 31). Ferramenta de DESENVOLVIMENTO/operador (fora do bundle).
 ##
 ##   Rscript --vanilla scripts/tools/bench_forecast.R --origin AAAA-MM-DD --reference-seconds S [--format text|json]
-##       [--data <dir>] [--state <dir>] [--config <arquivo>]
+##       [--data-train <dir>] [--state <dir>] [--config <arquivo>]
 ##
 ## Cronometra (wall-clock, proc.time()[["elapsed"]]) UMA chamada de prevcarga_forecast(ctx, origin = O, report = TRUE): todas as folhas da topologia,
 ## todos os membros, report html, treino so dos origin_scoped da origem (origin_agnostic congelados e k-hat `latest` ja treinado pelo Reconcile:
 ## o forecast nunca os treina). `--reference-seconds` e o tempo do comando de previsao do ORACULO medido pelo operador na mesma maquina; o bench
 ## NAO executa o oraculo (so calcula a razao).
 ##
-## - data/ (`--data`, ou data_dir do config.yaml) e SO LEITURA: a listagem (nome, tamanho, sha256) e tirada antes e depois; diferente => erro
+## - data/ (`--data-train`, ou data_train_dir do config.yaml) e SO LEITURA: a listagem (nome, tamanho, sha256) e tirada antes e depois; diferente => erro
 ##   integrity.bench_data_changed (exit 9).
 ## - o estado da rodada vive em tempdir(): `--state <dir>` (artefatos origin_agnostic, k-hat, pesos da combina) e COPIADO para la antes do
 ##   cronometro (a copia nao entra no tempo) e nunca e escrito. Sem --state, o estado comeca vazio (o forecast aborta exit 13 sem artefatos).
@@ -81,7 +81,7 @@ bench_render <- function(res, format = "text") {
 }
 
 ## --- argv ---------------------------------------------------------------------------------------------------------------------------
-.bench_known <- c("--origin", "--reference-seconds", "--format", "--data", "--state", "--config")
+.bench_known <- c("--origin", "--reference-seconds", "--format", "--data-train", "--state", "--config")
 
 .bench_parse <- function(argv) {
   bad <- function(why) prevcarga_abort("contract.bench_bad_args", where = why)
@@ -135,7 +135,7 @@ bench_main <- function(argv = commandArgs(TRUE), root = NULL) {
   out <- prevcarga_with_errors({
     for (m in BENCH_LIBS) sys.source(file.path(root, "scripts", "lib", paste0(m, ".R")), envir = globalenv())
     opts <- .bench_parse(argv)
-    args <- list(`--origin` = opts[["--origin"]], `--data` = opts[["--data"]], `--config` = opts[["--config"]])
+    args <- list(`--origin` = opts[["--origin"]], `--data-train` = opts[["--data-train"]], `--config` = opts[["--config"]])
     args <- args[!vapply(args, is.null, NA)]
     state <- tempfile("bench-state-")
     args[["--state"]] <- state

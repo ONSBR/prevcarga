@@ -79,7 +79,7 @@ suppressMessages(mod$prevcarga_runtime_enforce())
 
 bctx <- function(root = ROOT, data = DECK, .frame = parent.frame()) {
   state <- withr::local_tempdir("bt-state-", .local_envir = .frame)
-  ctx <- mod$prevcarga_ctx(list("--data" = data, "--state" = state), root, "backtest")
+  ctx <- mod$prevcarga_ctx(list("--data-train" = data, "--state" = state), root, "backtest")
   ctx$code_commit <- "c0ffee"
   ctx$data_hash <- "deck-fixed"                          # chaves iguais entre decks perturbados (so o dado muda)
   ctx$progress <- function(done, total) NULL

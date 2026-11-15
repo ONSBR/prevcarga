@@ -11,7 +11,7 @@ crow <- verbs[verbs$verb == "combine", , drop = FALSE]
 fx <- pc_cmb_cli_fixture(dir = withr::local_tempdir())
 cli <- function(mode, extra = character(), fmt = "json", with_data = TRUE, state = fx$state)
   pc_cmb_run_cli(c("combine", paste0("--mode=", mode), "--area=SECO", paste0("--root=", fx$root),
-                   if (with_data) paste0("--data=", fx$data), paste0("--state=", state),
+                   if (with_data) paste0("--data-train=", fx$data), paste0("--state=", state),
                    paste0("--format=", fmt), extra))
 j1 <- function(r) jsonlite::fromJSON(paste(r$out, collapse = "\n"), simplifyVector = FALSE)
 ascii <- function(x) !any(as.integer(unlist(lapply(x, charToRaw))) > 127L)
@@ -39,7 +39,7 @@ test_that("M4.4 - ac-0 verbo descoberto: impl/M4, usage gerado, --origin unico f
 
 test_that("M4.4 - ac-0 docopt parseia combine (braco com skip)", {
   skip_if_not_installed("docopt")
-  o <- E$.prevcarga_parse(c("combine", "--mode=full", "--area=SECO", "--root=r", "--data=d", "--out=o.parquet"), verbs)
+  o <- E$.prevcarga_parse(c("combine", "--mode=full", "--area=SECO", "--root=r", "--data-train=d", "--out=o.parquet"), verbs)
   expect_true(isTRUE(o$combine))
   expect_identical(o[["--mode"]], "full")
   o2 <- E$.prevcarga_parse(c("combine", "--mode=full", "--area=SECO", "--root=r", "--from=2024-01-01"), verbs)

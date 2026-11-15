@@ -1,4 +1,4 @@
-## test-forecast_artifacts_dir.R -- forecast com artefatos apontados (F3.6): --artifacts-dir / artifacts_dir do config.yaml.
+## test-forecast_artifacts_dir.R -- forecast com artefatos apontados (F3.6): --data-artifacts / artifacts_dir do config.yaml.
 ## Raiz apontada = so leitura (lista + sha256 identicos antes/depois, <state_dir>/artifacts nao nasce); origin_scoped sem versao de O
 ## vira membro ausente sem treino implicito; CONTROL sem a raiz apontada treina. Fixture sintetica m6f em tempdir; sem env vars.
 library(testthat)
@@ -97,7 +97,7 @@ test_that("precedencia flag > config.yaml > NULL de artifacts_dir; modo e raiz d
   cfg <- file.path(root, "config.yaml")
   writeLines(c("schema_version: 1", paste0("artifacts_dir: '", dA, "'")), cfg)
   n <- function(p) normalizePath(p, winslash = "/", mustWork = FALSE)
-  c1 <- env$prevcarga_ctx(list("--artifacts-dir" = dB), root)
+  c1 <- env$prevcarga_ctx(list("--data-artifacts" = dB), root)
   expect_identical(c1$artifacts_dir, n(dB))
   c2 <- env$prevcarga_ctx(list(), root)
   expect_identical(c2$artifacts_dir, n(dA))
@@ -110,9 +110,9 @@ test_that("precedencia flag > config.yaml > NULL de artifacts_dir; modo e raiz d
   expect_identical(env$prevcarga_registry_root(c3), env$.prevcarga_reg_norm(file.path(c3$state_dir, "artifacts")))
 })
 
-test_that("--artifacts-dir inexistente => config.artifacts_dir_missing (exit 8) com where = o caminho", {
+test_that("--data-artifacts inexistente => config.artifacts_dir_missing (exit 8) com where = o caminho", {
   root <- withr::local_tempdir("fad-root-")
   ghost <- file.path(root, "nao", "existe")
-  cond <- expect_pc(env$prevcarga_ctx(list("--artifacts-dir" = ghost), root), "config.artifacts_dir_missing", 8L)
+  cond <- expect_pc(env$prevcarga_ctx(list("--data-artifacts" = ghost), root), "config.artifacts_dir_missing", 8L)
   expect_identical(cond$where, normalizePath(ghost, winslash = "/", mustWork = FALSE))
 })

@@ -44,13 +44,13 @@ test_that("sem --model: tabela de 5 membros; available_until anotado; placeholde
 test_that("com deck legivel o available_until sai derivado do deck; deck ilegivel cai no corte de treino (so contract/completude)", {
   d <- pc_deck_clean(days = seq(lubridate::ymd("2026-09-29"), lubridate::ymd("2026-10-01"), by = "day"),
                      dir = withr::local_tempdir())
-  ctx <- mk(`--data` = d)
+  ctx <- mk(`--data-train` = d)
   res <- dv$prevcarga_build_describe(ctx, model = "dessem-linear")
   expect_identical(res$cuts$available_until, "2026-10-02 00:00")
   expect_true(any(grepl("available_until: derivado do deck (via validate-deck) = 2026-10-02 00:00",
                         dv$prevcarga_render_describe(res), fixed = TRUE)))
   bad <- withr::local_tempdir()
-  rb <- dv$prevcarga_build_describe(mk(`--data` = bad), model = "lgbm")
+  rb <- dv$prevcarga_build_describe(mk(`--data-train` = bad), model = "lgbm")
   expect_null(rb$cuts$available_until)
   expect_identical(row(rb, "lgbm")$train_origin, "2026-09-29")
   expect_true(grepl("indisponivel", rb$cuts$note))

@@ -200,17 +200,17 @@ Describe 'AC5 lancador' {
 }
 
 Describe 'AC6 PATH do usuario e config.yaml' {
-  It 'duas instalacoes: <R>\bin uma vez em HKCU, nunca em HKLM; config.yaml com -Data/-State' -Skip:(-not $script:HaveCandidate) {
+  It 'duas instalacoes: <R>\bin uma vez em HKCU, nunca em HKLM; config.yaml com -DataTrain/-State' -Skip:(-not $script:HaveCandidate) {
     try {
       $R = New-TestRoot; $b = New-FixtureBundle 'prevcarga-v2-windows-x86_64.zip'
       $d = Join-Path $script:Work 'dados'; $s = Join-Path $script:Work 'estado'
-      1..2 | ForEach-Object { (Invoke-Inst 'powershell.exe' $R $b @('-Data', $d, '-State', $s)).Status | Should -Be 0 }
+      1..2 | ForEach-Object { (Invoke-Inst 'powershell.exe' $R $b @('-DataTrain', $d, '-State', $s)).Status | Should -Be 0 }
       $bin = (Join-Path $R 'bin').TrimEnd('\').ToLowerInvariant()
       @(Get-UserPathParts | Where-Object { $_.TrimEnd('\').ToLowerInvariant() -eq $bin }).Count | Should -Be 1
       $m = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager\Environment')
       ([string]$m.GetValue('Path', '')).ToLowerInvariant().Contains($bin) | Should -BeFalse
       $cfg = Get-Content -LiteralPath (Join-Path $R 'config.yaml') -Raw
-      $cfg | Should -Match ("data_dir: '" + [regex]::Escape($d.Replace('\', '/')) + "'")
+      $cfg | Should -Match ("data_train_dir: '" + [regex]::Escape($d.Replace('\', '/')) + "'")
       $cfg | Should -Match ("state_dir: '" + [regex]::Escape($s.Replace('\', '/')) + "'")
       $cfg.Contains("`r") | Should -BeFalse
       [IO.File]::ReadAllBytes((Join-Path $R 'config.yaml'))[0] | Should -Not -Be 0xEF   # sem BOM

@@ -90,7 +90,7 @@ cmd_forecast <- function(ctx, args) {
 prevcarga_verb_forecast <- list(
   name    = "forecast",
   usage   = paste("prevcarga forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report]",
-                  "[--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]"),
+                  "[--report-format=<f>] [--skip-validate] [--jobs=<n>] [--data-artifacts=<dir>]"),
   options = c(
     "--incluir-membros       Inclui membros/<m>/<a>.parquet na entrega"),
   scoped  = c("--incluir-membros", "--report", "--report-format"),   # cli.R .prevcarga_check_scoped

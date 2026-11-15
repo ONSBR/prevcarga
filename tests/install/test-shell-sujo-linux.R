@@ -15,7 +15,7 @@ e$prevcarga_fixture_deck(DECK, seed = 1L, areas = c("RJ", "SP"), days = seq(O - 
                          load_until = lubridate::ymd_hm("2026-10-01 09:30", tz = "Etc/GMT+3"))
 R <- file.path(W, "R")
 bundle <- pc_fixture_bundle("vsujo", slim = FALSE)
-ins <- pc_install(c("--bundle", bundle$path, "--sha256", bundle$sha256, "--root", R, "--data", DECK, "--format", "json"))
+ins <- pc_install(c("--bundle", bundle$path, "--sha256", bundle$sha256, "--root", R, "--data-train", DECK, "--format", "json"))
 stopifnot(identical(ins$status, 0L))
 LAUNCHER <- file.path(R, "bin", "prevcarga")
 HOME_SUJO <- file.path(W, "home"); dir.create(HOME_SUJO)
@@ -149,7 +149,7 @@ test_that("[M8.9][AC5] FORBIDDEN: `forecast --origin O` pelo lancador instalado,
   fc <- function(shell, deck = w$deck) {
     n <<- n + 1L; st <- file.path(base, paste0("st", n)); dir.create(st)
     stopifnot(all(file.copy(list.files(pc_e2e_synced(w)$local, full.names = TRUE, all.files = TRUE, no.. = TRUE), st, recursive = TRUE)))
-    r <- run_in(shell, "/bin/sh", c(file.path(w$root, "bin", "prevcarga"), "forecast", paste0("--data=", deck), paste0("--state=", st),
+    r <- run_in(shell, "/bin/sh", c(file.path(w$root, "bin", "prevcarga"), "forecast", paste0("--data-train=", deck), paste0("--state=", st),
                                     "--origin", w$origin, "--skip-validate", "--format", "json"))
     j <- jsonlite::fromJSON(rawToChar(r$stdout), simplifyVector = FALSE)
     list(status = r$status, stderr = r$stderr, saida = j$result$saida, norm = gsub(st, "STATE", sem_tempo(rawToChar(norm_run_id(r$stdout))), fixed = TRUE))

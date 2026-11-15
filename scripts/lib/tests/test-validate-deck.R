@@ -81,7 +81,7 @@ vd_cases <- function(env = parent.frame()) {
 test_that("exit 0/2/3/4/5/8 por classe nos dois formatos; envelope unico, stderr vazio no JSON, ASCII, sem traceback (ac-9)", {
   cs <- vd_cases()
   for (nm in names(cs)) {
-    k <- cs[[nm]]; argv <- c("validate-deck", "--data", k[[2L]], k[[3L]])
+    k <- cs[[nm]]; argv <- c("validate-deck", "--data-train", k[[2L]], k[[3L]])
     rt <- run_v(k[[4L]], argv)
     rj <- run_v(k[[4L]], c(argv, "--format", "json"))
     expect_identical(rt$code, k[[1L]], info = nm); expect_identical(rj$code, k[[1L]], info = nm)
@@ -106,47 +106,47 @@ test_that("exit 0/2/3/4/5/8 por classe nos dois formatos; envelope unico, stderr
     }
   }
   ## erro de classe de dado: o resultado em texto tambem vai a stdout (FALHA <classe>)
-  rt <- run_v(root0, c("validate-deck", "--data", cs$completude[[2L]]))
+  rt <- run_v(root0, c("validate-deck", "--data-train", cs$completude[[2L]]))
   expect_true(any(grepl("^FALHA completude$", rt$out)))
   expect_true(any(grepl("day_incomplete", rt$out)))
   ## ids do primeiro erro da classe dominante
-  expect_identical(jdoc(run_v(root0, c("validate-deck", "--data", cs$completude[[2L]], "--format", "json")))$error$id,
+  expect_identical(jdoc(run_v(root0, c("validate-deck", "--data-train", cs$completude[[2L]], "--format", "json")))$error$id,
                    "completude.day_incomplete")
-  expect_identical(jdoc(run_v(root0, c("validate-deck", "--data", cs$topology[[2L]], "--format", "json")))$error$class, "topology")
-  expect_identical(jdoc(run_v(root_hw, c("validate-deck", "--data", cs$ok[[2L]], "--model", "holt-winters",
+  expect_identical(jdoc(run_v(root0, c("validate-deck", "--data-train", cs$topology[[2L]], "--format", "json")))$error$class, "topology")
+  expect_identical(jdoc(run_v(root_hw, c("validate-deck", "--data-train", cs$ok[[2L]], "--model", "holt-winters",
                                          "--format", "json")))$error$class, "window")
 })
 
-test_that("--debug so afeta traceback de erro inesperado; verbo sem --data: config.data_dir_missing exit 8", {
+test_that("--debug so afeta traceback de erro inesperado; verbo sem --data-train: config.data_dir_missing exit 8", {
   r <- run_v(root0, c("validate-deck"))
   expect_identical(r$code, 8L)
   expect_true(any(grepl("prevcarga: erro [config] (exit 8)", r$err, fixed = TRUE)))
   j <- jdoc(run_v(root0, c("validate-deck", "--format", "json")))
   expect_identical(j$error$id, "config.data_dir_missing")
   for (flag in c("--origin=2026-13-45", "--weather-cutoff=xyz", "--format=xml", "--color=xyz")) {
-    rr <- run_v(root0, c("validate-deck", "--data", vd_clean(), flag))
+    rr <- run_v(root0, c("validate-deck", "--data-train", vd_clean(), flag))
     expect_identical(rr$code, 8L, info = flag)
   }
 })
 
 test_that("conflito de load_label: manifest start x --load-label end = exit 2; sem flag = 0 com fonte manifest (ac-10)", {
   d <- vd_build(label = "start")
-  r <- run_v(root0, c("validate-deck", "--data", d, "--load-label", "end", "--format", "json"))
+  r <- run_v(root0, c("validate-deck", "--data-train", d, "--load-label", "end", "--format", "json"))
   j <- jdoc(r)
   expect_identical(r$code, 2L); expect_identical(j$exit_code, 2L)
   expect_identical(j$error$id, "contract.load_label_conflict")
   expect_identical(j$error$where, "manifest.json:load_label")
-  r0 <- run_v(root0, c("validate-deck", "--data", d, "--format", "json"))
+  r0 <- run_v(root0, c("validate-deck", "--data-train", d, "--format", "json"))
   j0 <- jdoc(r0)
   expect_identical(r0$code, 0L); expect_true(j0$ok)
   expect_identical(j0$result$load_label, "start"); expect_identical(j0$result$load_label_source, "manifest")
-  expect_identical(jdoc(run_v(root0, c("validate-deck", "--data", d, "--load-label", "start", "--format", "json")))$result$load_label_source,
+  expect_identical(jdoc(run_v(root0, c("validate-deck", "--data-train", d, "--load-label", "start", "--format", "json")))$result$load_label_source,
                    "manifest")
 })
 
 test_that("origem default pelo deck x flag; result carrega os campos do ADR-0040 e cuts por membro (ac-11)", {
   d <- vd_build(until = at("2026-10-01 09:30"))      # a carga termina no intervalo com inicio 09:00 de O
-  r <- run_v(root0, c("validate-deck", "--data", d, "--format", "json"))
+  r <- run_v(root0, c("validate-deck", "--data-train", d, "--format", "json"))
   j <- jdoc(r)$result
   expect_identical(r$code, 0L)
   expect_identical(j$forecast_origin, "2026-10-01"); expect_identical(j$origin_source, "deck")
@@ -165,26 +165,26 @@ test_that("origem default pelo deck x flag; result carrega os campos do ADR-0040
   expect_identical(lg$data_lag_source, "descriptor")                 # data_lag_days 2 do descriptor (ADR-0023)
   rf <- Filter(function(x) x$model == "random-forest", j$cuts)[[1L]]
   expect_identical(rf$last_data_day, "2026-09-30"); expect_identical(rf$data_lag_source, "descriptor")   # CONTROL O-1
-  j2 <- jdoc(run_v(root0, c("validate-deck", "--data", d, "--origin", "2026-09-28", "--format", "json")))$result
+  j2 <- jdoc(run_v(root0, c("validate-deck", "--data-train", d, "--origin", "2026-09-28", "--format", "json")))$result
   expect_identical(j2$forecast_origin, "2026-09-28"); expect_identical(j2$origin_source, "flag")
   expect_identical(Filter(function(x) x$model == "lgbm", j2$cuts)[[1L]]$train_origin, "2026-09-26")
   ## data_hash model-agnostico: --model lgbm x random-forest dao o mesmo hash do deck inteiro
-  h <- function(m) jdoc(run_v(root0, c("validate-deck", "--data", d, "--model", m, "--format", "json")))$result$data_hash
+  h <- function(m) jdoc(run_v(root0, c("validate-deck", "--data-train", d, "--model", m, "--format", "json")))$result$data_hash
   expect_identical(h("lgbm"), h("random-forest")); expect_identical(h("lgbm"), j$data_hash)
-  expect_length(jdoc(run_v(root0, c("validate-deck", "--data", d, "--model", "lgbm", "--format", "json")))$result$cuts, 1L)
+  expect_length(jdoc(run_v(root0, c("validate-deck", "--data-train", d, "--model", "lgbm", "--format", "json")))$result$cuts, 1L)
   ## aviso do deck truncado: stderr no texto, `warnings` no JSON (stderr vazio), exit 0
-  rt <- run_v(root0, c("validate-deck", "--data", d))
-  rw <- run_v(root0, c("validate-deck", "--data", d, "--format", "json"))
+  rt <- run_v(root0, c("validate-deck", "--data-train", d))
+  rw <- run_v(root0, c("validate-deck", "--data-train", d, "--format", "json"))
   expect_identical(rt$code, 0L)
   expect_true(any(grepl("prevcarga: aviso [warning.climate_after_cut]", rt$err, fixed = TRUE)))
   expect_true("warning.climate_after_cut" %in% vapply(jdoc(rw)$warnings, function(w) w$id, ""))
   expect_identical(rw$err, character())
   ## --area fora da topologia: topology.scope_undeclared (exit 4)
-  ja <- run_v(root0, c("validate-deck", "--data", d, "--area", "ZZ", "--format", "json"))
+  ja <- run_v(root0, c("validate-deck", "--data-train", d, "--area", "ZZ", "--format", "json"))
   expect_identical(ja$code, 4L); expect_identical(jdoc(ja)$error$id, "topology.scope_undeclared")
   ## somente leitura: o deck nao muda
   before <- unname(tools::md5sum(list.files(d, recursive = TRUE, full.names = TRUE)))
-  invisible(run_v(root0, c("validate-deck", "--data", d)))
+  invisible(run_v(root0, c("validate-deck", "--data-train", d)))
   expect_identical(unname(tools::md5sum(list.files(d, recursive = TRUE, full.names = TRUE))), before)
 })
 
@@ -204,17 +204,17 @@ test_that("verbo auto-registrado: sai da lista de stubs e o usage traz --origin 
 
 test_that("89,7 C no previsto: contract.temperature_out_of_range exit 2; sem ela exit 0", {
   d <- vd_clean(); pc_mut_weather(d, "weather_forecast", function(dt) { dt[which(dt$issue_time == lubridate::ymd_hms("2026-10-01 12:00:00", tz = "UTC"))[1L], temperature := 89.7]; dt })
-  r <- run_v(root0, c("validate-deck", "--data", d, "--format", "json"))
+  r <- run_v(root0, c("validate-deck", "--data-train", d, "--format", "json"))
   expect_identical(r$code, 2L); expect_identical(jdoc(r)$error$id, "contract.temperature_out_of_range")
-  expect_identical(run_v(root0, c("validate-deck", "--data", vd_clean(), "--format", "json"))$code, 0L)
+  expect_identical(run_v(root0, c("validate-deck", "--data-train", vd_clean(), "--format", "json"))$code, 0L)
 })
 
 test_that("clima ate O+3: exit 0 e warning.weather_forecast_coverage em warnings[] (JSON) e no stderr (texto)", {
   d <- vd_build(forecast_until = lubridate::ymd("2026-10-04"))
-  rj <- run_v(root0, c("validate-deck", "--data", d, "--format", "json"))
+  rj <- run_v(root0, c("validate-deck", "--data-train", d, "--format", "json"))
   expect_identical(rj$code, 0L); expect_length(Filter(nzchar, rj$out), 1L)
   ids <- vapply(jdoc(rj)$warnings, function(w) w$id, "")
   expect_true("warning.weather_forecast_coverage" %in% ids)
-  rt <- run_v(root0, c("validate-deck", "--data", d))
+  rt <- run_v(root0, c("validate-deck", "--data-train", d))
   expect_true(any(grepl("warning.weather_forecast_coverage", rt$err, fixed = TRUE))); expect_false(non_ascii(c(rt$out, rt$err, rj$out)))
 })

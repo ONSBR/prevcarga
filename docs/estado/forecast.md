@@ -90,8 +90,8 @@
 - CLI: `--jobs=<n>` (inteiro >= 1, senao `config.bad_type` exit 8, where `--jobs`; validador proprio em `cli/forecast.R`, pois cada verbo so carrega os proprios arquivos); consta so da usage (o Options do train-models ja o declara).
   `.forecast_stopwatch(clock, jobs)` grava o `jobs` real so no `result` do envelope, nunca em `run.json`/`run_manifest`.
 
-## F3.6 -- forecast com artefatos apontados (`--artifacts-dir`)
-- `--artifacts-dir=<dir>` / `artifacts_dir` do config.yaml aponta a raiz de membros, combina e k-hat. Raiz so leitura: o forecast nunca escreve nela
+## F3.6 -- forecast com artefatos apontados (`--data-artifacts`)
+- `--data-artifacts=<dir>` / `artifacts_dir` do config.yaml aponta a raiz de membros, combina e k-hat. Raiz so leitura: o forecast nunca escreve nela
   (lista + sha256 identicos antes/depois; `<state_dir>/artifacts` nao nasce). Entrega, scratch e relatorio seguem em `<state_dir>`.
 - Sem treino implicito: celula origin_scoped sem versao de O (`.forecast_scoped_version` NULL) aborta `state.artifact_missing` dentro da celula,
   que a celula tolerante (F3.3) transforma em membro ausente (`warning.forecast_member_absent`); `prevcarga_train` nao e chamado. Sem a flag, treina como antes.
@@ -111,7 +111,7 @@
 - Testes: `scripts/lib/tests/test-forecast-inference-preflight.R`.
 
 ## Verbos da CLI (M6.9; dono M6)
-- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]` (`--artifacts-dir` e global, linha de opcao em `cli.R`; `prevcarga forecast --help` imprime so a ajuda do verbo, F2.3, ver `docs/estado/cli.md`).
+- `scripts/lib/cli/forecast.R`: `forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report] [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--data-artifacts=<dir>]` (`--data-artifacts` e global, linha de opcao em `cli.R`; `prevcarga forecast --help` imprime so a ajuda do verbo, F2.3, ver `docs/estado/cli.md`).
   `--origin` (global do M1) e o unico flag de data; sem `--corte` (docopt => `config.usage` exit 8). `--area`/`--subsistema`/`--skip-validate`/`--report*` ja constam do bloco Options
   de outros verbos (duplicata torna o docopt ambiguo): so a usage os cita, e o `scoped` do forecast os admite. `--subsistema all` = todas as folhas; subsistema fora => `topology.area_undeclared` (4).
   O flag `--from` do snippet do ticket NAO foi declarado no forecast: `prevcarga_forecast` nao reaproveita scratch (seria flag morta).

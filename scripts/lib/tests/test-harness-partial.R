@@ -16,7 +16,7 @@ PT_DECK_LONG <- pc_m7h_deck(lubridate::ymd("2026-09-05"), lubridate::ymd("2026-1
 pt_cli <- function(origin, deck, fmt = "json", .frame = parent.frame()) {
   state <- withr::local_tempdir("pt-state-", .local_envir = .frame)
   r <- callr::rscript(PT_CLI, cmdargs = c("backtest", paste0("--origin=", origin), "--corte=08:00", "--keep-going",
-                                          paste0("--state=", state), paste0("--data=", deck), paste0("--format=", fmt)),
+                                          paste0("--state=", state), paste0("--data-train=", deck), paste0("--format=", fmt)),
                       user_profile = FALSE, system_profile = FALSE, show = FALSE, fail_on_status = FALSE, wd = tempdir())
   j <- if (identical(fmt, "json") && length(r$stdout) && nzchar(r$stdout))
     jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE) else NULL

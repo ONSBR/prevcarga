@@ -56,7 +56,7 @@ test_that("[AC2] --data-train junto com --data-inference: config.usage; CONTROL 
   expect_identical(e$id, "config.usage")
   expect_identical(e$exit_code, 8L)
   expect_identical(e$where, "--data-train x --data-inference")
-  e2 <- abort_of(E$prevcarga_resolve_deck_role(mk_ctx(), BOTH, list(`--data` = "/t", `--data-inference` = "/i")))
+  e2 <- abort_of(E$prevcarga_resolve_deck_role(mk_ctx(), BOTH, list(`--data-train` = "/t", `--data-inference` = "/i")))
   expect_identical(e2$id, "config.usage")
   x <- E$prevcarga_resolve_deck_role(mk_ctx(NULL, "/i"), BOTH, list(`--data-inference` = "/i"))
   expect_identical(x$data_role, "inference")

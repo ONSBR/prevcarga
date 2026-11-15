@@ -14,7 +14,7 @@ sib_env$prevcarga_fixture_deck(file.path(SIB_DECK, "deck"), seed = 3, areas = "S
 SIB_STATE <- withr::local_tempdir("sib-state-")
 
 sib_cli <- function(args, fmt = "json")
-  pc_run_cli(c(args, paste0("--data=", file.path(SIB_DECK, "deck")), paste0("--state=", SIB_STATE), paste0("--format=", fmt)))
+  pc_run_cli(c(args, paste0("--data-train=", file.path(SIB_DECK, "deck")), paste0("--state=", SIB_STATE), paste0("--format=", fmt)))
 sib_json <- function(r) jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE)
 
 expect_config_usage <- function(args, id = "config.usage") {

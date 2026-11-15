@@ -137,7 +137,7 @@ im_cli <- function(args, fmt = NULL) pc_cli(root_cli, c("infer-model", args, if 
 
 ## data valido + state vazio: o unico motivo possivel de exit 8 config.usage e a flag (nao a falta de --data)
 im_cli_data <- function(args, fmt = "json")
-  im_cli(c(args, paste0("--data=", im_deck()), paste0("--state=", pc5_state_tmp(parent.frame()))), fmt)
+  im_cli(c(args, paste0("--data-train=", im_deck()), paste0("--state=", pc5_state_tmp(parent.frame()))), fmt)
 im_err_id <- function(r) jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE)$error$id
 
 test_that("AC1: infer-model --model lgbm --area SECO --horizon 3 => exit 8 config.usage (flag escopada); stdout vazio (texto)", {
@@ -170,7 +170,7 @@ test_that("AC1 [CONTROL]: o mesmo comando SEM a flag passa do guard de uso (nao 
 
 test_that("AC1 [CONTROL]: train-models continua aceitando --horizon/--exogena (so o infer-model recusa)", {
   r <- pc_cli(root_cli, c("train-models", "--model=lgbm", "--area=SECO", "--horizon", "3", "--dry-run", "--format=json",
-                          paste0("--data=", im_deck()), paste0("--state=", pc5_state_tmp())))
+                          paste0("--data-train=", im_deck()), paste0("--state=", pc5_state_tmp())))
   id <- if (length(r$stdout)) im_err_id(r)
   expect_false(identical(id, "config.usage"))
 })

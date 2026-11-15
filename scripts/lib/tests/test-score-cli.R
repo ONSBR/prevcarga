@@ -25,7 +25,7 @@ slong <- function(ctx, areas = "A1", bias = 0, d_plus = 0:9, embedded = 0) {
 sc <- function(args, fmt = "json", envvars = character(), root = root_fx)
   pc_m3_cli(c(args, "--format", fmt), envvars = envvars, root = root)
 mk <- function(long, deck, extra = character(), skip = TRUE, origin = TRUE)
-  c("score", "--long", long, "--data", deck, if (origin) c("--origin", O), if (skip) "--skip-validate", extra)
+  c("score", "--long", long, "--data-train", deck, if (origin) c("--origin", O), if (skip) "--skip-validate", extra)
 
 d_ok <- sdeck(); ctx_ok <- sctx(d_ok)
 d_nomwh <- sdeck(); pc_eval_drop_col(d_nomwh)
@@ -52,7 +52,7 @@ score_cli_cases$argv <- list(
   mk(f_perfect, d_ok, c("--baseline", "xx")),
   mk(f_perfect, d_ok, c("--area", "XX")),
   mk(f_perfect, d_fut, c("--area", "A1")),
-  c("score", "--long", f_perfect, "--data", d_ok, "--origin=2024-13-01", "--skip-validate"))
+  c("score", "--long", f_perfect, "--data-train", d_ok, "--origin=2024-13-01", "--skip-validate"))
 
 headline_wmape <- function(j) vapply(j$result$headline$rows, function(r) r$wmape, 0)
 
@@ -103,7 +103,7 @@ gate_deck <- function(bad = FALSE) {
 g_ctx <- function(d) c(pc_ctx_deck(d), list(tz = TZ, areas = c("SECO", "S"), origin = "2026-10-01"))
 d_g_ok <- gate_deck(); d_g_bad <- gate_deck(bad = TRUE)
 f_g <- pc_eval_write_long(pc_eval_long("SECO", "2026-10-01", d_plus = 0:1, ctx = g_ctx(d_g_ok)))
-gargv <- function(d, skip = FALSE) c("score", "--long", f_g, "--data", d, "--origin", "2026-10-01",
+gargv <- function(d, skip = FALSE) c("score", "--long", f_g, "--data-train", d, "--origin", "2026-10-01",
                                       if (skip) "--skip-validate")
 
 test_that("gate-0: manifest invalido sem --skip-validate -> 2 contract; CONTROL deck valido -> 0", {
@@ -139,7 +139,7 @@ test_that("score por processo == prevcarga_score + prevcarga_scorecard in-proces
   fp <- pc_eval_write_long(long)
   o0 <- lubridate::force_tz(lubridate::as_datetime(O), TZ)
   for (a in present) pc_eval_perturb(d, a, o0 - lubridate::days(1), o0, function(x) x * 1.1)   # persistencia nao perfeita
-  args <- c("score", "--long", fp, "--data", d, "--origin", O, "--skip-validate", "--baseline", "persistence")
+  args <- c("score", "--long", fp, "--data-train", d, "--origin", O, "--skip-validate", "--baseline", "persistence")
   rj <- pc_m3_cli(c(args, "--format", "json"), root = root_real)
   expect_identical(rj$status, 0L)
   j <- pc_m3_json(rj)

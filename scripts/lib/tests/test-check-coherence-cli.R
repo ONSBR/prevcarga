@@ -15,7 +15,7 @@ base <- pc_coherent_long(topo, O, ctx = ctx0)
 root_real <- pc_install_copy()
 w <- function(l) pc_eval_write_long(l)
 cc <- function(f, fmt = "json", envvars = character(), extra = character())
-  pc_m3_cli(c("check-coherence", "--long", f, "--data", ctx0$data_dir, "--origin", O, "--format", fmt, extra),
+  pc_m3_cli(c("check-coherence", "--long", f, "--data-train", ctx0$data_dir, "--origin", O, "--format", fmt, extra),
             envvars = envvars, root = root_real)
 
 ## ---- matriz de exits (AC 6) -------------------------------------------------------------------------------------------

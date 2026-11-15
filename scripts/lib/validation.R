@@ -554,7 +554,12 @@ prevcarga_outlier_min_days <- 3L
 ## --- 9. Orquestrador publico ---------------------------------------------------------------------------------------
 ## scope = list(model = NULL, area = NULL); origin: Date ou NULL (cai em ctx$origin e, depois, no ultimo dia de carga).
 prevcarga_validate_deck <- function(ctx, origin = NULL, scope = NULL, data_lag_days = NULL) {
-  prevcarga_require_deck(ctx)
+  ## so kind/origem do deck (contract.deck_kind_mismatch / deck_origin_mismatch) e as classes config/runtime abortam aqui; qualquer outro
+  ## abort classificado do manifest (unknown_key, tz_missing, tz_invalid, weather_lag_missing...) vira finding do gate-0 (como em .prevcarga_capture)
+  tryCatch(prevcarga_require_deck(ctx),
+           prevcarga_error = function(e) {
+             if (e$class_name %in% c("config", "runtime") || e$id %in% c("contract.deck_kind_mismatch", "contract.deck_origin_mismatch")) stop(e)
+           })
   acc <- .pc_acc()
   scope <- list(model = scope$model, area = scope$area)
   if (is.character(origin)) origin <- prevcarga_parse_origin(origin)

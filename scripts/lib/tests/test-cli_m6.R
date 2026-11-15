@@ -49,7 +49,7 @@ env$prevcarga_fixture_deck(deck, seed = 11, areas = c(M6F_LEAVES, M6F_SS), days 
 state <- tempfile("m6cli-state-"); dir.create(state)
 
 cli <- function(root, args, fmt = "json", deck_dir = deck)
-  pc_cli(root, c(args, paste0("--data=", deck_dir), paste0("--state=", state), if (!is.null(fmt)) paste0("--format=", fmt)))
+  pc_cli(root, c(args, paste0("--data-train=", deck_dir), paste0("--state=", state), if (!is.null(fmt)) paste0("--format=", fmt)))
 
 expect_envelope <- function(r, exit, id = NULL) {
   expect_identical(r$status, as.integer(exit))
@@ -96,7 +96,7 @@ test_that("AC3: nenhum verbo do M6 declara --corte; --origin e o unico flag huma
     row <- verbs[verbs$verb == v, ]
     txt <- c(row$usage, unlist(row$options), unlist(row$scoped))
     expect_false(any(grepl("--corte|--as-of|--cut|morning|prever", txt)))
-    expect_false(any(grepl("--(data-?|dia|date|from-date|to-date)", sub("--data=<dir>", "", txt))) && v != "export")
+    expect_false(any(grepl("--(data-?|dia|date|from-date|to-date)", gsub("--data-(train|inference|artifacts)", "", txt))) && v != "export")
   }
   help <- cl$prevcarga_usage(verbs)
   for (v in c("forecast", "export", "features")) expect_true(any(grepl(paste0("^  prevcarga ", v, " "), strsplit(help, "\n")[[1L]])))
@@ -291,7 +291,7 @@ exp_env <- pc_source_lib(c("errors", "schema_long", "exports"))
 test_that("AC5: export --scratch <dir> entrega em forecasts/<O>/<au>/<versao>/ com o manifest que o forecast produziria", {
   sc <- make_scratch()
   st <- tempfile("m6cli-exp-state-"); dir.create(st)
-  r <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data=", deck), "--format=json"))
+  r <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data-train=", deck), "--format=json"))
   j <- expect_envelope(r, 0L)
   expect_match(j$result$saida, "/forecasts/2026-01-15/20260115T0900/abc123def456$")
   expect_identical(normalizePath(j$result$saida, winslash = "/"), normalizePath(file.path(st, "forecasts/2026-01-15/20260115T0900/abc123def456"), winslash = "/"))
@@ -307,10 +307,10 @@ test_that("AC5: export --scratch <dir> entrega em forecasts/<O>/<au>/<versao>/ c
   expect_identical(m1, m2)
   expect_match(jsonlite::read_json(file.path(j$result$saida, "manifest.json"))$gerado_em, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T")
   ## segunda entrega do mesmo scratch: no-op (ja_publicado), mesma chave
-  r2 <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data=", deck), "--format=json"))
+  r2 <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data-train=", deck), "--format=json"))
   expect_true(expect_envelope(r2, 0L)$result$ja_publicado)
   ## texto ASCII
-  t <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data=", deck)))
+  t <- pc_cli(root_stub, c("export", paste0("--scratch=", sc), paste0("--state=", st), paste0("--data-train=", deck)))
   expect_identical(t$status, 0L); expect_length(t$stderr, 0L)
   pc_assert_ascii(t$raw, "export texto")
 })
@@ -318,7 +318,7 @@ test_that("AC5: export --scratch <dir> entrega em forecasts/<O>/<au>/<versao>/ c
 test_that("AC5: --niveis (removida) => exit 8 config.usage; scratch sem run.json/ausente => exit 13; a chave nao vem de flag (--origin e ignorado)", {
   sc <- make_scratch()
   st <- tempfile("m6cli-exp-state-"); dir.create(st)
-  base <- c(paste0("--state=", st), paste0("--data=", deck), "--format=json")
+  base <- c(paste0("--state=", st), paste0("--data-train=", deck), "--format=json")
   expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", sc), "--niveis=tudo", base)), 8L, "config.usage")
   expect_envelope(pc_cli(root_stub, c("export", paste0("--scratch=", tempfile("nada-")), base)), 13L, "state.nothing_to_deliver")
   empty <- tempfile("m6cli-empty-"); dir.create(empty)

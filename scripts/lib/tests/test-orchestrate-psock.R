@@ -66,7 +66,7 @@ child <- function(body, env = character(), hooks = "NULL") {
     sprintf("lib <- %s; options(prevcarga.lib = lib)", deparse(lib)),
     sprintf("for (m in %s) source(file.path(lib, paste0(m, '.R')))", paste(deparse(MODULES), collapse = "")),
     "prevcarga_runtime_enforce()",
-    sprintf("ctx <- prevcarga_ctx(list(`--data` = %s, `--state` = %s), %s, 'backtest')", deparse(DECK), deparse(state), deparse(ROOT)),
+    sprintf("ctx <- prevcarga_ctx(list(`--data-train` = %s, `--state` = %s), %s, 'backtest')", deparse(DECK), deparse(state), deparse(ROOT)),
     "ctx$lib_dir <- lib; ctx$code_commit <- 'c0ffee'; ctx$data_hash <- 'deck-fixed'; ctx$progress <- function(done, total) NULL",
     sprintf("ctx$worker_hooks <- %s", hooks),
     sprintf("OUT <- %s", deparse(out)),

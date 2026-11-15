@@ -78,7 +78,7 @@ suppressMessages(mod$prevcarga_runtime_enforce())
 
 wctx <- function(rule = NULL, data = DECK, config = NULL, .frame = parent.frame()) {
   state <- withr::local_tempdir("bw-state-", .local_envir = .frame)
-  a <- list("--data" = data, "--state" = state)
+  a <- list("--data-train" = data, "--state" = state)
   if (!is.null(rule)) a[["--weather-cutoff"]] <- rule
   if (!is.null(config)) a[["--config"]] <- config
   ctx <- mod$prevcarga_ctx(a, ROOT, "backtest")

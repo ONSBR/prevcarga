@@ -77,7 +77,7 @@ prevcarga_m7h_deck <- function(dir, last, days, load_until = NULL) {
 }
 
 prevcarga_m7h_ctx <- function(root, deck, state, overrides) {
-  ctx <- prevcarga_ctx(list("--data" = deck, "--state" = state, "--weather-cutoff" = "origin_midnight_utc"), root, "backtest")
+  ctx <- prevcarga_ctx(list("--data-train" = deck, "--state" = state, "--weather-cutoff" = "origin_midnight_utc"), root, "backtest")
   ctx$spec_overrides <- overrides
   ctx$code_commit <- "c0ffee"
   ctx$renv_lock_hash <- "ab12"

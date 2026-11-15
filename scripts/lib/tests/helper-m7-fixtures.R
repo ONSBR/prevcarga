@@ -146,7 +146,7 @@ pc_m7h_mod <- function() {
 pc_m7h_ctx <- function(root, data, n_min = 3L, .local_envir = parent.frame()) {
   mod <- pc_m7h_mod()
   state <- withr::local_tempdir("m7h-state-", .local_envir = .local_envir)
-  ctx <- mod$prevcarga_ctx(list("--data" = data, "--state" = state), root, "backtest")
+  ctx <- mod$prevcarga_ctx(list("--data-train" = data, "--state" = state), root, "backtest")
   ctx$code_commit <- "c0ffee"
   ctx$data_hash <- "deck-fixed"
   ctx$progress <- function(done, total) NULL
@@ -173,7 +173,7 @@ pc_m7h_child <- function(body, root, deck, state, env = NULL, hooks = "NULL", n_
     sprintf("lib <- %s; options(prevcarga.lib = lib)", deparse(lib)),
     sprintf("for (m in %s) source(file.path(lib, paste0(m, '.R')))", paste(deparse(PC_M7H_MODULES), collapse = "")),
     "prevcarga_runtime_enforce()",
-    sprintf("ctx <- prevcarga_ctx(list(`--data` = %s, `--state` = %s), %s, 'backtest')", deparse(deck), deparse(state), deparse(root)),
+    sprintf("ctx <- prevcarga_ctx(list(`--data-train` = %s, `--state` = %s), %s, 'backtest')", deparse(deck), deparse(state), deparse(root)),
     sprintf("ctx$lib_dir <- lib; ctx$code_commit <- 'c0ffee'; ctx$data_hash <- 'deck-fixed'; ctx$progress <- function(done, total) NULL; ctx$combina <- list(n_min = %dL)", as.integer(n_min)),
     sprintf("ctx$worker_hooks <- %s", hooks),
     sprintf("OUT <- %s", deparse(out)),

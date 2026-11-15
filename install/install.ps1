@@ -7,7 +7,6 @@
 #               [-DataTrain <dir>] [-DataInference <dir>] [-DataArtifacts <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]
 #   install.ps1 -Rollback [-Root <dir>] [-Format json]
 #   install.ps1 -Uninstall -Yes [-Purge] [-Root <dir>] [-Format json]
-# -Data e apelido de -DataTrain por uma versao (aviso ASCII no stderr).
 # A grafia dos docs (--bundle, --sha256, --root ...) tambem e aceita.
 #
 # O sha256 do bundle e OBRIGATORIO e conferido antes de qualquer extracao; nada e escrito em <R> antes disso.
@@ -15,7 +14,7 @@
 
 param(
   [string]$Version, [string]$ReleaseBase, [string]$Bundle, [string]$Sha256,
-  [string]$Root, [string]$Data, [string]$DataTrain, [string]$DataInference, [string]$DataArtifacts, [string]$State,
+  [string]$Root, [string]$DataTrain, [string]$DataInference, [string]$DataArtifacts, [string]$State,
   [switch]$SkipPlatformCheck, [switch]$Rollback, [switch]$Uninstall, [switch]$Yes, [switch]$Purge,
   [string]$Format = 'text',
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
@@ -140,7 +139,6 @@ function Write-PcNextSteps([string]$Bin, [bool]$PathUpdated) {  # depois da linh
   else { $lines += ('  - ' + $Bin + ' ja esta no PATH do usuario (num terminal aberto antes da instalacao, abra um novo)') }
   $lines += '  - rode: prevcarga doctor (confere runtime, config e deck)'
   $d = Get-PcConfigValue 'data_train_dir'
-  if (-not $d) { $d = Get-PcConfigValue 'data_dir' }
   if ($d) { $lines += ('  - deck configurado: data_train_dir = ' + $d + ' (em ' + $cfg + ')') }
   else { $lines += ('  - aponte o deck: prevcarga set-data-dir (grava data_train_dir em ' + $cfg + ')') }
   Write-PcStream 'err' (ConvertTo-PcAsciiText ($lines -join "`n"))
@@ -239,7 +237,7 @@ function Resolve-PcRest([string[]]$Tokens) {
     } else {
       $bad = @($tok, 'argumento desconhecido'); break
     }
-    if ($name -in 'version', 'releasebase', 'release-base', 'bundle', 'sha256', 'root', 'data', 'data-train', 'datatrain', 'data-inference', 'datainference', 'data-artifacts', 'dataartifacts', 'state', 'format') {
+    if ($name -in 'version', 'releasebase', 'release-base', 'bundle', 'sha256', 'root', 'data-train', 'datatrain', 'data-inference', 'datainference', 'data-artifacts', 'dataartifacts', 'state', 'format') {
       if ($null -eq $val) {
         if ($i + 1 -ge $Tokens.Count) { $bad = @($tok, 'falta o valor'); break }
         $i++; $val = $Tokens[$i]
@@ -250,7 +248,6 @@ function Resolve-PcRest([string[]]$Tokens) {
       elseif ($name -eq 'bundle') { $script:Bundle = $val }
       elseif ($name -eq 'sha256') { $script:Sha256 = $val }
       elseif ($name -eq 'root') { $script:Root = $val }
-      elseif ($name -eq 'data') { $script:Data = $val }
       elseif ($name -eq 'data-train' -or $name -eq 'datatrain') { $script:DataTrain = $val }
       elseif ($name -eq 'data-inference' -or $name -eq 'datainference') { $script:DataInference = $val }
       elseif ($name -eq 'data-artifacts' -or $name -eq 'dataartifacts') { $script:DataArtifacts = $val }
@@ -342,6 +339,10 @@ function Write-PcConfig {  # config.yaml da instalacao (schema v1 do M1.4a); pre
   $d = $script:DataTrain
   if (-not $d) { $d = Get-PcConfigValue 'data_train_dir' }
   if (-not $d) { $d = Get-PcConfigValue 'data_dir' }
+  # data_dir (legado, ADR-044) nao e mais chave valida: o upgrade a converte e avisa UMA vez
+  if ((Test-Path -LiteralPath $cfg) -and (@([IO.File]::ReadAllLines($cfg) | Where-Object { $_.StartsWith('data_dir:') }).Count -gt 0)) {
+    Add-PcWarning 'a chave data_dir do config.yaml foi convertida para data_train_dir (data_dir nao existe mais)'
+  }
   $di = $script:DataInference
   if (-not $di) { $di = Get-PcConfigValue 'data_inference_dir' }
   $da = $script:DataArtifacts
@@ -715,11 +716,6 @@ function Invoke-PcMain {
   $script:Root = (Get-PcAbsPath $script:Root).TrimEnd('\', '/')
   if (-not $script:Root -or $script:Root -match '^[A-Za-z]:$') { Write-PcError 'install.usage' '-Root' 'raiz nao pode ser a raiz do disco' }
   if ($script:State) { $script:State = Get-PcAbsPath $script:State }
-  if ($script:Data) {
-    Write-PcStream 'err' 'aviso: -Data e apelido de -DataTrain e sai na proxima versao'
-    if ($script:DataTrain -and ((Get-PcAbsPath $script:DataTrain) -ne (Get-PcAbsPath $script:Data))) { Write-PcError 'install.usage' '-Data' 'conflita com -DataTrain' }
-    $script:DataTrain = $script:Data
-  }
   if ($script:DataTrain) { $script:DataTrain = Get-PcAbsPath $script:DataTrain }
   if ($script:DataInference) { $script:DataInference = Get-PcAbsPath $script:DataInference }
   if ($script:DataArtifacts) { $script:DataArtifacts = Get-PcAbsPath $script:DataArtifacts }

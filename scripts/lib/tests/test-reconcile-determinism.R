@@ -20,7 +20,7 @@ from <- file.path(tmp, "from"); dir.create(from)
 leaves <- pc_leaves_long(topo, O, list(tz = pc_rc_tz))
 for (a in unique(leaves$area)) arrow::write_parquet(leaves[leaves$area == a, , drop = FALSE], file.path(from, paste0(a, ".parquet")))
 
-rc <- function(args, env = character()) pc_cli(root, c("reconcile", args, paste0("--data=", deck), paste0("--state=", state),
+rc <- function(args, env = character()) pc_cli(root, c("reconcile", args, paste0("--data-train=", deck), paste0("--state=", state),
                                                       "--format=json"), env = env)
 j1 <- function(r) jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE)
 

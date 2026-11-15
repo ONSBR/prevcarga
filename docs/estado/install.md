@@ -40,7 +40,7 @@ O runtime do bundle e `runtime/bin/Rscript` (wrapper do M8.1, ja relocavel: o in
    do proprio stage (`prevcarga_runtime_validate(strict=TRUE)`; falha => `install.manifest_invalid`, exit 6, `current` intacto), rename do stage para
    `versions/<v>/`, copia do lancador, troca atomica de `current`.
 5. Retencao N=2: ficam `current` e `previous`; o resto de `versions/` sai. Reinstalar a mesma versao preserva a anterior.
-6. `config.yaml` (schema v1 do M1.4a) com `data_train_dir`/`data_inference_dir`/`artifacts_dir`/`state_dir` (default `<R>/state`; a `data_dir:` legada sai ao regravar); upgrade preserva chaves existentes; `state/` e criado e NUNCA tocado
+6. `config.yaml` (schema v1 do M1.4a) com `data_train_dir`/`data_inference_dir`/`artifacts_dir`/`state_dir` (default `<R>/state`; a `data_dir:` legada e migrada para `data_train_dir` ao regravar); upgrade preserva chaves existentes; `state/` e criado e NUNCA tocado
    por upgrade/rollback/uninstall (so `--uninstall --yes --purge` o remove).
 7. `--add-to-path` grava um bloco `# >>> prevcarga >>>` ... `# <<< prevcarga <<<` no perfil (`--profile`, default `~/.profile`), idempotente; o uninstall o remove.
 8. Fim: `<R>/bin/prevcarga doctor --format json` e devolvido em `result.doctor` (JSON unico em `--format json`).
@@ -165,8 +165,8 @@ bundles antigos usam o que esta ao lado do `install.ps1`.
   ou de uma anterior, num upgrade sem a flag), diz que `<raiz>/bin` esta no PATH por ele, que o perfil so e lido no login, e manda rodar
   `. <perfil>` neste terminal (ou logar de novo) -- nao promete "terminal novo" (terminal grafico abre bash sem login); sem o bloco,
   `export PATH="<raiz>/bin:$PATH"` (ou reinstalar com `--add-to-path`);
-  `prevcarga doctor`; e, so se `data_dir` NAO estiver no `<raiz>/config.yaml`, apontar o deck (`--data-train`/`-DataTrain` ou `data_train_dir:` no config; cai em `data_dir`).
-  Com `data_dir` ja configurado, so informa o valor. Texto pt-BR sem acento (ASCII; `install.sh` entrou no teste de bytes > 127).
+  `prevcarga doctor`; e, so se `data_train_dir` NAO estiver no `<raiz>/config.yaml`, apontar o deck (`--data-train`/`-DataTrain`, `prevcarga set-data-dir` ou `data_train_dir:` no config; nao ha mais fallback em `data_dir`).
+  Com `data_train_dir` ja configurado, so informa o valor. Texto pt-BR sem acento (ASCII; `install.sh` entrou no teste de bytes > 127).
 - Testes: `test-install-etapas-linux.R` (redirecionado: stderr vazio, stdout 1 linha; CONTROL sob pty: banner = as 14 linhas da CLI + `  prevcarga 9.9.9 | instalador | linux-x86_64`,
   intro antes da etapa 1, `proximos passos:` depois da linha final, sem/com `--data`, nota de rollback na 2a versao, perfil com o bloco via
   `--add-to-path` e num upgrade sem a flag, e CONTROL de perfil sem o bloco voltando ao `export`) e as checagens estaticas do
@@ -195,4 +195,4 @@ O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO pa
   de baixo. Mesma guarda das etapas (`$script:PcProgress`: texto e stderr no terminal). **[DEFERRED windows-vm, dono Gabriel]**
   ver a barra num console real (5.1 e pwsh 7).
 - Proximos passos sem `data_train_dir`: os dois instaladores sugerem `prevcarga set-data-dir` (interativo ou com chaves).
-- `--data`/`-Data` e apelido de `--data-train`/`-DataTrain` por uma versao: aviso ASCII em stderr; valor diferente de `--data-train` = `install.usage`.
+- Sem apelidos (ADR-044, clean break): `--data`/`-Data` nao existem; `--data` e argumento desconhecido (`install.usage`). Upgrade com a `data_dir:` legada no config.yaml a migra para `data_train_dir` (o instalador le a linha e a regrava; o CLI nao a le mais) e imprime UM aviso ASCII no log (`prevcarga: aviso: a chave data_dir do config.yaml foi convertida para data_train_dir (data_dir nao existe mais)`, tambem em `warnings` do JSON); sem `data_dir` nao ha aviso. Testes: `test-install-etapas-linux.R` (uma ocorrencia, ASCII, ausente na 2a instalacao e sem data_dir) e `test-install-windows-static.R` (estatico para o ps1).
