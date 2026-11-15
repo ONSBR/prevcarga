@@ -62,5 +62,5 @@ prevcarga_verb_infer_model <- list(
   deck_roles = c("train", "inference"),
   owner   = "M5",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "inference.R")
+  modules = c("topology.R", "provenance.R", "holiday_islands.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "inference.R")
 )

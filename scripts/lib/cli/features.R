@@ -85,5 +85,5 @@ prevcarga_verb_features <- list(
   handler = function(ctx, args) cmd_features(ctx, args),
   owner   = "M6",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "inference.R")
+  modules = c("topology.R", "provenance.R", "holiday_islands.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "inference.R")
 )

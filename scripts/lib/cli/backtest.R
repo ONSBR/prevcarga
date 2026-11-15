@@ -37,7 +37,7 @@ prevcarga_verb_backtest <- list(
   handler = function(ctx, args) cmd_backtest(ctx, args),
   owner   = "M7",
   exempt  = FALSE,
-  modules = c("topology.R", "schema_long.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R",
+  modules = c("topology.R", "schema_long.R", "provenance.R", "holiday_islands.R", "deck_reader.R", "dates.R", "validation.R",
               "features.R", "registry.R", "inference_needs.R", "training.R", "inference.R", "build_long_output.R", "evaluation.R", "combination.R",
               "reconcile.R", "cache.R", "reporting.R", "orchestrate.R", "backtest.R")
 )

@@ -61,20 +61,24 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
 
   ## Janela de treino = a que o plugin confere: origin_agnostic [train_origin - history_days.train, last_data_day]
   ## (history_days.train + H + 1 - data_lag_days dias); origin_scoped history_days.train dias ate last_data_day.
+  ## Com descriptor$history_window (E3-T2) a janela comum e a do plugin e o anexo de feriados vai ao leitor; sem o campo, igual a antes.
   hist <- spec$history_days$train
-  first_day <- if (identical(spec$split, "origin_agnostic")) cuts$train_origin - hist else
-    cuts$last_data_day - hist + 1L
+  w <- if (is.function(d$history_window)) d$history_window(origin, spec) else NULL
+  first_day <- if (!is.null(w)) w$common_from else if (identical(spec$split, "origin_agnostic"))
+    cuts$train_origin - hist else cuts$last_data_day - hist + 1L
   need <- as.integer(cuts$last_data_day - first_day) + 1L
   span <- as.integer(origin - first_day) + 1L
   fc_in_train <- isTRUE(d$weather_forecast_in_train)
   ## Regra de leitura do previsto do treino (E2-T2): so quando o plugin declara data_needs$train_weather_forecast; sem regra
   ## (plugin-brinquedo) segue com TODAS as emissoes <= limite (prevcarga_read_forecast_vintages).
   rule <- if (fc_in_train) prevcarga_inference_needs_train_rule(plugin, spec, area, span) else NULL
+  ## holiday_window so vai ao leitor injetado quando ha janela (assinaturas sem o argumento seguem validas).
+  hw_arg <- if (is.null(w)) list() else list(holiday_window = w)
   p <- if (!is.null(read_panel)) {
-    if (is.null(rule)) read_panel(area, span, spec$horizon_days, fc_in_train)
-    else read_panel(area, span, spec$horizon_days, fc_in_train, rule)
+    if (is.null(rule)) do.call(read_panel, c(list(area, span, spec$horizon_days, fc_in_train), hw_arg))
+    else do.call(read_panel, c(list(area, span, spec$horizon_days, fc_in_train, rule), hw_arg))
   } else {
-    pp <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
+    pp <- do.call(prevcarga_read_panel, c(list(ctx, origin, area, spec$horizon_days, span), hw_arg))
     if (fc_in_train)
       pp$weather_forecast <- if (!is.null(rule))
         prevcarga_read_forecast_by_rule(ctx, rule$area, origin, rule$segments, cuts$weather_issue_limit)
@@ -87,6 +91,13 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
   panel <- p
   panel$load <- p$load[in_window(p$load$interval_start)]
   panel$weather_observed <- p$weather_observed[in_window(p$weather_observed$valid_time)]
+  if (!is.null(p$holiday_annex)) {                 # anexo: so day <= last_data_day (fica antes de first_day por construcao)
+    le <- function(x) day_of(x) <= cuts$last_data_day
+    ha <- p$holiday_annex
+    ha$load <- ha$load[le(ha$load$interval_start)]
+    ha$weather_observed <- ha$weather_observed[le(ha$weather_observed$valid_time)]
+    panel$holiday_annex <- ha
+  }
   have <- length(unique(day_of(panel$load$interval_start)))
   if (have < need)
     prevcarga_abort("window.history_short", where = member$mdir,
@@ -112,6 +123,15 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
 .prevcarga_tr_panel_hash <- function(panel) {
   ds <- c("load", "weather_observed", "weather_forecast", "holidays")
   txt <- vapply(ds, function(n) .prevcarga_tr_table_text(panel[[n]]), "")
+  ## O anexo entra no hash so quando existe: membros sem anexo mantem o hash byte a byte.
+  if (!is.null(panel$holiday_annex)) {
+    ha <- panel$holiday_annex
+    isl <- as.data.frame(ha$islands)
+    isl$holiday_dates <- vapply(isl$holiday_dates, function(v) paste(as.integer(v), collapse = ","), "")
+    ds <- c(ds, "holiday_annex.islands", "holiday_annex.load", "holiday_annex.weather_observed")
+    txt <- c(txt, .prevcarga_tr_table_text(isl), .prevcarga_tr_table_text(ha$load),
+             .prevcarga_tr_table_text(ha$weather_observed))
+  }
   digest::digest(paste(ds, txt, sep = "\n", collapse = "\n"), algo = "sha256", serialize = FALSE)
 }
 

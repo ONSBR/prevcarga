@@ -4,7 +4,7 @@
 ## prevcarga_resolve_version/prevcarga_load_artifact; integridade SHA256SUMS -> exit 9) -> spec DO ARTEFATO
 ## (artifact$spec_efetivo; nunca o run.yaml atual nem flag de param) -> painel pelo leitor unico (deck_reader.R) -> cortes
 ## (dates.R: prevcarga_resolve_cuts + prevcarga_train_cut/prevcarga_first_delivery) -> despachante
-## prevcarga_plugin_infer (P.0c; HW/RF/LGBM so leem o artefato, dessem refaz a cabeca do dia O dentro do plugin).
+## prevcarga_plugin_infer (P.0c; HW/RF/LGBM so leem o artefato, o plugin de motor proprio refaz a cabeca do dia O dentro dele).
 ## Esta fachada NUNCA chama plugin_train/prevcarga_train e NUNCA escreve no registry (so le). O M5 nao soma nem subtrai
 ## dias de corte nem faz aritmetica de hora: os cortes vem do dates.R, o deslocamento de modelagem e do despachante.
 ## O LONG de 8 colunas e do M6; aqui a saida e (model, variant, area, origin, available_until, target_datetime, y_pred).
@@ -120,6 +120,9 @@ prevcarga_infer <- function(plugin, artifact, panel, cuts, ctx = list(), spec = 
     out
   }
   for (nm in c("load", "weather_observed", "weather_forecast", "holidays")) panel[[nm]] <- pick(panel[[nm]])
+  ## Anexo de feriados (E3-T2): mesma selecao de area nas tres tabelas, atributos preservados.
+  if (!is.null(panel$holiday_annex))
+    for (nm in c("islands", "load", "weather_observed")) panel$holiday_annex[[nm]] <- pick(panel$holiday_annex[[nm]])
   panel
 }
 
@@ -167,7 +170,7 @@ prevcarga_infer_check_conventions <- function(artifact, cuts, ctx, descriptor) {
 ## O painel ja chega do leitor unico cortado em available_until (nenhum corte e calculado aqui): so confere que nada
 ## passou do corte. Segue CRU (30 min): o despachante reamostra por granularity_min/weather_resample (FIX 7).
 prevcarga_infer_panel <- function(panel, cuts, spec) {
-  ie <- panel$load$interval_end
+  ie <- c(panel$load$interval_end, panel$holiday_annex$load$interval_end)
   if (length(ie) && any(ie > cuts$available_until))
     prevcarga_abort("contract.panel_beyond_cut", where = "prevcarga_infer_panel",
                     details = list(available_until = format(cuts$available_until, "%Y-%m-%d %H:%M")))
@@ -193,8 +196,12 @@ prevcarga_infer_check_alignment <- function(pred, cuts, descriptor) {
 ## do plugin escolhe, <= limite; E2-T2). `needs` NULL => prevcarga_inference_needs_of (default generico sem data_needs).
 ## Devolve list(panel, cuts). Nenhum corte e calculado aqui.
 prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, truncate_at = NULL, needs = NULL) {
-  panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, spec$history_days$infer,
-                                truncate_at = truncate_at)
+  ## Janela por plugin (E3-T2): descriptor$history_window, quando existe, define o span comum e a janela do anexo.
+  hw <- plugin$descriptor$history_window
+  w <- if (is.function(hw)) hw(origin, spec) else NULL
+  hist_days <- if (!is.null(w)) as.integer(origin - w$common_from) else spec$history_days$infer
+  panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, hist_days,
+                                truncate_at = truncate_at, holiday_window = w)
   au <- panel$attrs$available_until
   cuts$available_until <- if (inherits(au, "POSIXct") && length(au) == 1L && !is.na(au)) au else cuts$available_until
   wl <- panel$attrs$weather_issue_limit

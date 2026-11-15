@@ -674,6 +674,8 @@ prevcarga_envelope_fields <- c("model_id", "variant", "area", "origin_day", "ava
   }
   over(panel$load, "interval_start", "load")
   over(panel$weather_observed, "valid_time", "weather_observed")
+  over(panel$holiday_annex$load, "interval_start", "holiday_annex.load")
+  over(panel$holiday_annex$weather_observed, "valid_time", "holiday_annex.weather_observed")
   invisible(TRUE)
 }
 
@@ -721,6 +723,16 @@ prevcarga_plugin_variant_requires <- function(descriptor, stage, variant = NA_ch
       .prevcarga_plugin_abort("plugin.raw_timestamp", where = ds,
         reason = sprintf("coluna %s em %s: so o leitor converte rotulo de tempo", raw[[1L]], ds),
         details = list(column = raw[[1L]], dataset = ds))
+  }
+  ha <- panel$holiday_annex
+  if (is.list(ha)) for (sub in names(ha)) {
+    x <- ha[[sub]]
+    if (!is.data.frame(x)) next
+    raw <- intersect(.prevcarga_plugin_raw_cols, names(x))
+    if (length(raw))
+      .prevcarga_plugin_abort("plugin.raw_timestamp", where = paste0("holiday_annex.", sub),
+        reason = sprintf("coluna %s em holiday_annex.%s: so o leitor converte rotulo de tempo", raw[[1L]], sub),
+        details = list(column = raw[[1L]], dataset = paste0("holiday_annex.", sub)))
   }
   invisible(TRUE)
 }
@@ -895,6 +907,9 @@ prevcarga_preserve_rng <- function(expr) {
   if (identical(as.integer(o), 0L)) return(list(panel = panel, cuts = cuts))
   pm <- panel
   for (col in c("interval_start", "interval_end")) pm$load <- to_model_frame(pm$load, o, col)
+  if (!is.null(pm$holiday_annex))
+    for (col in c("interval_start", "interval_end"))
+      pm$holiday_annex$load <- to_model_frame(pm$holiday_annex$load, o, col)
   cm <- cuts
   cm$available_until <- to_model_frame(data.table::data.table(available_until = cuts$available_until), o,
                                        "available_until")$available_until
