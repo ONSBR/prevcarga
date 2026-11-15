@@ -22,7 +22,7 @@ PC5G_TZ <- "Etc/GMT+3"
 PC5G_AREA <- "SP"                      # folha da topologia real; unica com heat_area do LGBM
 PC5G_HIST <- 60L                       # history_days.train do fixture (o run.yaml pede 365..1825)
 PC5G_TOL <- 1e-5
-PC5G_FOUNDATION <- c("runtime", "errors", "config", "provenance", "topology", "schema_long", "deck_reader", "validation", "dates",
+PC5G_FOUNDATION <- c("runtime", "errors", "config", "provenance", "topology", "schema_long", "holiday_islands", "deck_reader", "validation", "dates",
                      "registry", "features", "inference_needs", "training", "inference")
 
 ## --- tabela de bracos esperados (matriz de campos) e verificacao cruzada --------------------------------------------
