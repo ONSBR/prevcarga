@@ -104,6 +104,21 @@ lgbm_thaw_payload <- function(payload) .lgbm_stage("lgbm_thaw")(payload)
 ## Tokens que o estagio de ingestao exige do deck (data.<dataset>.<coluna>, contrato do leitor).
 lgbm_deck_tokens <- function() c("data.load.load_mwh", "data.weather_forecast.temperature", "data.holidays.prevcarga_code")
 
+## data_needs (E2-T2): so dado. O clima previsto e o da area de clima (heat_area[area]); safra do oraculo: min_lead lead_train
+## (0) nos dias [O - n, O] e lead_target (1) em O + 1; no treino a janela comeca no inicio do treino (from = NA).
+lgbm_data_needs <- function(spec, area) {
+  k <- plugin_constants(); n <- as.integer(spec$history_days$infer); H <- as.integer(spec$horizon_days)
+  heat <- unname(k$heat_area[area])
+  if (length(heat) != 1L || is.na(heat)) lgbm_abort("lgbm.contract", sprintf("area %s sem heat_area", area))
+  seg <- function(from, to, lead) list(kind = "min_lead", from = from, to = to, lead = lead)
+  list(infer = list(schema_version = 1L, load = list(days_before = n), weather_observed = list(days_before = n),
+                    weather_forecast = list(area = heat, segments = list(seg(-n, 0L, k$lead_train),
+                                                                         seg(1L, 1L, k$lead_target))),
+                    holidays = list(from = -n, to = H), holiday_annex = FALSE),
+       train_weather_forecast = list(area = heat, segments = list(seg(NA_integer_, 0L, k$lead_train),
+                                                                  seg(1L, 1L, k$lead_target))))
+}
+
 plugin_descriptor <- function() list(
   model_id = "lgbm", contract_version = 1L,
   granularity_supported = 30L, modes_implemented = c("train", "infer"),
@@ -115,6 +130,7 @@ plugin_descriptor <- function() list(
   history_infer_equals_train = FALSE, engine = NULL,
   packages = c("lightgbm", "data.table", "lubridate", "wavelets", "zoo"),
   params_schema = lgbm_params_schema(),
+  data_needs = lgbm_data_needs,
   freeze = lgbm_freeze_model, thaw = lgbm_thaw_payload,
   stages = list(
     ingestion           = list(fn = plugin_ingest, requires = lgbm_deck_tokens(), provides = "frame"),

@@ -78,6 +78,25 @@ prevcarga_inference_needs_of <- function(plugin, spec, area) {
   prevcarga_inference_needs_normalize(raw, where = d$model_id)
 }
 
+## Regra de leitura do previsto do TREINO (E2-T2): data_needs(spec, area)$train_weather_forecast normalizado pelas mesmas regras
+## de weather_forecast (normalize), com from = NA (desde o inicio da janela de treino) trocado por -span. Sem data_needs (ou sem
+## o campo) devolve NULL: o chamador mantem a leitura de todas as emissoes. Devolve list(area, segments).
+prevcarga_inference_needs_train_rule <- function(plugin, spec, area, span) {
+  d <- plugin$descriptor
+  if (!is.function(d$data_needs)) return(NULL)
+  rule <- d$data_needs(spec, area)$train_weather_forecast
+  if (is.null(rule)) return(NULL)
+  rule$segments <- lapply(rule$segments, function(s) {
+    if (is.list(s) && length(s$from) == 1L && is.na(s$from)) s$from <- -as.integer(span)
+    s
+  })
+  n <- prevcarga_inference_needs_normalize(
+    list(schema_version = 1L, load = list(days_before = 0L), weather_observed = list(days_before = 0L),
+         weather_forecast = rule, holidays = list(from = 0L, to = 0L), holiday_annex = FALSE),
+    where = d$model_id)
+  list(area = n$weather_forecast$area, segments = n$weather_forecast$segments)
+}
+
 ## Uniao por dataset e area (independe da ordem das linhas). load/weather_observed/holidays por area da carga;
 ## weather_forecast por area de clima. Base R + data.table::data.table (sem NSE: nao depende de data.table anexado).
 prevcarga_inference_needs_aggregate <- function(rows) {

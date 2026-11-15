@@ -67,11 +67,19 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
   need <- as.integer(cuts$last_data_day - first_day) + 1L
   span <- as.integer(origin - first_day) + 1L
   fc_in_train <- isTRUE(d$weather_forecast_in_train)
-  p <- if (!is.null(read_panel)) read_panel(area, span, spec$horizon_days, fc_in_train) else {
+  ## Regra de leitura do previsto do treino (E2-T2): so quando o plugin declara data_needs$train_weather_forecast; sem regra
+  ## (plugin-brinquedo) segue com TODAS as emissoes <= limite (prevcarga_read_forecast_vintages).
+  rule <- if (fc_in_train) prevcarga_inference_needs_train_rule(plugin, spec, area, span) else NULL
+  p <- if (!is.null(read_panel)) {
+    if (is.null(rule)) read_panel(area, span, spec$horizon_days, fc_in_train)
+    else read_panel(area, span, spec$horizon_days, fc_in_train, rule)
+  } else {
     pp <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
     if (fc_in_train)
-      pp$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
-                                                              cuts$weather_issue_limit)
+      pp$weather_forecast <- if (!is.null(rule))
+        prevcarga_read_forecast_by_rule(ctx, rule$area, origin, rule$segments, cuts$weather_issue_limit)
+      else prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
+                                            cuts$weather_issue_limit)
     pp
   }
   day_of <- function(x) lubridate::as_date(x, tz = cuts$tz)
@@ -282,16 +290,19 @@ prevcarga_train_matrix <- function(args, ctx) {
 }
 
 ## Memo do painel do dry-run: vive so na closure criada por chamada de prevcarga_train_plan (nada global, nada entre
-## execucoes). Chave exata (area, span, horizon_days, weather_forecast_in_train); o valor e o painel NAO cortado.
+## execucoes). Chave exata (area, span, horizon_days, weather_forecast_in_train, assinatura da regra de previsto); o valor e o painel NAO cortado.
 .prevcarga_tr_panel_memo <- function(ctx, origin, rc) {
   memo <- new.env(parent = emptyenv())
-  function(area, span, horizon_days, fc_in_train) {
-    k <- paste(area, span, horizon_days, isTRUE(fc_in_train), sep = "|")
+  function(area, span, horizon_days, fc_in_train, rule = NULL) {
+    sig <- if (is.null(rule)) "all" else paste(rule$area, vapply(rule$segments, function(z)
+      paste(z$kind, z$from, z$to, z$lead, sep = ","), ""), sep = ":", collapse = ";")
+    k <- paste(area, span, horizon_days, isTRUE(fc_in_train), sig, sep = "|")
     if (!is.null(memo[[k]])) return(memo[[k]])
     p <- prevcarga_read_panel(ctx, origin, area, horizon_days, span)
     if (isTRUE(fc_in_train))
-      p$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + horizon_days,
-                                                             rc$weather_issue_limit)
+      p$weather_forecast <- if (!is.null(rule))
+        prevcarga_read_forecast_by_rule(ctx, rule$area, origin, rule$segments, rc$weather_issue_limit)
+      else prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + horizon_days, rc$weather_issue_limit)
     assign(k, p, envir = memo); p
   }
 }
