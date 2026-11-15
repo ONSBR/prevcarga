@@ -173,6 +173,13 @@
   `Rscript -e 'testthat::test_file("scripts/lib/tests/test-forecast_matrix.R")'`; os 8 testes do epico + `test-errors-catalog-sync.R`; as unidades do 3.7
   (`test-engine-feriados-exogena.R`, `test-exo-prev-cut.R` do dessem-regdin e do dessem-linear, `test-delivery-grid-cut.R` do lgbm).
 
+### E6 -- combina_celula
+- `.forecast_leaves` chama o apply com `stale_ok = TRUE` e guarda `lv$cells[[folha]] = cell_months`. `run_manifest.json` ganha `combina_celula[[folha]] =
+  {mes_pedido, mes_usado, stale}` (sobreposto depois de `prevcarga_run_manifest`, como `split` e `combina/<folha> = EQW`) e o `run.json` grava o mesmo bloco ao lado de
+  `combina_pesos`. Valores em texto/logico simples (ASCII); mais de um mes diverge => lista separada por virgula; folha EQW fica fora do bloco.
+- `warning.combina_stale` (um por folha e mes pedido) chega a `warnings[]` com id, mensagem e where = folha: o coletor do cli.R descarta `details`, entao os campos
+  mes_pedido/mes_usado ficam no `combina_celula` (mesmo contorno do E2-T4). A rodada sai exit 0. Teste: `test-combination-stale.R` [AC5].
+
 ## Pendencias registradas (sem decisao nesta spec; doc-vs-codigo)
 - **Intercepto 0 no relatorio da rodada** (cli-backtest-ops-11, combina-reconcilia-02): `.forecast_weights_table` grava `intercept = 0` fixo e o `weight` e a media dos `w` de todas as celulas do corte (todos os leads e meses),
   nao so das celulas (lead, mes de O) aplicadas; o `a` real esta no artefato e e aplicado no `y_pred`. O comentario de `forecast.R` ("a combina nao tem intercepto") esta defasado. Registrado como pendencia; o codigo nao muda e o site nao afirma comportamento novo.

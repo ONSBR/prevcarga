@@ -133,3 +133,14 @@
   (sem `next_ym`, o ultimo ym fitado, como antes).
 - Delta 0: `prevcarga_combina_full`, `combine --mode=full`, o gate e o `.bt_combine` do backtest chamam o fit com o default; tabela, `weights/<mes>/*.rds` e
   `combined.parquet` byte a byte iguais (`test-backtest-reduce.R` "[E6] .bt_combine delta 0"). Testes: `test-combination-next-month.R`.
+
+### E6 -- celula stale na rodada
+- `.prevcarga_cmb_resolve_cells(rows, weights, area, allow_stale)`: para cada (lead, cut, ym) do painel sem celula exata usa a de maior ym anterior do mesmo (lead, cut),
+  re-chaveada para o ym pedido (`a`, `w`, `fallback` preservados; a celula usada pode ser `n_min`/`no_member` e vale como esta). Devolve `list(weights, cells_used)`,
+  `cells_used` = (lead, cut, ym_pedido, ym_usado). ym e texto YYYY-MM (ordem lexicografica = cronologica; sem aritmetica de hora); stale sem limite de idade.
+- Sem celula anterior (mes pedido antes de toda celula) ou `allow_stale = FALSE`: aborta `contract.combina_input` com where `produce_combined:lead=.. cut=.. ym=..`;
+  nunca EQW silencioso e nenhum aviso sai. Celula exata presente: sem aviso. Um `warning.combina_stale` (classe completude) por (folha, mes_pedido), where = folha,
+  details folha/mes_pedido/mes_usado (uniao ordenada, separada por virgula, se mais de um lead divergir).
+- `prevcarga_combina_apply(..., stale_ok = FALSE)`: so o forecast passa TRUE; `combine --mode=apply` e o default seguem estritos. Com `detail = TRUE` devolve tambem
+  `cell_months` (mes_pedido, mes_usado, stale) e `eqw_reason` (NA com pesos; `not_trained` no ramo sem `latest.txt`, onde `cell_months` e NULL). `combina_full` e o backtest
+  nao passam por aqui. Testes: `test-combination-stale.R`.

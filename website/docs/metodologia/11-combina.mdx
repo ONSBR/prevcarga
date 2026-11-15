@@ -198,6 +198,8 @@ Os pesos ficam em `<artifact_dir>/<área>/v_<hash>/weights.rds`, com o manifesto
 
 Na aplicação do verbo `combine --mode apply`, sem `latest.txt` a área dá `state.combina_not_trained` (exit 13). Na rodada diária (`forecast`) esse erro não existe: sem `latest.txt` a folha usa a média simples dos membros presentes (EQW), emite `warning.combina_eqw` e registra `pesos=EQW` na proveniência (`run.json` e `result`), sem gravar pesos. Os pesos são retreinados uma vez por mês com `combine --mode train`, o que tira a folha do EQW. Um `weights.rds` alterado falha na conferência de integridade (exit 9); pesos de outro conjunto de membros, rótulo ou fuso dão `contract.combina_artifact_mismatch` (exit 2).
 
+**Célula stale na rodada.** O retreino é mensal e a combinação guarda uma célula por (lead, corte, mês), com a do mês seguinte ao último treinado. Se o retreino atrasa e o mês da rodada não tem célula, a rodada diária usa a célula de maior mês anterior do mesmo (lead, corte), re-chaveada para o mês pedido, e emite `warning.combina_stale` (um por folha e mês pedido). Não há limite de idade. Mês pedido anterior a toda célula continua abortando `contract.combina_input`: nunca há EQW silencioso. O `combine --mode apply` segue estrito e aborta `contract.combina_input` quando falta a célula do mês.
+
 `apply` sobre o resultado de `train` dá saída idêntica, bit a bit, à de `full` no mesmo painel.
 
 ```bash title="prevcarga combine"
