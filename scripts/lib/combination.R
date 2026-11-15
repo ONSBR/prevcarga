@@ -878,6 +878,15 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
 }
 
 ## --- apply: aplica os pesos congelados, nunca re-fita --------------------------------------------------------
+## E6-T3: retorno unico do EQW (ramo sem latest.txt e ramo de outro conjunto de membros): mesmo shape de detail.
+.prevcarga_cmb_eqw_result <- function(long, detail, reason) {
+  if (!detail) return(long)
+  list(long = long, weights = NULL, members_by_lead = NULL, version_hash = "EQW", path = NA_character_,
+       cell_months = NULL, eqw_reason = reason)
+}
+
+## Ordem das checagens: load_label/load_tz (sempre aborta, nunca EQW: pesos de outra convencao nao viram media),
+## depois member_set_hash (EQW so com fallback_eqw = TRUE), depois a resolucao stale do T2.
 prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL,
                                     members = prevcarga_members(root = ctx$root), detail = FALSE,
                                     fallback_eqw = FALSE, stale_ok = FALSE) {
@@ -888,9 +897,7 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
     rows <- .prevcarga_cmb_select_cut(panel, t_cut)
     long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_eqw(rows), ctx)
     prevcarga_warn("warning.combina_eqw", where = area)   # nunca grava pesos: so a ausencia de latest.txt vira EQW
-    if (!detail) return(long)
-    return(list(long = long, weights = NULL, members_by_lead = NULL, version_hash = "EQW", path = NA_character_,
-                cell_months = NULL, eqw_reason = "not_trained"))
+    return(.prevcarga_cmb_eqw_result(long, detail, reason = "not_trained"))
   }
   vh <- readLines(lp, n = 1L, warn = FALSE)
   if (!length(vh) || !grepl("^v_[0-9a-f]{16}$", vh))
@@ -898,10 +905,20 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
   obj <- prevcarga_thaw(file.path(artifact_dir, area, vh, "weights.rds"))      # integrity (9) antes do readRDS
   if (!is.list(obj) || !all(c("meta", "weights") %in% names(obj)))
     prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))
-  if (!identical(obj$meta$member_set_hash, prevcarga_member_set_hash(members)) ||
-      !identical(obj$meta$load_label, .prevcarga_cmb_prov1(panel, "load_label", "apply")) ||
+  if (!identical(obj$meta$load_label, .prevcarga_cmb_prov1(panel, "load_label", "apply")) ||
       !identical(obj$meta$load_tz, .prevcarga_cmb_prov1(panel, "load_tz", "apply")))
-    prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))
+    prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))   # nunca EQW
+  if (!identical(obj$meta$member_set_hash, prevcarga_member_set_hash(members))) {
+    if (!isTRUE(fallback_eqw))
+      prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))
+    art <- sort(unique(unlist(obj$meta$members_by_lead$members)), method = "radix")
+    cur <- sort(as.character(members$sigla), method = "radix")
+    rows <- .prevcarga_cmb_select_cut(panel, t_cut)
+    long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_eqw(rows), ctx)
+    prevcarga_warn("warning.combina_member_set", where = area,
+                   details = list(folha = area, incluidos = setdiff(cur, art), retirados = setdiff(art, cur)))
+    return(.prevcarga_cmb_eqw_result(long, detail, reason = "member_set"))
+  }
   rows <- .prevcarga_cmb_select_cut(panel, t_cut)
   rc   <- .prevcarga_cmb_resolve_cells(rows, obj$weights, area, allow_stale = isTRUE(stale_ok))
   long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_combined(rows, rc$weights), ctx)

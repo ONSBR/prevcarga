@@ -43,7 +43,7 @@ test_that("[AC1] sem latest.txt e fallback_eqw: y_pred == produce_eqw, aviso com
   expect_identical(w$where, "SECO")
 })
 
-test_that("[AC2] sem fallback aborta 13; latest.txt invalido e artefato de outro conjunto seguem abortando com fallback", {
+test_that("[AC2] sem fallback aborta 13; latest.txt invalido segue abortando com fallback; outro conjunto de membros vira EQW so com fallback (E6-T3)", {
   art <- withr::local_tempdir("eqw-")
   e <- catch_pc(env$prevcarga_combina_apply("SECO", art, panel, ctx, members = members))
   expect_identical(e$id, "state.combina_not_trained"); expect_identical(e$exit_code, 13L)
@@ -53,9 +53,12 @@ test_that("[AC2] sem fallback aborta 13; latest.txt invalido e artefato de outro
   dir.create(file.path(art, "SECO")); writeLines("lixo", file.path(art, "SECO", "latest.txt"))
   e1 <- catch_pc(env$prevcarga_combina_apply("SECO", art, panel, ctx, members = members, fallback_eqw = TRUE))
   expect_identical(e1$id, "contract.combina_input")
-  ## artefato de outro conjunto de membros
+  ## artefato de outro conjunto de membros: com fallback vira EQW (E6-T3); sem fallback aborta como antes
   t3 <- pc_cmb_trained(env, panel, pc_cmb_members_without_last(members))
-  e2 <- catch_pc(env$prevcarga_combina_apply("SECO", t3$dir, panel, ctx, members = members, fallback_eqw = TRUE))
+  r3 <- warn_ids(env$prevcarga_combina_apply("SECO", t3$dir, panel, ctx, members = members, detail = TRUE, fallback_eqw = TRUE))
+  expect_identical(r3$ids, "warning.combina_member_set")
+  expect_identical(r3$val$version_hash, "EQW"); expect_identical(r3$val$eqw_reason, "member_set")
+  e2 <- catch_pc(env$prevcarga_combina_apply("SECO", t3$dir, panel, ctx, members = members, fallback_eqw = FALSE))
   expect_identical(e2$id, "contract.combina_artifact_mismatch")
   ## CONTROL: com pesos treinados o fallback nao liga (sem aviso, versao v_<hash>)
   tr <- pc_cmb_trained(env, panel, members)

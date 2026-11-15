@@ -144,3 +144,15 @@
 - `prevcarga_combina_apply(..., stale_ok = FALSE)`: so o forecast passa TRUE; `combine --mode=apply` e o default seguem estritos. Com `detail = TRUE` devolve tambem
   `cell_months` (mes_pedido, mes_usado, stale) e `eqw_reason` (NA com pesos; `not_trained` no ramo sem `latest.txt`, onde `cell_months` e NULL). `combina_full` e o backtest
   nao passam por aqui. Testes: `test-combination-stale.R`.
+
+### E6 -- troca do conjunto de membros
+- `prevcarga_combina_apply` separa as checagens do artefato, nesta ordem: (1) `load_label`/`load_tz` do meta contra `.prevcarga_cmb_prov1(panel, ...)`: divergente aborta
+  `contract.combina_artifact_mismatch` SEMPRE, com ou sem `fallback_eqw`, e nenhum EQW sai (pesos de outra convencao nunca viram media); (2) `member_set_hash`: divergente sem
+  `fallback_eqw` aborta como antes (`combine --mode=apply`); com `fallback_eqw = TRUE` (so o forecast) devolve `prevcarga_produce_eqw(rows)` (1/k dos presentes) e emite
+  `warning.combina_member_set` (completude; where = folha; details folha, incluidos, retirados); (3) so depois a resolucao stale do T2.
+- incluidos = `setdiff(members$sigla, siglas do artefato)`, retirados = `setdiff(siglas do artefato, members$sigla)`; siglas do artefato = uniao ordenada (radix) de
+  `meta$members_by_lead$members`, isto e, os membros que de fato entraram nos pesos (derivados do painel de treino, nao do argumento `members` do treino). Membro so retirado
+  (incluidos vazio) e so incluido (retirados vazio) sao ambos EQW.
+- `.prevcarga_cmb_eqw_result(long, detail, reason)` e o retorno unico do EQW (ramo sem `latest.txt` com `eqw_reason = not_trained` e ramo de membros com `member_set`):
+  com `detail = TRUE`, `weights`, `members_by_lead` e `cell_months` NULL, `version_hash = EQW`, `path` NA. Nada e gravado em `artifact_dir`. Testes: `test-combination-member-set.R`,
+  `test-combination-eqw.R` [AC2].
