@@ -58,7 +58,16 @@ dessem_engine_guard <- function(code, ...) {
   stop(msg, call. = FALSE)
 }
 
+## Aborto terminal da amostra pequena: clamp e guarda de modelo vazio esgotados.
+.wsvm_small_sample <- function(n_eff, from, to, msg) {
+  engine_abort("engine.dessem_tune_small_sample", where = "_dessem-engine/tune_wsvm",
+               details = list(n_eff = as.integer(n_eff), cross_from = as.integer(from),
+                              cross_to = as.integer(to),
+                              retry_message = iconv(msg, to = "ASCII//TRANSLIT")))
+}
+
 ## _load_engine.R:311 -- clamp de cross (amostra pequena de dia especial, caso TON).
+## Encadeia a guarda de modelo vazio quando o retry clampado falha com empty|constant|scale.
 .wsvm_clamp_cross <- function(.args, msg) {
   dat <- .args$data
   if (is.null(dat)) stop(msg, call. = FALSE)
@@ -67,13 +76,20 @@ dessem_engine_guard <- function(code, ...) {
   ctl <- if (!is.null(.args$tunecontrol)) .args$tunecontrol else WeightSVM::tune.control()
   cur <- if (is.null(ctl$cross)) 10L else as.integer(ctl$cross)
   new_cross <- min(cur, as.integer(n_eff))
-  if (new_cross < 2L) stop(msg, call. = FALSE)           # amostra degenerada: re-propaga o erro original
+  if (new_cross < 2L) return(.wsvm_small_sample(n_eff, cur, new_cross, msg))
   ctl$cross <- new_cross
   a2 <- .args; a2$tunecontrol <- ctl
-  r <- tryCatch(do.call(.tune_wsvm_real, a2), error = function(e) NULL)
-  if (is.null(r)) stop(msg, call. = FALSE)
+  r <- tryCatch(do.call(.tune_wsvm_real, a2),
+                error = function(e) structure(list(m = conditionMessage(e)), class = "dessem_tune_err"))
+  if (!inherits(r, "dessem_tune_err")) {
+    message(dessem_engine_guard("warning.engine_cross_clamped", from = cur, to = new_cross, n_eff = as.integer(n_eff)))
+    return(r)
+  }
+  if (!grepl("empty|constant|scale", r$m, ignore.case = TRUE)) return(.wsvm_small_sample(n_eff, cur, new_cross, r$m))
   message(dessem_engine_guard("warning.engine_cross_clamped", from = cur, to = new_cross, n_eff = as.integer(n_eff)))
-  r
+  g <- tryCatch(.wsvm_guard_retry(a2, r$m),
+                error = function(e) structure(list(m = conditionMessage(e)), class = "dessem_tune_err"))
+  if (inherits(g, "dessem_tune_err")) .wsvm_small_sample(n_eff, cur, new_cross, g$m) else g
 }
 
 ## _load_engine.R:331 -- despachante. Sucesso devolve o objeto do real sem tocar.

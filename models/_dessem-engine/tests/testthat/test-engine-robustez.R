@@ -110,7 +110,85 @@ test_that("ac-2 cross > amostra: clampa em min(10, sum(w>0)) = 5 e emite a guard
   expect_identical(r$value$best.parameters$cost, 1)
   ## CONTROL: 1 linha com peso > 0 => new_cross < 2 => erro original, sem fallback silencioso
   args$weight <- c(1, rep(0, 9))
-  expect_error(do.call(eng$tune_wsvm, args), "sampling size")
+  expect_error(do.call(eng$tune_wsvm, args), "engine.dessem_tune_small_sample")
+})
+
+## stub deterministico do tune real: sequencia de respostas (erro de mensagem ou valor)
+rb_env <- function(eng, nm = ".tune_wsvm_real") {
+  e <- environment(eng$tune_wsvm)
+  while (!exists(nm, envir = e, inherits = FALSE)) e <- parent.env(e)
+  e
+}
+rb_stub <- function(eng, ...) {
+  resp <- list(...); i <- 0L
+  f <- function(...) {
+    i <<- i + 1L
+    r <- resp[[min(i, length(resp))]]
+    if (is.character(r)) stop(r, call. = FALSE)
+    r
+  }
+  assign(".tune_wsvm_real", f, envir = rb_env(eng))
+  invisible(NULL)
+}
+rb_args5 <- function() {
+  d <- data.frame(Carga = c(1, 2, 3, 4, 5, 0, 0), LAG_1 = c(1, 2, 3, 4, 5, 0, 0))
+  list(Carga ~ LAG_1, weight = c(rep(1, 5), 0, 0), data = d, kernel = "linear")
+}
+rb_guard_codes <- function(r) vapply(r$guards, function(g) g$code, "")
+
+test_that("clamp_encadeado: sampling size -> empty no cross clampado -> guarda recupera, sem generic.unexpected", {
+  eng <- rb_engine()
+  rb_stub(eng, "sampling size is greater", "Model is empty!", "ok_guard")
+  g <- function(.args, msg) {
+    message(dessem_engine_guard("warning.engine_empty_model_guard", dropped = "F11", k = 3))
+    "modelo_ok"
+  }
+  environment(g) <- eng
+  assign(".wsvm_guard_retry", g, envir = rb_env(eng))
+  r <- rb_collect(do.call(eng$tune_wsvm, rb_args5()))
+  expect_identical(r$value, "modelo_ok")
+  expect_identical(rb_guard_codes(r), c("warning.engine_cross_clamped", "warning.engine_empty_model_guard"))
+  expect_identical(r$guards[[1L]]$details$from, 10L)
+  expect_identical(r$guards[[1L]]$details$to, 5L)
+})
+
+test_that("clamp_encadeado: guarda falhando, n_eff = 1 e outra classe de erro no retry abortam small_sample", {
+  eng <- rb_engine()
+  env <- rb_env(eng)
+  ## guarda tambem falha
+  rb_stub(eng, "sampling size", "Model is empty!")
+  assign(".wsvm_guard_retry", function(.args, msg) stop("Model is empty!", call. = FALSE), envir = env)
+  e <- tryCatch(do.call(eng$tune_wsvm, rb_args5()), error = function(e) e)
+  expect_match(conditionMessage(e), "engine.dessem_tune_small_sample", fixed = TRUE)
+  ## n_eff = 1 (new_cross < 2)
+  rb_stub(eng, "sampling size")
+  a <- rb_args5(); a$weight <- c(1, rep(0, 6))
+  e <- tryCatch(do.call(eng$tune_wsvm, a), error = function(e) e)
+  expect_match(conditionMessage(e), "engine.dessem_tune_small_sample", fixed = TRUE)
+  ## retry com outra classe de erro
+  rb_stub(eng, "sampling size", "length of weight")
+  e <- tryCatch(do.call(eng$tune_wsvm, rb_args5()), error = function(e) e)
+  expect_match(conditionMessage(e), "engine.dessem_tune_small_sample", fixed = TRUE)
+})
+
+test_that("clamp_encadeado: .wsvm_small_sample passa details e retry_message ASCII ao abort", {
+  eng <- rb_engine()
+  env <- rb_env(eng)
+  got <- NULL
+  assign("engine_abort", function(id, where = NULL, details = NULL) { got <<- list(id = id, d = details); stop("abort") }, envir = env)
+  try(env$.wsvm_small_sample(1, 10, 1, "erro \u00e7 acentuado"), silent = TRUE)
+  expect_identical(got$id, "engine.dessem_tune_small_sample")
+  expect_identical(names(got$d), c("n_eff", "cross_from", "cross_to", "retry_message"))
+  expect_identical(got$d$n_eff, 1L)
+  expect_false(grepl("[^\\x01-\\x7F]", got$d$retry_message, perl = TRUE))
+})
+
+test_that("clamp_encadeado: catalogo tem a linha ASCII com classe window", {
+  f <- file.path(eng_root(), "scripts", "lib", "errors", "dessem_engine.tsv")
+  l <- grep("^engine.dessem_tune_small_sample\t", readLines(f, warn = FALSE), value = TRUE)
+  expect_length(l, 1L)
+  expect_identical(strsplit(l, "\t")[[1L]][2L], "window")
+  expect_false(grepl("[^\x01-\x7F]", l, perl = TRUE))
 })
 
 test_that("ac-6 env do motor tem o wrapper e o globalenv nao ganha tune_wsvm nem as guardas", {
