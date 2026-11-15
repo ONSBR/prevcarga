@@ -45,17 +45,20 @@
 
 ## Carga JA horaria (o despachante reamostra com to_hourly da fundacao: hora = media dos intervalos H:00 e H:30; hora
 ## incompleta descartada) na janela [first_day, last_day]. Buraco (area x dia sem as 24 horas) => plugin.completude;
-## carga que comeca depois de first_day => plugin.window.
-.rf_hourly_load <- function(load60, cuts, first_day, last_day) {
+## carga que comeca depois de first_day (ou de required_from, quando informado) => plugin.window. `required_from` (fase
+## infer): primeiro dia exigido, >= first_day; a completude cobre so [required_from, last_day] e dias anteriores presentes
+## continuam no frame.
+.rf_hourly_load <- function(load60, cuts, first_day, last_day, required_from = NULL) {
   h <- data.table::copy(data.table::as.data.table(load60))
   tz <- cuts$tz
   areas <- sort(unique(h$area_code))
   h[, `:=`(dia = lubridate::as_date(interval_start, tz = tz), hora = lubridate::hour(interval_start))]
-  if (!nrow(h) || min(h$dia) > first_day)
-    .rf_abort("plugin.window", details = list(primeiro_exigido = format(first_day),
+  need_from <- if (is.null(required_from)) first_day else required_from
+  if (!nrow(h) || min(h$dia) > need_from)
+    .rf_abort("plugin.window", details = list(primeiro_exigido = format(need_from),
       primeiro_presente = if (nrow(h)) format(min(h$dia)) else NA_character_))
   h <- h[dia >= first_day & dia <= last_day]
-  grid <- data.table::CJ(area_code = areas, dia = seq(first_day, last_day, by = "day"))
+  grid <- data.table::CJ(area_code = areas, dia = seq(need_from, last_day, by = "day"))
   cnt <- h[, list(N = .N), by = list(area_code, dia)][grid, on = c("area_code", "dia")]
   gap <- cnt[is.na(N) | N != 24L]
   if (nrow(gap))
@@ -87,7 +90,8 @@
 ## Estagio: (panel, cuts, spec) -> rf_frame. Janelas, H e historico vem de `spec` (run.yaml) e `cuts`, nunca literais.
 ##   train: carga [train_origin - history_days.train, last_data_day]; origens nativas
 ##          seq(train_origin - history_days.train + H, train_origin).
-##   infer: carga [O - history_days.infer, O-1] (o dia O nunca entra); safra sobre a janela de origens
+##   infer: carga exigida [min(keep) - max_lag_days, O-1] = O-8..O-1 (dias anteriores presentes seguem no frame; o dia O
+##          nunca entra); safra sobre a janela de origens
 ##          seq(O - history_days.infer, O), o frame guarda c(O-1, O).
 plugin_ingest <- function(panel, cuts, spec) {
   phase <- .rf_phase(panel, cuts)
@@ -102,13 +106,15 @@ plugin_ingest <- function(panel, cuts, spec) {
     last_day <- cuts$last_data_day
     origins <- seq(first_day + H, cuts$train_origin, by = "day")
     keep <- NULL
+    required_from <- NULL
   } else {
     first_day <- O - spec$history_days$infer
     last_day <- O - 1L
     origins <- seq(first_day, O, by = "day")
     keep <- c(O - 1L, O)
+    required_from <- min(keep) - plugin_constants()$max_lag_days
   }
-  load <- .rf_hourly_load(panel$load, cuts, first_day, last_day)
+  load <- .rf_hourly_load(panel$load, cuts, first_day, last_day, required_from)
   wx <- data.table::as.data.table(panel$weather_forecast)[area_code == area]
   vint <- .rf_weather_vintage(wx, origins, cuts, H)
   lo <- .rf_weather_locf(vint, origins, H, phase, keep)

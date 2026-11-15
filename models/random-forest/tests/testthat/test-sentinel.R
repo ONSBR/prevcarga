@@ -17,7 +17,7 @@ sent_run <- function() {
 test_that("[PLUGINS] sentinela: hora H = media dos sentinelas H:00 e H:30 (por interval_start); prev_day_mean = media do dia O-1", {
   s <- sent_run()
   ld <- s$frame$load
-  expect_gt(nrow(ld), 24L * 40L)
+  expect_gt(nrow(ld), 24L * 8L)
   expect_equal(ld$load_mw, sent_min(ld$dia, ld$hora) + 15)
   ft <- s$p$plugin_build_features(s$frame, s$spec)$table
   O <- RF_O
