@@ -18,23 +18,58 @@ dl_common_series <- function(SERIECOMP) {
   if ("Bloco" %in% names(SERIECOMP)) SERIECOMP[Bloco == 0L] else SERIECOMP
 }
 
+## Replica local de inclui_CargaMediaRef (_dessem-engine/R/entrada_perfil.R) com a constante DADA (sem getNormalizaCarga);
+## muta seriePF por referencia. Dias sem carga (NaN) ficam NA, como no motor.
+dl_cargamed_ref <- function(seriePF, const) {
+  seriePF[, CargaMed := mean(Carga, na.rm = TRUE) / const, by = .(Data)]
+  seriePF[is.nan(CargaMed), CargaMed := NA_real_]
+  invisible(seriePF)
+}
+
+## norm injetado: lista com as quatro constantes, numericas e sem NA (a forma gravada no artefato). A constante 0 e recusada.
+dl_check_norm <- function(norm) {
+  need <- c("dm_carga", "dm_exo", "pf_cargadm", "pf_exo")
+  have <- if (is.list(norm)) need[need %in% names(norm)] else character()
+  ## constante vazia e legitima: a flag de normalizacao desligada no config faz getNormaliza* devolver logical(0) e a
+  ## serie nao divide (a flag decide, nao a constante). Presente e nao vazia: numerica, sem NA e diferente de 0.
+  bad <- have[vapply(have, function(k) {
+    x <- norm[[k]]
+    length(x) > 0L && (!is.numeric(x) || anyNA(x) || any(x == 0))
+  }, NA)]
+  miss <- setdiff(need, have)
+  if (length(miss) || length(bad)) {
+    k <- c(miss, bad)
+    dl_abort("plugin.dessem_linear_artifact_mismatch", where = "dessem-linear/build_series",
+             reason = sprintf("norm: constante ausente, NA ou 0 (%s)", paste(k, collapse = ",")),
+             details = list(field = "norm", constante = k))
+  }
+  invisible(norm)
+}
+
 ## serieDM (diaria) e seriePF (horaria) limpas, na mesma ordem de operacoes do processaModelosDMPerfil.
-dl_build_series <- function(SERIECOMP, config_mdl) {
+## norm = NULL: constantes calculadas sobre a base (caminho do treino). norm dado: as quatro constantes vem do argumento
+## e getNormaliza* nao sao chamadas (a serie de um deck curto usa a normalizacao do deck longo).
+dl_build_series <- function(SERIECOMP, config_mdl, norm = NULL) {
   eng <- dl_engine()
-  base <- dl_common_base(SERIECOMP)
   nrm <- config_mdl$normalizacao
+  if (!is.null(norm)) dl_check_norm(norm)
+  if (is.null(norm)) {
+    base <- dl_common_base(SERIECOMP)
+    k <- list(dm_carga = eng$getNormalizaCarga(nrm$dm$carga, base),
+              dm_exo = eng$getNormalizaExogena(nrm$dm$exogena, base))
+  } else k <- norm
   serieDM <- eng$aggregaSerie(
     serieHist = data.table::copy(dl_common_series(SERIECOMP)),
     tipotemp = config_mdl$exogenaOper,
     normaliza = any(nrm$dm$carga$flag, nrm$dm$exogena$flag),
-    constnorm = eng$getNormalizaCarga(nrm$dm$carga, base),
-    constnormtemp = eng$getNormalizaExogena(nrm$dm$exogena, base))
+    constnorm = k$dm_carga,
+    constnormtemp = k$dm_exo)
   seriePF <- data.table::copy(SERIECOMP)
-  eng$inclui_CargaMediaRef(seriePF, nrm$perfil$cargadm)
+  if (is.null(norm)) eng$inclui_CargaMediaRef(seriePF, nrm$perfil$cargadm) else dl_cargamed_ref(seriePF, norm$pf_cargadm)
   eng$normalizaSerieRef(
     serieHist = seriePF,
     constnorm = nrm$perfil$carga$oper,
-    constnormtemp = eng$getNormalizaExogena(nrm$exogena, base))
+    constnormtemp = if (is.null(norm)) eng$getNormalizaExogena(nrm$exogena, base) else norm$pf_exo)
   list(serieDM = serieDM, seriePF = seriePF)
 }
 
@@ -50,7 +85,8 @@ dl_norm_constants <- function(SERIECOMP, config_mdl) {
 }
 
 ## `spec` = list(params = ...); a variante e validada ANTES de qualquer calculo do motor.
-plugin_build_features <- function(deck, spec) {
+plugin_build_features <- function(deck, spec, norm = NULL) {
+  if (!is.null(norm)) dl_check_norm(norm)   # antes de qualquer chamada ao motor
   v <- dl_resolve_variant(spec)
   eng <- dl_engine()
   config_mdl <- eng$getConfigModel(v$model_key)
@@ -67,10 +103,10 @@ plugin_build_features <- function(deck, spec) {
     processado$DIASPREV <- processado$DIASPREV[seq_len(deck$horizon)]
     processado$NDIASPREV <- deck$horizon
   }
-  s <- dl_build_series(processado$SERIECOMP, config_mdl)
+  s <- dl_build_series(processado$SERIECOMP, config_mdl, norm)
   frame <- deck
   frame$variant <- v$exogena
   frame$model_key <- v$model_key
   list(processado = processado, serieDM = s$serieDM, seriePF = s$seriePF, config_mdl = config_mdl,
-       norm = dl_norm_constants(processado$SERIECOMP, config_mdl), deck = frame)
+       norm = if (is.null(norm)) dl_norm_constants(processado$SERIECOMP, config_mdl) else norm, deck = frame)
 }

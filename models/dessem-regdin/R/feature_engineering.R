@@ -10,7 +10,8 @@ rd_muffle <- function(patterns, expr) {
 }
 
 ## `spec` = list(params = ...); a variante e validada ANTES de qualquer chamada ao motor.
-plugin_build_features <- function(deck, spec) {
+plugin_build_features <- function(deck, spec, norm = NULL) {
+  if (!is.null(norm)) .rd_check_norm(norm)   # antes de qualquer chamada ao motor
   key <- .rd_variant_key(spec$params)
   eng <- rd_engine()
   config_mdl <- eng$getConfigModel(key)
@@ -29,11 +30,12 @@ plugin_build_features <- function(deck, spec) {
     proc$NDIASPREV <- n
   }
   n_leak <- .rd_enforce_real_history(proc$SERIECOMP)
-  s <- .rd_build_series(proc$SERIECOMP, config_mdl)
+  s <- .rd_build_series(proc$SERIECOMP, config_mdl, norm)
   dias <- format(proc$DIASPREV)
   frame <- deck
   frame$model_key <- key
   frame$variant <- spec$params$exogena
   list(processado = proc, config_mdl = config_mdl, series = s, dias = dias,
-       day_types = .rd_day_types(s$seriePF, dias), n_leak = n_leak, deck = frame)
+       day_types = .rd_day_types(s$seriePF, dias), n_leak = n_leak, deck = frame,
+       norm = if (is.null(norm)) .rd_norm_constants(proc$SERIECOMP, config_mdl) else norm)
 }
