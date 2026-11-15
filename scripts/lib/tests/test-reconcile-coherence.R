@@ -100,7 +100,7 @@ deck <- pc_deck_sentinel("start", days = Od + (-45:0), areas = c(topo$order, top
 cc <- function(long) {
   p <- file.path(tmp, paste0("long-", length(list.files(tmp)), ".parquet"))
   arrow::write_parquet(long, p)
-  r <- pc_cli(root, c("check-coherence", "--long", p, paste0("--data=", deck), paste0("--origin=", O), "--format=json"))
+  r <- pc_cli(root, c("check-coherence", "--long", p, paste0("--data-train=", deck), paste0("--origin=", O), "--format=json"))
   list(status = r$status, j = jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE), r = r)
 }
 

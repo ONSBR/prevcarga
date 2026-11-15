@@ -14,8 +14,6 @@
   schema_version = list(default = 1L, kind = "int"),
   data_train_dir = list(default = NULL, kind = "chr"),
   data_inference_dir = list(default = NULL, kind = "chr"),
-  ## data_dir: apelido legado de data_train_dir (uma versao; warning.option_alias)
-  data_dir = list(default = NULL, kind = "chr"),
   state_dir = list(default = NULL, kind = "chr"),
   artifacts_dir = list(default = NULL, kind = "chr"),
   load_label = list(default = NULL, kind = "enum", allowed = c("end", "start"),
@@ -130,21 +128,6 @@ prevcarga_parse_origin_range <- function(x, verb = NULL) {
   normalizePath(p, winslash = "/", mustWork = FALSE)
 }
 
-## apelido x nome novo (E1-T2): novo vence; so apelido => aviso warning.option_alias; os dois com valores diferentes => config.usage
-.prevcarga_pick_alias <- function(new_val, alias_val, new_name, alias_name) {
-  if (!is.null(new_val) && !is.null(alias_val)) {
-    if (!identical(.prevcarga_norm_path(new_val), .prevcarga_norm_path(alias_val)))
-      prevcarga_abort("config.usage", where = paste(alias_name, new_name, sep = " x "),
-                      details = list(hint = sprintf("use so %s", new_name)))
-    return(new_val)
-  }
-  if (!is.null(alias_val)) {
-    prevcarga_warn("warning.option_alias", where = alias_name, details = list(alias = alias_name, novo = new_name))
-    return(alias_val)
-  }
-  new_val
-}
-
 prevcarga_run_id <- function() {
   sprintf("%s-%d", format(lubridate::now(tzone = "UTC"), "%Y%m%dT%H%M%SZ"), Sys.getpid())
 }
@@ -181,23 +164,12 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
                                 c("auto", "always", "never"), "config.bad_color")
   origin <- prevcarga_parse_origin(flag("--origin"), verb)
   ## raiz de artefatos apontada (so leitura): flag > config.yaml > NULL (sem env var); tem de existir
-  ad <- .prevcarga_norm_path(.prevcarga_pick(
-    .prevcarga_pick_alias(flag("--data-artifacts"), flag("--artifacts-dir"), "--data-artifacts", "--artifacts-dir"),
-    cfg$artifacts_dir, NULL))
+  ad <- .prevcarga_norm_path(.prevcarga_pick(flag("--data-artifacts"), cfg$artifacts_dir, NULL))
   if (!is.null(ad) && !dir.exists(ad))
     prevcarga_abort("config.artifacts_dir_missing", where = ad,
                     details = list(hint = "aponte --data-artifacts para um diretorio de artefatos que exista"))
-  ## papeis de dados: flag (nome novo x apelido) > config.yaml (data_train_dir x data_dir)
-  cfg_train <- cfg$data_train_dir
-  if (!is.null(cfg$data_dir)) {
-    if (is.null(cfg_train)) {
-      prevcarga_warn("warning.option_alias", where = "data_dir", details = list(alias = "data_dir", novo = "data_train_dir"))
-      cfg_train <- cfg$data_dir
-    } else if (!identical(.prevcarga_norm_path(cfg_train), .prevcarga_norm_path(cfg$data_dir)))
-      prevcarga_warn("warning.option_alias", where = "data_dir", details = list(alias = "data_dir", novo = "data_train_dir"))
-  }
-  train <- .prevcarga_norm_path(.prevcarga_pick(
-    .prevcarga_pick_alias(flag("--data-train"), flag("--data"), "--data-train", "--data"), cfg_train, NULL))
+  ## papeis de dados: flag > config.yaml (sem apelidos: --data, --artifacts-dir e data_dir nao existem mais)
+  train <- .prevcarga_norm_path(.prevcarga_pick(flag("--data-train"), cfg$data_train_dir, NULL))
   infer <- .prevcarga_norm_path(.prevcarga_pick(flag("--data-inference"), cfg$data_inference_dir, NULL))
   vf <- file.path(root, "config", "VERSION")
   version <- if (file.exists(vf)) trimws(readLines(vf, n = 1L, warn = FALSE)) else "unknown"
@@ -228,7 +200,7 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
 ## (o deck ativo). Recusa de papel (contract.deck_role_refused) e conflito de flags (config.usage) antes de qualquer leitura.
 prevcarga_resolve_deck_role <- function(ctx, roles = "train", args = list()) {
   has <- function(n) { v <- args[[n]]; !(is.null(v) || !length(v) || identical(v, FALSE) || all(is.na(v))) }
-  f_train <- has("--data-train") || has("--data")
+  f_train <- has("--data-train")
   f_inf <- has("--data-inference")
   if (f_train && f_inf) prevcarga_abort("config.usage", where = "--data-train x --data-inference")
   role <- if (f_inf) "inference" else if (f_train) "train" else if (!is.null(ctx$data_train_dir)) "train" else
@@ -251,7 +223,7 @@ prevcarga_require_data_dir <- function(ctx) {
   invisible(ctx)
 }
 
-## --- set-data-dir: grava data_dir no config.yaml (unico escritor do config.yaml dentro do pacote) ----------------------------
+## --- set-data-dir: grava as chaves de dados no config.yaml (unico escritor do config.yaml dentro do pacote) ----------------------------
 ## Alvo: o config.yaml em uso (--config, o da raiz do codigo ou o da instalacao); sem nenhum, <R>/config.yaml da instalacao,
 ## criado com schema_version. Fora do layout instalado e sem config.yaml: config.usage (aponte --config). O diretorio tem de
 ## existir; o caminho vai absoluto, com barra /, entre aspas simples (a mesma forma do instalador, que o le e preserva no
@@ -261,7 +233,7 @@ prevcarga_require_data_dir <- function(ctx) {
 ## Chaves de dados gravaveis pelo set-data-dir (E1-T5). data_train_dir tem de existir; os outros o chamador pode criar.
 .prevcarga_data_keys <- c("data_train_dir", "data_inference_dir", "artifacts_dir")
 
-## Troca so as linhas das chaves dadas em `values` (lista nomeada); com data_train_dir remove tambem a linha legada data_dir.
+## Troca so as linhas das chaves dadas em `values` (lista nomeada).
 ## Preserva comentarios e demais linhas. Devolve list(config_path, changes = list({key, old, new})).
 prevcarga_config_set_keys <- function(ctx, values) {
   bad <- setdiff(names(values), .prevcarga_data_keys)
@@ -283,7 +255,7 @@ prevcarga_config_set_keys <- function(ctx, values) {
   old <- if (file.exists(target)) readLines(target, warn = FALSE, encoding = "UTF-8") else
     c("# config.yaml da instalacao (schema v1). Precedencia: flag da CLI > este arquivo > default.", "schema_version: 1")
   prev <- if (file.exists(target)) prevcarga_config_load(target) else list()
-  drop <- c(names(vals), if ("data_train_dir" %in% names(vals)) "data_dir")
+  drop <- names(vals)
   gone <- vapply(old, function(l) any(startsWith(l, paste0(drop, ":"))), NA)
   new_lines <- vapply(names(vals), function(k) paste0(k, ": ", .prevcarga_yaml_q(vals[[k]])), "")
   lines <- c(old[!gone], unname(new_lines))
@@ -303,14 +275,12 @@ prevcarga_config_set_keys <- function(ctx, values) {
     prevcarga_abort("config.write_failed", where = target)
   }
   changes <- lapply(names(vals), function(k) {
-    o <- prev[[k]]
-    if (is.null(o) && identical(k, "data_train_dir")) o <- prev$data_dir
-    list(key = k, old = o, new = vals[[k]])
+    list(key = k, old = prev[[k]], new = vals[[k]])
   })
   list(config_path = .prevcarga_norm_path(target), changes = changes)
 }
 
-## Wrapper dos chamadores antigos: grava so data_train_dir (e remove a legada data_dir).
+## Wrapper dos chamadores antigos: grava so data_train_dir.
 prevcarga_config_set_data_dir <- function(ctx, dir) {
   if (!.prevcarga_chr_ok(dir) || !dir.exists(dir))
     prevcarga_abort("config.data_dir_missing", where = as.character(dir)[1L],
@@ -345,7 +315,7 @@ prevcarga_set_data_dir_interactive <- function(ctx, base, input = stdin(), is_tt
     want[[k]] <- .prevcarga_norm_path(a)
   }
   prev <- if (!is.null(ctx$config_path) && file.exists(ctx$config_path)) prevcarga_config_load(ctx$config_path) else list()
-  oldv <- function(k) { o <- prev[[k]]; if (is.null(o) && identical(k, "data_train_dir")) o <- prev$data_dir; o }
+  oldv <- function(k) prev[[k]]
   chg <- Filter(function(k) !identical(oldv(k), want[[k]]), names(want))
   for (k in chg)
     cat(sprintf("%s: %s -> %s\n", k, if (is.null(oldv(k))) "-" else oldv(k), want[[k]]), file = output)

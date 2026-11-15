@@ -41,7 +41,7 @@ test_that("[AC2] FORBIDDEN: forecast --origin O pelo prevcarga.cmd, shell sujo x
   n <- 0L
   run_fc <- function(env, deck = sj_opt("deck")) {
     n <<- n + 1L; st <- file.path(tempfile(paste0("pc-sujo-st", n, "-"))); stopifnot(file.copy(sj_opt("state"), dirname(st), recursive = TRUE), file.rename(file.path(dirname(st), basename(sj_opt("state"))), st))
-    r <- processx::run(file.path(root, "bin", "prevcarga.cmd"), c("forecast", paste0("--data=", deck), paste0("--state=", st), "--origin", O, "--skip-validate", "--format", "json"),
+    r <- processx::run(file.path(root, "bin", "prevcarga.cmd"), c("forecast", paste0("--data-train=", deck), paste0("--state=", st), "--origin", O, "--skip-validate", "--format", "json"),
                        env = env, error_on_status = FALSE, windows_verbatim_args = FALSE, encoding = "UTF-8", timeout = 7200)
     j <- tryCatch(jsonlite::fromJSON(r$stdout, simplifyVector = FALSE), error = function(e) NULL)
     saida <- if (is.null(j)) NA_character_ else j$result$saida

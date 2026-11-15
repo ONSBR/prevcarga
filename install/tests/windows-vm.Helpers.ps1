@@ -108,7 +108,7 @@ function Invoke-Forecast([string]$Tag, [hashtable]$Env, [string]$DeckDir, [strin
   $st = Join-Path $script:Work ('state-' + $Tag)
   if (Test-Path -LiteralPath $st) { Remove-Item -LiteralPath $st -Recurse -Force }
   Copy-Item -LiteralPath $StateDir -Destination $st -Recurse -Force
-  $verb = 'forecast "--data=' + $DeckDir + '" "--state=' + $st + '" --origin ' + $OriginV + ' --skip-validate --format json'
+  $verb = 'forecast "--data-train=' + $DeckDir + '" "--state=' + $st + '" --origin ' + $OriginV + ' --skip-validate --format json'
   $r = Invoke-Capture 'cmd.exe' ('/d /s /c ""' + (Get-Launcher $script:Root) + '" ' + $verb + '"') $Env
   $txt = (Get-AsciiText $r.Out).Replace($st, 'STATE')
   $saida = ''

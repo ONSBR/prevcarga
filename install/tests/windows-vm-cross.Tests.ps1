@@ -78,7 +78,7 @@ Describe 'NFR de 30 min no Windows' {
     $st = Join-Path $script:Work 'state-nfr'
     if (Test-Path -LiteralPath $st) { Remove-Item -LiteralPath $st -Recurse -Force }
     Copy-Item -LiteralPath $NfrState -Destination $st -Recurse -Force
-    $r = Invoke-Launcher 'cmd' $script:Root ('forecast "--data=' + $NfrDeck + '" "--state=' + $st + '" --origin ' + $NfrOrigin + ' --format json')
+    $r = Invoke-Launcher 'cmd' $script:Root ('forecast "--data-train=' + $NfrDeck + '" "--state=' + $st + '" --origin ' + $NfrOrigin + ' --format json')
     $r.Exit | Should -Be 0 -Because (Get-AsciiText $r.Err)
     $j = (Get-AsciiText $r.Out) | ConvertFrom-Json
     $res = $j.result

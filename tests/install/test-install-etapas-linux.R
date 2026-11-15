@@ -109,7 +109,7 @@ test_that("CONTROL: sob pty o texto mostra o banner da CLI (nome + curva + eixo 
   expect_true(all(utf8ToInt(paste(c(x, y, z, w1, w2, w3), collapse = "")) <= 127L))   # ASCII puro
 })
 
-test_that("[AC4] install.sh grava data_train_dir/artifacts_dir/data_inference_dir; --data e apelido de --data-train com aviso ASCII em stderr", {
+test_that("[AC4] install.sh grava data_train_dir/artifacts_dir/data_inference_dir; --data nao existe mais (install.usage)", {
   b <- fake_bundle(); w <- dirname(b$root)
   dt <- file.path(w, "t"); da <- file.path(w, "a"); di <- file.path(w, "i")
   r <- pc_install(c(args_for(b, "json"), "--data-train", dt, "--data-artifacts", da, "--data-inference", di))
@@ -119,13 +119,21 @@ test_that("[AC4] install.sh grava data_train_dir/artifacts_dir/data_inference_di
                     paste0("data_inference_dir: '", di, "'")) %in% y))
   expect_false(any(startsWith(y, "data_dir:")))
   expect_false(grepl("apelido", r$stderr, fixed = TRUE))
+  ## sem apelidos (ADR-044, clean break): --data e argumento desconhecido (install.usage), nada e instalado
   b2 <- fake_bundle(); d2 <- file.path(dirname(b2$root), "d")
-  r2 <- pc_install(c(args_for(b2, "json"), "--data", d2))              # CONTROL: o apelido avisa e grava a chave nova
-  expect_identical(r2$status, 0L, info = r2$stderr)
-  expect_match(r2$stderr, "--data e apelido de --data-train", fixed = TRUE)
-  expect_true(all(utf8ToInt(r2$stderr) <= 127L))
-  y2 <- readLines(file.path(b2$root, "config.yaml"))
-  expect_true(paste0("data_train_dir: '", d2, "'") %in% y2); expect_false(any(startsWith(y2, "data_dir:")))
-  r3 <- pc_install(c(args_for(b2, "json"), "--data-train", file.path(d2, "x"), "--data", d2))   # conflito => install.usage
-  expect_false(identical(r3$status, 0L)); expect_match(r3$stdout, "install.usage", fixed = TRUE)
+  r2 <- pc_install(c(args_for(b2, "json"), "--data", d2))
+  expect_false(identical(r2$status, 0L)); expect_match(r2$stdout, "install.usage", fixed = TRUE)
+  expect_false(file.exists(file.path(b2$root, "config.yaml")))
+  expect_true(all(utf8ToInt(paste(r2$stdout, r2$stderr)) <= 127L))
+  ## CONTROL: o nome novo instala e grava a chave nova
+  r3 <- pc_install(c(args_for(b2, "json"), "--data-train", d2))
+  expect_identical(r3$status, 0L, info = r3$stderr)
+  expect_true(paste0("data_train_dir: '", d2, "'") %in% readLines(file.path(b2$root, "config.yaml")))
+  ## upgrade de uma instalacao com a chave legada: o instalador a migra para data_train_dir (nao fica config.unknown_key)
+  b3 <- fake_bundle(); dir.create(b3$root, recursive = TRUE, showWarnings = FALSE)
+  writeLines(c("schema_version: 1", "data_dir: '/velho'"), file.path(b3$root, "config.yaml"))
+  r4 <- pc_install(args_for(b3, "json"))
+  expect_identical(r4$status, 0L, info = r4$stderr)
+  y4 <- readLines(file.path(b3$root, "config.yaml"))
+  expect_false(any(startsWith(y4, "data_dir:"))); expect_true("data_train_dir: '/velho'" %in% y4)
 })

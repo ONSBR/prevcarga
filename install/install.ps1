@@ -7,7 +7,6 @@
 #               [-DataTrain <dir>] [-DataInference <dir>] [-DataArtifacts <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]
 #   install.ps1 -Rollback [-Root <dir>] [-Format json]
 #   install.ps1 -Uninstall -Yes [-Purge] [-Root <dir>] [-Format json]
-# -Data e apelido de -DataTrain por uma versao (aviso ASCII no stderr).
 # A grafia dos docs (--bundle, --sha256, --root ...) tambem e aceita.
 #
 # O sha256 do bundle e OBRIGATORIO e conferido antes de qualquer extracao; nada e escrito em <R> antes disso.
@@ -15,7 +14,7 @@
 
 param(
   [string]$Version, [string]$ReleaseBase, [string]$Bundle, [string]$Sha256,
-  [string]$Root, [string]$Data, [string]$DataTrain, [string]$DataInference, [string]$DataArtifacts, [string]$State,
+  [string]$Root, [string]$DataTrain, [string]$DataInference, [string]$DataArtifacts, [string]$State,
   [switch]$SkipPlatformCheck, [switch]$Rollback, [switch]$Uninstall, [switch]$Yes, [switch]$Purge,
   [string]$Format = 'text',
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
@@ -239,7 +238,7 @@ function Resolve-PcRest([string[]]$Tokens) {
     } else {
       $bad = @($tok, 'argumento desconhecido'); break
     }
-    if ($name -in 'version', 'releasebase', 'release-base', 'bundle', 'sha256', 'root', 'data', 'data-train', 'datatrain', 'data-inference', 'datainference', 'data-artifacts', 'dataartifacts', 'state', 'format') {
+    if ($name -in 'version', 'releasebase', 'release-base', 'bundle', 'sha256', 'root', 'data-train', 'datatrain', 'data-inference', 'datainference', 'data-artifacts', 'dataartifacts', 'state', 'format') {
       if ($null -eq $val) {
         if ($i + 1 -ge $Tokens.Count) { $bad = @($tok, 'falta o valor'); break }
         $i++; $val = $Tokens[$i]
@@ -250,7 +249,6 @@ function Resolve-PcRest([string[]]$Tokens) {
       elseif ($name -eq 'bundle') { $script:Bundle = $val }
       elseif ($name -eq 'sha256') { $script:Sha256 = $val }
       elseif ($name -eq 'root') { $script:Root = $val }
-      elseif ($name -eq 'data') { $script:Data = $val }
       elseif ($name -eq 'data-train' -or $name -eq 'datatrain') { $script:DataTrain = $val }
       elseif ($name -eq 'data-inference' -or $name -eq 'datainference') { $script:DataInference = $val }
       elseif ($name -eq 'data-artifacts' -or $name -eq 'dataartifacts') { $script:DataArtifacts = $val }
@@ -715,11 +713,6 @@ function Invoke-PcMain {
   $script:Root = (Get-PcAbsPath $script:Root).TrimEnd('\', '/')
   if (-not $script:Root -or $script:Root -match '^[A-Za-z]:$') { Write-PcError 'install.usage' '-Root' 'raiz nao pode ser a raiz do disco' }
   if ($script:State) { $script:State = Get-PcAbsPath $script:State }
-  if ($script:Data) {
-    Write-PcStream 'err' 'aviso: -Data e apelido de -DataTrain e sai na proxima versao'
-    if ($script:DataTrain -and ((Get-PcAbsPath $script:DataTrain) -ne (Get-PcAbsPath $script:Data))) { Write-PcError 'install.usage' '-Data' 'conflita com -DataTrain' }
-    $script:DataTrain = $script:Data
-  }
   if ($script:DataTrain) { $script:DataTrain = Get-PcAbsPath $script:DataTrain }
   if ($script:DataInference) { $script:DataInference = Get-PcAbsPath $script:DataInference }
   if ($script:DataArtifacts) { $script:DataArtifacts = Get-PcAbsPath $script:DataArtifacts }

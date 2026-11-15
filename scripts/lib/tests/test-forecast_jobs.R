@@ -63,7 +63,7 @@ fresh_state <- function(.frame = parent.frame()) {
 run_cli <- function(root, jobs, .frame = parent.frame()) {
   st <- fresh_state(.frame)
   r <- pc_cli(root, c("forecast", "--origin=2026-10-15", "--skip-validate", "--incluir-membros", jobs,
-                      paste0("--data=", deck), paste0("--state=", st), "--format=json"))
+                      paste0("--data-train=", deck), paste0("--state=", st), "--format=json"))
   j <- if (length(r$stdout) == 1L) jsonlite::fromJSON(r$stdout, simplifyVector = FALSE) else NULL
   list(raw = r, json = j, state = st)
 }

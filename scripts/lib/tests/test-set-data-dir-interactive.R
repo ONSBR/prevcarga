@@ -12,7 +12,7 @@ sdi_install <- function() {
   code <- file.path(r, "versions", "9.9.9", "code")
   dir.create(file.path(code, "config"), recursive = TRUE)
   writeLines("9.9.9", file.path(code, "config", "VERSION"))
-  writeLines(c("# meu comentario", "schema_version: 1", "state_dir: '/s'", "data_dir: '/velho'"), file.path(r, "config.yaml"))
+  writeLines(c("# meu comentario", "schema_version: 1", "state_dir: '/s'", "data_train_dir: '/velho'"), file.path(r, "config.yaml"))
   base <- normalizePath(tempfile("d"), winslash = "/", mustWork = FALSE)
   dir.create(file.path(base, "train"), recursive = TRUE)
   list(R = r, code = code, base = base, cfg = file.path(r, "config.yaml"))

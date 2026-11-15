@@ -50,7 +50,7 @@ writeLines("schema_version: 1", cfg)           # config minimo: flags > config.y
 
 ## roda o verbo num `state` e devolve processo + JSON; `--config` e `--state` explicitos (nunca env)
 run <- function(verb, args, state, fmt = "json", data = TRUE) {
-  a <- c(verb, args, paste0("--state=", state), paste0("--config=", cfg), paste0("--origin=", format(O)), if (data) paste0("--data=", deck),
+  a <- c(verb, args, paste0("--state=", state), paste0("--config=", cfg), paste0("--origin=", format(O)), if (data) paste0("--data-train=", deck),
          paste0("--format=", fmt))
   r <- pc_cli(root, a)
   r$json <- if (identical(fmt, "json") && length(r$stdout)) jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyVector = FALSE)

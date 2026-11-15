@@ -1,5 +1,6 @@
 ## test-data-options.R -- opcoes globais de dados por papel (E1-T2): --data-train, --data-inference, --data-artifacts, apelidos
-## (--data, --artifacts-dir, data_dir) com warning.option_alias, conflito => config.usage, prefixo docopt. Fixture sintetica em tempdir.
+## sem apelidos (ADR-044, clean break): --data, --artifacts-dir e a chave data_dir deixam de existir (opcao desconhecida / config.unknown_key).
+## Prefixo docopt. Fixture sintetica em tempdir.
 library(testthat)
 lib_dir <- file.path(pc_root(), "scripts", "lib")
 withr::local_options(prevcarga.lib = lib_dir)
@@ -29,42 +30,37 @@ test_that("[AC0] nomes novos resolvem os tres papeis sem warning; data_dir (ativ
   expect_null(y$ctx$data_train_dir); expect_null(y$ctx$data_inference_dir); expect_null(y$ctx$artifacts_dir)
 })
 
-test_that("[AC1] apelidos --data, --artifacts-dir e data_dir valem como os nomes novos e emitem warning.option_alias", {
+test_that("[AC1] sem apelidos: --data, --artifacts-dir e data_dir nao resolvem nada; a CLI recusa a opcao antiga", {
+  skip_if_not_installed("docopt")
   d <- withr::local_tempdir("dt-"); ad <- withr::local_tempdir("art-")
+  verbs <- E$prevcarga_verbs_discover()
+  for (old in list(paste0("--data=", d), paste0("--artifacts-dir=", ad))) {
+    utils::capture.output(r <- E$prevcarga_main(c("forecast", old, "--format=json"), root = pc_root(), runtime = function() NULL))
+    expect_identical(r, 8L, info = old)                   # config.usage (catalogo): opcao desconhecida
+    expect_null(E$.prevcarga_parse(c("forecast", old), verbs), info = old)
+  }
+  ## CONTROL: o nome novo parseia
+  expect_false(is.null(E$.prevcarga_parse(c("forecast", paste0("--data-train=", d), paste0("--data-artifacts=", ad)), verbs)))
+  ## o ctx ignora as chaves antigas
   x <- ctx_w(list(`--data` = d, `--artifacts-dir` = ad))
-  expect_identical(x$ctx$data_train_dir, nrm(d))
-  expect_identical(x$ctx$artifacts_dir, nrm(ad))
-  expect_identical(vapply(x$ws, function(w) w$id, ""), rep("warning.option_alias", 2L))
-  al <- lapply(x$ws, function(w) w$details[c("alias", "novo")])
-  expect_true(any(vapply(al, identical, NA, list(alias = "--data", novo = "--data-train"))))
-  expect_true(any(vapply(al, identical, NA, list(alias = "--artifacts-dir", novo = "--data-artifacts"))))
-  z <- ctx_w(list(), cfg = sprintf("data_dir: %s", d))
-  expect_identical(z$ctx$data_train_dir, nrm(d))
-  expect_identical(z$ws[[1L]]$details$alias, "data_dir")
-  expect_identical(z$ws[[1L]]$details$novo, "data_train_dir")
+  expect_null(x$ctx$data_train_dir); expect_null(x$ctx$artifacts_dir)
+  expect_length(x$ws, 0L)
 })
 
-test_that("[AC2] apelido x nome novo com valores diferentes => config.usage (exit 8); mesmo valor nao aborta", {
-  a <- abort_of(ctx_w(list(`--data` = "/a", `--data-train` = "/b")))
-  expect_identical(a$id, "config.usage"); expect_identical(a$exit_code, 8L)
-  expect_match(a$where, "--data", fixed = TRUE); expect_match(a$where, "--data-train", fixed = TRUE)
-  x1 <- withr::local_tempdir("x-"); y1 <- withr::local_tempdir("y-")
-  b <- abort_of(ctx_w(list(`--artifacts-dir` = x1, `--data-artifacts` = y1)))
-  expect_identical(b$id, "config.usage"); expect_identical(b$exit_code, 8L)
-  expect_match(b$where, "--artifacts-dir", fixed = TRUE); expect_match(b$where, "--data-artifacts", fixed = TRUE)
-  ## CONTROL
-  expect_null(abort_of(ctx_w(list(`--data` = "/a", `--data-train` = "/a"))))
-  expect_null(abort_of(ctx_w(list(`--artifacts-dir` = x1, `--data-artifacts` = x1))))
+test_that("[AC2] nome novo vale por papel, sem conflito possivel com apelido; flag vence o config", {
+  x1 <- withr::local_tempdir("x-")
+  y <- ctx_w(list(`--data-train` = "/a", `--data-artifacts` = x1), cfg = c("data_train_dir: /b", "artifacts_dir: /nao/usado"))
+  expect_identical(y$ctx$data_train_dir, nrm("/a")); expect_identical(y$ctx$artifacts_dir, nrm(x1))
+  expect_length(y$ws, 0L)
 })
 
-test_that("[AC3] config.yaml com data_dir e data_train_dir diferentes: vence data_train_dir com aviso; chaves novas validadas", {
-  x <- ctx_w(list(), cfg = c("data_dir: /velho", "data_train_dir: /novo", "data_inference_dir: /inf"))
+test_that("[AC3] config.yaml com a chave legada data_dir => config.unknown_key (exit 8); chaves novas validadas", {
+  e <- abort_of(ctx_w(list(), cfg = "data_dir: /velho"))
+  expect_identical(e$id, "config.unknown_key"); expect_identical(e$exit_code, 8L); expect_identical(e$where, "data_dir")
+  x <- ctx_w(list(), cfg = c("data_train_dir: /novo", "data_inference_dir: /inf"))     # CONTROL
   expect_identical(x$ctx$data_train_dir, nrm("/novo"))
   expect_identical(x$ctx$data_inference_dir, nrm("/inf"))
-  expect_identical(x$ws[[1L]]$id, "warning.option_alias")
-  ## CONTROL: so data_train_dir => sem aviso
-  expect_length(ctx_w(list(), cfg = "data_train_dir: /novo")$ws, 0L)
-  ## flag vence o config
+  expect_length(x$ws, 0L)
   expect_identical(ctx_w(list(`--data-train` = "/f"), cfg = "data_train_dir: /novo")$ctx$data_train_dir, nrm("/f"))
   f <- tempfile(fileext = ".yaml"); writeLines(c("schema_version: 1", "data_train_dir: 3"), f)
   e <- abort_of(E$prevcarga_config_load(f))
@@ -74,25 +70,27 @@ test_that("[AC3] config.yaml com data_dir e data_train_dir diferentes: vence dat
   ## --data-artifacts inexistente
   m <- abort_of(ctx_w(list(`--data-artifacts` = file.path(tempdir(), "nao-existe-xyz"))))
   expect_identical(m$id, "config.artifacts_dir_missing"); expect_identical(m$exit_code, 8L)
+  ## o catalogo nao tem mais o aviso de apelido
+  expect_false("warning.option_alias" %in% E$prevcarga_errors_load(file.path(pc_root(), "scripts", "lib", "errors"))$id)
 })
 
-test_that("[AC4] docopt: cada opcao casa o proprio nome; usage marca --data e --artifacts-dir como apelido", {
+test_that("[AC4] docopt: cada opcao casa o proprio nome; a usage nao cita mais --data nem --artifacts-dir", {
   skip_if_not_installed("docopt")
   verbs <- E$prevcarga_verbs_discover()
   usage <- E$prevcarga_usage(verbs)
-  expect_match(usage, "--data=<dir>             (apelido de --data-train", fixed = TRUE)
-  expect_match(usage, "--artifacts-dir=<dir>    (apelido de --data-artifacts", fixed = TRUE)
-  p <- docopt::docopt(usage, args = c("forecast", "--data-train=/t", "--data=/u", "--data-artifacts=/r"),
+  expect_false(grepl("--data=<dir>", usage, fixed = TRUE))
+  expect_false(grepl("--artifacts-dir", usage, fixed = TRUE))
+  expect_false(grepl("apelido", usage, fixed = TRUE))
+  p <- docopt::docopt(usage, args = c("forecast", "--data-train=/t", "--data-artifacts=/r"),
                       help = FALSE, strip_names = FALSE)
   expect_identical(p[["--data-train"]], "/t")
-  expect_identical(p[["--data"]], "/u")
   expect_identical(p[["--data-artifacts"]], "/r")
   expect_true(is.null(p[["--data-inference"]]) || identical(p[["--data-inference"]], FALSE) || is.na(p[["--data-inference"]]))
-  ## nenhuma opcao NOVA e prefixo estrito de outra, nem tem outra como prefixo, salvo o apelido --data (exato, ver acima)
+  ## nenhuma opcao NOVA e prefixo estrito de outra, nem tem outra como prefixo
   fl <- unique(E$.prevcarga_opt_lines(verbs)$flag)
   for (n in c("--data-train", "--data-inference", "--data-artifacts")) {
     expect_identical(sum(startsWith(fl, n) & fl != n), 0L, info = n)
-    expect_identical(setdiff(fl[startsWith(n, fl) & fl != n], "--data"), character(), info = n)
+    expect_identical(fl[startsWith(n, fl) & fl != n], character(), info = n)
   }
   ## CONTROL: --data-a* (prefixo de --data-artifacts) nao colide com --artifact-dir do combine
   expect_false(any(startsWith("--artifact-dir", "--data-a")))

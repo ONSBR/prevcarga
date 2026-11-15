@@ -74,8 +74,9 @@ test_that("[AC1-AC4] semantica espelhada do install.sh: hash antes da extracao (
   expect_true(any(grepl("'previous'", ps1, fixed = TRUE)))
   expect_true(any(grepl("Set-StrictMode -Version 3", ps1, fixed = TRUE)) && any(grepl("ErrorActionPreference = 'Stop'", ps1, fixed = TRUE)))
   # mesmos argumentos do install.sh
-  for (a in c("Version", "ReleaseBase", "Bundle", "Sha256", "Root", "Data", "State", "SkipPlatformCheck", "Rollback", "Uninstall", "Yes", "Purge", "Format"))
+  for (a in c("Version", "ReleaseBase", "Bundle", "Sha256", "Root", "DataTrain", "DataInference", "DataArtifacts", "State", "SkipPlatformCheck", "Rollback", "Uninstall", "Yes", "Purge", "Format"))
     expect_true(any(grepl(paste0("\\$", a, "\\b"), ps1[1:40])), info = a)
+  expect_false(any(grepl("\\$Data\\b", ps1[1:40])))                      # CONTROL: sem apelido -Data (ADR-044, clean break)
 })
 
 test_that("[AC7] install.ps1 le o catalogo GERADO pelo NOME das colunas (id,class,exit_code,message,hint), nao por posicao", {

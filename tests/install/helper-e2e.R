@@ -150,8 +150,8 @@ pce_install <- function(b, root) {
 ## --- estado oficial produtor + bucket local -------------------------------------------------------------------------------------
 PCE_ORIGIN <- "2026-10-15"
 
-## `--data`/`--state` explicitos em toda chamada (flag > config.yaml): o teste nao depende de config.yaml.
-pce_args <- function(verb, deck, state, ...) c(verb, paste0("--data=", deck), paste0("--state=", state), ...)
+## `--data-train`/`--state` explicitos em toda chamada (flag > config.yaml): o teste nao depende de config.yaml.
+pce_args <- function(verb, deck, state, ...) c(verb, paste0("--data-train=", deck), paste0("--state=", state), ...)
 
 pce_ok <- function(r, what) {
   if (!identical(r$status, 0L)) stop(what, " falhou (exit ", r$status, "): ", substr(paste(r$stdout, r$stderr), 1L, 1500L), call. = FALSE)

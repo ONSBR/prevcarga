@@ -8,11 +8,11 @@
   (via `lubridate::ymd`) e `A..B` so em `backtest`/`plan`; `state_dir` default `<root>/.state` e so resolvido (nunca criado).
   `load_label_flag`/`load_label_config` ficam separados e `--load-label`/`--weather-cutoff` so sao validados no M1 (aplicar e do M2).
 - `prevcarga_require_data_dir(ctx)` => `config.data_dir_missing` (exportada; usada pelos verbos do M2+); a dica cita `--data-train`/`--data-inference`.
-- **Dados por papel (E1-T2):** `prevcarga_ctx` traz `data_train_dir` (`--data-train` | `--data` | `data_train_dir` | `data_dir`),
-  `data_inference_dir` (`--data-inference` | `data_inference_dir`) e `artifacts_dir` (`--data-artifacts` | `--artifacts-dir` | `artifacts_dir` | NULL).
-  `ctx$data_dir` = deck ATIVO = `data_train_dir` ate o E1-T3 escolher por papel. Apelidos (`--data`, `--artifacts-dir`, `data_dir`) emitem
-  `warning.option_alias {alias, novo}` (`.prevcarga_pick_alias`); apelido x nome novo diferentes => `config.usage` (exit 8); no config.yaml
-  `data_dir` x `data_train_dir` diferentes => vence `data_train_dir` com aviso. Testes: `test-data-options.R`, `test-config.R`.
+- **Dados por papel (E1-T2; sem apelidos, ADR-044 clean break):** `prevcarga_ctx` traz `data_train_dir` (`--data-train` | `data_train_dir`),
+  `data_inference_dir` (`--data-inference` | `data_inference_dir`) e `artifacts_dir` (`--data-artifacts` | `artifacts_dir` | NULL).
+  `ctx$data_dir` = deck ATIVO = `data_train_dir` ate o E1-T3 escolher por papel. `--data`, `--artifacts-dir` e a chave `data_dir` nao existem:
+  a flag antiga e opcao desconhecida (`config.usage`, erro de uso padrao do docopt) e `data_dir` no config.yaml e `config.unknown_key`;
+  nao ha `warning.option_alias`. Testes: `test-data-options.R`, `test-config.R`.
 - `config/config.yaml` e o modelo versionado (o instalador do M8 copia para `<root>/config.yaml`); `config/VERSION` = `0.0.0-dev`;
   `/config.yaml` e `/.state/` no `.gitignore`.
 - Testes: `scripts/lib/tests/test-config.R`.
@@ -23,11 +23,10 @@
   `prevcarga_config_set_data_dir(ctx, dir)` virou wrapper fino de `set_keys(list(data_train_dir = dir))`. Alvo: `ctx$config_path` (`--config`, o da raiz do
   codigo ou o da instalacao); sem nenhum, `<R>/config.yaml` da instalacao, criado com `schema_version: 1`. Fora do layout instalado
   e sem config.yaml: `config.usage` (hint: `--config`).
-- `values` e lista nomeada de `data_train_dir`, `data_inference_dir`, `artifacts_dir`; so as chaves dadas mudam (com `data_train_dir` sai
-  tambem a `data_dir:` legada); devolve `changes` `{key, old, new}`. `data_train_dir` tem de existir (`config.data_dir_missing`); os outros o chamador cria.
+- `values` e lista nomeada de `data_train_dir`, `data_inference_dir`, `artifacts_dir`; so as chaves dadas mudam (nunca le nem grava `data_dir`); devolve `changes` `{key, old, new}`. `data_train_dir` tem de existir (`config.data_dir_missing`); os outros o chamador cria.
 - O valor o valor vai por `normalizePath(winslash = "/")` e entre aspas simples
   com `''` (a forma do `pc_yaml_q`/`ConvertTo-PcYamlQuoted` do instalador, cujo leitor o preserva no upgrade). As outras linhas do
-  arquivo ficam como estavam (so saem as linhas das chaves gravadas e a `data_dir:` legada). Escrita atomica: temporario no mesmo diretorio, fechado e validado por
+  arquivo ficam como estavam (so saem as linhas das chaves gravadas). Escrita atomica: temporario no mesmo diretorio, fechado e validado por
   `prevcarga_config_load` antes do `file.rename`; falha de escrita ou rename = `config.write_failed` (core.tsv, exit 8).
 - **Modo interativo** (sem chave): `prevcarga_set_data_dir_interactive(ctx, base, input, is_tty, output)`; `base` = `<dir>` | `data_train_dir`/`data_dir`
   atual | `getwd()`. Sem terminal aborta `contract.set_data_dir_noninteractive` (exit 2) antes de ler e sem tocar no arquivo. Pergunta treino,
@@ -38,6 +37,6 @@
   `test-set-data-dir-interactive.R` (sugestoes, N/EOF byte a byte, sem terminal).
 
 ## F3.6 -- artifacts_dir (raiz de artefatos apontada)
-- Chave `artifacts_dir` (chr, default NULL) no schema; `prevcarga_ctx` resolve `ctx$artifacts_dir` por flag `--artifacts-dir` > config.yaml > NULL
+- Chave `artifacts_dir` (chr, default NULL) no schema; `prevcarga_ctx` resolve `ctx$artifacts_dir` por flag `--data-artifacts` > config.yaml > NULL
   (sem env var), normalizado. Presente e inexistente => `config.artifacts_dir_missing` (core.tsv, exit 8, `where` = caminho), antes de qualquer infer.
 - Testes: `test-config.R` (chave nova, template) e `test-forecast_artifacts_dir.R` (precedencia e diretorio inexistente).

@@ -168,20 +168,24 @@ test_that("[E1-AC3] forecast --data-inference com raiz sem a versao de O: exit 1
   expect_gt(length(s$log$infer), 0L)
 })
 
-## --- [E1-AC4] apelidos: mesmo LONG, warning.option_alias em ASCII ---------------------------------------------------------
-test_that("[E1-AC4] --data/--artifacts-dir geram o mesmo LONG que --data-train/--data-artifacts, com warning.option_alias ASCII", {
+## --- [E1-AC4] sem apelidos (ADR-044, clean break): a opcao antiga e opcao desconhecida --------------------------------------
+test_that("[E1-AC4] --data e --artifacts-dir sao opcao desconhecida (erro de uso padrao, zero entrega); os nomes novos entregam o LONG", {
   art <- make_root()
-  a <- fc_forecast(c(paste0("--data=", DECK), paste0("--artifacts-dir=", art)))
+  a <- fc_forecast(c(paste0("--data=", DECK), paste0("--artifacts-dir=", art), "--format=json"))
+  expect_identical(a$code, 8L)                                   # config.usage: o erro de uso padrao do docopt (catalogo: classe config)
+  expect_identical(fc_err(a)$id, "config.usage")
+  expect_length(a$log$infer, 0L); expect_length(a$log$train, 0L)
+  expect_false(dir.exists(file.path(a$state, "forecasts")))
+  expect_false(any(grepl("warning.option_alias", c(a$stdout, a$stderr), fixed = TRUE)))
+  ## cada apelido sozinho tambem e recusado
+  expect_identical(fc_forecast(c(paste0("--data=", DECK), "--format=json"))$code, 8L)
+  expect_identical(fc_forecast(c(paste0("--data-train=", DECK), paste0("--artifacts-dir=", art), "--format=json"))$code, 8L)
+  ## CONTROL: os nomes novos entregam o LONG (SIN.parquet), sem aviso
   b <- fc_forecast(c(paste0("--data-train=", DECK), paste0("--data-artifacts=", art)))
-  expect_identical(a$code, 0L); expect_identical(b$code, 0L)
-  expect_identical(unname(tools::md5sum(long_of(a))), unname(tools::md5sum(long_of(b))))
-  ## um aviso por apelido. O texto do stderr traz so id + mensagem do catalogo: o novo nome (--data-train / --data-artifacts) nao
-  ## chega ao stderr (discovery registrada); o par alias/novo e coberto no ctx por test-data-options.R.
-  al <- a$stderr[grepl("warning.option_alias", a$stderr, fixed = TRUE)]
-  expect_length(al, 2L)
-  expect_true(ascii(a$stderr))
-  ## CONTROL: os nomes novos nao emitem o aviso
-  expect_false(any(grepl("warning.option_alias", b$stderr, fixed = TRUE)))
+  expect_identical(b$code, 0L)
+  expect_true(file.exists(long_of(b)))
+  expect_false(any(grepl("aviso", b$stderr, fixed = TRUE)))
+  expect_true(ascii(c(a$stdout, a$stderr, b$stderr)))
 })
 
 ## --- [E1-AC5] set-data-dir interativo pela fachada -----------------------------------------------------------------------
@@ -191,7 +195,7 @@ test_that("[E1-AC5] set-data-dir interativo: 's' grava as tres chaves e cria os 
   dir.create(file.path(code, "config"), recursive = TRUE)
   writeLines("9.9.9", file.path(code, "config", "VERSION"))
   cfg <- file.path(inst, "config.yaml")
-  writeLines(c("# meu comentario", "schema_version: 1", "state_dir: '/s'", "data_dir: '/velho'"), cfg)
+  writeLines(c("# meu comentario", "schema_version: 1", "state_dir: '/s'", "data_train_dir: '/velho'"), cfg)
   base <- normalizePath(tempfile("d"), winslash = "/", mustWork = FALSE)
   dir.create(file.path(base, "train"), recursive = TRUE)
   run <- function(lines, is_tty = TRUE) {

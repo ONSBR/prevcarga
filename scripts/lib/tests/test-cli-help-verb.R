@@ -31,7 +31,7 @@ test_that("prevcarga_usage_verb: opcao compartilhada aparece em B, comuns = glob
   expect_match(h, "Usage:\n  prevcarga beta [--origin=<data>] [--shared] [--own=<n>] [options]", fixed = TRUE)
   expect_true(grepl("--shared  ", h, fixed = TRUE))
   expect_true(grepl("--own=<n>", h, fixed = TRUE))
-  expect_true(grepl("--data=<dir>", h, fixed = TRUE))            # comum
+  expect_true(grepl("--data-train=<dir>", h, fixed = TRUE))            # comum
   expect_true(grepl("--origin=<data>  ", h, fixed = TRUE))       # citada na usage de B
   expect_false(grepl("--model=<m>", h, fixed = TRUE))            # comum excluida e nao citada
   expect_false(grepl("--only-a", h, fixed = TRUE))
@@ -49,7 +49,7 @@ test_that(".prevcarga_opt_lines: global primeiro, depois verbos; opt_table deriv
   expect_identical(unique(ol$source), c("global", "alfa", "beta"))
   expect_identical(ol$source[ol$flag == "--shared"], "alfa")
   tb <- E$.prevcarga_opt_table(v)
-  expect_true(isTRUE(tb[["--data"]])); expect_false(isTRUE(tb[["--shared"]])); expect_true(isTRUE(tb[["--own"]]))
+  expect_true(isTRUE(tb[["--data-train"]])); expect_false(isTRUE(tb[["--shared"]])); expect_true(isTRUE(tb[["--own"]]))
 })
 
 test_that("prevcarga_usage (gramatica docopt) identico ao texto de referencia: o filtro e so de apresentacao", {
@@ -64,8 +64,8 @@ test_that("prevcarga_usage (gramatica docopt) identico ao texto de referencia: o
 
 test_that(".prevcarga_help_verb pula o valor de flag que toma argumento", {
   E <- new_env(); v <- fx_verbs(E)
-  expect_identical(E$.prevcarga_help_verb(c("--data", "beta", "alfa", "--help"), v), "alfa")
-  expect_identical(E$.prevcarga_help_verb(c("--data=beta", "alfa", "-h"), v), "alfa")
+  expect_identical(E$.prevcarga_help_verb(c("--data-train", "beta", "alfa", "--help"), v), "alfa")
+  expect_identical(E$.prevcarga_help_verb(c("--data-train=beta", "alfa", "-h"), v), "alfa")
   expect_identical(E$.prevcarga_help_verb(c("beta", "--help"), v), "beta")
   expect_null(E$.prevcarga_help_verb(c("--help"), v))
   expect_null(E$.prevcarga_help_verb(c("desconhecido", "--help"), v))

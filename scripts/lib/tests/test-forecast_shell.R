@@ -63,7 +63,7 @@ DIRTY <- c(TZ = "America/Sao_Paulo", LC_ALL = if (is.na(lc)) "pt_BR.UTF-8" else 
 run_forecast <- function(shell, .frame = parent.frame()) {
   st <- fresh_state(.frame)
   r <- pc_cli(root, c("forecast", "--origin=2026-10-15", "--skip-validate", "--incluir-membros",
-                      paste0("--data=", deck), paste0("--state=", st), "--format=json"), env = shell)
+                      paste0("--data-train=", deck), paste0("--state=", st), "--format=json"), env = shell)
   j <- if (length(r$stdout) == 1L) jsonlite::fromJSON(r$stdout, simplifyVector = FALSE) else NULL
   list(raw = r, json = j, state = st)
 }
@@ -120,7 +120,7 @@ test_that("[AC4] CONTROL: o ambiente sujo e de fato sujo no filho e a rodada nao
   ctx2 <- utils::modifyList(ctx0, list(data_dir = deck2, state_dir = st))
   m6f_prepare_origin(env, ctx2, O)
   r2 <- pc_cli(root, c("forecast", "--origin=2026-10-15", "--skip-validate", "--incluir-membros",
-                       paste0("--data=", deck2), paste0("--state=", st), "--format=json"), env = CLEAN)
+                       paste0("--data-train=", deck2), paste0("--state=", st), "--format=json"), env = CLEAN)
   j2 <- jsonlite::fromJSON(r2$stdout, simplifyVector = FALSE)
   expect_identical(j2$result$available_until, "2026-10-15T09:30")
   expect_false(identical(delivery(list(json = j2))$files, delivery(d)$files))

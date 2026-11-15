@@ -49,7 +49,7 @@ sc_long <- function(ctx, areas = "A1", bias = 0, d_plus = 0:9, embedded = 0) {
   l
 }
 cli_score <- function(root, deck, long, extra = character(), fmt = "json") {
-  run_s(root, c("score", "--long", pc_eval_write_long(long), "--data", deck, "--origin", O, "--skip-validate",
+  run_s(root, c("score", "--long", pc_eval_write_long(long), "--data-train", deck, "--origin", O, "--skip-validate",
                 "--format", fmt, extra))
 }
 hl_wmape <- function(run) vapply(jd(run)$result$headline$rows, function(r) r$wmape, 0)
@@ -119,7 +119,7 @@ test_that("matriz de exits JSON in-process: 2 / 2 / 2 / 4 / 0 com envelope unico
   chk(cli_score(root1, dm, lg, c("--area", "A1")), 2L, "contract.dataset_missing", "contract")
   chk(cli_score(root1, d, lg[, setdiff(names(lg), "y_pred")]), 2L, "contract.long_schema", "contract")
   chk(cli_score(root1, d, lg, c("--baseline", "xx")), 2L, "contract.baseline_kind", "contract")
-  chk(run_s(root1, c("score", "--long", pc_eval_write_long(lg), "--data", file.path(tempdir(), "sem-deck"), "--area", "XX",
+  chk(run_s(root1, c("score", "--long", pc_eval_write_long(lg), "--data-train", file.path(tempdir(), "sem-deck"), "--area", "XX",
                      "--skip-validate", "--format", "json")), 4L, "topology.area_undeclared", "topology")
   dfut <- sc_deck(last = -1L)
   fut <- cli_score(root1, dfut, lg, c("--area", "A1"))
@@ -129,7 +129,7 @@ test_that("matriz de exits JSON in-process: 2 / 2 / 2 / 4 / 0 com envelope unico
   expect_identical(j$warnings[[1L]]$id, "warning.nothing_to_score")
   expect_length(j$result$scorecard, 0L)
   ## erro em texto: mesmo exit, stdout vazio
-  rt <- run_s(root1, c("score", "--long", pc_eval_write_long(lg), "--data", dm, "--skip-validate", "--origin", O))
+  rt <- run_s(root1, c("score", "--long", pc_eval_write_long(lg), "--data-train", dm, "--skip-validate", "--origin", O))
   expect_identical(rt$code, 2L); expect_identical(rt$out, character())
 })
 
@@ -202,7 +202,7 @@ test_that("gate-0 com e sem --skip-validate, --model XX, --origin invalida; exit
   o1 <- "2026-10-01"
   lg <- pc_eval_long("SECO", o1, d_plus = 0:1, ctx = ctxg)
   lp <- pc_eval_write_long(lg)
-  base <- c("score", "--long", lp, "--data", d, "--origin", o1)
+  base <- c("score", "--long", lp, "--data-train", d, "--origin", o1)
   for (fmt in c("json", "text")) {
     ok <- run_s(groot, c(base, "--format", fmt))
     expect_identical(ok$code, 0L, info = fmt)
@@ -210,18 +210,18 @@ test_that("gate-0 com e sem --skip-validate, --model XX, --origin invalida; exit
     expect_identical(sk$code, 0L, info = fmt)
     mx <- run_s(groot, c(base, "--model", "XX", "--format", fmt))
     expect_identical(mx$code, 2L, info = fmt)
-    bo <- run_s(groot, c("score", "--long", lp, "--data", d, "--origin=2026-13-01", "--format", fmt))
+    bo <- run_s(groot, c("score", "--long", lp, "--data-train", d, "--origin=2026-13-01", "--format", fmt))
     expect_identical(bo$code, 8L, info = fmt)
   }
-  expect_identical(jd(run_s(groot, c("score", "--long", lp, "--data", d, "--origin=2026-13-01", "--format", "json")))$error$id,
+  expect_identical(jd(run_s(groot, c("score", "--long", lp, "--data-train", d, "--origin=2026-13-01", "--format", "json")))$error$id,
                    "config.bad_origin")
   ## manifest invalido (chave legada `corte`): gate-0 reprova com a classe do validate-deck
   dbad <- gate_deck()
   pc_deck_manifest(dbad, mutate = function(m) { m$corte <- "2026-10-01"; m })
-  rb <- run_s(groot, c("score", "--long", lp, "--data", dbad, "--origin", o1, "--format", "json"))
+  rb <- run_s(groot, c("score", "--long", lp, "--data-train", dbad, "--origin", o1, "--format", "json"))
   expect_identical(rb$code, 2L)
   expect_identical(jd(rb)$error$class, "contract")
-  rt <- run_s(groot, c("score", "--long", lp, "--data", dbad, "--origin", o1))
+  rt <- run_s(groot, c("score", "--long", lp, "--data-train", dbad, "--origin", o1))
   expect_identical(rt$code, 2L)
 })
 
@@ -234,8 +234,8 @@ test_that("registro do verbo: kind impl, dono M3, nao e stub, parse docopt, fora
   expect_true(is.function(h))                                    # nao e stub (todo.not_implemented)
   expect_true(file.exists(file.path(pc_root(), "scripts", "lib", "cli", "score.R")))
   skip_if_not_installed("docopt")
-  a <- .prevcarga_parse(c("score", "--long=a.parquet", "--data=d", "--baseline=persistence", "--skip-validate"), tab)
-  expect_identical(a[["--long"]], "a.parquet"); expect_identical(a[["--data"]], "d")
+  a <- .prevcarga_parse(c("score", "--long=a.parquet", "--data-train=d", "--baseline=persistence", "--skip-validate"), tab)
+  expect_identical(a[["--long"]], "a.parquet"); expect_identical(a[["--data-train"]], "d")
   expect_identical(a[["--baseline"]], "persistence"); expect_true(isTRUE(a[["--skip-validate"]]))
   expect_null(a[["--area"]])
   expect_false("score" %in% c("-h", "--help", "doctor", "status"))
@@ -248,7 +248,7 @@ test_that("ASCII puro e contrato de erro nos dois formatos, com e sem --debug (a
   lp <- pc_eval_write_long(lg)
   for (dbg in list(character(), "--debug")) {
     debug <- length(dbg) > 0L
-    bad <- run_s(root1, c("score", "--long", lp, "--data", d, "--area", "XX", "--skip-validate", dbg))
+    bad <- run_s(root1, c("score", "--long", lp, "--data-train", d, "--area", "XX", "--skip-validate", dbg))
     expect_identical(bad$code, 4L); expect_identical(bad$out, character())
     i <- which(bad$err == "prevcarga: erro [topology] (exit 4)")
     expect_length(i, 1L)
@@ -256,18 +256,18 @@ test_that("ASCII puro e contrato de erro nos dois formatos, com e sem --debug (a
     expect_true(startsWith(bad$err[[i + 3L]], "como corrigir:"))
     expect_identical(i == 1L, !debug)                                   # traceback so com --debug
     expect_false(non_ascii(c(bad$out, bad$err)))
-    badj <- run_s(root1, c("score", "--long", lp, "--data", d, "--area", "XX", "--skip-validate", "--format", "json", dbg))
+    badj <- run_s(root1, c("score", "--long", lp, "--data-train", d, "--area", "XX", "--skip-validate", "--format", "json", dbg))
     if (!debug) expect_identical(badj$err, character())
     expect_false(non_ascii(c(badj$out, badj$err)))
     expect_identical(jd(badj)$exit_code, 4L)
     for (fmt in c("text", "json")) {
-      ok <- run_s(root1, c("score", "--long", lp, "--data", d, "--area", "A1", "--origin", O, "--skip-validate",
+      ok <- run_s(root1, c("score", "--long", lp, "--data-train", d, "--area", "A1", "--origin", O, "--skip-validate",
                            "--baseline", "persistence", "--format", fmt, dbg))
       expect_identical(ok$code, 0L); expect_false(non_ascii(c(ok$out, ok$err)))
       expect_identical(ok$err, character())
     }
   }
-  ok <- run_s(root1, c("score", "--long", lp, "--data", d, "--area", "A1", "--origin", O, "--skip-validate",
+  ok <- run_s(root1, c("score", "--long", lp, "--data-train", d, "--area", "A1", "--origin", O, "--skip-validate",
                        "--baseline", "persistence"))
   expect_true(any(grepl("^score origins=2026-10-15 available_until=", ok$out)))
   expect_true(any(grepl("^MANCHETE D\\+1$", ok$out))); expect_true(any(grepl("resto-do-dia", ok$out)))

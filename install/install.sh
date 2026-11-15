@@ -166,7 +166,7 @@ while [ $# -gt 0 ]; do
   k="$1"; v=""; has_v=0
   case "$k" in --*=*) v="${k#*=}"; k="${k%%=*}"; has_v=1;; esac
   case "$k" in
-    --version|--release-base|--bundle|--sha256|--root|--data|--data-train|--data-inference|--data-artifacts|--state|--profile|--format)
+    --version|--release-base|--bundle|--sha256|--root|--data-train|--data-inference|--data-artifacts|--state|--profile|--format)
       if [ "$has_v" = 0 ]; then
         [ $# -ge 2 ] || pc_die install.usage "$k" "falta o valor"
         v="$2"; shift
@@ -176,10 +176,7 @@ while [ $# -gt 0 ]; do
         --version) VER="$v";; --release-base) BASE="$v";; --bundle) BUNDLE="$v";; --sha256) SHA="$v";;
         --root) ROOT="$v";; --state) STATE="$v";;
         --data-train) DATA_TRAIN="$v";; --data-inference) DATA_INF="$v";; --data-artifacts) DATA_ART="$v";;
-        --data)
-          printf 'aviso: --data e apelido de --data-train e sai na proxima versao\n' >&2
-          [ -z "$DATA_TRAIN" ] || [ "$DATA_TRAIN" = "$v" ] || pc_die install.usage --data "conflita com --data-train"
-          DATA_TRAIN="$v";; --profile) PROFILE="$v";;
+        --profile) PROFILE="$v";;
         --format) case "$v" in json|text) PC_FORMAT="$v";; *) pc_die install.usage "--format" "use text ou json";; esac;;
       esac;;
     --skip-platform-check) SKIP=1;;

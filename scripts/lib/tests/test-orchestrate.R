@@ -50,7 +50,7 @@ deck <- mk_deck()
 deck_end <- mk_deck(label = "end")
 
 cli <- function(args, root = root_small, state = pc5_state_tmp(parent.frame()), data = deck, fmt = "json") {
-  a <- c(args, paste0("--state=", state), if (!is.null(data)) paste0("--data=", data), paste0("--format=", fmt))
+  a <- c(args, paste0("--state=", state), if (!is.null(data)) paste0("--data-train=", data), paste0("--format=", fmt))
   r <- pc_cli(root, a)
   r$state <- state
   r$json <- if (identical(fmt, "json") && length(r$stdout))
@@ -64,7 +64,7 @@ for (m in c("errors", "runtime", "config", "topology", "schema_long", "provenanc
             "features", "registry", "training", "cache", "orchestrate")) sys.source(file.path(lib, paste0(m, ".R")), envir = mod)
 
 ictx <- function(root = root_small, data = deck, state = pc5_state_tmp(parent.frame()), weather = NULL, label_flag = NULL) {
-  a <- list("--data" = data, "--state" = state)
+  a <- list("--data-train" = data, "--state" = state)
   if (!is.null(weather)) a[["--weather-cutoff"]] <- weather
   if (!is.null(label_flag)) a[["--load-label"]] <- label_flag
   ctx <- mod$prevcarga_ctx(a, root, "backtest")

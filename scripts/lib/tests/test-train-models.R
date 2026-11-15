@@ -50,7 +50,7 @@ deck <- local({
 
 tm <- function(args, root = root_small, state = pc5_state_tmp(parent.frame()), data = TRUE, env = character(),
                fmt = "json") {
-  a <- c("train-models", args, paste0("--state=", state), if (isTRUE(data)) paste0("--data=", deck),
+  a <- c("train-models", args, paste0("--state=", state), if (isTRUE(data)) paste0("--data-train=", deck),
          paste0("--format=", fmt))
   r <- pc_cli(root, a, env = env)
   r$state <- state
@@ -213,7 +213,7 @@ child <- function(mode, jobs = 2L, state = pc5_state_tmp(parent.frame())) {
     sprintf("lib <- %s; options(prevcarga.lib = lib)", deparse(lib)),
     "for (m in c('errors.R','runtime.R','config.R','topology.R','schema_long.R','provenance.R','deck_reader.R','dates.R','validation.R','features.R','registry.R','training.R')) source(file.path(lib, m))",
     "prevcarga_runtime_enforce()",
-    sprintf("ctx <- prevcarga_ctx(list(`--data` = %s, `--state` = %s), %s, 'train-models')", deparse(deck), deparse(state), deparse(root_small)),
+    sprintf("ctx <- prevcarga_ctx(list(`--data-train` = %s, `--state` = %s), %s, 'train-models')", deparse(deck), deparse(state), deparse(root_small)),
     "ctx$lib_dir <- lib; ctx$code_commit <- 'c0ffee'; ctx$renv_lock_hash <- 'ab12'",
     sprintf("ctx$worker_hooks <- %s", hook),
     sprintf("cells <- prevcarga_train_matrix(list(`--model` = %s), ctx)", deparse(MD)),
@@ -279,7 +279,7 @@ deck_c <- local({
   d
 })
 tmc <- function(args, ...) {
-  a <- c("train-models", args, paste0("--data=", deck_c))
+  a <- c("train-models", args, paste0("--data-train=", deck_c))
   st <- pc5_state_tmp(parent.frame())
   r <- pc_cli(root_small, c(a, paste0("--state=", st), if (!any(grepl("^--format=", a))) "--format=json"), ...)
   r$state <- st

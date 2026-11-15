@@ -90,8 +90,8 @@
 - CLI: `--jobs=<n>` (inteiro >= 1, senao `config.bad_type` exit 8, where `--jobs`; validador proprio em `cli/forecast.R`, pois cada verbo so carrega os proprios arquivos); consta so da usage (o Options do train-models ja o declara).
   `.forecast_stopwatch(clock, jobs)` grava o `jobs` real so no `result` do envelope, nunca em `run.json`/`run_manifest`.
 
-## F3.6 -- forecast com artefatos apontados (`--artifacts-dir`)
-- `--artifacts-dir=<dir>` / `artifacts_dir` do config.yaml aponta a raiz de membros, combina e k-hat. Raiz so leitura: o forecast nunca escreve nela
+## F3.6 -- forecast com artefatos apontados (`--data-artifacts`)
+- `--data-artifacts=<dir>` / `artifacts_dir` do config.yaml aponta a raiz de membros, combina e k-hat. Raiz so leitura: o forecast nunca escreve nela
   (lista + sha256 identicos antes/depois; `<state_dir>/artifacts` nao nasce). Entrega, scratch e relatorio seguem em `<state_dir>`.
 - Sem treino implicito: celula origin_scoped sem versao de O (`.forecast_scoped_version` NULL) aborta `state.artifact_missing` dentro da celula,
   que a celula tolerante (F3.3) transforma em membro ausente (`warning.forecast_member_absent`); `prevcarga_train` nao e chamado. Sem a flag, treina como antes.

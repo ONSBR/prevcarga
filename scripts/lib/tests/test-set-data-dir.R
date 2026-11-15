@@ -31,16 +31,21 @@ test_that("cria <R>/config.yaml quando falta; caminho absoluto com /; CONTROL: a
   expect_true("schema_version: 1" %in% readLines(file.path(i$R, "config.yaml")))
 })
 
-test_that("troca o data_dir legado por data_train_dir e preserva as outras linhas; sem data_dir e sem warning.option_alias", {
-  i <- sdd_install(c("# meu comentario", "schema_version: 1", "format: json", "data_dir: '/velho'", "state_dir: '/estado'"))
+test_that("troca o data_train_dir anterior e preserva as outras linhas; nunca grava nem le data_dir", {
+  i <- sdd_install(c("# meu comentario", "schema_version: 1", "format: json", "data_train_dir: '/velho'", "state_dir: '/estado'"))
   deck <- tempfile("deck"); dir.create(deck)
-  res <- prevcarga_config_set_data_dir(suppressWarnings(prevcarga_ctx(list(), i$code)), deck)   # legado => warning.option_alias
+  res <- prevcarga_config_set_data_dir(prevcarga_ctx(list(), i$code), deck)
   expect_identical(res$previous, "/velho")
   y <- readLines(file.path(i$R, "config.yaml"))
   expect_identical(sum(startsWith(y, "data_dir:")), 0L)
   expect_identical(sum(startsWith(y, "data_train_dir:")), 1L)
   expect_silent(prevcarga_ctx(list(), i$code))
   expect_true(all(c("# meu comentario", "format: json", "state_dir: '/estado'") %in% y))
+  ## clean break: um config.yaml com a chave legada data_dir e recusado (nao ha leitura silenciosa nem mapeamento)
+  j <- sdd_install(c("schema_version: 1", "data_dir: '/velho'"))
+  e <- tryCatch(prevcarga_ctx(list(), j$code), prevcarga_error = identity)
+  expect_identical(e$id, "config.unknown_key"); expect_identical(e$where, "data_dir")
+  expect_error(prevcarga_config_set_data_dir(prevcarga_ctx(list(), i$code), file.path(tempdir(), "nao-existe-xyz")), class = "prevcarga_error")
   cfg <- prevcarga_config_load(file.path(i$R, "config.yaml"))
   expect_identical(cfg$state_dir, "/estado"); expect_identical(cfg$format, "json")
 })
@@ -54,12 +59,12 @@ test_that("aspas simples no caminho: YAML com '' (a forma que o instalador le e 
 })
 
 test_that("--config explicito e o alvo; o config.yaml da instalacao fica intacto", {
-  i <- sdd_install(c("schema_version: 1", "data_dir: '/inst'"))
+  i <- sdd_install(c("schema_version: 1", "data_train_dir: '/inst'"))
   alt <- tempfile("alt", fileext = ".yaml"); writeLines("schema_version: 1", alt)
   deck <- tempfile("deck"); dir.create(deck)
   res <- prevcarga_config_set_data_dir(prevcarga_ctx(list(`--config` = alt), i$code), deck)
   expect_identical(res$config_path, normalizePath(alt, winslash = "/"))
-  expect_true("data_dir: '/inst'" %in% readLines(file.path(i$R, "config.yaml")))
+  expect_true("data_train_dir: '/inst'" %in% readLines(file.path(i$R, "config.yaml")))
   expect_true("data_train_dir" %in% vapply(prevcarga_config_set_keys(prevcarga_ctx(list(`--config` = alt), i$code),
                                             list(data_train_dir = deck))$changes, function(x) x$key, ""))
 })

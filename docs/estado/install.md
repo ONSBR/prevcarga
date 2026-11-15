@@ -40,7 +40,7 @@ O runtime do bundle e `runtime/bin/Rscript` (wrapper do M8.1, ja relocavel: o in
    do proprio stage (`prevcarga_runtime_validate(strict=TRUE)`; falha => `install.manifest_invalid`, exit 6, `current` intacto), rename do stage para
    `versions/<v>/`, copia do lancador, troca atomica de `current`.
 5. Retencao N=2: ficam `current` e `previous`; o resto de `versions/` sai. Reinstalar a mesma versao preserva a anterior.
-6. `config.yaml` (schema v1 do M1.4a) com `data_train_dir`/`data_inference_dir`/`artifacts_dir`/`state_dir` (default `<R>/state`; a `data_dir:` legada sai ao regravar); upgrade preserva chaves existentes; `state/` e criado e NUNCA tocado
+6. `config.yaml` (schema v1 do M1.4a) com `data_train_dir`/`data_inference_dir`/`artifacts_dir`/`state_dir` (default `<R>/state`; a `data_dir:` legada e migrada para `data_train_dir` ao regravar); upgrade preserva chaves existentes; `state/` e criado e NUNCA tocado
    por upgrade/rollback/uninstall (so `--uninstall --yes --purge` o remove).
 7. `--add-to-path` grava um bloco `# >>> prevcarga >>>` ... `# <<< prevcarga <<<` no perfil (`--profile`, default `~/.profile`), idempotente; o uninstall o remove.
 8. Fim: `<R>/bin/prevcarga doctor --format json` e devolvido em `result.doctor` (JSON unico em `--format json`).
@@ -195,4 +195,4 @@ O instalador (sh e ps1) copia `prevcarga-sync` e o `error-catalog.tsv` GERADO pa
   de baixo. Mesma guarda das etapas (`$script:PcProgress`: texto e stderr no terminal). **[DEFERRED windows-vm, dono Gabriel]**
   ver a barra num console real (5.1 e pwsh 7).
 - Proximos passos sem `data_train_dir`: os dois instaladores sugerem `prevcarga set-data-dir` (interativo ou com chaves).
-- `--data`/`-Data` e apelido de `--data-train`/`-DataTrain` por uma versao: aviso ASCII em stderr; valor diferente de `--data-train` = `install.usage`.
+- Sem apelidos (ADR-044, clean break): `--data`/`-Data` nao existem; `--data` e argumento desconhecido (`install.usage`). Upgrade com a `data_dir:` legada no config.yaml a migra para `data_train_dir` (o instalador le a linha e a regrava; o CLI nao a le mais).

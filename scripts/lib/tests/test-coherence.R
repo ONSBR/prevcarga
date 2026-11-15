@@ -129,7 +129,7 @@ test_that("matriz de exits pela fachada nos dois formatos (ac-7)", {
     list(w(pc_coh_add_area(base, "RR")), 4L), list(w(pc_coh_shift_grid(base, S1, O)), 11L),
     list(w(base[, setdiff(names(base), "y_pred")]), 2L))
   for (fmt in c("json", "text")) for (cs in cases) {
-    r <- run_c(c("check-coherence", "--long", cs[[1L]], "--data", ctx0$data_dir, "--origin", O, "--format", fmt))
+    r <- run_c(c("check-coherence", "--long", cs[[1L]], "--data-train", ctx0$data_dir, "--origin", O, "--format", fmt))
     expect_identical(r$code, cs[[2L]])
     expect_false(non_ascii(c(r$out, r$err)))
     if (fmt == "json") {
@@ -151,6 +151,6 @@ test_that("registro do verbo: tabela, parse docopt e recusa de --area (ac-8)", {
   expect_identical(r$code, 8L)
   a <- .prevcarga_parse(c("check-coherence", "--long=a.parquet", "--format=json"), v)
   expect_identical(a[["--long"]], "a.parquet"); expect_identical(a[["--format"]], "json")
-  nt <- run_c(c("check-coherence", "--long", "nao-existe.parquet", "--data", ctx0$data_dir, "--format", "json"))
+  nt <- run_c(c("check-coherence", "--long", "nao-existe.parquet", "--data-train", ctx0$data_dir, "--format", "json"))
   expect_false(grepl("todo.not_implemented", paste(nt$out, collapse = "")))
 })
