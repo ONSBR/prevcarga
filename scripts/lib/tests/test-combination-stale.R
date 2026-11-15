@@ -59,11 +59,11 @@ test_that("[AC2] default estrito e combine --mode=apply abortam contract.combina
   early <- pc_cmb_cli_fixture(origins = format(seq(as.Date("2024-01-01"), as.Date("2024-01-31"), by = 1)),
                               dir = withr::local_tempdir())
   full <- pc_cmb_cli_fixture(dir = withr::local_tempdir())
-  tt <- pc_run_cli(c("combine", "--mode=train", "--area=SECO", paste0("--root=", early$root), paste0("--data=", early$data),
+  tt <- pc_run_cli(c("combine", "--mode=train", "--area=SECO", paste0("--root=", early$root), paste0("--data-train=", early$data),
                      paste0("--state=", early$state), "--format=json"))
   expect_identical(tt$status, 0L)
   out <- file.path(withr::local_tempdir(), "apply.parquet")
-  ap <- pc_run_cli(c("combine", "--mode=apply", "--area=SECO", paste0("--root=", full$root), paste0("--data=", full$data),
+  ap <- pc_run_cli(c("combine", "--mode=apply", "--area=SECO", paste0("--root=", full$root), paste0("--data-train=", full$data),
                      paste0("--state=", early$state), "--format=json", paste0("--out=", out)))
   expect_identical(ap$status, 2L)
   j <- jsonlite::fromJSON(paste(ap$stdout, collapse = "\n"), simplifyVector = FALSE)
