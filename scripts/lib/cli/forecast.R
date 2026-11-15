@@ -98,7 +98,7 @@ prevcarga_verb_forecast <- list(
   deck_roles = c("train", "inference"),
   owner   = "M6",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "schema_long.R", "evaluation.R", "deck_reader.R", "dates.R", "validation.R",
+  modules = c("topology.R", "provenance.R", "schema_long.R", "evaluation.R", "holiday_islands.R", "deck_reader.R", "dates.R", "validation.R",
               "features.R", "registry.R", "inference_needs.R", "training.R", "inference.R", "combination.R", "build_long_output.R", "reconcile.R",
               "exports.R", "reporting.R", "forecast.R")
 )
