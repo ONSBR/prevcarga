@@ -42,7 +42,10 @@ run_fc <- function(art, role, .frame = parent.frame()) {
   ctx <- m6f_ctx(DECK, withr::local_tempdir("fip-st-", .local_envir = .frame), TOPO,
                  list(data_role = role, artifacts_dir = if (!is.null(art)) env$.prevcarga_reg_norm(art)))
   log <- new.env(); log$infer <- list(); log$train <- list()
-  mock(prevcarga_infer_cell = m6f_infer_spy(env, log), prevcarga_train = m6f_train_spy(env, log), .frame = .frame)
+  ## fixture sem inference_needs gravado nos artefatos falsos: o gate de necessidade (E2-T5) tem teste proprio
+  ## (test-validate-deck-inference.R); aqui so o preflight de artefatos importa
+  mock(prevcarga_infer_cell = m6f_infer_spy(env, log), prevcarga_train = m6f_train_spy(env, log),
+       .forecast_inference_needs_gate = function(...) invisible(NULL), .frame = .frame)
   r <- tryCatch(env$prevcarga_forecast(ctx, skip_validate = TRUE, escopo = "sin"), prevcarga_error = identity)
   list(r = r, log = log, ctx = ctx)
 }

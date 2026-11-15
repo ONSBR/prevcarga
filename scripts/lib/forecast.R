@@ -133,6 +133,23 @@
   invisible(TRUE)
 }
 
+## Preflight de NECESSIDADE (E2-T5), deck kind inference: resolve a necessidade de cada membro x folha pelos artefatos (artefato sem
+## inference_needs => contract.inference_needs_missing, exit 2, member/area/origin) e confere o deck contra a necessidade AGREGADA
+## (.prevcarga_check_inference_needs). Falta => completude.need_gap (exit 3) com dataset, area, dias e origin. Parte do preflight, nao da
+## validacao opcional: roda tambem com --skip-validate, antes de qualquer estagio de plugin. Deck train: nao e chamado.
+.forecast_inference_needs_gate <- function(ctx, plan, g) {
+  rows <- prevcarga_inference_needs_resolve(ctx, g$origin, sort(plan$leaves, method = "radix"), source = "artifacts")
+  chk <- .prevcarga_check_inference_needs(ctx, g$origin, g$cuts, prevcarga_inference_needs_aggregate(rows), g$cuts$tz,
+                                          prevcarga_deck_manifest(ctx$data_dir))
+  f <- chk$findings[chk$findings$level == "error", ]
+  if (nrow(f))
+    prevcarga_abort("completude.need_gap", where = f$area[[1L]],
+                    details = list(dataset = f$dataset[[1L]], area = f$area[[1L]],
+                                   dias = if (nzchar(f$detail[[1L]])) strsplit(f$detail[[1L]], ",", fixed = TRUE)[[1L]] else character(),
+                                   origin = format(g$origin, "%Y-%m-%d")))
+  invisible(chk)
+}
+
 ## Uma celula (membro x folha): origin_agnostic so le o artefato (ausente => state.artifact_missing, exit 13: nunca treina);
 ## origin_scoped treina UMA vez, pela fachada de treino (que deriva os cortes de dates.R), so se nao ha artefato da origem O.
 ## Nenhuma conta de corte aqui. Erro do catalogo fora de .FORECAST_FATAL vira dado serializavel (status "absent", no formato de
@@ -550,7 +567,10 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   g <- .forecast_gate0(ctx, origin, skip_validate, mem, sink)
   tk$lap("validate-deck")
   plan <- .forecast_plan(ctx, escopo, areas, subsistema)
-  if (identical(ctx$data_role, "inference")) .forecast_inference_preflight(ctx, plan, mem, g$origin)
+  if (identical(ctx$data_role, "inference")) {
+    .forecast_inference_preflight(ctx, plan, mem, g$origin)
+    .forecast_inference_needs_gate(ctx, plan, g)
+  }
   rctx <- ctx                                    # convencao da rodada para o que vem depois do infer (build_long, combina, reconcile)
   rctx$tz <- g$cuts$tz
   rctx$load_label <- g$cuts$load_label

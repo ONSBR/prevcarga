@@ -126,6 +126,30 @@ prevcarga validate-deck --data=./deck --format=json \
   | jq '.error.details.items[] | select(.level == "error") | {area, what, detail}'
 ```
 
+## Validar o deck de inferência
+
+Um deck de inferência é o deck com `kind` `inference` no `manifest.json`. Valide-o com `--data-inference` e aponte os artefatos com `--data-artifacts`. Informe a origem com `--origin`.
+
+```bash title="deck de inferência"
+prevcarga validate-deck --data-inference=./deck-inferencia --data-artifacts=./artefatos --origin=2023-06-01
+```
+
+Nesse deck o check de janela por `history_days` não roda: não há `window_train_deficit` nem `window_infer_deficit`. No lugar entra o check de necessidade. Ele une a necessidade (`inference_needs`) gravada em cada artefato, por dataset e área, e confere os dias exigidos contra o que o deck tem:
+
+| Dataset | O que precisa existir |
+|---|---|
+| `load` | 48 intervalos de 30 min em cada dia de `[O - days_before, O - 1]` |
+| `weather_observed` | Pelo menos uma leitura em cada dia da mesma janela |
+| `weather_forecast` | Para cada segmento, uma emissão válida (`issue_time` até o limite, lead cumprido) em cada dia de `[O + from, O + to]`. O segmento `per_origin` exige só a emissão da origem O |
+| `holidays` | A janela `inference.windows.holidays` do manifest cobre `[O + from, O + to]` |
+| `holiday_annex` | Se algum membro pede, o anexo existe no deck |
+
+Cada falta vira um finding de erro `completude.need_gap` (exit 3). `error.details` traz `dataset`, `area`, `dias` (`YYYY-MM-DD`, em ordem) e `origin`. Artefato sem `inference_needs` encerra com `contract.inference_needs_missing` (exit 2), com `member`, `area` e `origin`: retreine o membro.
+
+Com o deck completo, `result` ganha `inference_windows`: uma entrada por dataset e área, com `dataset`, `area`, `from`, `to` e `source` (`artifacts`), em ordem radix. O texto mostra a mesma lista na tabela `DATASET AREA FROM TO`. Num deck de treino o campo não existe.
+
+A rodada com `--data-inference` faz o mesmo check antes de qualquer etapa de plugin, também com `--skip-validate`: ele é parte do preflight, não da validação opcional.
+
 ## Códigos de saída
 
 Cada finding tem uma classe. Os avisos (`level` = `warning`) nunca reprovam. Se há erros, o veredito é a classe dominante pela precedência única de `errors.R`: `contract`, depois `completude`, depois `topology`, depois `window`. O `error.id` é `<classe>.<what>` do primeiro erro dessa classe.
