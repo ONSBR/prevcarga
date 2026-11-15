@@ -95,8 +95,8 @@ test_that("os 5 run.yaml entregues tem os valores do contrato", {
   expect_identical(S[["holt-winters"]]$history_days, list(train = 730L, infer = 45L))
   expect_identical(S[["random-forest"]]$history_days, list(train = 365L, infer = 45L))
   expect_identical(S[["lgbm"]]$history_days, list(train = 730L, infer = 45L))
-  expect_identical(S[["dessem-linear"]]$history_days, list(train = 1825L, infer = 1825L))
-  expect_identical(S[["dessem-regdin"]]$history_days, list(train = 1825L, infer = 1825L))
+  expect_identical(S[["dessem-linear"]]$history_days, list(train = 1095L, infer = 1095L))
+  expect_identical(S[["dessem-regdin"]]$history_days, list(train = 1095L, infer = 1095L))
   for (m in ms) {
     fc <- "forecast" %in% S[[m]]$modes
     expect_identical(fc, m %in% c("holt-winters", "dessem-linear", "dessem-regdin"))

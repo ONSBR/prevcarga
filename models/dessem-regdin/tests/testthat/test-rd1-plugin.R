@@ -43,7 +43,7 @@ test_that("[PLUGINS] descritor: CONTROL descriptor sem o estagio inference abort
 ## ---- AC2: run.yaml invalido aborta no loader (nada de estagio roda) ---------------------------------------------------
 test_that("[PLUGINS] descritor: run.yaml de fixture invalido aborta contract nomeando o campo; MED e MAX carregam", {
   cases <- list(
-    list(sub = function(x) sub("infer: 1825", "infer: 45", x), id = "plugin.history_window", field = "history_days.infer"),
+    list(sub = function(x) sub("infer: 1095", "infer: 45", x), id = "plugin.history_window", field = "history_days.infer"),
     list(sub = function(x) sub("granularity_min: 60", "granularity_min: 30", x), id = "plugin.bad_run_yaml", field = "granularity_min"),
     list(sub = function(x) x[!grepl("^seed:", x)], id = "plugin.bad_run_yaml", field = "seed"),
     list(sub = function(x) sub("exogena: MED", "exogena: MXMN", x), id = "plugin.bad_run_yaml", field = "params$exogena"),

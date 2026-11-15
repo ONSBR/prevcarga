@@ -311,7 +311,10 @@ prevcarga_parity_compare <- function(envelope, golden, unit, tol = .PC_PARITY_TO
   ## janela de leitura = a da unidade (history_start literal da fase); sem `cuts`, a do run.yaml
   hist <- function(phase, origin, default) {
     h <- unit$cuts[[phase]]$history_start
-    if (is.null(h)) default else as.integer(origin - lubridate::ymd(h))
+    if (!is.null(h)) return(as.integer(origin - lubridate::ymd(h)))
+    ## descriptor com history_window (E3-T4): a janela comum do plugin (O - 1825 em referencia) em vez de history_days
+    hw <- plugin$descriptor$history_window
+    if (is.function(hw)) as.integer(origin - hw(origin, sp)$common_from) else default
   }
   art <- prevcarga_plugin_train(plugin, read(row$last_data_day, hist("train", row$last_data_day, sp$history_days$train)), c(cuts, list(spec = sp, phase = "train")), sp, list())
   prevcarga_plugin_infer(plugin, art, read(unit$origin, hist("infer", unit$origin, sp$history_days$infer)), c(cuts, list(spec = sp, phase = "infer")), list())

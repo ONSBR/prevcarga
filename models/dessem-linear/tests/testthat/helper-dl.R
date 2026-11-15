@@ -17,7 +17,7 @@ options(prevcarga.lib = file.path(dl_root(), "scripts", "lib"))
 ## fundacao carregada num env de teste, nunca no globalenv
 dl_lib <- local({
   e <- new.env(parent = globalenv())
-  for (m in c("errors", "topology", "deck_reader", "validation", "registry", "features"))
+  for (m in c("errors", "topology", "deck_reader", "validation", "registry", "features", "holiday_islands"))
     sys.source(file.path(dl_root(), "scripts", "lib", paste0(m, ".R")), envir = e)
   e
 })
@@ -251,6 +251,7 @@ dl_fx_spec <- function(exogena = "MED", plugin = dl_plugin(), hist = DL8_HIST) {
   s <- plugin$spec
   s$history_days$train <- hist; s$history_days$infer <- hist
   s$params$exogena <- exogena
+  s$params$janela_dessem <- "referencia"      # decks sinteticos sem anexo de feriados; history_days.train < 1095 encurta a janela
   s
 }
 dl_fx_ctx_run <- function(cuts) list(load_label = cuts$load_label, timezone = cuts$tz,

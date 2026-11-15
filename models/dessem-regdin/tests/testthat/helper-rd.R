@@ -17,7 +17,7 @@ options(prevcarga.lib = file.path(rd_root(), "scripts", "lib"))
 ## fundacao carregada num env de teste, nunca no globalenv
 rd_lib <- local({
   e <- new.env(parent = globalenv())
-  for (m in c("errors", "topology", "deck_reader", "validation", "registry", "features"))
+  for (m in c("errors", "topology", "deck_reader", "validation", "registry", "features", "holiday_islands"))
     sys.source(file.path(rd_root(), "scripts", "lib", paste0(m, ".R")), envir = e)
   e
 })

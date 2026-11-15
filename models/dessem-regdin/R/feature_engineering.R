@@ -16,6 +16,11 @@ plugin_build_features <- function(deck, spec) {
   config_mdl <- eng$getConfigModel(key)
   eng_deck <- list(CARGAHIST = data.table::copy(deck$CARGAHIST), EXOGENAHIST = data.table::copy(deck$EXOGENAHIST),
                    EXOGENAPREV = data.table::copy(deck$EXOGENAPREV), FERIADOS = data.table::copy(deck$FERIADOS))
+  ## anexo de feriados (ADR-046): so entra no deck do motor quando existe (sem anexo o deck e o de antes)
+  if (!is.null(deck$CARGAFER)) {
+    eng_deck$CARGAFER <- data.table::copy(deck$CARGAFER)
+    eng_deck$EXOGENAFER <- data.table::copy(deck$EXOGENAFER)
+  }
   proc <- rd_muffle(c("Exogena prevista nao disponivel", "Ajustanto horizonte"),
     eng$TransformaDeck(deck = eng_deck, dataInicioPrev = deck$dataPrev, horizonteprevisao = "10DIAS", tz = deck$tz))
   n <- deck$horizon

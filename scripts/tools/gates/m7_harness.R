@@ -20,12 +20,13 @@
 
 M7H_TZ <- "Etc/GMT+3"
 M7H_LOAD_SCALE <- 8      # a carga do fixture (~1 GW por area) sobe para a ordem de grandeza real (mediana > 5000 MW do gate08)
-M7H_FOUNDATION <- c("errors", "runtime", "config", "topology", "schema_long", "provenance", "deck_reader", "dates", "validation",
+M7H_FOUNDATION <- c("errors", "runtime", "config", "topology", "schema_long", "provenance", "holiday_islands", "deck_reader", "dates", "validation",
                     "features", "registry", "inference_needs", "training", "inference", "build_long_output", "evaluation", "combination",
                     "reconcile", "cache", "orchestrate", "backtest")
 
 ## plano por modelo: ultima origem, no de origens, filtro de membro (sigla|mdir), protocolo, janela do deck, overrides rapidos
-## de TESTE do spec efetivo (a menor janela em que o plugin treina sobre o deck sintetico), gates.
+## de TESTE do spec efetivo (a menor janela em que o plugin treina sobre o deck sintetico), gates. DESSEM: janela_dessem = referencia
+## (deck sintetico sem anexo de feriados; ADR-046, E3-T4).
 M7H_PLAN <- list(
   "random-forest" = list(last = "2025-03-05", n_origins = 3L, models = "random-forest", protocol = NULL, deck_days = 120L,
                          overrides = list("history_days.train" = 40L, "params.ntree" = 5L),
@@ -33,9 +34,11 @@ M7H_PLAN <- list(
   "holt-winters" = list(last = "2025-03-05", n_origins = 3L, models = "holt-winters", protocol = "retrain_harness", deck_days = 120L,
                         overrides = list("history_days.train" = 40L), gates = "gate10_harness_parity"),
   "dessem-linear" = list(last = "2025-03-05", n_origins = 2L, models = "dessem-linear/MED", protocol = NULL, deck_days = 120L,
-                         overrides = list("history_days.train" = 40L, "history_days.infer" = 40L), gates = "gate03_sem_crash"),
+                         overrides = list("history_days.train" = 40L, "history_days.infer" = 40L, "params.janela_dessem" = "referencia"),
+                         gates = "gate03_sem_crash"),
   "dessem-regdin" = list(last = "2025-03-05", n_origins = 2L, models = "dessem-regdin/MED", protocol = NULL, deck_days = 460L,
-                         overrides = list("history_days.train" = 400L, "history_days.infer" = 400L), gates = "sem_crash_harness"))
+                         overrides = list("history_days.train" = 400L, "history_days.infer" = 400L, "params.janela_dessem" = "referencia"),
+                         gates = "sem_crash_harness"))
 ## slot [DEFERRED M7] da tabela do runner (<modelo>:<gate>) -> gate do pack que o substitui (nada some em silencio)
 M7H_SLOT_MAP <- c("random-forest:gate12" = "gate12_harness_long", "holt-winters:harness_parity" = "gate10_harness_parity",
                   "dessem-linear:gate03_sem_crash" = "gate03_sem_crash", "dessem-regdin:sem_crash_harness" = "sem_crash_harness")

@@ -55,7 +55,7 @@ commit_base: "f2d1734"
 
 <span className="pc-overline">Metodologia · 1.9</span>
 
-<p className="pc-lead">Os dois plugins DESSEM, dessem-linear e dessem-regdin, preveem a carga em duas peças: a demanda média do dia (DM) e o perfil horário, a forma da carga de cada hora dividida pela média do dia. A carga prevista é a forma vezes a DM desnormalizada. As duas famílias rodam sobre um motor comum, <code>models/_dessem-engine</code>, que só tem primitivas. O dessem-linear tira a DM de um SVM de kernel linear e o perfil de SVMs lineares; o dessem-regdin tira a DM de uma regressão dinâmica (ARIMA com regressores) e o perfil de SVMs radiais (no dia especial, de uma regressão linear). Os dois treinam com 1.825 dias até O−1, rodam O..O+9 e entregam O..O+8.</p>
+<p className="pc-lead">Os dois plugins DESSEM, dessem-linear e dessem-regdin, preveem a carga em duas peças: a demanda média do dia (DM) e o perfil horário, a forma da carga de cada hora dividida pela média do dia. A carga prevista é a forma vezes a DM desnormalizada. As duas famílias rodam sobre um motor comum, <code>models/_dessem-engine</code>, que só tem primitivas. O dessem-linear tira a DM de um SVM de kernel linear e o perfil de SVMs lineares; o dessem-regdin tira a DM de uma regressão dinâmica (ARIMA com regressores) e o perfil de SVMs radiais (no dia especial, de uma regressão linear). Os dois treinam com 1.095 dias comuns até O−1 (mais o anexo de feriados), rodam O..O+9 e entregam O..O+8.</p>
 
 Esta página trata da estrutura. O que só existe no dia O (a cabeça de nowcast, a posição do gerador aleatório e as guardas do infer) está em [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng). O lugar da família entre os membros está em [Os modelos](/metodologia/modelos-visao-geral).
 
@@ -138,22 +138,24 @@ Dentro de uma família, as entradas de `model_parameters.json` diferem só em `e
 
 ## Janela de treino e o invariante infer == train
 
-Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `history_days: {train: 1825, infer: 1825}`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
+Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `history_days: {train: 1095, infer: 1095}` e `params.janela_dessem: ano_civil`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
 
 | Fase | Janela no caminho da fundação |
 |---|---|
-| Treino (`scripts/lib/training.R`) | 1.825 dias, de O−1825 a O−1 |
-| Infer (`scripts/lib/inference.R`) | a mesma história, a partir de O−1825, mais a carga do dia O até o corte intradiário |
+| Treino (`scripts/lib/training.R`) | 1.095 dias de dias comuns, de O−1095 a O−1, mais o anexo de feriados |
+| Infer (`scripts/lib/inference.R`) | a mesma história, a partir de O−1095, mais o mesmo anexo e a carga do dia O até o corte intradiário |
+
+A janela é regra do plugin: o descriptor declara `history_window`, que delega a uma regra única de datas. Em `ano_civil` (padrão) os dias comuns cobrem três anos (O−1095 a O−1) e o histórico de feriados começa em 1º de janeiro do ano de O menos cinco. Cada feriado do histórico traz uma ilha de dias, de sete dias antes do feriado até o próprio feriado (`[d−7, d]`), cortada em O−1 e no primeiro dia disponível do store; ilhas que se encostam viram uma só. Os dias das ilhas entram como anexo (carga e temperatura observada) e a ingestão exige 24 horas em cada dia de ilha. A demanda média e a normalização usam só os dias comuns; o perfil de feriado enxerga os dias comuns e o anexo. O modo `referencia` (`params.janela_dessem: referencia`) mantém a janela anterior de 1.825 dias, sem anexo, e serve à paridade com a versão de referência.
 
 Os dois descriptors declaram `history_infer_equals_train = TRUE`. O loader confere a declaração: com ela, `history_days.infer` diferente de `history_days.train` aborta com `plugin.history_window`. O `run.yaml` do dessem-regdin também declara `constraints: {infer_history_equals_train: true}`; o do dessem-linear tem `constraints: {}`.
 
-Quando recebe o spec, o `plugin_ingest` do dessem-linear lê um dia de aquecimento antes da janela (1.826 dias de CARGAHIST): a janela de `history_days.train` dias termina em `last_data_day` e começa um dia antes. O despachante chama a ingestão sem spec, e a janela é a do painel que a fundação já recortou.
+Quando recebe o spec, o `plugin_ingest` do dessem-linear lê um dia de aquecimento antes da janela comum: a janela começa em `common_from`, termina em `last_data_day`, e o dia anterior serve de aquecimento. O despachante chama a ingestão sem spec, e a janela é a do painel que a fundação já recortou.
 
 A ingestão confere a completude e não preenche lacunas, nem da história nem da temperatura prevista: o que está incompleto reprova. Antes dela, o despachante só deixa o DESSEM rodar com o horizonte inteiro (ver Faixa do motor e faixa de entrega abaixo):
 
 | Conferência | dessem-linear | dessem-regdin |
 |---|---|---|
-| Carga e temperatura observada com 24 horas por dia, sem NA | `plugin.dessem_linear_series_gap` | `plugin.regdin_series_gap` (carga) e `plugin.regdin_panel_contract` (temperatura) |
+| Carga e temperatura observada com 24 horas por dia, sem NA (dias comuns e dias de ilha do anexo) | `plugin.dessem_linear_series_gap` | `plugin.regdin_series_gap` (carga, e carga e temperatura dos dias de ilha) e `plugin.regdin_panel_contract` (temperatura dos dias comuns) |
 | História menor que `history_days.train` (com spec) | `plugin.dessem_linear_window_short` | `plugin.regdin_history_short` |
 | Temperatura prevista com 24 horas em O..O+9 | `plugin.dessem_linear_series_gap` | `plugin.regdin_panel_contract` |
 

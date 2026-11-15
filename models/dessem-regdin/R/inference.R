@@ -30,11 +30,17 @@
 .rd_check_window <- function(inf_feat, artifact, .bypass_window_guard = FALSE) {
   if (isTRUE(.bypass_window_guard)) return(invisible(FALSE))
   got <- inf_feat$panel_window; exp <- artifact$train_window
-  if (!identical(as.numeric(got$start), as.numeric(exp$start)) || !identical(as.numeric(got$end), as.numeric(exp$end)))
+  ## conjunto de ilhas (E3-T4): artefato antigo sem islands = conjunto vazio; from/to comparados como numerico
+  gi <- .rd_window_islands(got$islands); ei <- .rd_window_islands(exp$islands)
+  fmt_isl <- function(x) if (!nrow(x)) "(nenhuma)" else paste(sprintf("%d:%s..%s", x$island_id, format(lubridate::as_date(x$from)),
+                                                                     format(lubridate::as_date(x$to))), collapse = ";")
+  same_isl <- identical(as.numeric(gi$from), as.numeric(ei$from)) && identical(as.numeric(gi$to), as.numeric(ei$to))
+  if (!identical(as.numeric(got$start), as.numeric(exp$start)) || !identical(as.numeric(got$end), as.numeric(exp$end)) || !same_isl)
     rd_abort("plugin.regdin_window_mismatch", where = "dessem-regdin/infer",
-             reason = sprintf("painel %s..%s; treino %s..%s", format(got$start), format(got$end), format(exp$start),
-                              format(exp$end)),
-             details = list(expected = format(c(exp$start, exp$end)), got = format(c(got$start, got$end))))
+             reason = sprintf("painel %s..%s ilhas %s; treino %s..%s ilhas %s", format(got$start), format(got$end), fmt_isl(gi),
+                              format(exp$start), format(exp$end), fmt_isl(ei)),
+             details = list(expected = format(c(exp$start, exp$end)), got = format(c(got$start, got$end)),
+                            expected_islands = fmt_isl(ei), got_islands = fmt_isl(gi)))
   invisible(TRUE)
 }
 

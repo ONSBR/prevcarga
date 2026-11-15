@@ -23,7 +23,7 @@ test_that("[PLUGINS] contrato: o run.yaml real registra Tier A (modes, delivery_
 
 test_that("[PLUGINS] contrato: 5 fixtures de run.yaml abortam contract (exit 2) nomeando o campo, com 0 ajustes", {
   cases <- list(
-    history_days.infer = list(edit = function(x) sub("infer: 1825", "infer: 45", x), id = "plugin.history_window"),
+    history_days.infer = list(edit = function(x) sub("infer: 1095", "infer: 45", x), id = "plugin.history_window"),
     split = list(edit = function(x) sub("split: origin_scoped", "split: origin_agnostic", x), id = "plugin.bad_run_yaml"),
     granularity_min = list(edit = function(x) sub("granularity_min: 60", "granularity_min: 30", x), id = "plugin.bad_run_yaml"),
     seed = list(edit = function(x) x[!grepl("^seed:", x)], id = "plugin.bad_run_yaml"),
