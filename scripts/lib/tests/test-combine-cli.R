@@ -14,7 +14,7 @@ j1 <- function(r) jsonlite::fromJSON(paste(r$stdout, collapse = "\n"), simplifyV
 rd <- function(p) env$prevcarga_read_long(p, list(tz = pc_cmb_tz))
 base_args <- function(mode, fmt, state, area = "SECO", extra = character())
   c("combine", paste0("--mode=", mode), paste0("--area=", area), paste0("--root=", fx$root),
-    paste0("--data=", fx$data), paste0("--state=", state), paste0("--format=", fmt), extra)
+    paste0("--data-train=", fx$data), paste0("--state=", state), paste0("--format=", fmt), extra)
 state_empty <- file.path(tmp, "state-vazio"); dir.create(state_empty)
 
 ## tabela de invocacoes: 1 linha por caso, cada uma roda em text e em json
@@ -115,7 +115,7 @@ test_that("M4.V - members_by_lead no JSON: 8 em O..O+1, 7 em O+2..O+8; trocar o 
     deck <- pc_deck_sentinel("start", days = lubridate::ymd("2024-02-29") + 0:11, areas = "SECO", dir = file.path(d, "deck"))
     st <- file.path(d, "state"); dir.create(st)
     out <- file.path(d, "o.parquet")
-    r <- pc_run_cli(c("combine", "--mode=full", "--area=SECO", paste0("--root=", root), paste0("--data=", deck),
+    r <- pc_run_cli(c("combine", "--mode=full", "--area=SECO", paste0("--root=", root), paste0("--data-train=", deck),
                       paste0("--state=", st), "--format=json", paste0("--out=", out)))
     list(r = r, out = out)
   }
