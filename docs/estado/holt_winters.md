@@ -95,3 +95,8 @@
 
 - Novo `tests/testthat/test-hygiene-clima.R` (`[PLUGINS] higiene_clima`, fast; so le codigo, nao ingere, treina nem infere): zero achados de `TempPre|CDDPre|weather_absent|efeitoTemp|weather_forecast|weather_observed` e de aritmetica de hora (`pc_grep_time_arith(allow = list())`) em `models/holt-winters/R`; CONTROL planta cada padrao numa copia em tempdir (apanhado na linha plantada; a linha so-comentario nao conta); le a tabela de gates de `run_all_gates.R` por `parse()` (sem executar o runner) e exige os gates novos como `[PLUGINS]` fast, a ausencia dos de clima antigos e um `test_that` rotulado para cada gate `[PLUGINS]`. Fica fora de `test-hygiene.R` porque o `higiene_env` dele infere o HW. A linha `higiene_clima` entra em `run_all_gates.R`.
 - Testes locais do epico (um arquivo por vez, painel sintetico/artefato falso, 0 falhas, cada um <= 8 s): ingestion, feature-engineering, freeze, register, helpers-aux-parity, weather, infer-sem-clima, deferred, hygiene-clima. `golden.lock` e `ab_excecoes.yaml` intocados (o golden do HW so muda no epico 7); tier parity nao rodado.
+
+## E2-T3 -- history_days.infer minimo (2)
+
+- `run.yaml`: `history_days {train 730, infer 2}` (era 45). O infer do HW e univariado (sem temperatura) e le so os ultimos dias de carga; 2 dias dao a mesma predicao do painel de 45 (diff maxima 0, `test-infer-window-min.R`).
+- HW nao declara `data_needs`: o default generico da fundacao da load 2 dias antes de O, sem segmento de previsto e feriados `[-2, +8]` (`prevcarga_inference_needs_of`). Carga, observado e feriados derivam de `spec$history_days$infer`, nunca de literal.
