@@ -41,7 +41,7 @@ rs_panel <- function(horizon, until = NULL, days = RD2_D) {
   if (days < RD2_D) pan$holidays <- pan$holidays[date >= RD2_O - days]            # o calendario do deck curto: O-15..O+H
   pan
 }
-rs_horizon <- list(dbl = c(`2` = 3L, `3` = 3L), trio = c(`2` = 3L, `3` = 4L, `4` = 5L))
+rs_horizon <- list(single = c(`2` = 3L), dbl = c(`2` = 3L, `3` = 3L), trio = c(`2` = 3L, `3` = 4L, `4` = 5L))
 rs_art <- function(nm) rd2_cached(paste("rs-art", nm), {
   p <- rd2_plugin()
   rd_with_cli(suppressMessages(rd_lib$prevcarga_plugin_train(p, rs_panel(rs_horizon[[nm]]), rd3_cuts(rd3_au(9L)),
@@ -168,6 +168,19 @@ rs_run <- function(nm, au, ctrl = NULL) {
   r <- rs_lm_calls(if (is.null(ctrl)) run() else rd2_with_plugin_fn("rd_profile_holiday", ctrl, run()))
   list(long = long, short = r$value, lm = r$n)
 }
+
+test_that("[PLUGINS] inferencia: estado derivado regdin ac-4: feriado unico no horizonte (O+2, codigo 3, amostras passadas so fora dos 15 dias): deck curto == longo", {
+  O <- rs_O(); pan15 <- rs_panel(rs_horizon$single, rd3_au(9L), 15L)
+  expect_identical(sum(pan15$holidays$prevcarga_code == 3L & pan15$holidays$date < O), 0L)   # nenhuma amostra do codigo dentro do deck curto
+  expect_true((O + 2L) %in% pan15$holidays$date)
+  for (h in c(9L, 0L)) {
+    r <- rs_run("single", rd3_au(h))
+    expect_identical(r$short$values, r$long$values)
+    expect_identical(r$short$delivery$y_pred, r$long$delivery$y_pred)
+    expect_identical(r$lm, 0L)                                               # coef congelado, sem refit
+  }
+  expect_identical(nrow(rs_art("single")$payload$hol_profile[[format(O + 2L)]]$sample), 72L)   # 3 dias x 24 h, todos fora do deck curto
+})
 
 test_that("[PLUGINS] inferencia: estado derivado regdin ac-4: dois feriados consecutivos do mesmo codigo: 0 lm no primeiro, 1 refit no segundo; deck curto == longo; CONTROL sem refit difere", {
   for (h in c(9L, 0L)) {
