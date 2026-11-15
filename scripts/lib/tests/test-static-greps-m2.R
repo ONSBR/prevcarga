@@ -143,7 +143,8 @@ M2G_CLI_FILES <- c("scripts/lib/cli.R", PROD[grepl("^scripts/lib/cli/", PROD)])
 test_that("[FORBIDDEN] --origin e a unica opcao de data nas usages (nenhum --as-of/--date/--until/--end-date)", {
   opts <- m2g_long_opts(M2G_CLI_FILES)
   expect_true("origin" %in% opts)
-  expect_identical(grep(M2G_DATE_OPT, opts, value = TRUE, perl = TRUE), "origin")
+  ## `from-topology` (E2-T4) e booleano de fonte das necessidades, nao uma data: o `from` do regex casa so no nome
+  expect_identical(setdiff(grep(M2G_DATE_OPT, opts, value = TRUE, perl = TRUE), "from-topology"), "origin")
   ## o valor fixo do docopt da fachada tambem so declara --origin
   expect_false(any(grepl("--as-of|--date=|--until|--end-date|--start-date", readLines(file.path(m2g_root, "scripts", "lib", "cli.R")))))
 })

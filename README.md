@@ -125,6 +125,10 @@ prevcarga validate-deck --origin 2026-10-15
 
 # 4. a rodada: infere os membros, combina, reconcilia e entrega
 prevcarga forecast --origin 2026-10-15
+
+# 4b. (opcional) rodar sobre um deck de inferência mínimo: gerar o deck da origem e apontá-lo no forecast
+prevcarga deck-inference --origin 2026-10-15 --out /caminho/deck-inferencia
+prevcarga forecast --origin 2026-10-15 --data-inference /caminho/deck-inferencia
 ```
 
 > [!NOTE]

@@ -11,6 +11,9 @@ fontes:
   - scripts/lib/exports.R
   - scripts/lib/dates.R
   - scripts/lib/deck_reader.R
+  - scripts/lib/deck_inference.R
+  - scripts/lib/cli/deck-inference.R
+  - scripts/lib/errors/deck_inference.tsv
   - scripts/lib/reconcile.R
   - scripts/lib/combination.R
   - scripts/lib/registry.R
@@ -28,6 +31,7 @@ fontes:
   - config/topology.yaml
   - models/*/run.yaml
   - docs/estado/forecast.md
+  - docs/estado/deck_inference.md
   - docs/estado/m6-forecast.md
   - docs/estado/export.md
 adrs: [ADR-0023, ADR-0024, ADR-0033, ADR-0039, ADR-0040]
@@ -93,6 +97,27 @@ A rodada continua quando uma célula (folha × membro) não entrega, em vez de a
 - **Clima previsto curto.** Clima previsto incompleto não bloqueia a rodada, ele corta o horizonte por membro. Um dia só conta como coberto se a emissão vigente traz os 48 instantes dele, e nada é preenchido nem persistido para completar o dia. O LGBM entrega até o último dia coberto, e sai um `warning.forecast_weather_horizon_cut` por folha (`details.ate` traz a data coberta). O DESSEM e o RF só rodam com o horizonte inteiro: com clima curto o membro recusa com `completude.weather_forecast_short` e vira membro ausente. O Holt-Winters não usa clima e entrega o horizonte inteiro. Por lead, a combina usa só os membros que cobrem o lead. O `result` traz `clima_previsto_ate` e `delivery_days_efetivo`. Só a falta do dia O inteiro recusa o membro dependente de clima.
 - **Sem pesos treinados.** Se a folha não tem `latest.txt` em `combina/<folha>/`, a combinação é a média simples dos membros presentes (EQW): sai `warning.combina_eqw` (um por folha), o `run.json` e o `result` registram `pesos=EQW` na proveniência da folha e nada é gravado em `combina/`. Pesos inválidos ou de outro conjunto de membros continuam abortando.
  (`--data`, `--state`, `--config`, `--format`, `--weather-cutoff`) valem como em qualquer verbo; ver [Configuração](/execucao/configuracao). Sem `--data` nem `data_dir` no `config.yaml`, o verbo para com `config.data_dir_missing` (exit 8).
+
+## Deck de inferência (deck-inference)
+
+Antes do `forecast`, a rodada pode ter o seu próprio deck de inferência: um recorte mínimo do deck de treino para a origem O, gerado por `prevcarga deck-inference`. O verbo lê o deck de treino (`--data-train`), as necessidades gravadas nos artefatos (`--data-artifacts`) e grava um deck `kind: inference` em `--out`. Depois, o `forecast` roda sobre ele com `--data-inference`.
+
+<Terminal lines={[
+  {type: 'cmd', text: 'prevcarga deck-inference --origin=2026-10-01 --out=./deck-inferencia'},
+  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck-inferencia'},
+]} />
+
+| Flag | Efeito |
+|---|---|
+| `--out=<dir>` | Obrigatória. Diretório ausente ou vazio; um `--out` com conteúdo dá `contract.deck_out_not_empty` (exit 2) antes de qualquer leitura |
+| `--area=<a>...` | Folhas ou subsistemas do deck gerado (padrão: todas as folhas da topologia); área fora da topologia dá `topology.area_undeclared` (exit 4) |
+| `--from-topology` | Necessidades pela topologia, sem ler artefatos |
+
+- O recorte cobre, por área, a janela de carga e de clima observado que as necessidades agregadas pedem antes de O (até o `available_until`), só as emissões do clima previsto que as regras dos membros escolhem e os feriados de `[O + de, O + até]`. As linhas são copiadas cruas do deck de treino.
+- Membro sem artefato (ou artefato sem `inference_needs`) para uma área cai na topologia, com o aviso `warning.inference_needs_from_topology` (membro e área); o manifest registra `inference_needs_source` como `artifacts`, `topology` ou `mixed`.
+- Quando um membro pede o anexo de feriados, o deck leva o subdeck `holiday_annex/` com o próprio `manifest.json` (`kind: holiday_annex`), a carga e o clima observado dos dias de ilha e as ilhas; nenhuma data do anexo é maior ou igual a O. Cada deck carrega a sua cópia.
+- Área sem nenhuma carga na janela dá `completude.no_load` (exit 3).
+- Duas gerações com as mesmas entradas dão arquivos com o mesmo SHA-256, manifest incluído. A escrita é atômica: o deck sai de `<out>.partial-<hash>` com um único `rename`.
 
 ## Passos da rodada e onde cada falha encerra
 
