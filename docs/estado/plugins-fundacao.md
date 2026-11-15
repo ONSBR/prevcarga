@@ -9,7 +9,7 @@ arquivos `docs/estado/plugin_dispatch.md`, `plugin_tools_*.md` e `features_facad
 ### Descriptor (`registry.R`, `.prevcarga_plugin_normalize_descriptor`)
 - Campos aceitos (`.prevcarga_plugin_fields`): `model_id`, `contract_version`, `granularity_supported`, `modes_implemented`, `params_schema`, `variant_param`,
   `native_layout`, `semihourly_rule`, `delivery_days`, `data_lag_days`, `model_time_offset_min`, `reads_day_O`, `weather_forecast_in_train`, `uses_rng`,
-  `history_infer_equals_train`, `rng_deviation`, `packages`, `attach`, `engine`, `freeze`, `thaw`, `stages`, `weather_cut`, `variants`. Chave fora da lista => `plugin.unknown_key`.
+  `history_infer_equals_train`, `rng_deviation`, `packages`, `attach`, `engine`, `freeze`, `thaw`, `stages`, `weather_cut`, `variants`, `history_window` (E3-T4: opcional, `function(origin, spec)`, formals conferidos; ausente => NULL). Chave fora da lista => `plugin.unknown_key`.
 - `variants` (opcional, default `list()`): lista nomeada por valor de `variant_param` (chave em `params_schema[[variant_param]]$allowed`; exige `variant_param`); entrada so com
   `requires` (tokens `data.<ds>.<col>`) e `ignores_params` (nomes de `params_schema`); violacao => `plugin.bad_descriptor` com reason `variants$<chave>$<subcampo>`.
   `prevcarga_plugin_variant_requires(descriptor, stage, variant)` (puro) e o unico ponto variante -> necessidade de dado: troca so os tokens `data.*` do estagio;

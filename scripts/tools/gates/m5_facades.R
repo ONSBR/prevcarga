@@ -161,6 +161,7 @@ pc5g_ctx <- function(S, deck, state = NULL, rule = "available_until", seed_delta
   if (isTRUE(S$descriptor$history_infer_equals_train) || isTRUE(S$spec$constraints$infer_history_equals_train))
     ov$history_days.infer <- PC5G_HIST
   if (!is.null(S$spec$params$ntree)) ov$params.ntree <- 5L
+  if (!is.null(S$spec$params$janela_dessem)) ov$params.janela_dessem <- "referencia"   # deck sintetico sem anexo de feriados (ADR-046)
   if (seed_delta != 0L) {                  # a semente do run.yaml e todo param de semente (ex.: kmeans_seed do HW)
     ov$seed <- as.integer(S$spec$seed + seed_delta)
     for (k in grep("seed", names(S$spec$params), value = TRUE))

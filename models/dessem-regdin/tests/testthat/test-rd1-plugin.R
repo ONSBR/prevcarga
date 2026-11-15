@@ -43,7 +43,7 @@ test_that("[PLUGINS] descritor: CONTROL descriptor sem o estagio inference abort
 ## ---- AC2: run.yaml invalido aborta no loader (nada de estagio roda) ---------------------------------------------------
 test_that("[PLUGINS] descritor: run.yaml de fixture invalido aborta contract nomeando o campo; MED e MAX carregam", {
   cases <- list(
-    list(sub = function(x) sub("infer: 1825", "infer: 45", x), id = "plugin.history_window", field = "history_days.infer"),
+    list(sub = function(x) sub("infer: 1095", "infer: 45", x), id = "plugin.history_window", field = "history_days.infer"),
     list(sub = function(x) sub("granularity_min: 60", "granularity_min: 30", x), id = "plugin.bad_run_yaml", field = "granularity_min"),
     list(sub = function(x) x[!grepl("^seed:", x)], id = "plugin.bad_run_yaml", field = "seed"),
     list(sub = function(x) sub("exogena: MED", "exogena: MXMN", x), id = "plugin.bad_run_yaml", field = "params$exogena"),
@@ -252,12 +252,12 @@ test_that("[PLUGINS] grep: RD.1 zero hits dos padroes proibidos em models/dessem
   }
   ## so ASCII
   for (f in files) expect_false(any(grepl("[\\x80-\\xFF]", readLines(f, warn = FALSE, encoding = "bytes"), perl = TRUE, useBytes = TRUE)), info = f)
-  ## divida interina do globalenv (mesmo padrao do dessem-linear, DL8-GAP-2): conjunto exato = rd_abort, rd_warn e rd_foundation (RD.3)
+  ## divida interina do globalenv (mesmo padrao do dessem-linear, DL8-GAP-2): conjunto exato = rd_abort, rd_warn, rd_foundation (RD.3) e rd_history_window (E3-T4: prevcarga_dessem_window)
   g <- unlist(lapply(files, function(f) {
     ln <- sub("#.*$", "", readLines(f, warn = FALSE)); i <- which(grepl("globalenv\\(\\)", ln))
     if (length(i)) paste0(basename(f), ":", trimws(ln[i])) else character()
   }))
-  expect_length(g, 3L)
-  expect_true(all(grepl("^register.R:.*get0\\(\"prevcarga_(condition|warn)\"", g) |
+  expect_length(g, 4L)
+  expect_true(all(grepl("^register.R:.*get0\\(\"prevcarga_(condition|warn|dessem_window)\"", g) |
                   grepl("^inference.R:.*get0\\(name, envir = globalenv\\(\\)", g)))   # RD.3: rd_foundation (to_semihourly)
 })

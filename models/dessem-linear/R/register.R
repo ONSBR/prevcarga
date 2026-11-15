@@ -11,7 +11,8 @@
 
 plugin_constants <- function() {
   list(model_key = c(MED = "Linear.TmpMedia", MAX = "Linear.TmpMaxima", MXMN = "Linear.TmpMaxMin"),
-       hours_per_day = 24L, mm_ref_hour = 12L, max_tail_fill_days = 2L, horizon_days = 9L)
+       hours_per_day = 24L, mm_ref_hour = 12L, max_tail_fill_days = 2L, horizon_days = 9L,
+       reference_history_days = 1825L)
 }
 
 ## Env do motor (pai do env do plugin). Nao ha estado: o motor e uma instancia por plugin carregado.
@@ -78,14 +79,30 @@ dl_pick <- function(name, stub) {
   if (is.null(f)) stub else f
 }
 
+## Janela do DESSEM (ADR-046; E3-T1): puro; delega a regra unica da fundacao (scripts/lib/holiday_islands.R), resolvida no
+## globalenv como prevcarga_condition (o env do plugin so enxerga base + attach). Sem o param, ano_civil.
+## history_days.train ABAIXO da janela de ano_civil (1095) encurta a janela comum nos dois modos (override de teste/gate; o
+## run.yaml declara 1095): common_from = O - history_days.train. Em producao (1095) a regra da fundacao vale como esta.
+dl_history_window <- function(origin, spec) {
+  mode <- spec$params$janela_dessem
+  f <- get0("prevcarga_dessem_window", envir = globalenv(), mode = "function", inherits = FALSE)
+  w <- f(origin, if (is.null(mode)) "ano_civil" else mode)
+  tr <- spec$history_days$train
+  if (!is.null(tr) && is.finite(tr) && w$common_from < lubridate::as_date(origin) - as.integer(tr) &&
+      as.integer(tr) < as.integer(lubridate::as_date(origin) - f(origin, "ano_civil")$common_from))
+    w$common_from <- lubridate::as_date(origin) - as.integer(tr)
+  w
+}
+
 ## data_needs (E2-T2): o que a inferencia/treino precisa do deck, so como dado. O previsto e a emissao mais fresca por
 ## valid_time em [O, O + H] (freshest); carga/observado/feriados pela janela atual (n = history_days.infer, nunca literal).
 ## E3/E4 trocam esta declaracao depois.
 dl_data_needs <- function(spec, area) {
   n <- as.integer(spec$history_days$infer); H <- as.integer(spec$horizon_days)
+  mode <- if (is.null(spec$params$janela_dessem)) "ano_civil" else spec$params$janela_dessem
   wf <- list(area = area, segments = list(list(kind = "freshest", from = 0L, to = H, lead = NA_integer_)))
   list(infer = list(schema_version = 1L, load = list(days_before = n), weather_observed = list(days_before = n),
-                    weather_forecast = wf, holidays = list(from = -n, to = H), holiday_annex = FALSE),
+                    weather_forecast = wf, holidays = list(from = -n, to = H), holiday_annex = identical(mode, "ano_civil")),
        train_weather_forecast = wf)
 }
 
@@ -95,7 +112,8 @@ plugin_descriptor <- function() {
     model_id = "dessem-linear", contract_version = 1L,
     granularity_supported = 60L, modes_implemented = c("train", "infer", "forecast"),
     weather_resample = "hourly",              # EXOGENAHIST/EXOGENAPREV horarios (to_hourly da fundacao)
-    params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key))),
+    params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key)),
+                         janela_dessem = list(type = "character", allowed = c("ano_civil", "referencia"))),
     variant_param = "exogena",
     native_layout = "dessem_semihourly_48", semihourly_rule = dl_semihourly_rule,
     weather_cut = "absent",   # F3.7: DESSEM so com horizonte inteiro; clima previsto curto => completude.weather_forecast_short (membro ausente)
@@ -104,6 +122,8 @@ plugin_descriptor <- function() {
     history_infer_equals_train = TRUE, rng_deviation = NULL,
     packages = attach, attach = attach, engine = "_dessem-engine",
     data_needs = dl_data_needs,
+    ## Janela do DESSEM (ADR-046; E3-T1): a fachada consome este campo sem switch por nome. Sem o param, ano_civil.
+    history_window = dl_history_window,
     freeze = dl_pick("dl_freeze", dl_stub_freeze), thaw = dl_pick("dl_thaw", dl_stub_thaw),
     stages = list(
       ingestion = list(fn = dl_ingestion,

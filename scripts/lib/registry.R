@@ -91,7 +91,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
   "params_schema", "variant_param", "native_layout", "semihourly_rule", "weather_resample", "delivery_days", "data_lag_days",
   "model_time_offset_min", "reads_day_O", "weather_forecast_in_train", "uses_rng", "history_infer_equals_train",
   "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages", "weather_cut", "variants",
-  "data_needs")
+  "data_needs", "history_window")
 .prevcarga_plugin_param_types <- c("integer", "numeric", "logical", "character")
 
 .prevcarga_plugin_cache <- new.env(parent = emptyenv())
@@ -337,6 +337,9 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     if (!is.function(dn)) bad("data_needs")
     .prevcarga_plugin_check_signature(dn, "data_needs", model)
   }
+  ## history_window (E3-T4; ADR-046): janela do plugin, opcional; pura, function(origin, spec). Ausente => NULL (fachada usa history_days).
+  hw <- d[["history_window"]]
+  if (!is.null(hw) && (!is.function(hw) || !identical(names(formals(hw)), c("origin", "spec")))) bad("history_window")
   stages <- d[["stages"]]
   if (!is.list(stages) || is.null(names(stages))) bad("stages")
   extra <- setdiff(names(stages), c(prevcarga_plugin_stages, "forecast"))
@@ -357,7 +360,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     weather_forecast_in_train = flags$weather_forecast_in_train, uses_rng = flags$uses_rng,
     history_infer_equals_train = flags$history_infer_equals_train, rng_deviation = rd,
     packages = pk, attach = at, engine = eng, freeze = d[["freeze"]], thaw = d[["thaw"]], stages = stages,
-    data_needs = dn, weather_cut = wcut, variants = vars)
+    data_needs = dn, weather_cut = wcut, variants = vars, history_window = hw)
   out
 }
 

@@ -11,6 +11,7 @@
 # (campo `sha256` do relatorio = JSON canonico do bloco `units`) ANTES de qualquer unidade RGD; senao o gerador recusa (exit 2).
 # Runtime do oraculo: R 4.5.3 (unico com fable/fabletools/feasts/tsibble instalados nesta maquina; o regdin diverge do oraculo em
 # R 4.2.3/renv.lock so por versao de pacote, ADR-0036: max_rel 1,3e-5, nao medido por este golden). Todo valor entre aspas (YAML 1.1).
+# ADR-046 (E3-T4): as unidades rodam em `params: {janela_dessem: referencia}` (janela comum O - 1825, sem anexo de feriados): delta 0 contra a v0.1.5.
 # Grupos: smoke (tier parity) = <= 3 unidades por variante em SECO; foundation (parity-full) = RGD_MED x SECO, outubro/2024 em
 # walk-forward retrain_harness (cortes 09:00 e 12:00; 2024-10-07 tem feriado em d_plus = 5); fanout = MED e MAX x SECO, S, NE, N.
 # CONTROL `exogena` MED->MAX re-roda a unidade com a variante trocada e `history_days.train` -7 re-treina com a janela menor.
@@ -27,6 +28,7 @@ groups:
 units:
   - id: rgd-med-seco-20241001-0900
     variant: "MED"
+    params: {janela_dessem: referencia}
     area: "SECO"
     origin: "2024-10-01"
     available_until: "2024-10-01T09:00"
@@ -38,6 +40,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-seco-20241007-1200
     variant: "MED"
+    params: {janela_dessem: referencia}
     area: "SECO"
     origin: "2024-10-07"
     available_until: "2024-10-07T12:00"
@@ -49,6 +52,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-seco-20241015-0900
     variant: "MED"
+    params: {janela_dessem: referencia}
     area: "SECO"
     origin: "2024-10-15"
     available_until: "2024-10-15T09:00"
@@ -60,6 +64,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-seco-20241022-1200
     variant: "MED"
+    params: {janela_dessem: referencia}
     area: "SECO"
     origin: "2024-10-22"
     available_until: "2024-10-22T12:00"
@@ -71,6 +76,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-seco-20241029-0900
     variant: "MED"
+    params: {janela_dessem: referencia}
     area: "SECO"
     origin: "2024-10-29"
     available_until: "2024-10-29T09:00"
@@ -82,6 +88,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-seco-20241007-1200
     variant: "MAX"
+    params: {janela_dessem: referencia}
     area: "SECO"
     origin: "2024-10-07"
     available_until: "2024-10-07T12:00"
@@ -93,6 +100,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-seco-20241015-0900
     variant: "MAX"
+    params: {janela_dessem: referencia}
     area: "SECO"
     origin: "2024-10-15"
     available_until: "2024-10-15T09:00"
@@ -104,6 +112,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-s-20241015-0900
     variant: "MED"
+    params: {janela_dessem: referencia}
     area: "S"
     origin: "2024-10-15"
     available_until: "2024-10-15T09:00"
@@ -115,6 +124,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-ne-20241015-0900
     variant: "MED"
+    params: {janela_dessem: referencia}
     area: "NE"
     origin: "2024-10-15"
     available_until: "2024-10-15T09:00"
@@ -126,6 +136,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-med-n-20241015-0900
     variant: "MED"
+    params: {janela_dessem: referencia}
     area: "N"
     origin: "2024-10-15"
     available_until: "2024-10-15T09:00"
@@ -137,6 +148,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-s-20241015-0900
     variant: "MAX"
+    params: {janela_dessem: referencia}
     area: "S"
     origin: "2024-10-15"
     available_until: "2024-10-15T09:00"
@@ -148,6 +160,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-ne-20241015-0900
     variant: "MAX"
+    params: {janela_dessem: referencia}
     area: "NE"
     origin: "2024-10-15"
     available_until: "2024-10-15T09:00"
@@ -159,6 +172,7 @@ units:
     requires_report: {path: "models/dessem-linear/tests/parity/foundation_report.json", sha256: "474f9a9585c24a4bbe105d1605be1caf060ce3cf2d6e05140a92105229948e0e"}
   - id: rgd-max-n-20241015-0900
     variant: "MAX"
+    params: {janela_dessem: referencia}
     area: "N"
     origin: "2024-10-15"
     available_until: "2024-10-15T09:00"

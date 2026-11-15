@@ -38,6 +38,54 @@ rd_panel_contract <- function(reason, details = NULL)
   out[]
 }
 
+## --- Anexo de feriados (ADR-046): ilhas da area e dias esperados ---------------------------------------------------------
+## Ilhas da area (island_id, from, to); data.table vazia (anexo sem ilha) ou NULL (sem anexo).
+.rd_annex_islands <- function(ax, area) {
+  if (is.null(ax)) return(NULL)
+  isl <- data.table::as.data.table(ax$islands)
+  if (!nrow(isl)) return(data.table::data.table(island_id = integer(), from = lubridate::as_date(character()),
+                                                to = lubridate::as_date(character())))
+  isl[area_code == area, list(island_id = as.integer(island_id), from = lubridate::as_date(from), to = lubridate::as_date(to))]
+}
+
+## Dias de ilha esperados: cada dia de [from, to] das ilhas mais os dias que as series do anexo trazem, sempre <= last.
+.rd_annex_days <- function(isl, dts, last) {
+  d <- lubridate::as_date(c(
+    if (!is.null(isl) && nrow(isl)) unlist(lapply(seq_len(nrow(isl)), function(i) seq(isl$from[[i]], isl$to[[i]], by = "day"))),
+    unlist(lapply(dts, function(x) rd_day_of(x)))))
+  sort(unique(d[d <= last]))
+}
+
+## Dia de ilha sem 24 horas dentro do store => plugin.regdin_series_gap nomeando o dia (e a hora, quando e NA).
+.rd_assert_annex <- function(ax, area, last) {
+  if (is.null(ax)) return(invisible(TRUE))
+  k <- plugin_constants()
+  ld <- data.table::as.data.table(ax$load)[area_code == area & rd_day_of(interval_end) <= last]
+  wo <- data.table::as.data.table(ax$weather_observed)[area_code == area & rd_day_of(valid_time) <= last]
+  days <- .rd_annex_days(.rd_annex_islands(ax, area), list(ld$interval_end, wo$valid_time), last)
+  if (anyNA(ld$load_mwh)) {
+    i <- which(is.na(ld$load_mwh))[[1L]]
+    rd_abort("plugin.regdin_series_gap", where = "dessem-regdin/ingest",
+             reason = sprintf("carga do anexo com NA em %d hora(s); primeira: dia %s hora %s", sum(is.na(ld$load_mwh)),
+                              format(rd_day_of(ld$interval_end[[i]])), format(ld$interval_end[[i]], "%H:%M")),
+             details = list(serie = "CARGAFER", dia = format(rd_day_of(ld$interval_end[[i]])), n_na = sum(is.na(ld$load_mwh))))
+  }
+  for (spec in list(list(ld$interval_end, "CARGAFER"), list(wo$valid_time, "EXOGENAFER"))) {
+    dd <- rd_day_of(spec[[1L]])
+    got <- vapply(days, function(x) sum(dd == x), integer(1L))
+    bad <- which(got != k$hours_per_day)
+    if (length(bad))
+      rd_abort("plugin.regdin_series_gap", where = "dessem-regdin/ingest",
+               reason = sprintf("dia de ilha %s com %d/24 horas em %s; dias: %s", format(days[[bad[[1L]]]]), got[[bad[[1L]]]],
+                                spec[[2L]], rd_fmt_days(days[bad])),
+               details = list(serie = spec[[2L]], dia = format(days[[bad[[1L]]]]), horas = got[[bad[[1L]]]],
+                              dias = format(days[bad])))
+  }
+  if (anyNA(wo$temperature))
+    rd_panel_contract("Exo_Temperatura com NA em EXOGENAFER", list(serie = "EXOGENAFER"))
+  invisible(TRUE)
+}
+
 ## --- Conferencia do painel (confere, nunca corta) ---------------------------------------------------------------------
 .rd_assert_panel <- function(panel, cuts, spec = NULL) {
   need <- list(load = c("area_code", "interval_end", "load_mwh"),
@@ -79,7 +127,7 @@ rd_panel_contract <- function(reason, details = NULL)
   if (!nrow(hist)) rd_abort("plugin.regdin_series_gap", where = "dessem-regdin/ingest", reason = "CARGAHIST sem linhas")
   first <- min(hd)
   if (!is.null(spec)) {
-    hs <- last - as.integer(spec$history_days$train) + 1L
+    hs <- rd_history_window(O, spec)$common_from      # janela comum do descriptor (E3-T4); o anexo e conferido a parte
     if (first > hs) {
       miss <- seq(hs, first - 1L, by = "day")
       rd_abort("plugin.regdin_history_short", where = "dessem-regdin/ingest",
@@ -105,6 +153,9 @@ rd_panel_contract <- function(reason, details = NULL)
              reason = sprintf("dia %s com %d/24 horas de carga; dias: %s", format(days[[bad[[1L]]]]), got[[bad[[1L]]]],
                               rd_fmt_days(days[bad])),
              details = list(dia = format(days[[bad[[1L]]]]), horas = got[[bad[[1L]]]], dias = format(days[bad])))
+
+  ## (e) anexo de feriados: 24 horas por dia de ilha, sem NA de carga
+  if (!is.null(panel$holiday_annex)) .rd_assert_annex(panel$holiday_annex, rd_single_area(panel), last)
 
   ## (c) nenhuma emissao de clima depois do weather_issue_limit
   wf <- panel$weather_forecast
@@ -185,11 +236,22 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   cargahist <- ld[dl <= last]
   origin_load <- ld[dl == O]
   hourly_load <- data.table::rbindlist(list(cargahist, origin_load))
-  hs <- if (is.null(spec)) NULL else O - as.integer(spec$history_days$train)
+  hs <- if (is.null(spec)) NULL else rd_history_window(O, spec)$common_from   # common_from do history_window (E3-T4)
 
   h <- data.table::as.data.table(panel$holidays)
   if ("area_code" %in% names(h)) h <- h[area_code == area]
   feriados <- rd_engine()$normalize_special_day_codes(.rd_map_holidays(h, cuts$tz), area = area)
+
+  ## anexo de feriados (ADR-046): ja horario e deslocado pelo despachante. Sem anexo, o deck e o de antes.
+  ax <- panel$holiday_annex
+  cargafer <- exogenafer <- isl <- NULL
+  if (!is.null(ax)) {
+    la <- data.table::as.data.table(ax$load)[area_code == area & rd_day_of(interval_end) <= last]
+    cargafer <- .rd_hourly_to_deck(la, "load_mwh", "interval_end", "Carga")
+    wa <- data.table::as.data.table(ax$weather_observed)[area_code == area & rd_day_of(valid_time) <= last]
+    exogenafer <- .rd_hourly_to_deck(wa, "temperature", "valid_time", "Exo_Temperatura")
+    isl <- .rd_annex_islands(ax, area)
+  }
 
   deck <- list(CARGAHIST = cargahist,
                EXOGENAHIST = .rd_exo(panel$weather_observed, "hist", cuts, horizon, area,
@@ -199,5 +261,6 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
                dataPrev = O, horizon = as.integer(horizon), variant = if (is.null(spec)) NA_character_ else spec$params$exogena,
                model_key = key, area = area, tz = cuts$tz, available_until = cuts$available_until,
                last_data_day = last, history_start = hs)
+  deck$CARGAFER <- cargafer; deck$EXOGENAFER <- exogenafer; deck$islands <- isl
   deck
 }

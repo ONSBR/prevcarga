@@ -9,13 +9,22 @@ dl_muffle <- function(patterns, expr) {
   })
 }
 
+## Bloco 0 = janela comum + horizonte; Bloco k > 0 = ilhas do anexo (ADR-046 item 1: normalizacao e serieDM so no Bloco 0).
+## Sem a coluna Bloco (modo referencia ou deck sem anexo) o resultado e identico ao de antes.
+dl_common_base <- function(SERIECOMP) {
+  if ("Bloco" %in% names(SERIECOMP)) SERIECOMP[Bloco == 0L & Prev == FALSE] else SERIECOMP[Prev == FALSE]
+}
+dl_common_series <- function(SERIECOMP) {
+  if ("Bloco" %in% names(SERIECOMP)) SERIECOMP[Bloco == 0L] else SERIECOMP
+}
+
 ## serieDM (diaria) e seriePF (horaria) limpas, na mesma ordem de operacoes do processaModelosDMPerfil.
 dl_build_series <- function(SERIECOMP, config_mdl) {
   eng <- dl_engine()
-  base <- SERIECOMP[Prev == FALSE]
+  base <- dl_common_base(SERIECOMP)
   nrm <- config_mdl$normalizacao
   serieDM <- eng$aggregaSerie(
-    serieHist = data.table::copy(SERIECOMP),
+    serieHist = data.table::copy(dl_common_series(SERIECOMP)),
     tipotemp = config_mdl$exogenaOper,
     normaliza = any(nrm$dm$carga$flag, nrm$dm$exogena$flag),
     constnorm = eng$getNormalizaCarga(nrm$dm$carga, base),
@@ -32,7 +41,7 @@ dl_build_series <- function(SERIECOMP, config_mdl) {
 ## Constantes de normalizacao calculadas em Prev == FALSE (as do oraculo: dm/perfil).
 dl_norm_constants <- function(SERIECOMP, config_mdl) {
   eng <- dl_engine()
-  base <- SERIECOMP[Prev == FALSE]
+  base <- dl_common_base(SERIECOMP)
   nrm <- config_mdl$normalizacao
   list(dm_carga = eng$getNormalizaCarga(nrm$dm$carga, base),
        dm_exo = eng$getNormalizaExogena(nrm$dm$exogena, base),
@@ -47,6 +56,11 @@ plugin_build_features <- function(deck, spec) {
   config_mdl <- eng$getConfigModel(v$model_key)
   eng_deck <- list(CARGAHIST = data.table::copy(deck$CARGAHIST), EXOGENAHIST = data.table::copy(deck$EXOGENAHIST),
                    EXOGENAPREV = data.table::copy(deck$EXOGENAPREV), FERIADOS = data.table::copy(deck$FERIADOS))
+  ## anexo de feriados (ADR-046): so entra no deck do motor quando existe (sem anexo o deck e o de antes)
+  if (!is.null(deck$CARGAFER)) {
+    eng_deck$CARGAFER <- data.table::copy(deck$CARGAFER)
+    eng_deck$EXOGENAFER <- data.table::copy(deck$EXOGENAFER)
+  }
   processado <- dl_muffle(c("Exogena prevista nao disponivel", "Ajustanto horizonte"),
     eng$TransformaDeck(deck = eng_deck, dataInicioPrev = deck$dataPrev, horizonteprevisao = "10DIAS", tz = deck$tz))
   if (length(processado$DIASPREV) > deck$horizon) {

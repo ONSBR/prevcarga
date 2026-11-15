@@ -15,9 +15,8 @@ dl_series_gap <- function(what, why, details = NULL)
   dl_abort("plugin.dessem_linear_series_gap", where = "dessem-linear/ingest", reason = paste(what, why),
            details = c(list(serie = what), details))
 
-## cada dia de `from` a `to` com exatamente `per_day` linhas (hora faltante = linha ausente pos-agregacao horaria)
-dl_assert_covers_days <- function(dt, col, from, to, what, per_day = 24L) {
-  days <- seq(from, to, by = "day")
+## cada dia de `days` com exatamente `per_day` linhas (hora faltante = linha ausente pos-agregacao horaria)
+dl_assert_days <- function(dt, col, days, what, per_day = 24L) {
   dd <- if (nrow(dt)) dl_day_of(dt[[col]]) else lubridate::as_date(numeric())
   got <- vapply(days, function(d) sum(dd == d), integer(1L))
   bad <- which(got != per_day)
@@ -25,6 +24,20 @@ dl_assert_covers_days <- function(dt, col, from, to, what, per_day = 24L) {
     dl_series_gap(what, sprintf("%s com %d/%d horas", format(days[[bad[[1L]]]]), got[[bad[[1L]]]], per_day),
                   list(dia = format(days[[bad[[1L]]]]), horas = got[[bad[[1L]]]], esperado = per_day))
   invisible(TRUE)
+}
+
+## cada dia de `from` a `to` com exatamente `per_day` linhas
+dl_assert_covers_days <- function(dt, col, from, to, what, per_day = 24L)
+  dl_assert_days(dt, col, seq(from, to, by = "day"), what, per_day)
+
+## Dias de ilha esperados no anexo: cada dia de [from, to] das ilhas da area mais os dias que as series do anexo trazem,
+## sempre <= last_data_day. Dia de ilha sem as 24 horas dentro do store e lacuna (nunca preenchida).
+dl_annex_days <- function(deck, last) {
+  isl <- deck$islands
+  d <- lubridate::as_date(c(
+    if (!is.null(isl) && nrow(isl)) unlist(lapply(seq_len(nrow(isl)), function(i) seq(isl$from[[i]], isl$to[[i]], by = "day"))),
+    dl_day_of(deck$CARGAFER$DataHora), dl_day_of(deck$EXOGENAFER$DataHora)))
+  sort(unique(d[d <= last]))
 }
 
 dl_assert_no_na <- function(dt, col, what) {
@@ -53,6 +66,13 @@ dl_validate_deck <- function(deck, cuts, spec = NULL) {
     dl_assert_covers_days(dt, "DataHora", hs, last, s)
     dl_assert_no_na(dt, if (identical(s, "CARGAHIST")) "Carga" else "Exo_Temperatura", s)
   }
+  if (!is.null(deck$CARGAFER)) {
+    days <- dl_annex_days(deck, last)
+    dl_assert_days(deck$CARGAFER, "DataHora", days, "CARGAFER")
+    dl_assert_no_na(deck$CARGAFER, "Carga", "CARGAFER")
+    dl_assert_days(deck$EXOGENAFER, "DataHora", days, "EXOGENAFER")
+    dl_assert_no_na(deck$EXOGENAFER, "Exo_Temperatura", "EXOGENAFER")
+  }
   dl_assert_covers_days(deck$EXOGENAPREV, "DataHora", O, O + deck$horizon - 1L, "EXOGENAPREV")
   dl_assert_no_na(deck$EXOGENAPREV, "Exo_Temperatura", "EXOGENAPREV")
   if (!nrow(deck$FERIADOS)) dl_series_gap("FERIADOS", "vazio")
@@ -80,8 +100,8 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   ## para as ultimas horas do ultimo dia entregue. E contagem de dias, nao aritmetica de hora.
   horizon <- (if (is.null(spec)) k$horizon_days else as.integer(spec$horizon_days)) + 1L
   area <- dl_single_area(panel)
-  ## com spec: janela de history_days.train dias terminando em last_data_day, mais 1 dia de aquecimento antes
-  hs <- if (is.null(spec)) NULL else last - (as.integer(spec$history_days$train) - 1L)
+  ## com spec: janela comum do descriptor (history_window; E3-T4) terminando em last_data_day, mais 1 dia de aquecimento antes
+  hs <- if (is.null(spec)) NULL else dl_history_window(O, spec)$common_from
   from <- if (is.null(hs)) NULL else hs - 1L
   in_window <- function(d) if (is.null(from)) d <= last else d <= last & d >= from
 
@@ -113,10 +133,22 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   feriados <- data.table::data.table(Data = dl_day_of(h$date), Tipo = as.integer(h[[code]]))
   feriados <- eng$normalize_special_day_codes(feriados, area = area)
 
+  ## anexo de feriados (ADR-046): ja horario e deslocado pelo despachante; so dias <= last_data_day. Sem anexo, nada muda.
+  ax <- panel$holiday_annex
+  cargafer <- exogenafer <- isl <- NULL
+  if (!is.null(ax)) {
+    la <- data.table::as.data.table(ax$load)[area_code == area & dl_day_of(interval_end) <= last]
+    cargafer <- la[order(interval_end), .(DataHora = interval_end, Carga = load_mwh)]
+    wa <- data.table::as.data.table(ax$weather_observed)[area_code == area & dl_day_of(valid_time) <= last]
+    exogenafer <- wa[order(valid_time), .(DataHora = valid_time, Exo_Temperatura = temperature)]
+    isl <- data.table::as.data.table(ax$islands)[area_code == area, .(island_id, from, to)]
+  }
+
   deck <- list(CARGAHIST = cargahist, EXOGENAHIST = exogenahist, EXOGENAPREV = exogenaprev, FERIADOS = feriados,
                origin_load = origin_load, hourly_load = hourly_load, dataPrev = O, horizon = as.integer(horizon),
                variant = v$exogena, model_key = v$model_key, area = area, tz = cuts$tz,
                available_until = au, last_data_day = last, history_start = hs)
+  deck$CARGAFER <- cargafer; deck$EXOGENAFER <- exogenafer; deck$islands <- isl
   dl_validate_deck(deck, cuts, spec)
   deck
 }

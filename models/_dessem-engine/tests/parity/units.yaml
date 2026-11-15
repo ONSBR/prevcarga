@@ -4,6 +4,7 @@
 # `history_days: 1825` (= O - 1825, history_start dos jobs de producao; so o caso TON/cross usa 730). A variante entra como `oracle_env: {EXOGENA: <v>}`
 # (MED -> Linear.TmpMedia, MAX -> Linear.TmpMaxima, MXMN -> Linear.TmpMaxMin). Cada unidade nomeia as chamadas comparadas.
 # Runtime do oraculo: R 4.4.3 + biblioteca com WeightSVM/e1071 (`--rscript` e `R_LIBS_USER` no oracle_env), como o DL.1.
+# ADR-046 (E3-T4): o motor roda SEM anexo de feriados (um bloco, sem coluna Bloco); a janela_dessem e dos plugins, nao do motor.
 # Grupos: engine (golden numerico, 3 variantes SECO); robustez (modelo-vazio GO, TON/cross SP, flag-12 SP).
 packages: [WeightSVM, e1071, data.table, lubridate, rlist, jsonlite, arrow]
 rules:

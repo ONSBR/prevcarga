@@ -116,6 +116,7 @@ rd5_spec <- function(exogena = "MED", plugin = rd_fx_plugin()) {
   s <- plugin$spec
   s$history_days$train <- RD5_HIST; s$history_days$infer <- RD5_HIST
   s$params$exogena <- exogena
+  s$params$janela_dessem <- "referencia"      # decks sinteticos sem anexo de feriados; history_days.train < 1095 encurta a janela
   s
 }
 rd5_run_ctx <- function(cuts) list(load_label = cuts$load_label, timezone = cuts$tz, weather_issue_cutoff = cuts$weather_issue_cutoff)

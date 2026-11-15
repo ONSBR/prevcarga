@@ -43,7 +43,7 @@ rd_inference_features <- function(frame, payload) {
   if (!(deck$dataPrev %in% mm$Data)) mm <- mm[0L]      # nenhuma hora de O disponivel (00:00 de exibicao): sem cabeca
   hist_days <- feats$series$serieDM[Prev == FALSE]$Data
   list(features = feats, mm = mm, variant = variant,
-       panel_window = list(start = min(hist_days), end = max(hist_days)),
+       panel_window = list(start = min(hist_days), end = max(hist_days), islands = .rd_window_islands(deck$islands)),
        cuts = list(origin_day = deck$dataPrev, available_until = deck$available_until, tz = deck$tz))
 }
 

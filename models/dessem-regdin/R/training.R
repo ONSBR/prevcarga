@@ -66,12 +66,20 @@ rd_rng_mode <- function(deviation = plugin_descriptor()$rng_deviation) {
   list(base_fit = base$mdl$modeloTreinado, svm_perfil = svm)
 }
 
-## Constantes de normalizacao (Prev == FALSE), as do artefato do oraculo.
+## Constantes de normalizacao (Prev == FALSE e Bloco 0), as do artefato do oraculo.
 .rd_norm_constants <- function(SERIECOMP, config_mdl) {
-  h <- SERIECOMP[Prev == FALSE]
+  h <- .rd_common_base(SERIECOMP)       # so o Bloco 0 (ADR-046 item 1)
   nz <- config_mdl$normalizacao
   list(dm_carga = getNormalizaCarga(nz$carga, h), dm_exo = getNormalizaExogena(nz$exogena, h),
        pf_cargadm = getNormalizaCarga(nz$perfil$cargadm, h), pf_exo = getNormalizaExogena(nz$perfil$exogena, h))
+}
+
+## Ilhas do anexo na janela do treino: island_id/from/to por ilha (data.table vazia sem anexo). `from`/`to` numericos
+## (dias desde 1970), em data.frame puro (data.table carrega um externalptr, recusado pela varredura de pureza do artefato).
+.rd_window_islands <- function(isl) {
+  if (is.null(isl) || !nrow(isl))
+    return(data.frame(island_id = integer(), from = numeric(), to = numeric()))
+  data.frame(island_id = as.integer(isl$island_id), from = as.numeric(isl$from), to = as.numeric(isl$to))
 }
 
 ## Estagio real (formais fixos do loader: features, params, seed).
@@ -86,7 +94,8 @@ rd_training <- function(features, params, seed) {
   fits <- .rd_fit_pass(features, seed = seed, mm_ref = mm_ref, mode = mode)
   list(svm_perfil = fits$svm_perfil, norm = features$norm, config_mdl = features$config_mdl,
        day_types = features$day_types, dias = features$dias,
-       train_window = list(start = min(hist_days), end = deck$last_data_day), seed = as.integer(seed),
+       train_window = list(start = min(hist_days), end = deck$last_data_day, islands = .rd_window_islands(deck$islands)),
+       seed = as.integer(seed),
        arima_fingerprint = .rd_arima_fingerprint(fits$base_fit, s$serieDM))
 }
 

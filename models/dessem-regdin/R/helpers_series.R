@@ -1,13 +1,22 @@
 ## helpers_series.R -- dessem-regdin (RD.1). So definicoes. Helpers do oraculo (dessem_regdin_fit.R:45-83) com os
 ## nomes e a semantica preservados; as funcoes de serie vem do motor (env pai). Sem aritmetica de hora.
 
+## Bloco 0 = janela comum + horizonte; Bloco k > 0 = ilhas do anexo (ADR-046 item 1: normalizacao e serieDM so no Bloco 0).
+## Sem a coluna Bloco (modo referencia ou deck sem anexo) o resultado e identico ao de antes.
+.rd_common_base <- function(SERIECOMP) {
+  if ("Bloco" %in% names(SERIECOMP)) SERIECOMP[Bloco == 0L & Prev == FALSE] else SERIECOMP[Prev == FALSE]
+}
+.rd_common_series <- function(SERIECOMP) {
+  if ("Bloco" %in% names(SERIECOMP)) SERIECOMP[Bloco == 0L] else SERIECOMP
+}
+
 ## serieDM (diaria) e seriePF (horaria) LIMPAS, VERBATIM do processaModelosDMTSPerfil. Chaves do regdin:
 ## DM = normalizacao$carga/$exogena; perfil = normalizacao$perfil$carga$oper e $perfil$exogena (!= linear, $dm$*).
 .rd_build_series <- function(SERIECOMP, config_mdl) {
   nz <- config_mdl$normalizacao
-  hist <- SERIECOMP[Prev == FALSE]
+  hist <- .rd_common_base(SERIECOMP)
   serieDM <- aggregaSerie(
-    serieHist     = data.table::copy(SERIECOMP),
+    serieHist     = data.table::copy(.rd_common_series(SERIECOMP)),
     tipotemp      = config_mdl$exogenaOper,
     normaliza     = any(nz$carga$flag, nz$exogena$flag),
     constnorm     = getNormalizaCarga(nz$carga, hist),
