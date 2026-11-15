@@ -27,20 +27,26 @@ dl_cargamed_ref <- function(seriePF, const) {
 }
 
 ## norm injetado: lista com as quatro constantes, numericas e sem NA (a forma gravada no artefato). A constante 0 e recusada.
-dl_check_norm <- function(norm) {
+## Com `config_mdl`, a constante VAZIA (logical(0)) so vale para a flag de normalizacao que o motor nao liga: flag TRUE com
+## constante vazia falha alto (ADR-0005). A flag de cada constante e a mesma que dl_norm_constants usa para calcula-la
+## (pf_exo le `normalizacao$exogena`, chave que os model_parameters nao trazem: flag ausente => vazia e legitima).
+## Sem `config_mdl` a conferencia de vazio fica como antes (nao ha flag para cruzar).
+dl_check_norm <- function(norm, config_mdl = NULL) {
   need <- c("dm_carga", "dm_exo", "pf_cargadm", "pf_exo")
   have <- if (is.list(norm)) need[need %in% names(norm)] else character()
-  ## constante vazia e legitima: a flag de normalizacao desligada no config faz getNormaliza* devolver logical(0) e a
-  ## serie nao divide (a flag decide, nao a constante). Presente e nao vazia: numerica, sem NA e diferente de 0.
+  nrm <- config_mdl$normalizacao
+  flag <- list(dm_carga = nrm$dm$carga$flag, dm_exo = nrm$dm$exogena$flag,
+               pf_cargadm = nrm$perfil$cargadm$flag, pf_exo = nrm$exogena$flag)
   bad <- have[vapply(have, function(k) {
     x <- norm[[k]]
-    length(x) > 0L && (!is.numeric(x) || anyNA(x) || any(x == 0))
+    if (length(x) == 0L) return(!is.null(config_mdl) && isTRUE(flag[[k]]))
+    !is.numeric(x) || anyNA(x) || any(x == 0)
   }, NA)]
   miss <- setdiff(need, have)
   if (length(miss) || length(bad)) {
     k <- c(miss, bad)
     dl_abort("plugin.dessem_linear_artifact_mismatch", where = "dessem-linear/build_series",
-             reason = sprintf("norm: constante ausente, NA ou 0 (%s)", paste(k, collapse = ",")),
+             reason = sprintf("norm: constante ausente, vazia com a flag ligada, NA ou 0 (%s)", paste(k, collapse = ",")),
              details = list(field = "norm", constante = k))
   }
   invisible(norm)
@@ -52,7 +58,7 @@ dl_check_norm <- function(norm) {
 dl_build_series <- function(SERIECOMP, config_mdl, norm = NULL) {
   eng <- dl_engine()
   nrm <- config_mdl$normalizacao
-  if (!is.null(norm)) dl_check_norm(norm)
+  if (!is.null(norm)) dl_check_norm(norm, config_mdl)
   if (is.null(norm)) {
     base <- dl_common_base(SERIECOMP)
     k <- list(dm_carga = eng$getNormalizaCarga(nrm$dm$carga, base),
@@ -86,10 +92,10 @@ dl_norm_constants <- function(SERIECOMP, config_mdl) {
 
 ## `spec` = list(params = ...); a variante e validada ANTES de qualquer calculo do motor.
 plugin_build_features <- function(deck, spec, norm = NULL) {
-  if (!is.null(norm)) dl_check_norm(norm)   # antes de qualquer chamada ao motor
   v <- dl_resolve_variant(spec)
   eng <- dl_engine()
   config_mdl <- eng$getConfigModel(v$model_key)
+  if (!is.null(norm)) dl_check_norm(norm, config_mdl)   # antes de TransformaDeck e de getNormaliza*
   eng_deck <- list(CARGAHIST = data.table::copy(deck$CARGAHIST), EXOGENAHIST = data.table::copy(deck$EXOGENAHIST),
                    EXOGENAPREV = data.table::copy(deck$EXOGENAPREV), FERIADOS = data.table::copy(deck$FERIADOS))
   ## anexo de feriados (ADR-046): so entra no deck do motor quando existe (sem anexo o deck e o de antes)

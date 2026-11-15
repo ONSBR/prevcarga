@@ -36,7 +36,8 @@ test_that("[PLUGINS] mm_head: trocar os valores do mm de referencia nao muda o s
   }, dl_train(st, cuts))
   expect_gt(n_ref, 0L)                                                # a troca valeu: o treino leu o mm de referencia
   expect_identical(spy$log$state, st_a)                               # o gerador chega igual a cada um dos 250 ajustes
-  same <- identical(dl_sha(b), sha_a)
+  ## so os SVMs: o artefato leva tambem o mm cru por hora de corte (E4-T2), que muda de proposito com os valores trocados
+  same <- identical(b$payload[c("svm_dm", "svm_perfil")], a$payload[c("svm_dm", "svm_perfil")])
   if (!same) {
     ## FORBIDDEN caiu: o consumo de RNG depende dos valores. So passa com o plano B ativo e declarado.
     expect_false(is.null(env$plugin_descriptor()$rng_deviation),
@@ -79,13 +80,14 @@ test_that("[PLUGINS] mm_head: deck sensivel ao CV (400 dias): valores do mm => s
   ## FORBIDDEN: valores do mm de referencia trocados (mesmas linhas)
   b <- dl_with_plugin_fn("dl_morning_means", function(real) function(...) { m <- real(...); m[, mm := rev(mm) * 1.7 + 321]; m[] },
                          dl_train(st, cuts))
-  if (!identical(dl_sha(b), sha_a)) {
+  svm_of <- function(x) x$payload[c("svm_dm", "svm_perfil")]   # o mm cru gravado (E4-T2) muda de proposito; so os SVMs contam
+  if (!identical(svm_of(b), svm_of(a))) {
     expect_false(is.null(env$plugin_descriptor()$rng_deviation),
                  label = "RNG depende de mm: ativar o plano B (descriptor$rng_deviation) e listar no A/B (M8)")
-  } else expect_identical(dl_sha(b), sha_a)
+  } else expect_identical(svm_of(b), svm_of(a))
   ## CONTROL: sem a cabeca de referencia, os SVMs de O+1.. mudam (o CV deste deck reage a posicao do gerador)
   c0 <- dl_with_plugin_fn("dl_dm_head", function(real) function(...) NULL, dl_train(st, cuts))
-  expect_false(identical(dl_sha(c0), sha_a))
+  expect_false(identical(svm_of(c0), svm_of(a)))
   differs <- function(x, y) !identical(x, y)
   chg <- c(vapply(names(a$payload$svm_dm), function(d) differs(a$payload$svm_dm[[d]], c0$payload$svm_dm[[d]]), NA),
            vapply(setdiff(names(a$payload$svm_perfil), format(DL8_O)),

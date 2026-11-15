@@ -2,7 +2,7 @@ name: dessem-linear
 split: origin_scoped
 granularity_min: 60
 horizon_days: 9
-history_days: {train: 1095, infer: 1095}
+history_days: {train: 1095, infer: 15}   # inferencia so precisa de lagsPerfil (336 h) + 1 dia; o deck longo continua aceito
 seed: 42
 modes: [train, infer, forecast]
 backtest: {protocol_default: retrain_harness}

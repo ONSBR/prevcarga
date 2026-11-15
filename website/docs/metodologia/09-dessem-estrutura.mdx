@@ -27,6 +27,8 @@ fontes:
   - models/dessem-linear/R/inference.R
   - models/dessem-linear/R/inference_features.R
   - models/dessem-linear/R/helpers_nowcast.R
+  - models/dessem-linear/R/helpers_state.R
+  - models/dessem-linear/R/freeze.R
   - models/dessem-regdin/README.md
   - models/dessem-regdin/run.yaml
   - models/dessem-regdin/R/register.R
@@ -138,7 +140,7 @@ Dentro de uma família, as entradas de `model_parameters.json` diferem só em `e
 
 ## Janela de treino e o invariante infer == train
 
-Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `history_days: {train: 1095, infer: 1095}` e `params.janela_dessem: ano_civil`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
+Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `params.janela_dessem: ano_civil`. O do dessem-regdin declara `history_days: {train: 1095, infer: 1095}`; o do dessem-linear, `{train: 1095, infer: 15}`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
 
 | Fase | Janela no caminho da fundação |
 |---|---|
@@ -147,7 +149,7 @@ Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `history
 
 A janela é regra do plugin: o descriptor declara `history_window`, que delega a uma regra única de datas. Em `ano_civil` (padrão) os dias comuns cobrem três anos (O−1095 a O−1) e o histórico de feriados começa em 1º de janeiro do ano de O menos cinco. Cada feriado do histórico traz uma ilha de dias, de sete dias antes do feriado até o próprio feriado (`[d−7, d]`), cortada em O−1 e no primeiro dia disponível do store; ilhas que se encostam viram uma só. Os dias das ilhas entram como anexo (carga e temperatura observada) e a ingestão exige 24 horas em cada dia de ilha. A demanda média e a normalização usam só os dias comuns; o perfil de feriado enxerga os dias comuns e o anexo. O modo `referencia` (`params.janela_dessem: referencia`) mantém a janela anterior de 1.825 dias, sem anexo, e serve à paridade com a versão de referência.
 
-Os dois descriptors declaram `history_infer_equals_train = TRUE`. O loader confere a declaração: com ela, `history_days.infer` diferente de `history_days.train` aborta com `plugin.history_window`. O `run.yaml` do dessem-regdin também declara `constraints: {infer_history_equals_train: true}`; o do dessem-linear tem `constraints: {}`.
+O dessem-regdin declara `history_infer_equals_train = TRUE`. O loader confere a declaração: com ela, `history_days.infer` diferente de `history_days.train` aborta com `plugin.history_window`. O dessem-linear declara `FALSE` e `history_days.infer = 15`: a inferência dele usa o estado que o treino grava no artefato (ver [Estado derivado no artefato](#estado-derivado-no-artefato)), então só precisa dos 14 dias de lag do perfil (336 h) mais um dia de aquecimento. O deck longo continua aceito. O `run.yaml` do dessem-regdin também declara `constraints: {infer_history_equals_train: true}`; o do dessem-linear tem `constraints: {}`.
 
 Quando recebe o spec, o `plugin_ingest` do dessem-linear lê um dia de aquecimento antes da janela comum: a janela começa em `common_from`, termina em `last_data_day`, e o dia anterior serve de aquecimento. O despachante chama a ingestão sem spec, e a janela é a do painel que a fundação já recortou.
 
@@ -194,11 +196,11 @@ flowchart TB
   A["Deck: CARGAHIST, EXOGENAHIST, EXOGENAPREV, FERIADOS"]:::plugin --> B["variante do membro: Linear.TmpMedia, TmpMaxima ou TmpMaxMin"]:::plugin
   B --> C["séries do motor: serieDM diária e seriePF horária"]:::plugin
   C --> D["treino até O−1: svm_dm de O+1 a O+9 e 24 svm_perfil por dia"]:::plugin
-  D --> E["artefato congelado"]:::plugin
+  D --> E["artefato congelado, com o estado derivado: dm_o_sample, dm_o_formula, columns, inference_needs"]:::plugin
   E --> F["infer: dl_morning_means até o corte"]:::corte
   F --> G{"mm tem a linha de O?"}
-  G -->|sim| H["dl_dm_head: DM(O) reajustada com mm"]:::plugin
-  G -->|não| I["no_day_o: SVM_DemandaMedia puro"]:::plugin
+  G -->|sim| H["dl_dm_o_fit: DM(O) reajustada sobre dm_o_sample com mm"]:::plugin
+  G -->|não| I["no_day_o: fórmula do motor sobre dm_o_sample, sem mm"]:::plugin
   H --> J[".dl_predict_pass: DM × perfil com write-back"]:::plugin
   I --> J
   J --> K["desagregaModeloSH em O..O+9"]:::plugin
@@ -239,6 +241,22 @@ No dia especial o perfil continua sendo SVM linear. O horário de verão é a fl
 | `CargaMed` | média do dia ÷ (máximo do histórico horário × 1,25) |
 
 As constantes são calculadas nas linhas `Prev == FALSE`. A temperatura horária do perfil do dessem-linear fica sem normalização: `dl_build_series` lê a chave `normalizacao$exogena`, que o `model_parameters.json` não tem, como o `processaModelosDMPerfil` do motor.
+
+### Estado derivado no artefato
+
+O treino do dessem-linear grava no artefato, além dos SVMs e das constantes de normalização, o que a inferência recalcularia sobre o histórico longo do deck. Com isso a inferência roda com um deck de 15 dias e entrega os mesmos valores que daria com o deck longo.
+
+| Campo do artefato | O que guarda | Quem usa na inferência |
+|---|---|---|
+| `norm` | As quatro constantes de normalização do treino | As séries do deck curto saem normalizadas pelo artefato, sem recalcular as constantes |
+| `dm_o_sample` | As linhas de treino da DM de O (as mesmas que o ajuste do treino vê) e, para cada dia histórico, o `mm` cru de cada hora de corte (`mm_h00` a `mm_h23`) | A DM de O é reajustada sobre essa amostra; no nowcast entra a coluna `mm` da hora de corte |
+| `dm_o_formula` | A fórmula do motor para a DM de O, sem `mm` | Fórmula do ajuste; no nowcast recebe `+ mm` |
+| `columns` | Preditores e níveis de fator de cada linha de predição: a DM de cada dia e o perfil de cada dia e hora | Cada linha do deck curto é alinhada a essas colunas antes de predizer |
+| `inference_needs` | O que o deck de inferência precisa: 15 dias de carga e de temperatura observada antes de O, previsto de O a O+9 e calendário de O−15 a O+9 | Declaração para quem monta o deck |
+
+O alinhamento faz só três recomposições: um `LAG_FER_k` ausente vira o indicador 0/1 de que o dia `d−k` era especial (o mesmo que o motor calcula); um `DiaEspecial` que o deck curto derrubou (por restar um único código) volta como fator com os níveis gravados; e as dummies de tipo de dia, dia da semana e mês da DM de dia especial são derivadas da data da linha e do calendário do deck. Qualquer outra coluna ausente ou sobrando aborta com `plugin.dessem_linear_artifact_mismatch` (exit 2), com o campo `columns`. Um preditor sem dado continua virando `plugin.dessem_linear_series_gap` (exit 3).
+
+Artefato treinado antes dessa mudança (sem os campos novos) é recusado com `plugin.dessem_linear_artifact_mismatch` (exit 2), nomeando o primeiro campo ausente: é preciso retreinar o membro. Um artefato congelado com forma incoerente, como a amostra sem uma coluna `mm_h`, aborta com `plugin.dessem_linear_artifact_tampered` (integridade, exit 9).
 
 ## dessem-regdin
 

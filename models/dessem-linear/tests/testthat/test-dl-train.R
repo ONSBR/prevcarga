@@ -80,7 +80,8 @@ test_that("[PLUGINS] treino_freeze: ac-3 ordem do oraculo: 10 x (1 DM + 24 perfi
   expect_identical(pl$rng_mode, "preserve"); expect_identical(pl$n_leak, 0L)
   expect_identical(pl$horizon_days, 10L); expect_identical(pl$seed, 42L)
   expect_setequal(names(pl), c("svm_dm", "svm_perfil", "norm", "head_recipe", "variant", "model_key", "area",
-                               "horizon_days", "seed", "rng_mode", "n_leak"))
+                               "horizon_days", "seed", "rng_mode", "n_leak", "dm_o_sample", "dm_o_formula", "columns",
+                               "inference_needs"))
   expect_identical(names(pl$norm), c("dm_carga", "dm_exo", "pf_cargadm", "pf_exo"))
   expect_identical(names(pl$head_recipe), c("model_key", "config_mdl", "mm_norm", "dias"))
   ## a semente do 1o ajuste e a de set.seed(42): o gerador entra na posicao do oraculo
