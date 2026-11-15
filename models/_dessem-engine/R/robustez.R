@@ -28,7 +28,7 @@ dessem_engine_guard <- function(code, ...) {
   fpos <- which(vapply(.args, inherits, logical(1L), "formula"))
   if (!length(fpos)) stop(msg, call. = FALSE)
   fml <- .args[[fpos[1L]]]; dat <- .args$data
-  if (is.null(dat)) stop(msg, call. = FALSE)
+  if (is.null(dat)) return(.wsvm_small_sample(NA_integer_, 10L, NA_integer_, msg))
   labs <- attr(stats::terms(fml), "term.labels"); lhs <- all.vars(fml)[1L]
   minority <- vapply(labs, function(v) {
     x <- dat[[v]]
@@ -70,7 +70,7 @@ dessem_engine_guard <- function(code, ...) {
 ## Encadeia a guarda de modelo vazio quando o retry clampado falha com empty|constant|scale.
 .wsvm_clamp_cross <- function(.args, msg) {
   dat <- .args$data
-  if (is.null(dat)) stop(msg, call. = FALSE)
+  if (is.null(dat)) return(.wsvm_small_sample(NA_integer_, 10L, NA_integer_, msg))
   w <- .args$weight
   n_eff <- if (!is.null(w)) sum(w > 0) else nrow(dat)
   ctl <- if (!is.null(.args$tunecontrol)) .args$tunecontrol else WeightSVM::tune.control()
