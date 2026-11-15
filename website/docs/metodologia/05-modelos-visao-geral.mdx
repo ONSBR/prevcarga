@@ -113,14 +113,14 @@ A regra semi-horária dos modelos horários também é do plugin: o RF interpola
 | `horizon_days` | 9 | 1 | 8 | 9 | 9 |
 | `delivery_days` | 9 | 2 | 9 | 9 | 9 |
 | Entrega | O..O+8 | O..O+1 | O..O+8 | O..O+8 | O..O+8 |
-| `history_days` (train / infer) | 365 / 45 | 730 / 45 | 730 / 45 | 1.825 / 1.825 | 1.825 / 1.825 |
+| `history_days` (train / infer) | 365 / 45 | 730 / 45 | 730 / 45 | 1.095 / 15 | 1.825 / 1.825 |
 | `seed` | 123 | 123 | 1234 | 42 | 42 |
 | `modes` | train, infer | train, infer | train, infer, forecast | train, infer, forecast | train, infer, forecast |
 | `data_lag_days` | 0 | 2 | 0 (omitido) | 0 | 0 |
 | `model_time_offset_min` | 0 (omitido) | 0 (omitido) | 0 (omitido) | 60 | 60 |
 | `reads_day_O` | `FALSE` | `TRUE` | `FALSE` | `TRUE` | `TRUE` |
 | `uses_rng` | `TRUE` | `FALSE` (omitido) | `TRUE` | `TRUE` | `TRUE` |
-| `history_infer_equals_train` | `FALSE` | `FALSE` | `FALSE` | `TRUE` | `TRUE` |
+| `history_infer_equals_train` | `FALSE` | `FALSE` | `FALSE` | `FALSE` | `TRUE` |
 | `native_layout` | `rf_wide_hourly_216` | `lgbm_day_48` | `hw_matrix_nx48` | `dessem_semihourly_48` | `dessem_semihourly_48` |
 | `protocol_default` | `daily` | `daily` | `retrain_harness` | `retrain_harness` | `retrain_harness` |
 
@@ -131,7 +131,7 @@ Como ler algumas linhas:
 - **`model_time_offset_min`** é a única declaração do deslocamento de hora de modelagem. Só os DESSEM declaram 60; o despachante aplica `to_model_frame` e `to_display_frame` por esse valor e nenhum plugin faz aritmética de hora. Ver [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
 - **`reads_day_O`** diz se o plugin lê a carga do próprio dia O até `available_until`. O LGBM a usa para completar o dia O; os DESSEM, para a cabeça de nowcast. RF e HW leem só dias anteriores a O.
 - **`native_layout`**: os dois DESSEM declaram `dessem_semihourly_48`. O nome `dessem_matrix_nx48`, que aparece nos READMEs, não está na lista `prevcarga_native_layouts` do loader.
-- **`history_infer_equals_train`**: nos DESSEM a janela da inferência é a mesma do treino (1.825 dias). O `run.yaml` do `dessem-regdin` reforça com `constraints: {infer_history_equals_train: true}`.
+- **`history_infer_equals_train`**: no `dessem-regdin` a janela da inferência é a mesma do treino. O `dessem-linear` declara `FALSE` e `history_days.infer = 15`, porque a inferência usa o estado que o treino grava no artefato. O `run.yaml` do `dessem-regdin` reforça com `constraints: {infer_history_equals_train: true}`.
 
 ## Faixa de entrega
 

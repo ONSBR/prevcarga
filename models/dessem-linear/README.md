@@ -14,6 +14,7 @@ nao faz aritmetica de hora e nao conta corte: le tudo de `cuts` e de `run.yaml`.
 | `ingestion.R` horizonte do motor = entregues + 1 | `R/ingestion/data_adapter.R:456` (`eng_horizon <- horizon + 1L`) |
 | `helpers_nowcast.R` `dl_morning_means`, `dl_dm_head`, `dl_dm_head_input`, `dl_normalize_mm` (cabeca `mm`) | `R/ingestion/data_adapter.R:336-368` (`.load_morning_means`) |
 | `feature_engineering.R` `dl_build_series`, `dl_norm_constants`, `plugin_build_features` | `R/training/dessem_linear_fit.R:33-58` (`.dl_build_series`), `R/feature_engineering/dessem_linear_feature_engineering.R:19` |
+| `helpers_state.R` `dl_mm_by_cut`, `dl_dm_o_sample`, `dl_columns_of`, `dl_align_row`, `dl_inference_needs` (estado derivado, sem equivalente: o oraculo recalcula tudo no infer) | `R/inference/dessem_linear_predict.R:54-100` (o que a inferencia recalculava sobre o historico longo) |
 | `training.R` `.dl_enforce_real_history` | `R/training/dessem_linear_fit.R:59-73` (`.dl_enforce_real_history`) |
 | `training.R` `.dl_fit_pass` (RNG preservado, cabeca de referencia descartada), `dl_training` | `R/training/dessem_linear_fit.R:74-99` (`.dl_fit_pass`, `set.seed` na linha 85), `:100-163` (`fit_dessem_linear`) |
 | `freeze.R` `dl_freeze`, `dl_thaw` (sem mable, serializador do motor) | `R/training/dessem_linear_training.R` (artefato em disco) |
@@ -26,12 +27,13 @@ nao faz aritmetica de hora e nao conta corte: le tudo de `cuts` e de `run.yaml`.
 
 `plugin_descriptor()` + `run.yaml` (loader P.0b, Tier A nos 5 estagios):
 
-- `run.yaml`: `split: origin_scoped`, `granularity_min: 60`, `horizon_days: 9`, `history_days {train 1825, infer 1825}`, `seed: 42`,
+- `run.yaml`: `split: origin_scoped`, `granularity_min: 60`, `horizon_days: 9`, `history_days {train 1095, infer 15}`, `seed: 42`,
   `modes: [train, infer, forecast]`, `params: {exogena: MED}` (variante `MED`|`MAX`|`MXMN`; o valor do run.yaml e so o placeholder do
   loader, a variante real vem do membro).
 - Descriptor: `delivery_days: 9` (entrega O..O+8), `data_lag_days: 0`, `model_time_offset_min: 60` (a UNICA declaracao do deslocamento
   de hora, aplicada pelo despachante), `weather_resample: hourly`, `engine: _dessem-engine`, `uses_rng: TRUE`, `rng_deviation: NULL`,
-  `history_infer_equals_train: TRUE`, `weather_forecast_in_train: TRUE`, `native_layout: dessem_semihourly_48`.
+  `history_infer_equals_train: FALSE` (E4-T2: a inferencia roda sobre o estado derivado do artefato; `history_days.infer = 15` e o minimo,
+  o deck longo continua aceito), `weather_forecast_in_train: TRUE`, `native_layout: dessem_semihourly_48`.
 - Erros: ids `plugin.dessem_linear_*` em `scripts/lib/errors/dessem_linear.tsv` (mensagens ASCII); o motor tem o seu `dessem_engine.tsv`.
 - `run.yaml` `backtest.protocol_default: retrain_harness` e protocolo de backtest; a propriedade do modelo e o split `origin_scoped`.
 
@@ -48,10 +50,33 @@ entregue (`fora_da_faixa` no A/B). O leitor tem de entregar clima previsto ate O
 ## Cabeca de nowcast (mm por horas completas)
 
 A cabeca de nowcast e do PLUGIN (`helpers_nowcast.R`), nao do motor: `dl_morning_means(hourly_load, available_until, origin_day)` entrega
-as medias horarias de O no frame de modelagem e `dl_dm_head` re-treina a DM(O) com `mm` (so no infer; o treino so consome o RNG com uma
-cabeca de referencia no corte 12:00, descartada). So hora cheia COMPLETA entra em `mm`: os cortes 00:00 e 00:30 ficam sem a linha de O
-e o modo da DM(O) vem do DADO, nunca do relogio (`dl_dm_o_mode`: `nowcast` se `O %in% mm$Data`, senao `no_day_o`, que ajusta o
-`SVM_DemandaMedia` puro do motor logo apos `set.seed`, o mesmo que o modo "paridade" do oraculo). 09:00 e 09:30 dao saidas identicas.
+as medias horarias de O no frame de modelagem e a DM(O) e re-treinada com `mm` so no infer (`dl_dm_o_fit`, sobre a amostra gravada no
+artefato; ver a secao seguinte). O treino so consome o RNG com uma cabeca de referencia no corte 12:00 (`dl_dm_head`), descartada. So
+hora cheia COMPLETA entra em `mm`: os cortes 00:00 e 00:30 ficam sem a linha de O e o modo da DM(O) vem do DADO, nunca do relogio
+(`dl_dm_o_mode`: `nowcast` se `O %in% mm$Data`, senao `no_day_o`, que ajusta a formula do motor sem `mm` logo apos `set.seed`, o mesmo
+que o modo "paridade" do oraculo). 09:00 e 09:30 dao saidas identicas.
+
+## Estado derivado no artefato (E4-T2, ADR-045 fase B)
+
+O treino grava no payload, alem de `svm_dm`, `svm_perfil`, `norm` e `head_recipe` (que ficam byte a byte como na v0.1.5), o que a
+inferencia recalculava sobre o historico longo do deck, para ela rodar com um deck de 15 dias e dar `values` `identical()` ao do deck longo:
+
+- `dm_o_sample`: `data.frame` puro (sem `.internal.selfref`, `Data` em Date) com as linhas de `filtraDadosTreinamento(obterEntradaFormulaDM(O, serieDM))`
+  (a amostra que `tune_wsvm` ve na DM(O)) mais `mm_h00..mm_h23`, o `mm` CRU de cada dia historico por hora de corte (`dl_mm_by_cut`).
+- `dm_o_formula`: texto da formula do motor, SEM `mm`.
+- `columns`: `list(dm = <dia> -> list(vars, levels), perfil = <dia> -> <hora> -> list(vars, levels))` para os dias que o motor roda (O..O+9) e
+  as 24 horas; `vars` na ordem da linha e `levels` so das colunas fator.
+- `inference_needs`: forma de `scripts/lib/inference_needs.R`, derivada de `lagsPerfil` (336 h = 14 dias + 1 de aquecimento = 15 dias de carga e
+  observado antes de O; previsto O..O+9; calendario O-15..O+9; sem anexo de feriados).
+
+Inferencia: as series do deck curto saem de `plugin_build_features(..., norm = payload$norm)` (sem `getNormaliza*`); `dl_dm_o_fit` reajusta a
+cabeca DM(O) sobre `dm_o_sample` (`nowcast`: `mm` = coluna `mm_hHH` da hora de corte normalizada por `dl_normalize_mm`, formula `+ mm`;
+`no_day_o`: formula do motor sem `mm`) com os mesmos argumentos de `SVM_DemandaMedia`, depois de `set.seed(seed)` (1 chamada de `tune_wsvm`,
+mesma posicao de RNG). `dl_align_row` alinha cada linha de predicao as `columns` com tres recomposicoes (`LAG_FER_k` = indicador `DiaEspecial > 0` do dia d-k, como `obtemLag`; `DiaEspecial` como fator com os niveis gravados; dummies one-hot `F/D/M` da DM de dia especial);
+preditor NA vira `plugin.dessem_linear_series_gap` (exit 3) e qualquer outra coluna divergente vira `plugin.dessem_linear_artifact_mismatch`
+`field = columns` (exit 2). Artefato v0.1.5 (sem os campos novos) e recusado por `dl_check_payload` com `field` = primeiro campo ausente (exit 2):
+retreine o membro. Freeze/thaw convertem a amostra para `data.frame` puro e conferem a forma; forma errada =>
+`plugin.dessem_linear_artifact_tampered` (integrity, exit 9) nomeando a coluna.
 
 ## RNG preservado e plano B
 

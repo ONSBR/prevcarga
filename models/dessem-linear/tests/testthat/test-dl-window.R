@@ -56,7 +56,7 @@ dlw_ingest <- function(panel, janela = "ano_civil", O = dlw_O) {
 
 test_that("[PLUGINS] descritor: janela_dessem, run.yaml, params_schema e history_window nos dois modos", {
   p <- dl_load()
-  expect_identical(p$spec$history_days, list(train = 1095L, infer = 1095L))
+  expect_identical(p$spec$history_days, list(train = 1095L, infer = 15L))   # E4-T2: infer = minimo (lagsPerfil 336 h + 1 dia)
   expect_identical(p$spec$params$janela_dessem, "ano_civil")
   expect_identical(p$descriptor$params_schema$janela_dessem$allowed, c("ano_civil", "referencia"))
   expect_identical(p$descriptor$variant_param, "exogena")

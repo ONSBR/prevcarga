@@ -97,8 +97,8 @@ No infer, `plugin_infer` faz um único ajuste:
 1. `dl_thaw` descongela o artefato.
 2. `set.seed(artifact$seed)` (semente 42, do `run.yaml`) fixa a posição inicial do gerador.
 3. `dl_dm_o_fit` ajusta a DM(O) com uma chamada de `tune_wsvm`:
-   - modo `nowcast`: `dl_dm_head`, com a entrada `obterEntradaFormulaDM` do motor mais a coluna `mm` e `+ mm` na fórmula (`dl_dm_head_input`), pesos `getSVMWeights` e `iter.max = 500`, os mesmos argumentos de `SVM_DemandaMedia`;
-   - modo `no_day_o`: o `SVM_DemandaMedia` puro do motor, com a fórmula do motor e sem `mm`.
+   - modo `nowcast`: o ajuste roda sobre `dm_o_sample`, a amostra de treino da DM(O) gravada no artefato, com a coluna `mm` da hora de corte (normalizada) e `+ mm` na fórmula gravada, pesos `getSVMWeights` e `iter.max = 500`, os mesmos argumentos de `SVM_DemandaMedia`;
+   - modo `no_day_o`: a mesma amostra, com a fórmula do motor gravada (`dm_o_formula`) e sem `mm`, os mesmos argumentos do `SVM_DemandaMedia`.
 4. `.dl_predict_pass` percorre os dias O..O+9: a DM de O vem do ajuste acima, a de O+1..O+9 dos SVMs congelados. Cada DM prevista é escrita de volta em `serieDM` (write-back), de modo que o `LAG_1` de O+1 recebe a média de O prevista. Os 24 perfis de cada dia usam `CargaMed` = DM do dia.
 5. `.dl_envelope` aplica a regra semi-horária uma vez sobre os 10 dias e entrega a matriz 9 × 48 e a grade de entrega da fundação.
 

@@ -171,6 +171,10 @@ test_that("[PLUGINS] inferencia: ac-4 artefato de outra origem/variante/modelo: 
   expect_dl_error(feat(fr_max, pl), "plugin.dessem_linear_artifact_mismatch", "variant")
   a1 <- pl; a1$area <- "NE"
   expect_dl_error(feat(frame, a1), "plugin.dessem_linear_artifact_mismatch", "area")
+  ## artefato v0.1.5 (sem o estado derivado, E4-T2): recusado nomeando o primeiro campo ausente
+  v015 <- pl[setdiff(names(pl), c("dm_o_sample", "dm_o_formula", "columns", "inference_needs"))]
+  cond <- expect_dl_error(feat(frame, v015), "plugin.dessem_linear_artifact_mismatch", "dm_o_sample")
+  expect_identical(cond$exit_code, 2L); expect_identical(cond$details$field, "dm_o_sample")
   expect_identical(spy$log$n, 0L)                                      # nada foi ajustado
   ## CONTROL: artefato de O e variante MED segue
   ok <- dl_with_cli(suppressMessages(feat(frame, pl)))
@@ -261,7 +265,8 @@ test_that("[PLUGINS] 00h: available_until O 00:00 entrega os 9 dias sem abortar,
   a <- p$env$dl_thaw(st$art$payload)
   set.seed(as.integer(a$seed)); m_fit <- suppressMessages(p$env$dl_dm_o_fit(a, inf))
   set.seed(as.integer(a$seed)); m_eng <- eng$SVM_DemandaMedia(format(O), inf$serieDM, inf$config_mdl)$modeloTreinado
-  expect_equal(m_fit, m_eng)                                           # objetos iguais (a formula leva env efemero)
+  ## objetos iguais (a formula leva env efemero; `call` guarda o nome do argumento `data`, que agora e a amostra do artefato)
+  expect_equal(m_fit[setdiff(names(m_fit), "call")], m_eng[setdiff(names(m_eng), "call")])
   for (k in c("SV", "coefs", "rho", "cost", "epsilon", "gamma")) expect_identical(m_fit[[k]], m_eng[[k]], info = k)
   expect_false("mm" %in% attr(m_fit$terms, "term.labels"))
   ## CONTROL: 09:00 usa a cabeca (mm[O]) e a saida de O difere da do 00h

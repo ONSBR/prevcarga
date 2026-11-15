@@ -1,5 +1,6 @@
-## test-contract.R -- DL.8 (AC4 do epico): contrato do plugin dessem-linear. `exogena` ausente ou fora do conjunto e
-## `history_days.infer != train` abortam [prevcarga/contract] (exit 2) ANTES de treinar (espiao em tune_wsvm: 0 chamadas);
+## test-contract.R -- DL.8 (AC4 do epico): contrato do plugin dessem-linear.
+## `exogena` ausente ou fora do conjunto abortam [prevcarga/contract] (exit 2) ANTES de treinar (espiao em tune_wsvm: 0 chamadas);
+## history_days.infer != train carrega (history_infer_equals_train FALSE desde o E4-T2; com a flag TRUE o loader recusa exit 2);
 ## hora faltando no historico => [prevcarga/completude] (exit 3), tambem antes do primeiro ajuste. CONTROL: os 3 membros
 ## (MED/MAX/MXMN) resolvem e MED x MAX dao y_pred diferente. Deck sintetico de fixture_store.R pelo leitor e pelo despachante.
 
@@ -37,15 +38,19 @@ test_that("[PLUGINS] gate08_contrato: exogena ausente ou 'XYZ' => contract exit 
   }
 })
 
-test_that("[PLUGINS] gate08_contrato: history_days.infer != train => contract exit 2 no loader; CONTROL infer == train carrega", {
+test_that("[PLUGINS] gate08_contrato: history_days.infer != train carrega (flag FALSE, E4-T2); CONTROL: com a flag TRUE o loader recusa exit 2", {
+  expect_false(dl_plugin()$descriptor$history_infer_equals_train)
   root <- dl_root_mut(function(y) { y$history_days$infer <- y$history_days$train + 1L; y })
+  expect_null(dl_err(dl_lib$prevcarga_plugin_load("dessem-linear", root)))
+  p <- dl_lib$prevcarga_plugin_load("dessem-linear", dl_root_mut())
+  expect_identical(p$spec$history_days$infer, 15L)
+  expect_identical(p$spec$history_days$train, 1095L)
+  ## CONTROL: a mesma run.yaml com o descriptor no contrato antigo (flag TRUE) => contract exit 2
+  root <- dl_root_mut(function(y) { y$history_days$infer <- y$history_days$train + 1L; y })   # raiz nova: o loader guarda por caminho
+  rg <- file.path(root, "dessem-linear", "R", "register.R")
+  writeLines(sub("history_infer_equals_train = FALSE", "history_infer_equals_train = TRUE", readLines(rg), fixed = TRUE), rg)
   e <- dl_err(dl_lib$prevcarga_plugin_load("dessem-linear", root))
   expect_dl_class(e, "contract", 2L, id = "plugin.history_window")
-  expect_true(dl_plugin()$descriptor$history_infer_equals_train)
-  ok <- dl_err(dl_lib$prevcarga_plugin_load("dessem-linear", dl_root_mut()))
-  expect_null(ok)
-  p <- dl_lib$prevcarga_plugin_load("dessem-linear", dl_root_mut())
-  expect_identical(p$spec$history_days$infer, p$spec$history_days$train)
 })
 
 test_that("[PLUGINS] gate09_dado_faltante: hora faltando no historico => completude exit 3 antes do 1o ajuste; CONTROL deck completo segue", {

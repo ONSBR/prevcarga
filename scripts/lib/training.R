@@ -167,7 +167,13 @@ prevcarga_artifact_build <- function(member, area, inp, fit) {
             fit = fit,
             contract = lapply(d$stages, function(s) list(requires = s$requires, provides = s$provides)))
   ## E2: necessidade de dados de inferencia (fora do stamp, do check_artifact e do fingerprint); aborta antes de gravar.
-  a$inference_needs <- prevcarga_inference_needs_of(inp$plugin, inp$spec, area)
+  ## E4-T2 (ADR-045): o plugin cujo artefato carrega o estado de inferencia fornece os needs pelo PROPRIO payload
+  ## (`fit$payload$inference_needs`, normalizado aqui); sem esse campo vale o data_needs do descriptor (que monta o deck de
+  ## treino) ou o default generico. Nenhum nome de modelo.
+  pl <- fit$payload
+  a$inference_needs <- if (is.list(pl) && is.list(pl$inference_needs))
+    prevcarga_inference_needs_normalize(pl$inference_needs, where = d$model_id)
+  else prevcarga_inference_needs_of(inp$plugin, inp$spec, area)
   if (identical(inp$spec$split, "origin_scoped")) a$origin <- inp$cuts$origin
   prevcarga_plugin_scan_pure(a)
   structure(a, class = "prevcarga_train_artifact")

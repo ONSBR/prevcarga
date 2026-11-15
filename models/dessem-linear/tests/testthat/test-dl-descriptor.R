@@ -8,13 +8,13 @@ test_that("[PLUGINS] descritor: ac-1 run.yaml e descriptor batem e o loader acei
   expect_identical(s$modes, c("train", "infer", "forecast"))
   expect_identical(s$seed, 42L)
   expect_identical(s$horizon_days, 9L)
-  expect_identical(s$history_days, list(train = 1095L, infer = 1095L))
+  expect_identical(s$history_days, list(train = 1095L, infer = 15L))   # E4-T2: infer minimo; train inalterado
   expect_identical(s$backtest$protocol_default, "retrain_harness")
   expect_identical(d$model_id, "dessem-linear")
   expect_identical(d$granularity_supported, 60L)
   expect_identical(d$delivery_days, 9L)
   expect_identical(d$model_time_offset_min, 60L)
-  expect_true(d$history_infer_equals_train)
+  expect_false(d$history_infer_equals_train)     # E4-T2: a inferencia roda sobre o estado derivado do artefato
   expect_null(d$rng_deviation)
   expect_identical(d$engine, "_dessem-engine")
   expect_identical(d$variant_param, "exogena")
@@ -56,11 +56,19 @@ test_that("[PLUGINS] descritor: ac-1 semihourly_rule chama desagregaModeloSH do 
   expect_identical(w$id, "warning.dessem_linear_desagrega_fallback")
 })
 
-test_that("[PLUGINS] descritor: ac-1 CONTROL: run.yaml com history_days.infer 365 => [prevcarga/contract] nomeando history_days", {
-  root <- tempfile("dlroot-"); dir.create(root)
-  file.copy(file.path(dl_models(), c("_dessem-engine", "dessem-linear")), root, recursive = TRUE)
-  ry <- file.path(root, "dessem-linear", "run.yaml")
-  writeLines(sub("infer: 1095", "infer: 365", readLines(ry), fixed = TRUE), ry)
+test_that("[PLUGINS] descritor: ac-1 history_days.infer minimo (15) e deck longo aceitos; CONTROL: flag TRUE com infer != train => [prevcarga/contract] nomeando history_days", {
+  mk <- function(sub_ry = identity, sub_reg = identity) {
+    root <- tempfile("dlroot-"); dir.create(root)
+    file.copy(file.path(dl_models(), c("_dessem-engine", "dessem-linear")), root, recursive = TRUE)
+    ry <- file.path(root, "dessem-linear", "run.yaml"); writeLines(sub_ry(readLines(ry)), ry)
+    rg <- file.path(root, "dessem-linear", "R", "register.R"); writeLines(sub_reg(readLines(rg)), rg)
+    root
+  }
+  ## deck minimo (15, o do repositorio) e deck longo (1095) carregam, com a flag FALSE
+  expect_identical(dl_load(mk())$spec$history_days$infer, 15L)
+  expect_identical(dl_load(mk(function(x) sub("infer: 15", "infer: 1095", x, fixed = TRUE)))$spec$history_days$infer, 1095L)
+  ## CONTROL: com a flag TRUE (contrato antigo) infer 15 != train 1095 e recusado pelo loader
+  root <- mk(sub_reg = function(x) sub("history_infer_equals_train = FALSE", "history_infer_equals_train = TRUE", x, fixed = TRUE))
   cond <- expect_dl_error(dl_load(root), "plugin.history_window", "history_days")
   expect_identical(cond$exit_code, 2L)
   expect_identical(cond$class_name, "contract")
@@ -79,13 +87,14 @@ test_that("[PLUGINS] descritor: estagios de DL.6/DL.7 sao as funcoes reais (nenh
 test_that("[PLUGINS] descritor: catalogo de erros do plugin: ids unicos na uniao, ASCII, classes da tabela de exit-codes", {
   cat <- dl_lib$prevcarga_errors_load()
   ids <- c("bad_exogena", "mm_missing_origin", "train_sees_day_o", "rng_deviation", "artifact_mismatch",
-           "series_gap", "window_short")
+           "series_gap", "window_short", "artifact_tampered")
   want <- paste0("plugin.dessem_linear_", ids)
   expect_true(all(want %in% cat$id))
   expect_true("warning.dessem_linear_desagrega_fallback" %in% cat$id)
   r <- cat[cat$id %in% c(want, "warning.dessem_linear_desagrega_fallback"), ]
   expect_identical(r$class[match(c("plugin.dessem_linear_bad_exogena", "plugin.dessem_linear_mm_missing_origin",
-                                   "plugin.dessem_linear_rng_deviation", "plugin.dessem_linear_window_short"), r$id)],
-                   c("contract", "completude", "repro", "window"))
+                                   "plugin.dessem_linear_rng_deviation", "plugin.dessem_linear_window_short",
+                                   "plugin.dessem_linear_artifact_tampered"), r$id)],
+                   c("contract", "completude", "repro", "window", "integrity"))
   expect_false(any(grepl("[^\\x01-\\x7F]", unlist(r[c("message", "hint")]), perl = TRUE)))
 })
