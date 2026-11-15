@@ -27,7 +27,7 @@ Caminhos relativos a `prevcargadessem3/models/random-forest/`.
   `randomForest`/`data.table`/`lubridate`. Cinco estagios na assinatura canonica da fundacao (ingestion, feature_engineering, training,
   inference_features, inference).
 - **`run.yaml`**: `split origin_agnostic` (1 treino serve a todas as origens; `train_origin = O-1-H`, ADR-0023), 60 min, `horizon_days 9`,
-  `history_days {train 365, infer 45}`, `seed 123`, `modes [train, infer]`, `params {ntree: 100}`. `ntree` e `seed` nao tem default no codigo.
+  `history_days {train 365, infer 9}`, `seed 123`, `modes [train, infer]`, `params {ntree: 100}`. `ntree` e `seed` nao tem default no codigo.
 - **Cortes**: o plugin le `cuts$train_origin`, `cuts$last_data_day` e `cuts$weather_issue_limit` de `dates.R`; nunca calcula corte proprio.
   Confere o painel (`plugin.train_beyond_cut`, `plugin.infer_beyond_cut`, `plugin.weather_beyond_limit`, `plugin.raw_timestamp`) e nunca filtra.
 - **Hora**: nenhuma aritmetica de hora no plugin (principio 7, sem excecoes). A carga horaria e de `to_hourly`, o carimbo de 30 min de `to_semihourly`.

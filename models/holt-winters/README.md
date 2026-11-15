@@ -20,7 +20,7 @@ O estado duravel (decisoes, paridade, ids de erro) mora em `docs/estado/holt_win
 
 - **Descriptor** (`R/register.R`): `model_id holt-winters`, `contract_version 1`, `granularity_supported 30`, `native_layout hw_matrix_nx48`,
   `delivery_days 9` (O..O+8), `reads_day_O`, `uses_rng`, `history_infer_equals_train` FALSE, sem motor. Assinatura canonica dos 5 estagios.
-- **`run.yaml`**: `split origin_scoped` (1 treino por origem O com serie ate O-1; ADR-0023), 30 min, `horizon_days 8`, `history_days {train 730, infer 45}`,
+- **`run.yaml`**: `split origin_scoped` (1 treino por origem O com serie ate O-1; ADR-0023), 30 min, `horizon_days 8`, `history_days {train 730, infer 2}`,
   `seed 1234`, `modes [train, infer, forecast]` e os 7 `params` (`kmeans_seed`, `ic`, `perfil_mo`, `classes_mo`, `similar`, `feriado`, `suaviza`) sem default no codigo.
 - **Envelope** (inferencia): `model_id`, `variant` NA, `layout hw_matrix_nx48`, `values` (8 x 48 = O+1..O+8), `delivery` (`interval_end`, `y_pred`) a partir de
   `available_until + 30 min` ate O+9 00:00, `meta`. O artefato carimba `load_label`, `timezone`, `weather_issue_cutoff`, `split`, `granularity_min`, `seed`,
