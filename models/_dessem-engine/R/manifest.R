@@ -4,7 +4,7 @@
 engine_manifest <- function() list(
   engine_id = "_dessem-engine",
   contract_version = 1L,
-  files = c("funcoes_apoio.R", "dados_entrada.R", "entrada_demanda_media.R",
+  files = c("ilhas.R", "funcoes_apoio.R", "dados_entrada.R", "entrada_demanda_media.R",
             "entrada_perfil.R", "modelos_demanda_media.R", "modelos_perfil.R",
             "exec_modelos.R", "engine.R", "robustez.R", "feriados.R", "exogena.R",
             "svm_serial.R"),

@@ -42,3 +42,12 @@
   o forecast o trata como membro ausente (`warning.forecast_member_absent`, F3.3). Com clima completo nada muda: motor, `fill_forecast_tail`, ingestao e inferencia dos DESSEM
   ficam exatamente como antes do F3.7 (nenhum `protect_until`, nenhum corte de entrega, `max_tail_fill_days` intocado).
 - Corte parcial da entrega dos DESSEM (horizonte do motor/artefato ao efetivo) fica para depois; exige validar o motor real.
+
+## Coluna Bloco e lags por ilha (E3-T3)
+
+- `TransformaDeck` aceita `CARGAFER` (DataHora, Carga) e `EXOGENAFER` (DataHora, Exo_*) opcionais, com o mesmo schema e o mesmo `tzone` de `CARGAHIST` (senao `engine.dessem_tz_mismatch`). Empilhados como historico (`Prev = F`) antes do `dcast`.
+- `SERIECOMP$Bloco` (int, ultima coluna): 0 = janela comum + horizonte; k = k-esima corrida contigua de dias do anexo, em ordem de data. Dia de ilha adjacente a janela comum continua sendo bloco proprio. Sem anexo, tudo 0 e o resto do `SERIECOMP` fica `identical()`.
+- `R/ilhas.R`: `.engine_by_block(seriehist, fn, ...)` aplica `fn` a cada bloco (ordem crescente) e junta com `rbindlist`; com um bloco ou sem a coluna e a identidade (uma chamada na serie inteira). `.engine_drop_block` remove `Bloco` por referencia.
+- `obtemLagsHora` e `obtemLagsDiaSemana` rodam por bloco e removem `Bloco` antes do `dcast`: a coluna nunca aparece em colunas nem em formula. `.engine_assert_grid` vale dentro de cada bloco (buraco na ilha => `engine.dessem_lag_grid_gap`, exit 2) e o corte das 7 primeiras linhas do lag de dia da semana e por bloco; nenhum LAG/LAGDS usa valor de outro bloco. Ilha de 8 dias sem lag 7 completo no primeiro dia perde a linha pelo `complete.cases`, como o inicio da janela.
+- `entradaPerfilDefault` filtra `Bloco == 0` (perfil de dia comum so na janela comum + horizonte); `entradaPerfilFeriadoReg` e `obtemSD` usam todos os blocos; `inclui_CargaMediaRef` calcula a constante de normalizacao so em `Bloco == 0 & Prev == FALSE` (decisao L2). Write-back em `seriePF` inalterado.
+- Com um bloco (modo referencia) a saida e `identical()` a de antes; o `golden.lock` nao tem sha de fonte no fingerprint e nao foi regerado.
