@@ -121,7 +121,7 @@ pc_intro() { # pc_intro <versao|vazio>: banner + o que vai acontecer (antes da e
 
 pc_next_steps() { # proximos passos, depois da linha 'prevcarga: instalado ...' (que fica em stdout)
   pc_ui || return 0
-  d="$(pc_config_get data_train_dir)"; [ -n "$d" ] || d="$(pc_config_get data_dir)"
+  d="$(pc_config_get data_train_dir)"
   {
     printf '\nproximos passos:\n'
     # o bloco marcado no perfil vale tanto desta execucao (--add-to-path) quanto de uma instalacao anterior (upgrade sem a flag)
@@ -238,7 +238,12 @@ pc_config_get() { # <chave>: valor de uma chave de topo do config.yaml existente
 pc_yaml_q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"; }
 
 pc_write_config() { # config.yaml da instalacao (schema v1 do M1.4a); preserva as chaves ja existentes num upgrade
-  d="${DATA_TRAIN:-$(pc_config_get data_train_dir)}"; [ -n "$d" ] || d="$(pc_config_get data_dir)"
+  legacy="$(pc_config_get data_dir)"
+  d="${DATA_TRAIN:-$(pc_config_get data_train_dir)}"; [ -n "$d" ] || d="$legacy"
+  # data_dir (legado, ADR-044) nao e mais chave valida: o upgrade a converte e avisa UMA vez
+  if [ -f "$ROOT/config.yaml" ] && grep -q '^data_dir:' "$ROOT/config.yaml"; then
+    pc_warn "a chave data_dir do config.yaml foi convertida para data_train_dir (data_dir nao existe mais)"
+  fi
   di="${DATA_INF:-$(pc_config_get data_inference_dir)}"
   da="${DATA_ART:-$(pc_config_get artifacts_dir)}"
   s="${STATE:-$(pc_config_get state_dir)}"; [ -n "$s" ] || s="$ROOT/state"

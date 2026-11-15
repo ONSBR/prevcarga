@@ -139,7 +139,6 @@ function Write-PcNextSteps([string]$Bin, [bool]$PathUpdated) {  # depois da linh
   else { $lines += ('  - ' + $Bin + ' ja esta no PATH do usuario (num terminal aberto antes da instalacao, abra um novo)') }
   $lines += '  - rode: prevcarga doctor (confere runtime, config e deck)'
   $d = Get-PcConfigValue 'data_train_dir'
-  if (-not $d) { $d = Get-PcConfigValue 'data_dir' }
   if ($d) { $lines += ('  - deck configurado: data_train_dir = ' + $d + ' (em ' + $cfg + ')') }
   else { $lines += ('  - aponte o deck: prevcarga set-data-dir (grava data_train_dir em ' + $cfg + ')') }
   Write-PcStream 'err' (ConvertTo-PcAsciiText ($lines -join "`n"))
@@ -340,6 +339,10 @@ function Write-PcConfig {  # config.yaml da instalacao (schema v1 do M1.4a); pre
   $d = $script:DataTrain
   if (-not $d) { $d = Get-PcConfigValue 'data_train_dir' }
   if (-not $d) { $d = Get-PcConfigValue 'data_dir' }
+  # data_dir (legado, ADR-044) nao e mais chave valida: o upgrade a converte e avisa UMA vez
+  if ((Test-Path -LiteralPath $cfg) -and (@([IO.File]::ReadAllLines($cfg) | Where-Object { $_.StartsWith('data_dir:') }).Count -gt 0)) {
+    Add-PcWarning 'a chave data_dir do config.yaml foi convertida para data_train_dir (data_dir nao existe mais)'
+  }
   $di = $script:DataInference
   if (-not $di) { $di = Get-PcConfigValue 'data_inference_dir' }
   $da = $script:DataArtifacts

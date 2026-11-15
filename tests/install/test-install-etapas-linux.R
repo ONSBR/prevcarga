@@ -136,4 +136,16 @@ test_that("[AC4] install.sh grava data_train_dir/artifacts_dir/data_inference_di
   expect_identical(r4$status, 0L, info = r4$stderr)
   y4 <- readLines(file.path(b3$root, "config.yaml"))
   expect_false(any(startsWith(y4, "data_dir:"))); expect_true("data_train_dir: '/velho'" %in% y4)
+  ## aviso unico e ASCII no log da instalacao (stderr), e no envelope JSON; CONTROL: sem data_dir nao ha aviso
+  aviso <- "a chave data_dir do config.yaml foi convertida para data_train_dir"
+  expect_identical(lengths(regmatches(r4$stdout, gregexpr(aviso, r4$stdout, fixed = TRUE))), 1L)   # modo json: no envelope
+  expect_true(all(utf8ToInt(paste(r4$stdout, r4$stderr)) <= 127L))
+  expect_false(grepl("convertida para data_train_dir", r3$stdout, fixed = TRUE))
+  b5 <- fake_bundle(); dir.create(b5$root, recursive = TRUE, showWarnings = FALSE)
+  writeLines(c("schema_version: 1", "data_dir: '/velho'"), file.path(b5$root, "config.yaml"))
+  r5 <- pc_install(c(args_for(b5, "text")))
+  expect_identical(r5$status, 0L, info = r5$stderr)
+  expect_identical(lengths(regmatches(r5$stderr, gregexpr(aviso, r5$stderr, fixed = TRUE))), 1L)
+  r6 <- pc_install(c(args_for(b5, "text")))                            # 2a instalacao: a chave ja foi convertida
+  expect_false(grepl(aviso, r6$stderr, fixed = TRUE))
 })
