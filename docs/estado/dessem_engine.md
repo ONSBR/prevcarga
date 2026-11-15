@@ -52,3 +52,11 @@
 - `obtemLagsHora` e `obtemLagsDiaSemana` rodam por bloco e removem `Bloco` antes do `dcast`: a coluna nunca aparece em colunas nem em formula. `.engine_assert_grid` vale dentro de cada bloco (buraco na ilha => `engine.dessem_lag_grid_gap`, exit 2) e o corte das 7 primeiras linhas do lag de dia da semana e por bloco; nenhum LAG/LAGDS usa valor de outro bloco. Ilha de 8 dias sem lag 7 completo no primeiro dia perde a linha pelo `complete.cases`, como o inicio da janela.
 - `entradaPerfilDefault` filtra `Bloco == 0` (perfil de dia comum so na janela comum + horizonte); `entradaPerfilFeriadoReg` e `obtemSD` usam todos os blocos; `inclui_CargaMediaRef` calcula a constante de normalizacao so em `Bloco == 0 & Prev == FALSE` (decisao L2). Write-back em `seriePF` inalterado.
 - Com um bloco (modo referencia) a saida e `identical()` a de antes; o `golden.lock` nao tem sha de fonte no fingerprint e nao foi regerado.
+
+## exo_hist_lead0: EXOGENAHIST em clima_hist = previsto_lead0 (E5-T3)
+
+- `exo_hist_lead0(weather_forecast, weather_observed, area, days, tz, issue_day_tz = "UTC")` em `R/exogena.R` (ao lado de `fill_forecast_tail`; registrada em `engine_manifest()$required_functions`). Regra unica consumida pelos dois DESSEM (T4).
+- Regra lead 0 igual a de `lgbm_weather_vintage(lead = 0)`: area filtrada; `valid_day` no fuso da carga (`tz`), `issue_day` em `issue_day_tz` (UTC: emissoes 21h-00h BRT viram o dia UTC seguinte); mantem `valid_day - issue_day >= 0` e `valid_day` em `days`; por `valid_time` fica a emissao de maior `issue_time`. Sem aritmetica de hora.
+- Completamento por DIA INTEIRO (decisao L2): dia de `days` sem 24 horas pelo lead 0 sai inteiro do `weather_observed` e conta em `dias_completados`; nunca mistura horas de fontes no mesmo dia. Previsto vazio: todos os dias vem do observado e `primeiro_dia_lead0` e NA.
+- Dia sem 24 horas nem no lead 0 nem no observado: aborta `engine.dessem_exo_gap` (completude, exit 3; `errors/dessem_engine.tsv`) com `details$dia`, `horas_lead0` e `horas_observado`.
+- Devolve `list(dt = data.table(DataHora, Exo_Temperatura) ordenado, dias_completados, primeiro_dia_lead0)`. LGBM nao muda.
