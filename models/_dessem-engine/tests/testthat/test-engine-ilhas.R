@@ -233,3 +233,29 @@ test_that("aggregaSerie nao agrupa por Bloco: a serie diaria do DM fica sem a co
   d0 <- e$aggregaSerie(data.table::copy(red)[, Bloco := NULL], "MED", FALSE, 1, 1)
   expect_identical(d, d0)
 })
+
+test_that("constantes de normalizacao da demanda media vem so do Bloco 0 (ADR-046 item 1): ilhas nao as mudam", {
+  e <- ilh_eng()
+  cfg <- e$getConfigModel("Linear.TmpMedia")$normalizacao
+  com <- ilh_series(FALSE)                          # so janela comum + horizonte (Bloco 0)
+  ilh <- ilh_series(TRUE)                           # + duas ilhas de nivel diferente
+  ilh[Bloco != 0L, `:=`(Carga = Carga + 4000, Exo_Temperatura = Exo_Temperatura + 15)]
+  expect_true(any(ilh$Bloco != 0L))
+  expect_identical(nrow(e$.serie_comum(ilh)), nrow(com[Prev == FALSE]))
+  expect_true(all(e$.serie_comum(ilh)$Bloco == 0L))
+  for (n in list(cfg$dm$carga, cfg$carga, cfg$perfil$cargadm)) {
+    if (is.null(n)) next
+    expect_identical(e$getNormalizaCarga(n, e$.serie_comum(ilh)), e$getNormalizaCarga(n, e$.serie_comum(com)))
+  }
+  for (n in list(cfg$dm$exogena, cfg$exogena, cfg$perfil$exogena)) {
+    if (is.null(n)) next
+    expect_identical(e$getNormalizaExogena(n, e$.serie_comum(ilh)), e$getNormalizaExogena(n, e$.serie_comum(com)))
+  }
+  ## CONTROL: sem o filtro, as ilhas mudariam a constante de carga
+  n <- cfg$perfil$cargadm
+  if (isTRUE(n$flag) && !is.null(n$oper))
+    expect_false(identical(e$getNormalizaCarga(n, ilh[Prev == FALSE]), e$getNormalizaCarga(n, com[Prev == FALSE])))
+  ## sem a coluna Bloco: caminho anterior (todo o historico observado)
+  sem <- data.table::copy(com)[, Bloco := NULL]
+  expect_identical(e$.serie_comum(sem), sem[Prev == FALSE])
+})

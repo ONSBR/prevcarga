@@ -79,26 +79,32 @@ execHorasPerfil <- function(dataPrev,seriePF,config_mdl,constNorm){
    }
 }
 
+## Historico observado do Bloco 0 (janela comum): so ele alimenta as constantes de normalizacao (ADR-046 item 1,
+## decisao L2). Sem a coluna Bloco, todo o historico observado (caminho anterior).
+.serie_comum <- function(serie){
+   if("Bloco" %in% names(serie)) serie[Prev == F & Bloco == 0L] else serie[Prev == F]
+}
+
 processaModelosDMPerfil <- function(deck,config_mdl){
    message(sprintf("%s - Estruturando series de Perfil e Demanda Media...", config_mdl$nomModelo))
    serieDM <- aggregaSerie(serieHist = copy(deck$SERIECOMP),
                            tipotemp = config_mdl$exogenaOper,
                            normaliza = any(config_mdl$normalizacao$dm$carga$flag,config_mdl$normalizacao$dm$exogena$flag),
-                           constnorm = getNormalizaCarga(config_mdl$normalizacao$dm$carga,deck$SERIECOMP[Prev==F]),
-                           constnormtemp = getNormalizaExogena(config_mdl$normalizacao$dm$exogena,deck$SERIECOMP[Prev==F]))
+                           constnorm = getNormalizaCarga(config_mdl$normalizacao$dm$carga,.serie_comum(deck$SERIECOMP)),
+                           constnormtemp = getNormalizaExogena(config_mdl$normalizacao$dm$exogena,.serie_comum(deck$SERIECOMP)))
 
    seriePF <- copy(deck$SERIECOMP)
    inclui_CargaMediaRef(seriePF,config_mdl$normalizacao$perfil$cargadm)
    normalizaSerieRef(serieHist = seriePF,
                      constnorm = config_mdl$normalizacao$perfil$carga$oper,
-                     constnormtemp = getNormalizaExogena(config_mdl$normalizacao$exogena,deck$SERIECOMP[Prev==F]))
+                     constnormtemp = getNormalizaExogena(config_mdl$normalizacao$exogena,.serie_comum(deck$SERIECOMP)))
    message(sprintf("%s - Executando previsoes...", config_mdl$nomModelo))
    previsoes <- lapply(format(deck$DIASPREV),execDMPerfil,serieDM,seriePF,config_mdl)
    rm(previsoes)
    rm(serieDM)
    gc()
    message(sprintf("%s - Desnormalizando previsoes...", config_mdl$nomModelo))
-   seriePF[,CargaMed := CargaMed * getNormalizaCarga(config_mdl$normalizacao$perfil$cargadm,deck$SERIECOMP[Prev==F])]
+   seriePF[,CargaMed := CargaMed * getNormalizaCarga(config_mdl$normalizacao$perfil$cargadm,.serie_comum(deck$SERIECOMP))]
    seriePF[,Carga := Carga * CargaMed]
    return(seriePF[Prev == T,.(DataHora,Carga)])
 }
@@ -108,20 +114,20 @@ processaModelosDMTSPerfil <- function(deck,config_mdl){
    serieDM <- aggregaSerie(serieHist = copy(deck$SERIECOMP),
                            tipotemp = config_mdl$exogenaOper,
                            normaliza = any(config_mdl$normalizacao$carga$flag,config_mdl$normalizacao$exogena$flag) ,
-                           constnorm = getNormalizaCarga(config_mdl$normalizacao$carga,deck$SERIECOMP[Prev==F]),
-                           constnormtemp = getNormalizaExogena(config_mdl$normalizacao$exogena,deck$SERIECOMP[Prev==F]))
+                           constnorm = getNormalizaCarga(config_mdl$normalizacao$carga,.serie_comum(deck$SERIECOMP)),
+                           constnormtemp = getNormalizaExogena(config_mdl$normalizacao$exogena,.serie_comum(deck$SERIECOMP)))
 
    seriePF <- copy(deck$SERIECOMP)
    inclui_CargaMediaRef(seriePF,config_mdl$normalizacao$perfil$cargadm)
    normalizaSerieRef(serieHist = seriePF,
                      constnorm = config_mdl$normalizacao$perfil$carga$oper,
-                     constnormtemp = getNormalizaExogena(config_mdl$normalizacao$perfil$exogena,deck$SERIECOMP[Prev==F]))
+                     constnormtemp = getNormalizaExogena(config_mdl$normalizacao$perfil$exogena,.serie_comum(deck$SERIECOMP)))
    message(sprintf("%s - Executando previsoes...", config_mdl$nomModelo))
-   execDMTSPerfil(format(deck$DIASPREV),serieDM,seriePF,config_mdl,getNormalizaCarga(config_mdl$normalizacao$perfil$cargadm,deck$SERIECOMP[Prev==F]))
+   execDMTSPerfil(format(deck$DIASPREV),serieDM,seriePF,config_mdl,getNormalizaCarga(config_mdl$normalizacao$perfil$cargadm,.serie_comum(deck$SERIECOMP)))
    rm(serieDM)
    gc()
    message(sprintf("%s - Desnormalizando previsoes...", config_mdl$nomModelo))
-   seriePF[,CargaMed := CargaMed * getNormalizaCarga(config_mdl$normalizacao$perfil$cargadm,deck$SERIECOMP[Prev==F])]
+   seriePF[,CargaMed := CargaMed * getNormalizaCarga(config_mdl$normalizacao$perfil$cargadm,.serie_comum(deck$SERIECOMP))]
    seriePF[,Carga := Carga * CargaMed]
    return(seriePF[Prev == T,.(DataHora,Carga)])
 }
