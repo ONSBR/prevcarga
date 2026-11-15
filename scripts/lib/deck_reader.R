@@ -125,6 +125,13 @@ prevcarga_deck_manifest <- function(data_dir) {
   if (!(is.numeric(sv) && length(sv) == 1L && !is.na(sv) && sv == 1))
     prevcarga_abort("contract.manifest_invalid", where = "manifest.json:schema_version",
                     details = list(expected = 1L))
+  ## kind holiday_annex (E3-T2; ADR-044): manifest minimo do subdeck do anexo, so schema_version + kind. Fuso, load_label e
+  ## train_deck_hash vem do deck de inferencia dono (prevcarga_annex_ctx). Nunca e deck principal (require_deck recusa).
+  if (identical(m[["kind"]], "holiday_annex")) {
+    badan <- setdiff(names(m), c("schema_version", "kind"))
+    if (length(badan)) prevcarga_abort("contract.manifest_unknown_key", where = badan[[1L]])
+    return(list(schema_version = 1L, kind = "holiday_annex"))
+  }
   ll <- m[["load_label"]]
   if (!is.null(ll) && !(is.character(ll) && length(ll) == 1L && ll %in% c("end", "start")))
     prevcarga_abort("contract.manifest_invalid", where = "manifest.json:load_label",
@@ -273,7 +280,7 @@ prevcarga_resolve_load_label <- function(ctx, manifest) {
 
 .prevcarga_deck_ctx <- function(ctx) {
   prevcarga_require_data_dir(ctx)
-  man <- prevcarga_deck_manifest(ctx$data_dir)
+  man <- if (!is.null(ctx$annex_owner_manifest)) ctx$annex_owner_manifest else prevcarga_deck_manifest(ctx$data_dir)
   list(dir = ctx$data_dir, manifest = man, tz = man$timezone$load,
        label = prevcarga_resolve_load_label(ctx, man))
 }
@@ -572,9 +579,9 @@ prevcarga_read_holiday_codes <- function(ctx, areas = NULL) {
 ## list(islands, load, weather_observed): islands no schema de prevcarga_holiday_islands; load e weather_observed nos
 ## schemas e atributos dos leitores atuais, SO com dias contidos em alguma ilha e NENHUM dia >= O (FORBIDDEN: corte em O-1).
 ## Deck train: calcula as ilhas sobre auxiliary/holidays e le carga/observado pelos leitores. Deck inference: le ilhas,
-## carga e observado do subdeck apontado por manifest$holiday_annex (diretorio relativo ao deck com manifest.json,
-## load/, weather/observed/ e islands/part-0.parquet com uma linha por data de feriado: area_code, island_id, from, to,
-## holiday_date). Janela NULL ou sem holiday_from (modo referencia) => NULL.
+## carga e observado do subdeck apontado por manifest$holiday_annex (diretorio relativo ao deck, kind holiday_annex, com
+## load/ e weather/observed/ em hive area_code=/year= e islands/area_code=<a>/part-0.parquet com uma linha por data de
+## feriado: island_id, from, to, holiday_date; ADR-044). Janela NULL ou sem holiday_from (modo referencia) => NULL.
 .PREVCARGA_ANNEX_LOAD_ATTRS <- c("load_label", "load_label_source", "tz", "available_until",
                                  "available_until_by_area", "available_until_spread", "origin")
 
@@ -589,6 +596,7 @@ prevcarga_read_holiday_codes <- function(ctx, areas = NULL) {
   x[, `:=`(area_code = as.character(area_code), island_id = as.integer(island_id),
            from = lubridate::as_date(from), to = lubridate::as_date(to))]
   data.table::setcolorder(x, c("area_code", "island_id", "from", "to", "holiday_dates"))
+  data.table::setindex(x, NULL)
   x[]
 }
 
@@ -659,23 +667,48 @@ prevcarga_read_holiday_codes <- function(ctx, areas = NULL) {
                                                  truncate_at = truncate_at))
 }
 
+## ctx do subdeck do anexo: data_dir = subdeck; o manifest do subdeck deve ser kind holiday_annex (unico contexto em que esse
+## kind e aceito; no deck principal o require_deck o recusa); fuso e load_label vem do manifest do deck dono.
+.prevcarga_annex_ctx <- function(ctx, man, rel) {
+  adir <- file.path(ctx$data_dir, rel)
+  if (!dir.exists(adir)) prevcarga_abort("contract.dataset_missing", where = "holiday_annex")
+  am <- prevcarga_deck_manifest(adir)
+  if (!identical(am$kind, "holiday_annex"))
+    prevcarga_abort("contract.deck_kind_mismatch", where = "holiday_annex",
+                    details = list(kind = am$kind, expected = "holiday_annex"))
+  actx <- ctx
+  actx$data_dir <- adir
+  actx$annex_owner_manifest <- man
+  actx
+}
+
+## islands/area_code=<a>/part-0.parquet (hive, uma linha por data de feriado: island_id, from, to, holiday_date).
+.prevcarga_annex_read_islands <- function(adir, areas) {
+  idir <- file.path(adir, "islands")
+  if (!dir.exists(idir)) prevcarga_abort("contract.dataset_missing", where = "holiday_annex.islands")
+  fs <- list.files(idir, pattern = "\\.parquet$", recursive = TRUE, full.names = TRUE)
+  parts <- lapply(fs, function(f) {
+    a <- sub("^area_code=", "", basename(dirname(f)))
+    x <- data.table::as.data.table(as.data.frame(arrow::read_parquet(f)))
+    x[, area_code := a]
+    x
+  })
+  raw <- if (length(parts)) data.table::rbindlist(parts) else NULL
+  if (is.null(raw) || !nrow(raw)) return(.prevcarga_islands_empty())
+  if (length(areas)) raw <- raw[area_code %in% areas]
+  if (!nrow(raw)) return(.prevcarga_islands_empty())
+  data.table::set(raw, j = "holiday_date", value = lubridate::as_date(raw$holiday_date))
+  isl <- raw[, list(holiday_dates = list(sort(unique(holiday_date)))),
+             by = list(area_code, island_id, from = lubridate::as_date(from), to = lubridate::as_date(to))]
+  data.table::setorderv(isl, c("area_code", "from"))
+  isl
+}
+
 .prevcarga_annex_from_manifest <- function(ctx, man, O, areas) {
   rel <- man$holiday_annex
   if (is.null(rel)) prevcarga_abort("contract.constraint_violated", where = "holiday_annex")
-  adir <- file.path(ctx$data_dir, rel)
-  actx <- ctx
-  actx$data_dir <- adir
-  ipath <- file.path(adir, "islands", "part-0.parquet")
-  if (!file.exists(ipath)) prevcarga_abort("contract.dataset_missing", where = "holiday_annex.islands")
-  raw <- data.table::as.data.table(as.data.frame(arrow::read_parquet(ipath)))
-  if (length(areas)) raw <- raw[area_code %in% areas]
-  data.table::set(raw, j = "holiday_date", value = lubridate::as_date(raw$holiday_date))
-  isl <- if (nrow(raw)) {
-    raw[, list(holiday_dates = list(sort(unique(holiday_date)))),
-        by = list(area_code, island_id, from = lubridate::as_date(from), to = lubridate::as_date(to))]
-  } else .prevcarga_islands_empty()
-  if (nrow(isl)) data.table::setorderv(isl, c("area_code", "from"))
-  isl <- .prevcarga_annex_islands_schema(isl)
+  actx <- .prevcarga_annex_ctx(ctx, man, rel)
+  isl <- .prevcarga_annex_islands_schema(.prevcarga_annex_read_islands(actx$data_dir, areas))
   ld <- prevcarga_read_load(actx, areas)
   obs <- prevcarga_read_weather(actx, "observed", areas)
   au <- man$inference$available_until

@@ -25,12 +25,16 @@ annex_train <- function(d, window = W) env$prevcarga_read_holiday_annex(pc_ctx_p
 cal_days <- function(x, col) lubridate::as_date(x[[col]], tz = TZ)
 
 ## deck inference: anexo em <dir>/annex (subdeck com manifest, load, weather/observed e islands/part-0.parquet)
-write_islands <- function(dir, isl) {
-  rows <- rbindlist(lapply(seq_len(nrow(isl)), function(i)
-    data.table(area_code = isl$area_code[i], island_id = isl$island_id[i], from = isl$from[i], to = isl$to[i],
-               holiday_date = isl$holiday_dates[[i]])))
+write_islands <- function(dir, isl) {                      # islands/area_code=<a>/part-0.parquet (hive; ADR-044)
   dir.create(file.path(dir, "islands"), recursive = TRUE, showWarnings = FALSE)
-  arrow::write_parquet(rows, file.path(dir, "islands", "part-0.parquet"))
+  for (a in unique(isl$area_code)) {
+    sub <- isl[which(isl$area_code == a)]
+    rows <- rbindlist(lapply(seq_len(nrow(sub)), function(i)
+      data.table(island_id = sub$island_id[i], from = sub$from[i], to = sub$to[i], holiday_date = sub$holiday_dates[[i]])))
+    pd <- file.path(dir, "islands", paste0("area_code=", a))
+    dir.create(pd, recursive = TRUE, showWarnings = FALSE)
+    arrow::write_parquet(rows, file.path(pd, "part-0.parquet"))
+  }
 }
 inference_deck <- function(isl, annex_days, with_annex = TRUE, env_ = parent.frame()) {
   d <- pc_deck_sentinel("end", days = lubridate::ymd(c("2023-05-31", "2023-06-01")), areas = c("A", "B"),
@@ -38,6 +42,7 @@ inference_deck <- function(isl, annex_days, with_annex = TRUE, env_ = parent.fra
   if (with_annex) {
     ad <- file.path(d, "annex")
     pc_deck_sentinel("end", days = annex_days, areas = c("A", "B"), dir = ad)
+    pc_deck_manifest(ad, mutate = function(m) list(schema_version = 1L, kind = "holiday_annex"))   # manifest proprio, minimo
     write_islands(ad, isl)
   }
   pc_deck_manifest(d, mutate = function(m) {
@@ -94,8 +99,10 @@ test_that("[AC2] deck inference: le o anexo do manifest, descarta a linha de 202
   tr <- annex_train(d)
   inf <- inference_deck(tr$islands, c(ISLAND_DAYS, O))              # anexo com dia extra em O
   ctx <- pc_ctx_deck(inf)
-  raw <- env$prevcarga_read_load(pc_ctx_deck(file.path(inf, "annex")), "A")
+  actx <- env$.prevcarga_annex_ctx(ctx, env$prevcarga_deck_manifest(inf), "annex")
+  raw <- env$prevcarga_read_load(actx, "A")
   expect_true(O %in% cal_days(raw, "interval_start"))               # a linha extra existe no anexo gravado
+  expect_true(file.exists(file.path(inf, "annex", "islands", "area_code=A", "part-0.parquet")))   # islands em hive
   ax <- env$prevcarga_read_holiday_annex(ctx, O, "A", W)
   expect_identical(ax$islands, tr$islands)
   expect_true(all(cal_days(ax$load, "interval_start") < O))
@@ -151,4 +158,33 @@ test_that("[AC3] painel sem holiday_window e com janela referencia e identical()
   expect_identical(names(p1$holiday_annex), c("islands", "load", "weather_observed"))
   expect_identical(p1[c("load", "weather_observed", "weather_forecast", "holidays", "attrs")], ref)
   expect_identical(p1$holiday_annex, annex_train(d))
+})
+
+test_that("[ADR-044] kind holiday_annex so vale como subdeck do anexo: deck principal o recusa", {
+  d <- train_deck()
+  inf <- inference_deck(annex_train(d)$islands, c(ISLAND_DAYS, O))
+  ad <- file.path(inf, "annex")
+  expect_identical(env$prevcarga_deck_manifest(ad)$kind, "holiday_annex")
+  for (role in c("train", "inference")) {
+    ctx <- c(pc_ctx_deck(ad), list(data_role = role))
+    e <- fail(env$prevcarga_require_deck(ctx))
+    expect_identical(e$id, "contract.deck_kind_mismatch")
+    expect_identical(e$details$kind, "holiday_annex")
+  }
+  ## o manifest do anexo e minimo: chave alem de schema_version/kind e recusada
+  pc_deck_manifest(ad, mutate = function(m) list(schema_version = 1L, kind = "holiday_annex", load_label = "end"))
+  expect_identical(fail(env$prevcarga_deck_manifest(ad))$id, "contract.manifest_unknown_key")
+  ## subdeck apontado pelo manifest que nao e kind holiday_annex aborta
+  pc_deck_manifest(ad)
+  e2 <- fail(env$prevcarga_read_holiday_annex(pc_ctx_deck(inf), O, "A", W))
+  expect_identical(e2$id, "contract.deck_kind_mismatch")
+  expect_match(e2$where, "holiday_annex", fixed = TRUE)
+})
+
+test_that("[ADR-044] zero ilhas no anexo de inferencia: islands/ vazio devolve tabelas vazias com schema", {
+  inf <- inference_deck(data.table(area_code = character()), ISLAND_DAYS[1:2])
+  ax <- env$prevcarga_read_holiday_annex(pc_ctx_deck(inf), O, "B", W)
+  expect_equal(nrow(ax$islands), 0L)
+  expect_equal(nrow(ax$load), 0L)
+  expect_identical(names(ax$islands), c("area_code", "island_id", "from", "to", "holiday_dates"))
 })
