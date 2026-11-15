@@ -414,6 +414,61 @@ prevcarga_read_forecast_vintages <- function(ctx, areas, from, to, limit) {
   fc[issue_time <= limit]
 }
 
+## --- Leitura do previsto pela regra que o plugin declara (E2-T2; data_needs -> weather_forecast.segments) -----------
+## Cada segmento {kind, from, to, lead} e um recorte relativo a O; a uniao deduplicada dos segmentos e o que o plugin recebe.
+## Os tres seletores sao puros e reproduzem a escolha do proprio plugin (freshest: prevcarga_freshest_issue; per_origin:
+## .rf_weather_vintage do random-forest; min_lead: lgbm_weather_vintage), entao entregar so as linhas selecionadas nao muda a
+## escolha do plugin (delta 0 do LONG por membro). Dias por lubridate no tz do valid_time; issue_day sempre em UTC.
+## Nenhum nome de modelo. Emissao > limit nunca entra (honestidade, ADR-0024).
+
+.prevcarga_rule_valid_day <- function(fc) lubridate::as_date(fc$valid_time, tz = lubridate::tz(fc$valid_time))
+
+## freshest: por (area, valid_time), a emissao mais fresca <= limit nos dias validos [O+from, O+to].
+.prevcarga_rule_freshest <- function(fc, O, s, limit) {
+  vd <- .prevcarga_rule_valid_day(fc)
+  prevcarga_freshest_issue(fc[vd >= O + s$from & vd <= O + s$to], limit)
+}
+
+## per_origin: para cada origem nativa T em [O+from, O+to], limit(T) = limit - days(O - T); a emissao mais fresca em
+## (limit(T) - 1 dia, limit(T)] e entregue inteira (todas as suas linhas). Origem sem candidata nao entrega nada.
+.prevcarga_rule_per_origin <- function(fc, O, s, limit) {
+  iss <- sort(unique(fc$issue_time))
+  origins <- seq(O + s$from, O + s$to, by = "day")
+  pick <- vapply(origins, function(Tn) {
+    lim <- limit - lubridate::days(as.integer(O - Tn))
+    cand <- iss[iss > lim - lubridate::days(1L) & iss <= lim]
+    if (length(cand)) as.numeric(max(cand)) else NA_real_
+  }, 0)
+  fc[as.numeric(issue_time) %in% pick[!is.na(pick)]]
+}
+
+## min_lead: valid_day (tz da carga) em [O+from, O+to] e valid_day - issue_day(UTC) >= lead; por valid_time, a mais fresca.
+.prevcarga_rule_min_lead <- function(fc, O, s, limit) {
+  vd <- .prevcarga_rule_valid_day(fc)
+  id <- lubridate::as_date(fc$issue_time, tz = "UTC")
+  w <- fc[vd >= O + s$from & vd <= O + s$to & as.integer(vd - id) >= s$lead]
+  w <- w[order(area_code, valid_time, -as.numeric(issue_time))]
+  w[!duplicated(w, by = c("area_code", "valid_time"))]
+}
+
+prevcarga_read_forecast_by_rule <- function(ctx, area, origin, segments, limit) {
+  O <- lubridate::as_date(origin)
+  if (!length(segments)) return(prevcarga_read_weather(ctx, "forecast", area, O, O)[0L])
+  from <- O + min(vapply(segments, function(s) as.integer(s$from), 0L))
+  fc <- prevcarga_read_weather(ctx, "forecast", area, from, NULL)
+  fc <- fc[issue_time <= limit]
+  pick <- list(freshest = .prevcarga_rule_freshest, per_origin = .prevcarga_rule_per_origin,
+               min_lead = .prevcarga_rule_min_lead)
+  out <- data.table::rbindlist(lapply(segments, function(s) {
+    f <- pick[[s$kind]]
+    if (is.null(f)) prevcarga_abort("contract.inference_needs_invalid", where = "prevcarga_read_forecast_by_rule",
+                                    details = list(field = "weather_forecast.segments.kind"))
+    f(fc, O, s, limit)
+  }))
+  out <- unique(out)
+  out[order(area_code, issue_time, valid_time, method = "radix")]
+}
+
 ## --- Clima por area (exogenas instantaneas: nao deslocadas) --------------------------------------------
 ## Com `origin`: observado so <= available_until (derivado da carga lida pelo proprio leitor, mesmo
 ## origin/truncate_at); previsto so emissoes <= weather_issue_limit (= available_until - lag de publicacao do deck, na regra

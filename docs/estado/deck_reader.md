@@ -95,3 +95,24 @@
 - `.prevcarga_manifest_tz(tz, where, olson = OlsonNames)`: `olson()` vazio => `runtime.tzdata_missing` (exit 7), no lugar de `contract.tz_invalid`; nome fora da lista segue `contract.tz_invalid`.
 - `prevcarga_deck_manifest_timezones(data_dir)`: fusos declarados (unicos), lidos do JSON cru sem validar; consumido pelo doctor (E1-T6).
 - Catalogo: `scripts/lib/errors/deck_contract.tsv`. Testes: `scripts/lib/tests/test-deck-kind.R`.
+
+## E2-T2: previsto lido pela regra que o plugin declara (regdin-linear-refactor)
+- `prevcarga_read_forecast_by_rule(ctx, area, origin, segments, limit)`: le o previsto da area uma unica vez (`prevcarga_read_weather` kind forecast, de `O + min(from)` em
+  diante), filtra `issue_time <= limit` e despacha cada segmento `{kind, from, to, lead}` ao seletor da sua regra; une, deduplica (`unique`) e ordena por
+  `(area_code, issue_time, valid_time)` com `method = "radix"`. Nenhuma emissao `> limit` sai (honestidade, ADR-0024). Nenhum nome de modelo: so `kind`.
+  `kind` desconhecido => `contract.inference_needs_invalid`. Dias por lubridate no tz do `valid_time` do store; o dia da emissao (`issue_day`) e sempre UTC.
+- Segmentos vazios (`list()`) => `data.table` de 0 linhas com as colunas e os tipos do store (area_code, issue_time, valid_time, temperature, heat_index).
+- Regras (seletores puros `.prevcarga_rule_*`), cada uma reproduz a escolha do plugin que a originou:
+  - `freshest` (dessem-linear, dessem-regdin, default generico): por `(area, valid_time)` com dia valido em `[O+from, O+to]`, a mais fresca `<= limit` (`prevcarga_freshest_issue`).
+  - `per_origin` (random-forest, `.rf_weather_vintage`): para cada origem nativa `T` em `[O+from, O+to]`, `limit(T) = limit - days(O - T)`; a emissao mais fresca em
+    `(limit(T) - 1 dia, limit(T)]` e entregue INTEIRA (todas as suas linhas). Origem sem candidata nao entrega nada (o LOCF segue no plugin).
+  - `min_lead` (lgbm, `lgbm_weather_vintage`): por `valid_time` com `valid_day` (tz da carga) em `[O+from, O+to]` e `valid_day - issue_day(UTC) >= lead`, a mais fresca.
+- Delta 0: cada plugin escolhe a mais fresca que satisfaz a SUA regra entre as emissoes que recebe; as linhas selecionadas sao exatamente as que ele escolheria sobre todas
+  as emissoes, entao entregar so elas preserva o LONG por membro. `weather_forecast_in_train` segue no descriptor e nas chaves de cache/backtest.
+- Quem declara: `data_needs(spec, area)` do plugin (`infer$weather_forecast` e `train_weather_forecast`, `from = NA` = desde o inicio da janela de treino, trocado por `-span`
+  por `prevcarga_inference_needs_train_rule`, inference_needs.R). LGBM: `min_lead [-n, 0] lead 0` e `[+1, +1] lead 1` na area `heat_area[area]`; RF: `per_origin [-n, 0]`
+  e feriados `[-(no_holiday_days + 1), +H]`; dessem-linear e dessem-regdin: `freshest [0, +H]` (E3/E4 trocam depois); HW: sem `data_needs`, o default generico da previsto vazio.
+  Plugin com `weather_forecast_in_train` e sem `data_needs` segue lendo todas as emissoes `<= limit` no treino (`prevcarga_read_forecast_vintages`).
+- Consumidores: `prevcarga_infer_read_panel(..., needs)` (inference.R; troca o previsto do painel quando `needs$weather_forecast$segments` nao e vazio; `prevcarga_infer_cell`
+  passa `art$inference_needs`, caindo no `prevcarga_inference_needs_of` num artefato anterior ao campo), `prevcarga_train_inputs` e `.prevcarga_tr_panel_memo` (training.R; a chave do memo
+  ganha a assinatura da regra). Testes: `scripts/lib/tests/test-forecast-by-rule.R`.

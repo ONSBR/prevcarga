@@ -188,10 +188,11 @@ prevcarga_infer_check_alignment <- function(pred, cuts, descriptor) {
 }
 
 ## Painel de infer da celula pelo leitor unico (unica montagem; a celula e os testes a reusam): le com todas as areas do
-## deck (corte global, M2.2), adota available_until/weather_issue_limit do painel, seleciona a area e, para plugin com
-## `weather_forecast_in_train`, troca o previsto por TODAS as emissoes <= limite em [O - history_days.infer, O + H] (o mesmo
-## insumo do treino, training.R). Devolve list(panel, cuts). Nenhum corte e calculado aqui.
-prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, truncate_at = NULL) {
+## deck (corte global, M2.2), adota available_until/weather_issue_limit do painel, seleciona a area e, para membro cuja
+## inference_needs declara segmentos de previsto, troca o previsto por prevcarga_read_forecast_by_rule (so as emissoes que a regra
+## do plugin escolhe, <= limite; E2-T2). `needs` NULL => prevcarga_inference_needs_of (default generico sem data_needs).
+## Devolve list(panel, cuts). Nenhum corte e calculado aqui.
+prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, truncate_at = NULL, needs = NULL) {
   panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, spec$history_days$infer,
                                 truncate_at = truncate_at)
   au <- panel$attrs$available_until
@@ -199,9 +200,10 @@ prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, tr
   wl <- panel$attrs$weather_issue_limit
   if (inherits(wl, "POSIXct") && length(wl) == 1L && !is.na(wl)) cuts$weather_issue_limit <- wl
   panel <- .prevcarga_inf_select_area(panel, area)
-  if (isTRUE(plugin$descriptor$weather_forecast_in_train))
-    panel$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - spec$history_days$infer,
-                                                               origin + spec$horizon_days, cuts$weather_issue_limit)
+  if (is.null(needs)) needs <- prevcarga_inference_needs_of(plugin, spec, area)
+  wf <- needs$weather_forecast
+  if (length(wf$segments))
+    panel$weather_forecast <- prevcarga_read_forecast_by_rule(ctx, wf$area, origin, wf$segments, cuts$weather_issue_limit)
   list(panel = prevcarga_infer_panel(panel, cuts, spec), cuts = cuts)
 }
 
@@ -282,7 +284,8 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
   cuts <- .prevcarga_inf_cuts(plugin, spec, origin, ctx, member$mdir)
   prevcarga_infer_check_conventions(art, cuts, list(load_label = cuts$load_label), plugin$descriptor)
   .prevcarga_inf_check_artifact_cut(art, spec, cuts, member$mdir)
-  rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, origin, ctx, truncate_at = truncate_at)
+  needs_in <- if (is.null(art$inference_needs)) prevcarga_inference_needs_of(plugin, spec, area) else art$inference_needs
+  rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, origin, ctx, truncate_at = truncate_at, needs = needs_in)
   panel <- rp$panel
   cuts <- .prevcarga_inf_apply_weather_cut(plugin, member$mdir, area, origin, panel$attrs, rp$cuts,
                                          variant = want_variant)

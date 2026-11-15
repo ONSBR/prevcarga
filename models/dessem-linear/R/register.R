@@ -78,6 +78,17 @@ dl_pick <- function(name, stub) {
   if (is.null(f)) stub else f
 }
 
+## data_needs (E2-T2): o que a inferencia/treino precisa do deck, so como dado. O previsto e a emissao mais fresca por
+## valid_time em [O, O + H] (freshest); carga/observado/feriados pela janela atual (n = history_days.infer, nunca literal).
+## E3/E4 trocam esta declaracao depois.
+dl_data_needs <- function(spec, area) {
+  n <- as.integer(spec$history_days$infer); H <- as.integer(spec$horizon_days)
+  wf <- list(area = area, segments = list(list(kind = "freshest", from = 0L, to = H, lead = NA_integer_)))
+  list(infer = list(schema_version = 1L, load = list(days_before = n), weather_observed = list(days_before = n),
+                    weather_forecast = wf, holidays = list(from = -n, to = H), holiday_annex = FALSE),
+       train_weather_forecast = wf)
+}
+
 plugin_descriptor <- function() {
   attach <- c("data.table", "lubridate", "jsonlite", "rlist", "WeightSVM", "e1071", "stats", "utils")
   list(
@@ -92,6 +103,7 @@ plugin_descriptor <- function() {
     reads_day_O = TRUE, weather_forecast_in_train = TRUE, uses_rng = TRUE,   # mm do dia O ate available_until (oraculo data_adapter.R)
     history_infer_equals_train = TRUE, rng_deviation = NULL,
     packages = attach, attach = attach, engine = "_dessem-engine",
+    data_needs = dl_data_needs,
     freeze = dl_pick("dl_freeze", dl_stub_freeze), thaw = dl_pick("dl_thaw", dl_stub_thaw),
     stages = list(
       ingestion = list(fn = dl_ingestion,
