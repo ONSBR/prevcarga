@@ -1,6 +1,9 @@
 ## helper-dl.R -- fixtures dos testes do plugin dessem-linear (DL.5). Auto-carregado por test_dir. Nao e codigo de
 ## produto. Sem variaveis de ambiente; datas por lubridate com tz explicito; sem RNG nas fixtures.
 suppressWarnings(suppressMessages(library(testthat)))
+## Caminho EXPLICITO de teste (decisao do Gabriel, 2026-11-16; ADR-046): o plugin fixa history_days.train = 1095
+## (contract.dessem_history_train_fixed); as fixtures sinteticas encurtam a janela e ligam esta opcao, que nem o run.yaml nem a CLI definem.
+options(prevcarga.test_short_history = TRUE)
 
 dl_root <- function() {
   d <- normalizePath(testthat::test_path(), winslash = "/", mustWork = TRUE)

@@ -100,11 +100,18 @@ test_that("os 5 run.yaml entregues tem os valores do contrato", {
   expect_identical(vapply(S[names(minimo)], function(s) s$history_days$infer, 1L), minimo)
   expect_identical(vapply(S, function(s) s$history_days$train, 1L),
     c("random-forest" = 365L, lgbm = 730L, "holt-winters" = 730L, "dessem-linear" = 1095L, "dessem-regdin" = 1095L))
-  ## CONTROL: o mesmo predicado reprova infer > train (run.yaml adulterado em tempdir) e a fachada ainda o le sem erro
+  ## CONTROL (guarda de runtime, decisao do Gabriel em 2026-11-16): infer > train (run.yaml adulterado em tempdir OU override) e RECUSADO
+  ## com contract.history_infer_gt_train (exit 2); infer == train e infer < train seguem aceitos
   r <- tmp_root(); on.exit(unlink(r, recursive = TRUE), add = TRUE)
   edit_yaml(file.path(r, "models", "lgbm", "run.yaml"), function(x) { x$history_days$infer <- x$history_days$train + 1L; x })
-  bad <- prevcarga_model_spec("lgbm", root = r)
-  expect_false(hist_ok(bad))
+  expect_pc_error(prevcarga_model_spec("lgbm", root = r), "contract.history_infer_gt_train", "lgbm: history_days.infer")
+  expect_pc_error(prevcarga_model_spec("lgbm", root = pc_root(), overrides = list(history_days.infer = 731L)),
+                  "contract.history_infer_gt_train", "lgbm: history_days.infer")
+  expect_pc_error(prevcarga_model_spec("lgbm", root = pc_root(), overrides = list(history_days.train = 4L)),
+                  "contract.history_infer_gt_train", "lgbm: history_days.infer")   # encurtar o train abaixo do infer tambem recusa
+  edit_yaml(file.path(r, "models", "lgbm", "run.yaml"), function(x) { x$history_days$infer <- x$history_days$train; x })
+  expect_identical(prevcarga_model_spec("lgbm", root = r)$history_days$infer, 730L)                      # infer == train
+  expect_identical(prevcarga_model_spec("lgbm", root = pc_root(), overrides = list(history_days.infer = 729L))$history_days$infer, 729L)
   expect_true(hist_ok(S$lgbm))
   for (m in ms) {
     fc <- "forecast" %in% S[[m]]$modes

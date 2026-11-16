@@ -1,3 +1,4 @@
 id	class	message	hint
 contract.topology_bad_value	contract	valor invalido ou tipo errado na topologia	corrija o valor indicado em config/topology.yaml
 topology.area_undeclared	topology	area pedida fora da topologia	declare a area em config/topology.yaml ou corrija a lista de areas; where e a area
+contract.history_infer_gt_train	contract	history_days.infer maior que history_days.train no spec efetivo do modelo (ADR-045 emenda o item 3 da ADR-0031: infer <= train)	reduza history_days.infer ou aumente history_days.train no run.yaml do modelo (onde: <modelo>: history_days.infer)

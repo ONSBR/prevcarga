@@ -27,9 +27,9 @@ test_that("espaco livre abaixo do minimo => exit 2 contract.accept_disk_low ante
   }
 })
 
-test_that("estagio ainda nao implementado e opcao desconhecida => contract.accept_bad_args sem objeto Docker", {
+test_that("estagio invalido e opcao desconhecida => contract.accept_bad_args sem objeto Docker", {
   fk <- acc_fake_docker(); b <- acc_bundle_fixture(); st <- acc_store()
-  r1 <- acc_run(c("--stage", "medicao", "--out", tempfile("acc-out-"), "--data", st), fk)
+  r1 <- acc_run(c("--stage", "nao-existe", "--out", tempfile("acc-out-"), "--data", st), fk)
   expect_equal(r1$status, 2L); expect_equal(r1$json$error_id, "contract.accept_bad_args")
   r2 <- acc_run(c("--stage", "smoke", "--nao-existe", "x", "--out", tempfile("acc-out-"), "--data", st), fk)
   expect_equal(r2$status, 2L); expect_equal(r2$json$error_id, "contract.accept_bad_args")

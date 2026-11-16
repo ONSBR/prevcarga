@@ -72,3 +72,10 @@ pc_probe_script <- function(enforce = TRUE, info = FALSE) {
   ), f)
   f
 }
+
+## Caminho EXPLICITO de teste (decisao do Gabriel, 2026-11-16; ADR-046): os plugins DESSEM fixam history_days.train = 1095
+## (contract.dessem_history_train_fixed). Os testes/gates que encurtam a janela por spec_overrides ou spec montado a mao ligam esta opcao;
+## nem o run.yaml nem a CLI a definem. Vale ate o fim do arquivo de teste (teardown_env) ou do frame informado.
+pc_allow_short_history <- function(.env = testthat::teardown_env()) {
+  withr::local_options(list(prevcarga.test_short_history = TRUE), .local_envir = .env)
+}

@@ -3,6 +3,7 @@
 ## schema do store, espioes por membro no treino e na inferencia, declaracoes reais normalizadas. Deck sintetico pequeno
 ## (helper-deck.R, 4 emissoes por dia) e fixture_store.R; tudo em tempdir; sem variaveis de ambiente.
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
+pc_allow_short_history()   # caminho explicito de teste: DESSEM fixa history_days.train = 1095 (decisao do Gabriel, 2026-11-16)
 env <- pc_source_lib(c("runtime", "errors", "config", "provenance", "topology", "holiday_islands", "deck_reader", "validation", "dates",
                        "registry", "features", "inference_needs", "training", "inference"))
 sys.source(file.path(pc_root(), "scripts", "tools", "fixture_store.R"), envir = env)

@@ -158,6 +158,9 @@ pc5g_ctx <- function(S, deck, state = NULL, rule = "available_until", seed_delta
     dir.create(file.path(state, "artifacts"), recursive = TRUE)
   }
   ov <- list(history_days.train = PC5G_HIST)
+  ## caminho EXPLICITO de teste (decisao do Gabriel, 2026-11-16): os DESSEM fixam history_days.train = 1095 (contract.dessem_history_train_fixed);
+  ## so o gate encurta a janela, por esta opcao. O run.yaml e a CLI nao a definem.
+  options(prevcarga.test_short_history = TRUE)
   if (isTRUE(S$descriptor$history_infer_equals_train) || isTRUE(S$spec$constraints$infer_history_equals_train))
     ov$history_days.infer <- PC5G_HIST
   if (!is.null(S$spec$params$ntree)) ov$params.ntree <- 5L
