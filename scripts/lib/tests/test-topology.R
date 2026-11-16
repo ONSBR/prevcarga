@@ -22,7 +22,7 @@ tmp_root <- function() {
 }
 edit_yaml <- function(file, fn) { x <- yaml::read_yaml(file); yaml::write_yaml(fn(x), file) }
 
-test_that("baseline: 24 folhas, 4 subsistemas, order, khat efetivo, 8 membros", {
+test_that("baseline: 24 folhas, 4 subsistemas, order, khat efetivo, 9 membros", {
   t <- topo()
   expect_length(t$leaves, 24L); expect_false(anyDuplicated(t$leaves) > 0)
   expect_identical(names(t$subsystems), c("SECO", "S", "N", "NE"))
@@ -31,10 +31,10 @@ test_that("baseline: 24 folhas, 4 subsistemas, order, khat efetivo, 8 membros", 
   expect_identical(t$sin$children, t$order)
   for (s in t$order) expect_identical(t$subsystems[[s]]$khat_range, c(1.00, 1.15))
   m <- prevcarga_members(root = pc_root())
-  expect_identical(nrow(m), 8L)
-  expect_identical(m$sigla, c("RF", "LGBM", "HW", "RGD_MED", "RGD_MAX", "LIN_MED", "LIN_MAX", "LIN_MXMN"))
-  expect_identical(m$mdir, c("random-forest", "lgbm", "holt-winters", rep("dessem-regdin", 2), rep("dessem-linear", 3)))
-  expect_identical(m$exogena, c(NA, NA, NA, "MED", "MAX", "MED", "MAX", "MXMN"))
+  expect_identical(nrow(m), 9L)
+  expect_identical(m$sigla, c("RF", "LGBM", "HW", "RGD_MED", "RGD_MAX", "LIN_MED", "LIN_MAX", "LIN_MXMN", "LIN_UNI"))
+  expect_identical(m$mdir, c("random-forest", "lgbm", "holt-winters", rep("dessem-regdin", 2), rep("dessem-linear", 4)))
+  expect_identical(m$exogena, c(NA, NA, NA, "MED", "MAX", "MED", "MAX", "MXMN", "UNI"))
 })
 
 test_that("area extra por argumento: 25 folhas; [CONTROL] pela raiz volta a 24", {
@@ -139,7 +139,7 @@ test_that("run.yaml invalidos (tempdir) falham contract; horizon 1->3 e lido", {
 test_that("members invalidos: mdir sem run.yaml e sigla repetida", {
   r <- tmp_root(); on.exit(unlink(r, recursive = TRUE))
   tp <- file.path(r, "config", "topology.yaml")
-  expect_identical(nrow(prevcarga_members(path = tp, root = r)), 8L)
+  expect_identical(nrow(prevcarga_members(path = tp, root = r)), 9L)
   edit_yaml(tp, function(x) { x$members[[1L]]$mdir <- "nao-existe"; x })
   expect_pc_error(prevcarga_members(path = tp, root = r), "contract.topology_member_invalid", "nao-existe")
   file.copy(file.path(pc_root(), "config", "topology.yaml"), tp, overwrite = TRUE)

@@ -1,5 +1,5 @@
 id	class	message	hint
-plugin.dessem_linear_bad_exogena	contract	params$exogena invalido para o dessem-linear	use MED, MAX ou MXMN conforme o membro LIN_*
+plugin.dessem_linear_bad_exogena	contract	params$exogena invalido para o dessem-linear	use MED, MAX, MXMN ou UNI conforme o membro LIN_*
 plugin.dessem_linear_mm_missing_origin	completude	sem horas completas do dia O para a cabeca mm	confira available_until e a carga do dia O no deck
 plugin.dessem_linear_train_sees_day_o	contract	painel de treino contem o dia O	confira cuts$last_data_day (O-1) vindo de prevcarga_resolve_cuts
 plugin.dessem_linear_rng_deviation	repro	consumo de RNG da cabeca DM(O) diverge do oraculo	declare descriptor$rng_deviation (plano B) e liste no A/B

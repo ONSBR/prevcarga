@@ -19,3 +19,4 @@ members:
   - {sigla: LIN_MED, mdir: dessem-linear, exogena: MED}
   - {sigla: LIN_MAX, mdir: dessem-linear, exogena: MAX}
   - {sigla: LIN_MXMN, mdir: dessem-linear, exogena: MXMN}
+  - {sigla: LIN_UNI, mdir: dessem-linear, exogena: UNI}

@@ -10,7 +10,8 @@
 ## do plugin e, enquanto o arquivo do estagio nao existe, usa um stub que recusa com plugin.stage_missing.
 
 plugin_constants <- function() {
-  list(model_key = c(MED = "Linear.TmpMedia", MAX = "Linear.TmpMaxima", MXMN = "Linear.TmpMaxMin"),
+  list(model_key = c(MED = "Linear.TmpMedia", MAX = "Linear.TmpMaxima", MXMN = "Linear.TmpMaxMin",
+                     UNI = "Linear.Univariado"),
        hours_per_day = 24L, mm_ref_hour = 12L, max_tail_fill_days = 2L, horizon_days = 9L,
        reference_history_days = 1825L)
 }
@@ -34,7 +35,7 @@ dl_warn <- function(id, where = NULL, details = NULL) {
 }
 
 ## --- Variante (exogena) --------------------------------------------------------------------------------------
-## spec$params$exogena in {MED, MAX, MXMN}; ausente ou fora do conjunto aborta ANTES de qualquer treino.
+## spec$params$exogena in {MED, MAX, MXMN, UNI} (names do mapa model_key); ausente ou fora do conjunto aborta ANTES de qualquer treino.
 dl_resolve_variant <- function(spec) {
   ex <- spec$params$exogena
   keys <- plugin_constants()$model_key
@@ -45,6 +46,13 @@ dl_resolve_variant <- function(spec) {
                               paste(names(keys), collapse = ", ")),
              details = list(field = "params.exogena", got = ex, allowed = names(keys)))
   list(exogena = ex, model_key = unname(keys[[ex]]))
+}
+
+## TRUE sse o config do motor agrega a exogena com SEM (Linear.Univariado): nenhuma coluna de clima entra no modelo.
+## Decisao pelo motor, nunca pelo literal da variante.
+dl_variant_weatherless <- function(model_key) {
+  if (is.null(model_key) || length(model_key) != 1L || is.na(model_key)) return(FALSE)
+  identical(dl_engine()$getConfigModel(model_key)$exogenaOper, "SEM")
 }
 
 ## --- Regra semi-horaria: desagregaModeloSH do motor; falha => duplicacao :00/:30 + aviso -------------------------
@@ -114,6 +122,8 @@ plugin_descriptor <- function() {
     params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key)),
                          janela_dessem = list(type = "character", allowed = c("ano_civil", "referencia"))),
     variant_param = "exogena",
+    ## so a UNI declara requires proprio (sem data.weather_*); MED/MAX/MXMN seguem o requires do estagio (E5-T1)
+    variants = list(UNI = list(requires = c("data.load.load_mwh", "data.holidays.prevcarga_code"))),
     native_layout = "dessem_semihourly_48", semihourly_rule = dl_semihourly_rule,
     weather_cut = "absent",   # F3.7: DESSEM so com horizonte inteiro; clima previsto curto => completude.weather_forecast_short (membro ausente)
     delivery_days = 9L, data_lag_days = 0L, model_time_offset_min = 60L,

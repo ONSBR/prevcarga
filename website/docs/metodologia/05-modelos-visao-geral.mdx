@@ -3,7 +3,7 @@ title: Os modelos
 sidebar_label: Os modelos
 sidebar_position: 5
 slug: /metodologia/modelos-visao-geral
-description: As 5 famílias e os 8 membros da combina num quadro comparativo, a faixa de entrega de cada um, os padrões que se repetem e os modos de execução.
+description: As 5 famílias e os 9 membros da combina num quadro comparativo, a faixa de entrega de cada um, os padrões que se repetem e os modos de execução.
 fontes:
   - config/topology.yaml
   - models/*/run.yaml
@@ -59,9 +59,9 @@ commit_base: "f2d1734"
 
 <span className="pc-overline">Metodologia · 1.5</span>
 
-<p className="pc-lead">A combina recebe 8 membros, gerados por 5 diretórios de modelo em <code>models/</code>. Cada membro declara no seu <code>run.yaml</code> e no descriptor do plugin tudo o que a fundação precisa saber dele: granularidade, classe de split, horizonte, faixa de entrega, janelas de histórico, semente e modos. Nenhum módulo da fundação decide nada pelo nome do modelo. Esta página reúne esses atributos num quadro e mostra o que se repete entre os modelos, antes das páginas de cada família.</p>
+<p className="pc-lead">A combina recebe 9 membros, gerados por 5 diretórios de modelo em <code>models/</code>. Cada membro declara no seu <code>run.yaml</code> e no descriptor do plugin tudo o que a fundação precisa saber dele: granularidade, classe de split, horizonte, faixa de entrega, janelas de histórico, semente e modos. Nenhum módulo da fundação decide nada pelo nome do modelo. Esta página reúne esses atributos num quadro e mostra o que se repete entre os modelos, antes das páginas de cada família.</p>
 
-## As 5 famílias e os 8 membros
+## As 5 famílias e os 9 membros
 
 Os membros da combina são a lista `members:` de `config/topology.yaml`. Cada entrada tem uma `sigla`, o diretório do modelo (`mdir`) e, quando o modelo tem variante, a `exogena`.
 
@@ -75,10 +75,11 @@ Os membros da combina são a lista `members:` de `config/topology.yaml`. Cada en
 | `LIN_MED` | `dessem-linear` | `MED` | DESSEM, SVM linear |
 | `LIN_MAX` | `dessem-linear` | `MAX` | DESSEM, SVM linear |
 | `LIN_MXMN` | `dessem-linear` | `MXMN` | DESSEM, SVM linear |
+| `LIN_UNI` | `dessem-linear` | `UNI` | DESSEM, SVM linear, sem clima |
 
 Os 5 diretórios formam dois grupos:
 
-- **Duas famílias DESSEM, com motor comum.** O `dessem-linear` (`LIN_MED`, `LIN_MAX`, `LIN_MXMN`) e o `dessem-regdin` (`RGD_MED`, `RGD_MAX`) rodam sobre o mesmo motor, `models/_dessem-engine`, que cada plugin declara em `engine = "_dessem-engine"`. A variante escolhe a chave do motor em `model_parameters.json`: `Linear.TmpMedia`, `Linear.TmpMaxima` e `Linear.TmpMaxMin` no linear; `RegDin.Radial.TmpMed` e `RegDin.Radial.TmpMax` no regdin.
+- **Duas famílias DESSEM, com motor comum.** O `dessem-linear` (`LIN_MED`, `LIN_MAX`, `LIN_MXMN`, `LIN_UNI`) e o `dessem-regdin` (`RGD_MED`, `RGD_MAX`) rodam sobre o mesmo motor, `models/_dessem-engine`, que cada plugin declara em `engine = "_dessem-engine"`. A variante escolhe a chave do motor em `model_parameters.json`: `Linear.TmpMedia`, `Linear.TmpMaxima` e `Linear.TmpMaxMin` e `Linear.Univariado` (sem clima) no linear; `RegDin.Radial.TmpMed` e `RegDin.Radial.TmpMax` no regdin.
 - **Três famílias de código próprio:** `LGBM`, `RF` e `HW`. Cada uma tem um único membro e nenhuma usa motor compartilhado.
 
 :::note O que não é membro

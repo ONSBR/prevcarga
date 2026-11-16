@@ -4,7 +4,7 @@ Estado duravel do epico M5 (write-through do M5.12, ex-P.6 fatia 2/2). `docs/EST
 nao foi editado aqui; `docs/roadmap/PLANO.md` e `scripts/lib/README.md` tambem nao. O fechamento so VERIFICA: achado vira correcao no epico dono.
 Parte 1/2 (cobertura, higiene, isolamento): `docs/estado/plugins_porte_fechamento.md` (M5.11).
 
-## Os 8 membros (parity-full, M5.12)
+## Os 9 membros (8 com parity-full, M5.12; LIN_UNI sem golden, E5-T2)
 
 Rodada: `export PATH=/opt/R/4.5.3/bin:$PATH && TZ=UTC LC_ALL=C.UTF-8 Rscript --vanilla models/<mdir>/tests/run_all_gates.R --tier parity-full`
 em R 4.5.3, Linux, oraculo `c4af737` (so leitura; `golden.lock` de cada plugin conferido no runner). `max|D|` = maximo de `|y_pred|` do clean-room
@@ -19,11 +19,12 @@ pela `day0_source` da unidade). Tolerancia unica 1e-5 MW (ADR-0017), exceto as d
 | LIN_MED | dessem-linear | MED | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (5 unid. SECO, max\|D\| 1e-9 na faixa; excecoes nomeadas) | foundation_report.json aa823f68dfabbb5f2dfbefcb9d0663d94e8565fb491f549b0fa96b506dd16507 (campo sha256 474f9a95...) |
 | LIN_MAX | dessem-linear | MAX | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (fan-out via runner; excecoes nomeadas) | foundation_report.json aa823f68dfabbb5f2dfbefcb9d0663d94e8565fb491f549b0fa96b506dd16507 (campo sha256 474f9a95...) |
 | LIN_MXMN | dessem-linear | MXMN | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (fan-out via runner; excecoes nomeadas) | foundation_report.json aa823f68dfabbb5f2dfbefcb9d0663d94e8565fb491f549b0fa96b506dd16507 (campo sha256 474f9a95...) |
+| LIN_UNI | dessem-linear | UNI | dessem_semihourly_48 | train, infer, forecast | O..O+8 | sem golden do oraculo: aceite por invariancia ao clima (test-uni.R) | - |
 | RGD_MED | dessem-regdin | MED | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (13 unid., max\|D\| 1.35e-7) | f23b2be3646c76269a98c4cf739a76e685807b20b9be89e91cb45809815f2255 (parity_report.json do runner = a7b9c157...) |
 | RGD_MAX | dessem-regdin | MAX | dessem_semihourly_48 | train, infer, forecast | O..O+8 | PASS (13 unid., max\|D\| 1.35e-7) | f23b2be3646c76269a98c4cf739a76e685807b20b9be89e91cb45809815f2255 (parity_report.json do runner = a7b9c157...) |
 
 Notas da tabela:
-- Entrega dos 8 pelas fachadas `identical()` a `prevcarga_delivery_grid` (M5.11): 413 `interval_end` nos 7 de horizonte longo, 77 no LGBM.
+- Entrega dos 9 pelas fachadas `identical()` a `prevcarga_delivery_grid` (M5.11): 413 `interval_end` nos 8 de horizonte longo, 77 no LGBM.
 - O `foundation_report.json` do dessem-linear (caso-fundacao LIN_MED x SECO, versionado em `models/dessem-linear/tests/parity/`) e o
   `requires_report` de toda unidade do fan-out do dessem-regdin e do proprio dessem-linear; o sha256 e o mesmo em todos (conferido por
   `test-plugins-gates-cli.R`). O motor `_dessem-engine` tem golden isolado (`.state/golden/plugins/_dessem-engine`, MED/MAX/MXMN) e nao e membro.

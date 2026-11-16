@@ -1,7 +1,7 @@
 # Estado: topologia e contrato por-modelo (M1.2; ADR-0001/0009/0021)
 
 - `config/topology.yaml` e a fonte unica: schema_version 1, `khat_range` default `[1.00, 1.15]` (unico lugar da faixa;
-  override opcional por subsistema), 4 subsistemas/24 areas/perdas, `order`, 8 `members` (sigla, mdir, exogena).
+  override opcional por subsistema), 4 subsistemas/24 areas/perdas, `order`, 9 `members` (sigla, mdir, exogena; o 9o e LIN_UNI, dessem-linear/UNI).
   Area nova = editar o YAML. `"N"` precisa de aspas (YAML 1.1 le `N` como FALSE; vale para chave e para `order`).
 - `scripts/lib/topology.R` so carrega e valida: `prevcarga_topology(path, root)` (khat_range efetivo por subsistema),
   `prevcarga_members(path, root)` (exige `models/<mdir>/run.yaml`), `prevcarga_model_spec(model, root)`.

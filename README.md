@@ -7,7 +7,7 @@
 
 <p align="center">
   <b>Previsão de carga semi-horária do Sistema Interligado Nacional</b><br>
-  24 áreas · 8 modelos combinados · reconciliação até os subsistemas e o SIN · D−1 a D+7
+  24 áreas · 9 modelos combinados · reconciliação até os subsistemas e o SIN · D−1 a D+7
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@ O `prevcarga` é uma CLI que prevê a carga de cada uma das 24 áreas do SIN em 
 
 | | |
 |---|---|
-| **Modelos** | Random Forest, LightGBM, Holt-Winters, dessem-linear (3 variantes) e dessem-regdin (2 variantes) |
+| **Modelos** | Random Forest, LightGBM, Holt-Winters, dessem-linear (4 variantes, a UNI sem clima) e dessem-regdin (2 variantes) |
 | **Combinação** | por área, com pesos convexos e intercepto, aplicados congelados na rodada |
 | **Reconciliação** | Bottom-Up × k-hat por subsistema; o SIN é a soma dos subsistemas |
 | **Distribuição** | um bundle fechado por plataforma, com R 4.5.3 e todas as bibliotecas dentro |

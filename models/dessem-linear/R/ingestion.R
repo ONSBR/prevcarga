@@ -61,7 +61,9 @@ dl_validate_deck <- function(deck, cuts, spec = NULL) {
              details = list(first_day = format(first), required_from = format(hs),
                             history_days = spec$history_days$train))
   if (is.null(spec)) hs <- first
-  for (s in c("CARGAHIST", "EXOGENAHIST")) {
+  ## deck sem clima (variante com exogenaOper SEM): EXOGENAHIST/EXOGENAPREV sao grades sinteticas so para o TransformaDeck
+  nowx <- dl_variant_weatherless(deck$model_key)
+  for (s in c("CARGAHIST", if (!nowx) "EXOGENAHIST")) {
     dt <- deck[[s]]
     dl_assert_covers_days(dt, "DataHora", hs, last, s)
     dl_assert_no_na(dt, if (identical(s, "CARGAHIST")) "Carga" else "Exo_Temperatura", s)
@@ -73,11 +75,17 @@ dl_validate_deck <- function(deck, cuts, spec = NULL) {
     dl_assert_days(deck$EXOGENAFER, "DataHora", days, "EXOGENAFER")
     dl_assert_no_na(deck$EXOGENAFER, "Exo_Temperatura", "EXOGENAFER")
   }
-  dl_assert_covers_days(deck$EXOGENAPREV, "DataHora", O, O + deck$horizon - 1L, "EXOGENAPREV")
-  dl_assert_no_na(deck$EXOGENAPREV, "Exo_Temperatura", "EXOGENAPREV")
+  if (!nowx) {
+    dl_assert_covers_days(deck$EXOGENAPREV, "DataHora", O, O + deck$horizon - 1L, "EXOGENAPREV")
+    dl_assert_no_na(deck$EXOGENAPREV, "Exo_Temperatura", "EXOGENAPREV")
+  }
   if (!nrow(deck$FERIADOS)) dl_series_gap("FERIADOS", "vazio")
   invisible(TRUE)
 }
+
+## Grade horaria sintetica O..O+days-1 (24 h por dia) no tz de cuts; lubridate, sem aritmetica de hora sobre dado.
+dl_synthetic_exo_grid <- function(O, days, tz)
+  seq(lubridate::ymd_hms(paste(format(O), "00:00:00"), tz = tz), by = "hour", length.out = 24L * as.integer(days))
 
 ## --- Montagem do deck -----------------------------------------------------------------------------------------
 dl_single_area <- function(panel) {
@@ -90,7 +98,10 @@ dl_single_area <- function(panel) {
 }
 
 plugin_ingest <- function(panel, cuts, spec = NULL) {
-  v <- if (is.null(spec)) list(exogena = NA_character_, model_key = NA_character_) else dl_resolve_variant(spec)
+  ## variante: do spec ou, sem spec (despachante), do canal interino cuts$spec (dl_resolve_variant valida)
+  sp <- if (!is.null(spec)) spec else cuts$spec
+  v <- if (is.null(sp)) list(exogena = NA_character_, model_key = NA_character_) else dl_resolve_variant(sp)
+  weatherless <- dl_variant_weatherless(v$model_key)
   k <- plugin_constants()
   eng <- dl_engine()
   O <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
@@ -114,18 +125,27 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   if (inherits(au, "POSIXct")) origin_load <- origin_load[interval_end <= lubridate::floor_date(au, "hour")]
   hourly_load <- data.table::rbindlist(list(ld[in_window(dl_day_of(interval_end))], origin_load))
 
-  wo <- data.table::as.data.table(panel$weather_observed)[area_code == area]
-  exogenahist <- wo[in_window(dl_day_of(valid_time)), .(DataHora = valid_time, Exo_Temperatura = temperature)]
-  data.table::setorder(exogenahist, DataHora)
+  if (weatherless) {
+    ## variante SEM clima: nenhum weather_* e lido; zeros so para o TransformaDeck (a coluna Exo_ sai em plugin_build_features)
+    exogenahist <- data.table::data.table(DataHora = cargahist$DataHora, Exo_Temperatura = 0)
+    exogenaprev <- data.table::data.table(DataHora = dl_synthetic_exo_grid(O, horizon, cuts$tz), Exo_Temperatura = 0)
+  } else {
+    ## sem as tabelas de clima a variante com clima nao tem de onde ler: lacuna de completude (nao erro do data.table)
+    if (is.null(panel$weather_observed)) dl_series_gap("EXOGENAHIST", "tabela weather_observed ausente")
+    if (is.null(panel$weather_forecast)) dl_series_gap("EXOGENAPREV", "tabela weather_forecast ausente")
+    wo <- data.table::as.data.table(panel$weather_observed)[area_code == area]
+    exogenahist <- wo[in_window(dl_day_of(valid_time)), .(DataHora = valid_time, Exo_Temperatura = temperature)]
+    data.table::setorder(exogenahist, DataHora)
 
-  wf <- data.table::as.data.table(panel$weather_forecast)[area_code == area]
-  data.table::setorder(wf, valid_time, -issue_time)
-  wf <- wf[, .SD[1L], by = valid_time]
-  d_wf <- dl_day_of(wf$valid_time)
-  exogenaprev <- wf[d_wf >= O & d_wf <= O + horizon - 1L, .(DataHora = valid_time, Exo_Temperatura = temperature)]
-  data.table::setorder(exogenaprev, DataHora)
-  exogenaprev <- eng$fill_forecast_tail(exogenaprev, "DataHora", O, O + horizon - 1L, k$hours_per_day, area, O,
-                                        max_fill_days = k$max_tail_fill_days)
+    wf <- data.table::as.data.table(panel$weather_forecast)[area_code == area]
+    data.table::setorder(wf, valid_time, -issue_time)
+    wf <- wf[, .SD[1L], by = valid_time]
+    d_wf <- dl_day_of(wf$valid_time)
+    exogenaprev <- wf[d_wf >= O & d_wf <= O + horizon - 1L, .(DataHora = valid_time, Exo_Temperatura = temperature)]
+    data.table::setorder(exogenaprev, DataHora)
+    exogenaprev <- eng$fill_forecast_tail(exogenaprev, "DataHora", O, O + horizon - 1L, k$hours_per_day, area, O,
+                                          max_fill_days = k$max_tail_fill_days)
+  }
 
   h <- data.table::as.data.table(panel$holidays)
   if ("area_code" %in% names(h)) h <- h[area_code == area]
@@ -139,8 +159,12 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   if (!is.null(ax)) {
     la <- data.table::as.data.table(ax$load)[area_code == area & dl_day_of(interval_end) <= last]
     cargafer <- la[order(interval_end), .(DataHora = interval_end, Carga = load_mwh)]
-    wa <- data.table::as.data.table(ax$weather_observed)[area_code == area & dl_day_of(valid_time) <= last]
-    exogenafer <- wa[order(valid_time), .(DataHora = valid_time, Exo_Temperatura = temperature)]
+    if (weatherless) {
+      exogenafer <- data.table::data.table(DataHora = cargafer$DataHora, Exo_Temperatura = 0)
+    } else {
+      wa <- data.table::as.data.table(ax$weather_observed)[area_code == area & dl_day_of(valid_time) <= last]
+      exogenafer <- wa[order(valid_time), .(DataHora = valid_time, Exo_Temperatura = temperature)]
+    }
     isl <- data.table::as.data.table(ax$islands)[area_code == area, .(island_id, from, to)]
   }
 
