@@ -100,7 +100,7 @@
 ## Versao do artefato da origem O de um membro origin_scoped (proprio ou oficial sincronizado: mesmo layout do registry), pelo
 ## `origin` do run_manifest de cada versao; o `latest` se for dele, senao a ultima em ordem radix. NULL = nao ha artefato de O.
 .forecast_scoped_version <- function(ctx, member, area, origin) {
-  key <- prevcarga_registry_key(member, area, ctx)
+  key <- prevcarga_registry_key(member, area, ctx, spec = .prevcarga_tr_key_spec(member, ctx))
   if (!dir.exists(key)) return(NULL)
   vs <- list.files(key, pattern = "^v_[0-9a-f]{16}$")
   vs <- vs[order(vs, method = "radix")]
@@ -123,7 +123,7 @@
     m <- mem[i, ]
     split <- prevcarga_model_spec(m$mdir, ctx$root)$split
     ok <- if (identical(split, "origin_scoped")) !is.null(.forecast_scoped_version(ctx, m, a, origin)) else {
-      key <- prevcarga_registry_key(m, a, ctx)
+      key <- prevcarga_registry_key(m, a, ctx, spec = .prevcarga_tr_key_spec(m, ctx))
       dir.exists(key) && !is.na(tryCatch(prevcarga_resolve_version(key, "latest"), prevcarga_error = function(e) NA_character_))
     }
     if (!ok) prevcarga_abort("state.inference_artifact_missing", where = paste0(m$sigla, "/", a),

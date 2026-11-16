@@ -202,11 +202,14 @@ rd_align_row <- function(row, cols, serie, dp, what) {
 ## carga e observado = max(lagsPerfil em horas) / 24 dias de lag + 1 de aquecimento antes de O (o dia O ate available_until e
 ## do deck); previsto O..O+H (freshest, H = dias entregues); calendario O-n..O+H. O estado (serie, perfil de feriado, colunas)
 ## vem do artefato, entao o anexo de feriados NAO entra (holiday_annex = FALSE).
-rd_inference_needs <- function(config_mdl, area, horizon_days = plugin_constants()$horizon_days) {
+## clima_hist = previsto_lead0 (E5-T4): o previsto dos dias -n..-1 entra como segmento min_lead (lead 0), a regra de exo_hist_lead0.
+rd_inference_needs <- function(config_mdl, area, horizon_days = plugin_constants()$horizon_days, clima_hist = "observado") {
   n <- as.integer(ceiling(max(config_mdl$lagsPerfil) / plugin_constants()$hours_per_day)) + 1L
   H <- as.integer(horizon_days)
+  segs <- list(list(kind = "freshest", from = 0L, to = H, lead = NA_integer_))
+  if (identical(clima_hist, "previsto_lead0"))
+    segs <- c(segs, list(list(kind = "min_lead", from = -n, to = -1L, lead = 0L)))
   list(schema_version = 1L, load = list(days_before = n), weather_observed = list(days_before = n),
-       weather_forecast = list(area = area,
-                               segments = list(list(kind = "freshest", from = 0L, to = H, lead = NA_integer_))),
+       weather_forecast = list(area = area, segments = segs),
        holidays = list(from = -n, to = H), holiday_annex = FALSE)
 }

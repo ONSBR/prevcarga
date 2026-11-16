@@ -173,12 +173,30 @@ rd_panel_contract <- function(reason, details = NULL)
 ## --- Exogena (temperatura da area) com a persistencia de cauda curta do motor (DL.2) ------------------------------
 ## kind = "hist": cobre [from, to] por dia com 24 horas; kind = "prev": aplica fill_forecast_tail em O..O+h-1.
 ## Lacuna maior que a persistencia aceita => contract nomeando os dias; nunca preenche com 0.
-.rd_exo <- function(weather, kind, cuts, horizon_days, area = NA_character_, from = NULL) {
+## kind = "hist" com mode = "previsto_lead0" (E5-T4): o EXOGENAHIST vem de exo_hist_lead0 do motor (`forecast` = painel previsto);
+## dias sem 24 horas pelo lead 0 saem inteiros do observado. O resultado leva attr "clima_hist" (modo, dias_completados,
+## primeiro_dia_lead0). EXOGENAPREV nunca muda.
+.rd_exo <- function(weather, kind, cuts, horizon_days, area = NA_character_, from = NULL, forecast = NULL,
+                    mode = "observado") {
   O <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
   k <- plugin_constants()
   w <- data.table::as.data.table(weather)
   if ("area_code" %in% names(w) && !is.na(area)) w <- w[area_code == area]
-  if (identical(kind, "hist")) {
+  if (identical(kind, "hist") && identical(mode, "previsto_lead0")) {
+    first <- if (is.null(from)) min(rd_day_of(w$valid_time)) else from
+    days <- seq(first, cuts$last_data_day, by = "day")
+    r <- rd_engine()$exo_hist_lead0(forecast, weather, area, days, tz = cuts$tz)
+    out <- r$dt
+    ## mesma conferencia de 24 horas por dia do modo observado
+    dd <- rd_day_of(out$DataHora)
+    got <- vapply(days, function(x) sum(dd == x), integer(1L))
+    bad <- which(got != k$hours_per_day)
+    if (length(bad))
+      rd_panel_contract(sprintf("EXOGENAHIST sem 24 horas nos dias: %s", rd_fmt_days(days[bad])),
+                        list(serie = "EXOGENAHIST", dias = format(days[bad])))
+    attr(out, "clima_hist") <- list(modo = mode, dias_completados = as.integer(r$dias_completados),
+                                    primeiro_dia_lead0 = r$primeiro_dia_lead0)
+  } else if (identical(kind, "hist")) {
     out <- .rd_hourly_to_deck(w[rd_day_of(valid_time) <= cuts$last_data_day], "temperature", "valid_time", "Exo_Temperatura")
     first <- if (is.null(from)) min(rd_day_of(out$DataHora)) else from
     days <- seq(first, cuts$last_data_day, by = "day")
@@ -220,6 +238,9 @@ rd_single_area <- function(panel) {
 
 plugin_ingest <- function(panel, cuts, spec = NULL) {
   key <- if (is.null(spec)) NA_character_ else .rd_variant_key(spec$params)
+  ## clima_hist (E5-T4): do spec ou, sem spec (despachante), do canal interino cuts$spec; valida antes de tocar o painel
+  sp <- if (!is.null(spec)) spec else cuts$spec
+  modo <- rd_resolve_clima_hist(if (is.null(sp)) list() else sp$params)
   k <- plugin_constants()
   O <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
   last <- cuts$last_data_day
@@ -253,14 +274,19 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
     isl <- .rd_annex_islands(ax, area)
   }
 
+  exo_hist <- .rd_exo(panel$weather_observed, "hist", cuts, horizon, area, from = min(rd_day_of(cargahist$DataHora)),
+                      forecast = panel$weather_forecast, mode = modo)
+  clima_hist <- attr(exo_hist, "clima_hist")
+  if (is.null(clima_hist))
+    clima_hist <- list(modo = modo, dias_completados = 0L, primeiro_dia_lead0 = lubridate::NA_Date_)
+  attr(exo_hist, "clima_hist") <- NULL
   deck <- list(CARGAHIST = cargahist,
-               EXOGENAHIST = .rd_exo(panel$weather_observed, "hist", cuts, horizon, area,
-                                     from = min(rd_day_of(cargahist$DataHora))),
+               EXOGENAHIST = exo_hist,
                EXOGENAPREV = .rd_exo(panel$weather_forecast, "prev", cuts, horizon, area),
                FERIADOS = feriados, origin_load = origin_load, hourly_load = hourly_load,
                dataPrev = O, horizon = as.integer(horizon), variant = if (is.null(spec)) NA_character_ else spec$params$exogena,
                model_key = key, area = area, tz = cuts$tz, available_until = cuts$available_until,
-               last_data_day = last, history_start = hs)
+               last_data_day = last, history_start = hs, clima_hist = clima_hist)
   deck$CARGAFER <- cargafer; deck$EXOGENAFER <- exogenafer; deck$islands <- isl
   deck
 }

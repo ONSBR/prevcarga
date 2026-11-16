@@ -102,6 +102,9 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   sp <- if (!is.null(spec)) spec else cuts$spec
   v <- if (is.null(sp)) list(exogena = NA_character_, model_key = NA_character_) else dl_resolve_variant(sp)
   weatherless <- dl_variant_weatherless(v$model_key)
+  ## clima_hist (E5-T4): valida o modo ANTES de tocar o painel (lead1 aborta antes de qualquer treino)
+  modo <- dl_resolve_clima_hist(if (is.null(sp)) list() else sp$params, v$model_key)
+  clima_hist <- list(modo = modo, dias_completados = 0L, primeiro_dia_lead0 = lubridate::NA_Date_)
   k <- plugin_constants()
   eng <- dl_engine()
   O <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
@@ -136,6 +139,14 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
     wo <- data.table::as.data.table(panel$weather_observed)[area_code == area]
     exogenahist <- wo[in_window(dl_day_of(valid_time)), .(DataHora = valid_time, Exo_Temperatura = temperature)]
     data.table::setorder(exogenahist, DataHora)
+    if (identical(modo, "previsto_lead0")) {
+      ## EXOGENAHIST pelo lead 0 do motor (regra unica, E5-T3); os dias sao os do observado na janela
+      days <- sort(unique(dl_day_of(exogenahist$DataHora)))
+      r <- eng$exo_hist_lead0(panel$weather_forecast, panel$weather_observed, area, days, cuts$tz)
+      exogenahist <- r$dt
+      clima_hist <- list(modo = modo, dias_completados = as.integer(r$dias_completados),
+                         primeiro_dia_lead0 = r$primeiro_dia_lead0)
+    }
 
     wf <- data.table::as.data.table(panel$weather_forecast)[area_code == area]
     data.table::setorder(wf, valid_time, -issue_time)
@@ -171,7 +182,7 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   deck <- list(CARGAHIST = cargahist, EXOGENAHIST = exogenahist, EXOGENAPREV = exogenaprev, FERIADOS = feriados,
                origin_load = origin_load, hourly_load = hourly_load, dataPrev = O, horizon = as.integer(horizon),
                variant = v$exogena, model_key = v$model_key, area = area, tz = cuts$tz,
-               available_until = au, last_data_day = last, history_start = hs)
+               available_until = au, last_data_day = last, history_start = hs, clima_hist = clima_hist)
   deck$CARGAFER <- cargafer; deck$EXOGENAFER <- exogenafer; deck$islands <- isl
   dl_validate_deck(deck, cuts, spec)
   deck

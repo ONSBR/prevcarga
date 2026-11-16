@@ -41,6 +41,11 @@ rd_artifact_mismatch <- function(field, got, exp, where = "dessem-regdin/inferen
   O <- format(deck$dataPrev)
   if (!length(payload$dias) || !identical(payload$dias[[1L]], O))
     rd_artifact_mismatch("origin_day", if (length(payload$dias)) payload$dias[[1L]] else NA_character_, O)
+  ## clima_hist (E5-T4): payload sem o bloco = observado; o deck traz o modo efetivo do spec do artefato
+  if (!is.null(deck$clima_hist)) {
+    mp <- if (!is.null(payload$clima_hist$modo)) payload$clima_hist$modo else "observado"
+    if (!identical(mp, deck$clima_hist$modo)) rd_artifact_mismatch("clima_hist", mp, deck$clima_hist$modo)
+  }
   invisible(TRUE)
 }
 

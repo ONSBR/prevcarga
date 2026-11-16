@@ -13,7 +13,7 @@ plugin_constants <- function() {
   list(model_key = c(MED = "Linear.TmpMedia", MAX = "Linear.TmpMaxima", MXMN = "Linear.TmpMaxMin",
                      UNI = "Linear.Univariado"),
        hours_per_day = 24L, mm_ref_hour = 12L, max_tail_fill_days = 2L, horizon_days = 9L,
-       reference_history_days = 1825L)
+       reference_history_days = 1825L, clima_hist_modes = c("observado", "previsto_lead0"))
 }
 
 ## Env do motor (pai do env do plugin). Nao ha estado: o motor e uma instancia por plugin carregado.
@@ -46,6 +46,21 @@ dl_resolve_variant <- function(spec) {
                               paste(names(keys), collapse = ", ")),
              details = list(field = "params.exogena", got = ex, allowed = names(keys)))
   list(exogena = ex, model_key = unname(keys[[ex]]))
+}
+
+## clima_hist (E5-T4): "nao_se_aplica" para variante sem clima (UNI), "observado" quando ausente, o valor se estiver em
+## plugin_constants()$clima_hist_modes; senao aborta (contract, exit 2) antes de qualquer treino.
+dl_resolve_clima_hist <- function(params, model_key) {
+  if (dl_variant_weatherless(model_key)) return("nao_se_aplica")
+  m <- params$clima_hist
+  if (is.null(m)) return("observado")
+  modes <- plugin_constants()$clima_hist_modes
+  if (!is.character(m) || length(m) != 1L || is.na(m) || !(m %in% modes))
+    dl_abort("plugin.dessem_linear_bad_clima_hist", where = "dessem-linear/params",
+             reason = sprintf("params.clima_hist=%s; permitido {%s}", paste(format(m), collapse = ","),
+                              paste(modes, collapse = ", ")),
+             details = list(field = "params.clima_hist", got = m, allowed = modes))
+  m
 }
 
 ## TRUE sse o config do motor agrega a exogena com SEM (Linear.Univariado): nenhuma coluna de clima entra no modelo.
@@ -108,8 +123,12 @@ dl_data_needs <- function(spec, area) {
   n <- as.integer(spec$history_days$infer); H <- as.integer(spec$horizon_days)
   mode <- if (is.null(spec$params$janela_dessem)) "ano_civil" else spec$params$janela_dessem
   wf <- list(area = area, segments = list(list(kind = "freshest", from = 0L, to = H, lead = NA_integer_)))
+  ## clima_hist = previsto_lead0 (E5-T4): o previsto dos dias -n..-1 (lead 0) alimenta os lags da inferencia
+  wfi <- wf
+  if (identical(spec$params$clima_hist, "previsto_lead0"))
+    wfi$segments <- c(wfi$segments, list(list(kind = "min_lead", from = -n, to = -1L, lead = 0L)))
   list(infer = list(schema_version = 1L, load = list(days_before = n), weather_observed = list(days_before = n),
-                    weather_forecast = wf, holidays = list(from = -n, to = H), holiday_annex = identical(mode, "ano_civil")),
+                    weather_forecast = wfi, holidays = list(from = -n, to = H), holiday_annex = identical(mode, "ano_civil")),
        train_weather_forecast = wf)
 }
 
@@ -120,10 +139,14 @@ plugin_descriptor <- function() {
     granularity_supported = 60L, modes_implemented = c("train", "infer", "forecast"),
     weather_resample = "hourly",              # EXOGENAHIST/EXOGENAPREV horarios (to_hourly da fundacao)
     params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key)),
-                         janela_dessem = list(type = "character", allowed = c("ano_civil", "referencia"))),
+                         janela_dessem = list(type = "character", allowed = c("ano_civil", "referencia")),
+                         clima_hist = list(type = "character")),   # opcional (key_params); conjunto validado por dl_resolve_clima_hist
     variant_param = "exogena",
+    ## clima_hist: ausente = observado (default nao injetado em spec$params); fora do default entra na chave do registry
+    key_params = list(clima_hist = "observado"),
     ## so a UNI declara requires proprio (sem data.weather_*); MED/MAX/MXMN seguem o requires do estagio (E5-T1)
-    variants = list(UNI = list(requires = c("data.load.load_mwh", "data.holidays.prevcarga_code"))),
+    variants = list(UNI = list(requires = c("data.load.load_mwh", "data.holidays.prevcarga_code"),
+                               ignores_params = "clima_hist")),
     native_layout = "dessem_semihourly_48", semihourly_rule = dl_semihourly_rule,
     weather_cut = "absent",   # F3.7: DESSEM so com horizonte inteiro; clima previsto curto => completude.weather_forecast_short (membro ausente)
     delivery_days = 9L, data_lag_days = 0L, model_time_offset_min = 60L,

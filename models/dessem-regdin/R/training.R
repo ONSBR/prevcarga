@@ -103,13 +103,17 @@ rd_training <- function(features, params, seed) {
     serie_dm = .rd_serie_dm_payload(s$serieDM, .rd_deck_panel(deck$CARGAHIST), deck$tz),
     hol_profile = .rd_hol_profiles(features),
     columns = rd_columns_of(features),
-    inference_needs = rd_inference_needs(features$config_mdl, deck$area, as.integer(deck$horizon) - 1L))
+    inference_needs = rd_inference_needs(features$config_mdl, deck$area, as.integer(deck$horizon) - 1L,
+                                         deck$clima_hist$modo))
   fits <- .rd_fit_pass(features, seed = seed, mm_ref = mm_ref, mode = mode)
+  ## payload$clima_hist (E5-T4): so quando o param foi informado. Ausente => observado.
+  clima <- if (!is.null(deck$clima_hist) && !is.null(params$clima_hist))
+    list(clima_hist = deck$clima_hist[c("modo", "dias_completados", "primeiro_dia_lead0")])
   c(list(svm_perfil = fits$svm_perfil, norm = features$norm, config_mdl = features$config_mdl,
          day_types = features$day_types, dias = features$dias,
          train_window = list(start = min(hist_days), end = deck$last_data_day, islands = .rd_window_islands(deck$islands)),
          seed = as.integer(seed),
-         arima_fingerprint = .rd_arima_fingerprint(fits$base_fit, s$serieDM)), state)
+         arima_fingerprint = .rd_arima_fingerprint(fits$base_fit, s$serieDM)), clima, state)
 }
 
 ## Forma do ticket: plugin_train(features, spec).

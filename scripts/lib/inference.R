@@ -56,7 +56,7 @@ prevcarga_infer_resolve <- function(member, area, ctx, variant = NULL, version =
     prevcarga_abort("config.usage", where = "--variant",
                     details = list(hint = "variante fora das exogenas declaradas na topologia", variants = as.list(topo)))
   member$exogena <- chosen
-  key <- prevcarga_registry_key(member, area, ctx)
+  key <- prevcarga_registry_key(member, area, ctx, spec = .prevcarga_tr_key_spec(member, ctx))
   mode <- if (!is.null(version)) "version" else if (isTRUE(pin)) "pin" else "latest"
   v <- prevcarga_resolve_version(key, mode, version)
   list(artifact = prevcarga_load_artifact(key, v), version = v, resolved_by = mode, key = key, member = member)

@@ -132,6 +132,19 @@ O dessem-regdin aceita só MED e MAX. Qualquer outro valor, MXMN incluído, abor
 
 A variante UNI não usa clima. O descriptor declara `variants = list(UNI = list(requires = c("data.load.load_mwh", "data.holidays.prevcarga_code")))`, então o despachante não exige `weather_observed` nem `weather_forecast` dela. A decisão de "sem clima" vem do motor (`exogenaOper` igual a SEM em `getConfigModel`), nunca do nome da variante. A ingestão monta `EXOGENAHIST` e `EXOGENAPREV` com temperatura 0 só para o `TransformaDeck`, e a construção de séries remove toda coluna `Exo_*` logo depois, no treino e na inferência. Sem golden do oráculo, o aceite da UNI é por invariância ao clima: somar graus ao clima não muda o artefato nem a previsão.
 
+### O clima do histórico: `clima_hist`
+
+O parâmetro `params.clima_hist` escolhe de onde vem a temperatura do histórico (`EXOGENAHIST`) no treino e nos lags da inferência. Os dois plugins aceitam dois modos, e a ausência do parâmetro vale `observado`.
+
+| Modo | `EXOGENAHIST` |
+|---|---|
+| `observado` (padrão implícito) | temperatura observada do store |
+| `previsto_lead0` | previsto com lead 0: para cada hora, a emissão mais fresca cujo dia de emissão não é posterior ao dia válido |
+
+O modo `previsto_lead0` usa a regra única do motor (`exo_hist_lead0`). O completamento é por dia inteiro: um dia sem as 24 horas pelo lead 0 sai inteiro do observado, nunca misturado hora a hora, e conta em `dias_completados`. Dia sem 24 horas nem no lead 0 nem no observado aborta como completude. O `EXOGENAPREV` (O a O+9) não muda em nenhum modo. Valor fora dos dois modos aborta com `plugin.dessem_linear_bad_clima_hist` ou `plugin.regdin_bad_clima_hist` (exit 2) antes de qualquer treino.
+
+O artefato registra `clima_hist = list(modo, dias_completados, primeiro_dia_lead0)` só quando o modo foi informado; artefato sem o bloco é lido como `observado`. A inferência recusa um deck cujo modo efetivo difere do payload (`artifact_mismatch`, `field = clima_hist`). No `previsto_lead0` o `inference_needs` do artefato acrescenta o previsto de lead 0 dos dias anteriores a O. A variante UNI não usa clima: ela ignora o parâmetro, registra o modo `nao_se_aplica` e fica na mesma chave do registry. Como o modo entra no `spec$params`, o `v_<hash>` de um treino com a chave informada difere do treino sem ela; o treino sem a chave mantém o hash e o caminho da versão anterior.
+
 Dentro de uma família, as entradas de `model_parameters.json` diferem só em `exogenaOper`, a agregação da temperatura (e no rótulo `nomModelo`). Entre as famílias, os campos que mudam o método são estes:
 
 | Campo | dessem-linear | dessem-regdin |

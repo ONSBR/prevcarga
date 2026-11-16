@@ -12,7 +12,7 @@ plugin_constants <- function() {
   list(model_key = c(MED = "RegDin.Radial.TmpMed", MAX = "RegDin.Radial.TmpMax"),
        tipo_entrada_dm = "TS_FACTOR", lags_exogena_dia = c(1L, 2L, 7L), reference_mm_hour = 12L,
        hours_per_day = 24L, max_tail_fill_days = 2L, horizon_days = 9L,
-       reference_history_days = 1825L)
+       reference_history_days = 1825L, clima_hist_modes = c("observado", "previsto_lead0"))
 }
 
 ## Env do motor (pai do env do plugin). Sem estado: o motor e uma instancia por plugin carregado.
@@ -45,6 +45,19 @@ rd_warn <- function(id, where = NULL, details = NULL) {
                               paste(names(mk), collapse = ", ")),
              details = list(field = "exogena", value = e, allowed = names(mk)))
   mk[[e]]
+}
+
+## clima_hist (E5-T4): ausente => observado; fora de plugin_constants()$clima_hist_modes aborta (contract, exit 2) antes de treinar.
+rd_resolve_clima_hist <- function(params) {
+  m <- params$clima_hist
+  if (is.null(m)) return("observado")
+  modes <- plugin_constants()$clima_hist_modes
+  if (!is.character(m) || length(m) != 1L || is.na(m) || !(m %in% modes))
+    rd_abort("plugin.regdin_bad_clima_hist", where = "dessem-regdin/params",
+             reason = sprintf("params.clima_hist=%s; permitido {%s}", paste(format(m), collapse = ","),
+                              paste(modes, collapse = ", ")),
+             details = list(field = "params.clima_hist", got = m, allowed = modes))
+  m
 }
 
 plugin_variant_meta <- function(params) {
@@ -110,8 +123,12 @@ rd_data_needs <- function(spec, area) {
   n <- as.integer(spec$history_days$infer); H <- as.integer(spec$horizon_days)
   mode <- if (is.null(spec$params$janela_dessem)) "ano_civil" else spec$params$janela_dessem
   wf <- list(area = area, segments = list(list(kind = "freshest", from = 0L, to = H, lead = NA_integer_)))
+  ## clima_hist = previsto_lead0 (E5-T4): o previsto dos dias -n..-1 (lead 0) alimenta os lags da inferencia
+  wfi <- wf
+  if (identical(spec$params$clima_hist, "previsto_lead0"))
+    wfi$segments <- c(wfi$segments, list(list(kind = "min_lead", from = -n, to = -1L, lead = 0L)))
   list(infer = list(schema_version = 1L, load = list(days_before = n), weather_observed = list(days_before = n),
-                    weather_forecast = wf, holidays = list(from = -n, to = H), holiday_annex = identical(mode, "ano_civil")),
+                    weather_forecast = wfi, holidays = list(from = -n, to = H), holiday_annex = identical(mode, "ano_civil")),
        train_weather_forecast = wf)
 }
 
@@ -124,8 +141,11 @@ plugin_descriptor <- function() {
     granularity_supported = 60L, modes_implemented = c("train", "infer", "forecast"),
     weather_resample = "hourly",              # EXOGENAHIST/EXOGENAPREV horarios (to_hourly da fundacao)
     params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key)),
-                         janela_dessem = list(type = "character", allowed = c("ano_civil", "referencia"))),
+                         janela_dessem = list(type = "character", allowed = c("ano_civil", "referencia")),
+                         clima_hist = list(type = "character")),   # opcional (key_params); conjunto validado por rd_resolve_clima_hist
     variant_param = "exogena",
+    ## clima_hist: ausente = observado (default nao injetado em spec$params); fora do default entra na chave do registry
+    key_params = list(clima_hist = "observado"),
     native_layout = "dessem_semihourly_48", semihourly_rule = rd_semihourly_rule,
     weather_cut = "absent",   # F3.7: DESSEM so com horizonte inteiro; clima previsto curto => completude.weather_forecast_short (membro ausente)
     delivery_days = 9L, data_lag_days = 0L, model_time_offset_min = 60L,

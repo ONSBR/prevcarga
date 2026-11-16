@@ -60,3 +60,5 @@
 - Completamento por DIA INTEIRO (decisao L2): dia de `days` sem 24 horas pelo lead 0 sai inteiro do `weather_observed` e conta em `dias_completados`; nunca mistura horas de fontes no mesmo dia. Previsto vazio: todos os dias vem do observado e `primeiro_dia_lead0` e NA.
 - Dia sem 24 horas nem no lead 0 nem no observado: aborta `engine.dessem_exo_gap` (completude, exit 3; `errors/dessem_engine.tsv`) com `details$dia`, `horas_lead0` e `horas_observado`.
 - Devolve `list(dt = data.table(DataHora, Exo_Temperatura) ordenado, dias_completados, primeiro_dia_lead0)`. LGBM nao muda.
+
+- Consumidores (E5-T4): `dessem-linear` (`plugin_ingest`) e `dessem-regdin` (`.rd_exo(kind = "hist")`) chamam `exo_hist_lead0` quando `params.clima_hist = previsto_lead0` e gravam `deck$clima_hist` / `payload$clima_hist = list(modo, dias_completados, primeiro_dia_lead0)`; sem o param nada muda. Os dias passados ao motor sao os do observado na janela do deck.

@@ -66,12 +66,16 @@ dl_assert_train_cut <- function(deck) {
 ## `state` = estado derivado (E4-T2, ADR-045 fase B): list(dm_o_sample, dm_o_formula, columns, inference_needs); NULL no
 ## artefato so de SVMs (teste). O treino real sempre o preenche.
 .dl_assemble_artifact <- function(fits, features, spec, n_leak, mode = "preserve", state = NULL) {
+  ## payload$clima_hist (E5-T4): so quando o param foi informado ou a variante o ignora (nao_se_aplica). Ausente => observado.
+  ch <- features$deck$clima_hist
+  clima <- if (!is.null(ch) && (!is.null(spec$params$clima_hist) || identical(ch$modo, "nao_se_aplica")))
+    list(clima_hist = ch[c("modo", "dias_completados", "primeiro_dia_lead0")])
   c(list(svm_dm = fits$svm_dm, svm_perfil = fits$svm_perfil, norm = features$norm,
        head_recipe = list(model_key = features$deck$model_key, config_mdl = features$config_mdl,
                           mm_norm = features$norm$dm_carga, dias = format(features$processado$DIASPREV)),
        variant = features$deck$variant, model_key = features$deck$model_key, area = features$deck$area,
        horizon_days = as.integer(features$deck$horizon), seed = as.integer(spec$seed),
-       rng_mode = mode, n_leak = as.integer(n_leak)), state)
+       rng_mode = mode, n_leak = as.integer(n_leak)), clima, state)
 }
 
 ## Estagio real (formais fixos do loader: features, params, seed).
@@ -89,7 +93,8 @@ dl_training <- function(features, params, seed) {
   smp <- dl_dm_o_sample(features)
   state <- list(dm_o_sample = smp$sample, dm_o_formula = smp$formula, columns = dl_columns_of(features),
                 inference_needs = dl_inference_needs(features$config_mdl, features$deck$area,
-                                                     as.integer(features$deck$horizon) - 1L))
+                                                     as.integer(features$deck$horizon) - 1L,
+                                                     features$deck$clima_hist$modo))
   fits <- .dl_fit_pass(features, seed = seed, mode = mode)
   .dl_assemble_artifact(fits, features, list(params = params, seed = seed), n_leak, mode, state)
 }
