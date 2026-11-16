@@ -29,13 +29,15 @@
 - `test-engine-dates.R`: grep com `pc_grep_code` (tabela de padroes do ticket) + `pc_grep_time_arith(allow = list())` da fundacao; a entrada do motor em `pc_time_arith_allow()` (lag `hours(lagh)`) foi REMOVIDA do `helper-plugins.R` (decisao do Gabriel: sem excecao; o gate segue verde). Fixture com um arquivo por padrao, inclusive `DataHora %m-% hours(1)`. Divida pinada: `globalenv()` em `engine_abort` (`engine.R:12`, busca interina de `prevcarga_abort`; a mesma do `dl_abort`).
 - `test-engine-isolation.R`: dessem-linear REAL + descriptor-fixture `dessem-regdin` na mesma sessao; `test-engine-robustez.R` (os 4 casos + kill-switches de ENV sem efeito), `test-engine-svm-serial.R` (1 DM + 24 perfis), `test-engine-readme.R` (tabelas do README).
 
-## Janela de 1825 dias (decisao do Gabriel, 2026-11-10)
-- Os dois DESSEM ficam com `history_days: {train: 1825, infer: 1825}`. A inferencia precisa da mesma janela do treino nao so
-  pelas colunas (as dummies de mes, dia e tipo de feriado saem do `dcast` sobre o que esta na janela), mas porque o perfil de
-  feriado e AJUSTADO na inferencia: `RL_perfilFeriado` (`R/modelos_perfil.R`) ajusta um `lm` sobre as ocorrencias passadas do
-  mesmo dia do calendario (`obtemJanelaDiaria`) e tira o `sdHist` desse historico. 5 anos = 5 ocorrencias de cada feriado;
-  2 ou 3 anos foram considerados e descartados por isso. O motor monta historico + dias previstos num dataset so e filtra
-  `Data == dataPrev` no predict, preenchendo a serie com o previsto (D+1 usa D previsto como lag).
+## Janela dos DESSEM (decisao de 2026-11-10, substituida pela ADR-046 e pela ADR-045)
+- Historico: a decisao de 2026-11-10 fixou `history_days: {train: 1825, infer: 1825}` porque o perfil de feriado e AJUSTADO na inferencia:
+  `RL_perfilFeriado` (`R/modelos_perfil.R`) ajusta um `lm` sobre as ocorrencias passadas do mesmo dia do calendario
+  (`obtemJanelaDiaria`) e tira o `sdHist` desse historico (5 anos = 5 ocorrencias de cada feriado). Essa regra de 1825 dias so vale hoje
+  no modo `referencia` (`params.janela_dessem: referencia`, paridade com a v0.1.5).
+- Hoje (regdin-linear-refactor): o `run.yaml` dos dois DESSEM declara `history_days: {train: 1095, infer: 15}`. O treino usa 1095 dias de dias
+  comuns mais o anexo de feriados (ilhas `[d-7, d]` desde 1o de janeiro do ano de O menos cinco; ADR-046). A inferencia NAO exige a mesma
+  janela do treino: o que depende so do historico ate O-1 e calculado no treino e congelado no artefato (ADR-045), e o deck de inferencia
+  traz 15 dias (lagsPerfil de 336 h mais um dia). O deck longo continua aceito. Ver `dessem_linear.md` (E3-T4, E4-T2) e `dessem_regdin.md` (E3-T4, E4-T3).
 
 ## Clima previsto curto: DESSEM recusa (F3.7; decisao do Gabriel)
 - Por ora os DESSEM so funcionam com o horizonte inteiro: os dois descriptors declaram `weather_cut = "absent"`. Com clima previsto cobrindo menos que `delivery_days`
