@@ -7,10 +7,12 @@ pc_cmb_lead_origins <- function(from = "2024-01-01", to = "2024-03-10") format(s
 ## dia relativo a O do lead (0 = dia da origem): separa O..O+1 de O+2..O+8 no teste sem literal de faixa
 pc_cmb_lead_day <- function(lead) as.integer(lead) %/% 48L
 
-pc_cmb_lead_bias <- c(0.02, -0.01, 0.03, 0.015, -0.02, 0.01, -0.005, 0.025)
+## 9 vieses (8 originais + o do 9o membro LIN_UNI, E5-T2), todos distintos; o tamanho da topologia nunca excede o vetor
+pc_cmb_lead_bias <- c(0.02, -0.01, 0.03, 0.015, -0.02, 0.01, -0.005, 0.025, -0.015)
 
 ## linhas LONG do membro j (indice na lista de membros) para os leads [from_lead, to_lead] de cada origem
 pc_cmb_lead_rows <- function(j, sigla, origins, from_lead, to_lead) {
+  stopifnot(j <= length(pc_cmb_lead_bias))
   g <- expand.grid(oi = seq_along(origins), lead = seq.int(from_lead, to_lead), KEEP.OUT.ATTRS = FALSE)
   o0 <- lubridate::ymd(origins[g$oi], tz = pc_cmb_tz)
   istart <- o0 + lubridate::minutes(30L * g$lead)

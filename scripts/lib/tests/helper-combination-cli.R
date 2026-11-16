@@ -61,7 +61,9 @@ pc_cmb_cli_fixture <- function(origins = pc_cmb_cli_origins(), area = "SECO", cu
     dd <- if (j == 1L) 2L else 9L
     long <- pc_cmb_aligned_long(sg, area, o, cut, dd, members)
     k <- as.integer(substr(gsub("-", "", o), 5L, 8L)) + seq_len(nrow(long))
-    long$y_pred <- long$y_pred + 0.02 * j * sin(2 * pi * k / (5 + j) + j)
+    ## periodo 5 + j nos 8 membros originais; o 9o (LIN_UNI, E5-T2) tem periodo primo proprio (17) para nao ser quase colinear com os demais
+    per <- if (j <= 8L) 5 + j else 17
+    long$y_pred <- long$y_pred + 0.02 * j * sin(2 * pi * k / per + j)
     exo <- if (is.na(members$exogena[[j]])) "" else paste0("_", members$exogena[[j]])
     run <- file.path(root, members$mdir[[j]], area, sprintf("%s_%s_infer%s_c%s", o, o, exo, cut))
     dir.create(run, recursive = TRUE, showWarnings = FALSE)

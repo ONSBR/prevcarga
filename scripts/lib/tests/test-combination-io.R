@@ -33,11 +33,11 @@ test_that("M4.2 - ac-0 descoberta 8/8 sem acionar split/protocol, proveniencia e
   expect_setequal(unique(out$member), members$sigla)
   expect_identical(attr(out, "members_declared"), members$sigla)
   expect_identical(attr(out, "members_present"), members$sigla)
-  expect_identical(nrow(unique(out[, c("member", "run_id")])), 8L)   # 1 run_id por sigla
+  expect_identical(nrow(unique(out[, c("member", "run_id")])), nrow(members))   # 1 run_id por sigla
   expect_identical(names(out)[1:8], c("area", "forecast_origin", "target_datetime", "lead", "y_pred",
                                       "y_true", "d_plus", "granularity_min"))
   pv <- attr(out, "provenance")
-  expect_identical(nrow(pv), 8L)
+  expect_identical(nrow(pv), nrow(members))
   expect_true(all(c("member", "run_id", "run_mode", "cut", "available_until", "load_label", "load_tz",
                     "weather_issue_cutoff", "delivery_days") %in% names(pv)))
   expect_true(all(pv$cut == "0900"))
@@ -53,7 +53,7 @@ test_that("M4.2 - ac-0 descoberta 8/8 sem acionar split/protocol, proveniencia e
     r <- pc_cmb_root_infer8(members, mode = m)
     o <- fn("prevcarga_combina_discover")(r, "SECO", base_ctx)
     expect_setequal(unique(attr(o, "provenance")$run_mode), m)
-    expect_identical(length(unique(o$member)), 8L)
+    expect_identical(length(unique(o$member)), nrow(members))
   }
   r <- pc_cmb_root_infer8(members, mode = "daily")
   pv2 <- attr(fn("prevcarga_combina_discover")(r, "SECO", base_ctx), "provenance")
@@ -80,7 +80,7 @@ test_that("M4.2 - ac-2 7 de 8 e 0 de 8", {
   root <- pc_cmb_root_7of8(members)
   out <- NULL
   expect_no_error(out <- fn("prevcarga_combina_discover")(root, "SECO", base_ctx))
-  expect_identical(length(attr(out, "members_present")), 7L)
+  expect_identical(length(attr(out, "members_present")), nrow(members) - 1L)
   panel <- fn("prevcarga_build_panel")(out, members)
   expect_identical(grep("^f_", names(panel), value = TRUE), paste0("f_", members$sigla))
   expect_true(all(is.na(panel$f_HW)))

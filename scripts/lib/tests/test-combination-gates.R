@@ -94,7 +94,7 @@ test_that("M4.V - otimalidade bruta nas celulas fitadas e convergidas, caminho i
   expect_true(any(wt$lead == 18L & wt$nonstationary))                 # a celula mal-condicionada nao convergiu
   expect_false(any(conv$lead == 18L & conv$ym %in% wt$ym[wt$lead == 18L & wt$nonstationary]))
   expect_true(all(is.na(conv$fallback)))                              # as de fallback ficam fora do conjunto testado
-  expect_true(any(wt$nonstationary == FALSE & is.na(wt$fallback) & lengths(wt$w) == 7L))   # celulas com k = 7 (curto ausente)
+  expect_true(any(wt$nonstationary == FALSE & is.na(wt$fallback) & lengths(wt$w) == nrow(members) - 1L))   # celulas com k = n-1 (curto ausente)
   grads <- vapply(seq_len(nrow(conv)), function(i) {
     xy <- pc_cmb_cell_xy(env, p_opt, conv[i])
     pc_cmb_gate_grad(xy$X, xy$y, conv$w[[i]], conv$a[i])
@@ -151,8 +151,8 @@ test_that("M4.V - sentinela: y_pred casa o sentinela do interval_end, faixa por 
   expect_identical(min(out$target_datetime), o + lubridate::hours(9) + lubridate::minutes(30))   # available_until + 30
   expect_identical(max(out$target_datetime), o + lubridate::days(9))                                # fim da maior faixa
   mbl <- d$members_by_lead
-  expect_true(all(mbl$n_members[pc_cmb_lead_day(mbl$lead) <= 1L] == 8L))
-  expect_true(all(mbl$n_members[pc_cmb_lead_day(mbl$lead) >= 2L] == 7L))
+  expect_true(all(mbl$n_members[pc_cmb_lead_day(mbl$lead) <= 1L] == nrow(members)))
+  expect_true(all(mbl$n_members[pc_cmb_lead_day(mbl$lead) >= 2L] == nrow(members) - 1L))
   expect_false(any(vapply(mbl$members[pc_cmb_lead_day(mbl$lead) >= 2L], function(m) short_m %in% m, NA)))
   ## CONTROL: membro deslocado +30 min e recusado com o campo `deslocamento` (sem a recusa o sentinela divergiria)
   pc_cmb_misalign(root, members$sigla[[3L]], "deslocamento", members)

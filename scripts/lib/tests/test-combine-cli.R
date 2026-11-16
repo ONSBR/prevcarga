@@ -124,8 +124,8 @@ test_that("M4.V - members_by_lead no JSON: 8 em O..O+1, 7 em O+2..O+8; trocar o 
   mbl <- function(s) j1(s$r)$result$members_by_lead
   n_of <- function(m, days) unique(vapply(Filter(function(x) pc_cmb_lead_day(x$lead) %in% days, m), function(x) x$n_members, 0L))
   for (s in list(s1, s2)) {
-    expect_identical(n_of(mbl(s), 0:1), 8L)
-    expect_identical(n_of(mbl(s), 2:8), 7L)
+    expect_identical(n_of(mbl(s), 0:1), nrow(fx$members))
+    expect_identical(n_of(mbl(s), 2:8), nrow(fx$members) - 1L)
   }
   absent <- function(m) unique(unlist(lapply(Filter(function(x) pc_cmb_lead_day(x$lead) >= 2L, m),
                                               function(x) setdiff(fx$members$sigla, unlist(x$members)))))

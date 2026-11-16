@@ -28,7 +28,7 @@ test_that("M4.2b - ac-0 alinhado com fins diferentes passa; delivery_days sem ca
   long <- discover(root)
   ends <- long[, list(e = max(target_datetime)), by = member]
   expect_identical(format(ends$e[ends$member == short_m], "%Y-%m-%d %H:%M:%S"), "2024-03-03 00:00:00")
-  expect_identical(sum(format(ends$e, "%Y-%m-%d %H:%M:%S") == "2024-03-10 00:00:00"), 7L)
+  expect_identical(sum(format(ends$e, "%Y-%m-%d %H:%M:%S") == "2024-03-10 00:00:00"), nrow(members) - 1L)
   expect_identical(format(min(long$target_datetime), "%Y-%m-%d %H:%M:%S"), "2024-03-01 09:30:00")
   expect_warning(r <- assert_al(long), NA)
   expect_true(r)

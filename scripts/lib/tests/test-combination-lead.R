@@ -33,15 +33,15 @@ test_that("M4.2c - AC1 pesos ausentes (nao zero) do membro curto em O+2..O+8, so
   w <- run0$weights
   day <- pc_cmb_lead_day(w$lead)
   nm <- lapply(w$w, function(x) sub("^f_", "", names(x)))
-  expect_true(all(vapply(nm[day >= 2L], function(x) !short_m %in% x && length(x) == 7L, logical(1))))
+  expect_true(all(vapply(nm[day >= 2L], function(x) !short_m %in% x && length(x) == nrow(members) - 1L, logical(1))))
   expect_true(all(vapply(nm[day < 2L], function(x) setequal(x, members$sigla), logical(1))))
   expect_true(all(abs(vapply(w$w, sum, numeric(1)) - 1) < 1e-9))
   ## celulas ajustadas (nao so fallback) existem nos dois grupos
   expect_true(any(is.na(w$fallback) & day >= 2L)); expect_true(any(is.na(w$fallback) & day < 2L))
   ## fallback EQW: 1/7 nos leads longos e 1/8 em O..O+1
   fb <- !is.na(w$fallback)
-  expect_true(all(vapply(w$w[fb & day >= 2L], function(x) all(abs(x - 1 / 7) < 1e-12), logical(1))))
-  expect_true(all(vapply(w$w[fb & day < 2L], function(x) all(abs(x - 1 / 8) < 1e-12), logical(1))))
+  expect_true(all(vapply(w$w[fb & day >= 2L], function(x) all(abs(x - 1 / (nrow(members) - 1L)) < 1e-12), logical(1))))
+  expect_true(all(vapply(w$w[fb & day < 2L], function(x) all(abs(x - 1 / nrow(members)) < 1e-12), logical(1))))
   ## y_pred = a + M_pres %*% w_pres recalculado fora do modulo
   df <- as.data.frame(panel0)
   idx <- match(paste(df$lead, df$cut, df$ym), paste(w$lead, w$cut, w$ym))
@@ -79,8 +79,8 @@ test_that("M4.2c - AC3 faixa de saida e members_by_lead", {
   expect_identical(nrow(out), nrow(panel0))
   mbl <- fn("prevcarga_combina_members_by_lead")(run0$weights)
   expect_identical(nrow(mbl), length(unique(panel0$lead)))
-  expect_true(all(mbl$n_members[pc_cmb_lead_day(mbl$lead) >= 2L] == 7L))
-  expect_true(all(mbl$n_members[pc_cmb_lead_day(mbl$lead) < 2L] == 8L))
+  expect_true(all(mbl$n_members[pc_cmb_lead_day(mbl$lead) >= 2L] == nrow(members) - 1L))
+  expect_true(all(mbl$n_members[pc_cmb_lead_day(mbl$lead) < 2L] == nrow(members)))
   expect_true(all(vapply(mbl$members[pc_cmb_lead_day(mbl$lead) >= 2L], function(x) !short_m %in% x, logical(1))))
   expect_identical(mbl$members[[1L]], sort(members$sigla, method = "radix"))
 
@@ -96,7 +96,7 @@ test_that("M4.2c - AC3 faixa de saida e members_by_lead", {
                     lubridate::ymd(unique(out2$forecast_origin), tz = tz) + lubridate::days(2)))
   expect_true(all(out2[, min(target_datetime), by = "forecast_origin"]$V1 ==
                     lubridate::ymd(unique(out2$forecast_origin), tz = tz) + lubridate::hours(9) + lubridate::minutes(30)))
-  expect_true(all(fn("prevcarga_combina_members_by_lead")(r2$weights)$n_members == 8L))
+  expect_true(all(fn("prevcarga_combina_members_by_lead")(r2$weights)$n_members == nrow(members)))
 
   ## CONTROL: buraco dentro da faixa (y_pred NA) e linha faltando na grade abortam, nunca sao preenchidos
   yp <- run0$y_pred; yp[5L] <- NA_real_

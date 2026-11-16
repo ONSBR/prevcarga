@@ -35,13 +35,13 @@ test_that("M4.V - invariante member_discovery: 8/8 runs por identidade, sem run.
   expect_identical(list.files(root, pattern = "run\\.yaml", recursive = TRUE), character(0))   # nada de run.yaml no disco
   long <- env$prevcarga_combina_discover(root, "SECO", ctx, members)
   expect_identical(attr(long, "members_present"), members$sigla)
-  expect_identical(length(unique(paste(long$member, long$run_id))), 8L)
+  expect_identical(length(unique(paste(long$member, long$run_id))), nrow(members))
   expect_setequal(unique(long$member), members$sigla)
   src <- sub("\\s*##.*$", "", deparse(body(env$prevcarga_combina_discover)))
   expect_false(any(grepl("run\\.yaml|\\$split|\\$protocol", src)))
   r7 <- pc_cmb_root_7of8(members, dir = file.path(withr::local_tempdir(), "root"))
   l7 <- env$prevcarga_combina_discover(r7, "SECO", ctx, members)
-  expect_identical(length(attr(l7, "members_present")), 7L)
+  expect_identical(length(attr(l7, "members_present")), nrow(members) - 1L)
   expect_false("HW" %in% attr(l7, "members_present"))
 })
 
@@ -129,8 +129,8 @@ test_that("M4.V - invariante lead_coverage: curto fora de O+2..O+8 e soma 1 dos 
   nm <- lapply(w$w, function(x) sub("^f_", "", names(x)))
   tail_ <- day >= 2L
   expect_true(any(tail_))
-  expect_true(all(vapply(nm[tail_], function(x) length(x) == 7L && !short_m %in% x, NA)))
-  expect_true(all(vapply(nm[!tail_], function(x) length(x) == 8L, NA)))
+  expect_true(all(vapply(nm[tail_], function(x) length(x) == nrow(members) - 1L && !short_m %in% x, NA)))
+  expect_true(all(vapply(nm[!tail_], function(x) length(x) == nrow(members), NA)))
   expect_true(all(abs(vapply(w$w[tail_], sum, 0) - 1) < 1e-9))
   ## FORBIDDEN: cauda do curto PRESENTE no LONG mas fora da faixa declarada (dd = 2) fica mascarada (ausente, nunca 0)
   o5 <- pc_cmb_lead_origins("2024-01-01", "2024-01-05")

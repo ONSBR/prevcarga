@@ -12,7 +12,9 @@ p1 <- pc_cmb_panel_joined(env, members, origins = days("2023-01-01", "2023-03-31
 p2 <- pc_cmb_panel_joined(env, members, origins = days("2023-01-01", "2023-04-30"))
 
 ## sha256 da tabela de pesos do default (sem next_month) em p1, gravado ANTES da mudanca em combination.R (E6-T1)
+## (pinado nos 8 membros originais; o 9o, LIN_UNI do E5-T2, entra no 2o caso do AC4 com sha proprio)
 E6_FIT_P1_SHA256 <- "938f5bcf90709ab74af9436e1bf5cefcd374789090bc1ac21fe32f9a7fb56750"
+E6_FIT_P1_SHA256_9 <- "345d983637266113817d1f11f90f8417a9756cc2d38d1bb5da761b67ceb49dd2"
 plain <- function(x) env$.prevcarga_cmb_plain_table(x)
 
 edit_panel <- function(p, f) {
@@ -71,9 +73,23 @@ test_that("[AC3] w, a, fallback e n da celula 2023-04 do next_month == os do fit
   expect_identical(ta$fallback, tb$fallback); expect_identical(ta$n, tb$n)
 })
 
-test_that("[AC4] default == snapshot sha256; next_month sem as linhas 2023-04 == default; delta 0 do full", {
-  def <- env$prevcarga_combina_fit(p1)
+test_that("[AC4] default == snapshot sha256 (8 membros originais, sem LIN_UNI); next_month sem as linhas 2023-04 == default; delta 0 do full", {
+  m8 <- members[members$sigla != "LIN_UNI", , drop = FALSE]
+  expect_identical(nrow(m8), nrow(members) - 1L)
+  q1 <- pc_cmb_panel_joined(env, m8, origins = days("2023-01-01", "2023-03-31"))
+  def <- env$prevcarga_combina_fit(q1)
   expect_identical(digest::digest(plain(def), algo = "sha256"), E6_FIT_P1_SHA256)
+  nx <- env$prevcarga_combina_fit(q1, next_month = TRUE)
+  expect_false("2023-04" %in% def$ym)
+  expect_identical(plain(nx[nx$ym != "2023-04", ]), plain(def))
+})
+
+test_that("[AC4] default == snapshot sha256 com os membros de prevcarga_members() (9, com LIN_UNI); LIN_UNI pesa na celula", {
+  def <- env$prevcarga_combina_fit(p1)
+  expect_identical(digest::digest(plain(def), algo = "sha256"), E6_FIT_P1_SHA256_9)
+  expect_true("LIN_UNI" %in% members$sigla)
+  expect_true(all(vapply(def$w, function(x) "f_LIN_UNI" %in% names(x), NA)))
+  expect_true(any(vapply(def$w, function(x) isTRUE(x[["f_LIN_UNI"]] != 0), NA)))
   nx <- env$prevcarga_combina_fit(p1, next_month = TRUE)
   expect_false("2023-04" %in% def$ym)
   expect_identical(plain(nx[nx$ym != "2023-04", ]), plain(def))
