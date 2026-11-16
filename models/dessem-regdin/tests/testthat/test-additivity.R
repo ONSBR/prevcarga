@@ -143,7 +143,7 @@ test_that("[PLUGINS] readme: secoes, contrato, desvios do A/B, toda linha do run
   expect_true(file.exists(est))
   et <- paste(readLines(est, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl("## RD.7", et, fixed = TRUE))
-  for (needle in c("RGD_MED", "RGD_MAX", "history_days.infer == train", "rng_deviation", "MXMN", "a7b9c157e7d5c3130e49c4879c15e63d6e7cb7570baa85494ebb86c4fdeb1eb3"))
+  for (needle in c("RGD_MED", "RGD_MAX", "history_days.infer <= history_days.train", "infer: 15", "rng_deviation", "MXMN", "a7b9c157e7d5c3130e49c4879c15e63d6e7cb7570baa85494ebb86c4fdeb1eb3"))
     expect_true(grepl(needle, et, fixed = TRUE), info = needle)
   ## CONTROL: README sem uma secao obrigatoria e acusado
   expect_false(all(RDA_README_SECTIONS %in% sub("^##+ +", "", grep("^##+ ", rd[-grep("^## Tabela gate x dono", rd)], value = TRUE))))

@@ -122,6 +122,7 @@
 
 ## Guarda de history_days em tempo de execucao (decisao do Gabriel, 2026-11-16; ADR-045 e ADR-046, accepted)
 
+- Contrato de janela (ADR-045): `history_days.infer <= history_days.train`, com `infer: 15` neste plugin (o deck de inferencia leva 15 dias de carga; o treino segue em 1095). Substitui o antigo `infer == train`.
 - `.prevcarga_apply_constraints` (scripts/lib/topology.R) recusa `history_days.infer > history_days.train` no spec efetivo (run.yaml ou override) com `contract.history_infer_gt_train` (contract, exit 2; `scripts/lib/errors/topology.tsv`). A ADR-045 emenda o item 3 da ADR-0031 com essa invariante; `infer == train` e `infer < train` seguem aceitos.
 - O `dessem-regdin` recusa `history_days.train != 1095` com `contract.dessem_history_train_fixed` (contract, exit 2; `scripts/lib/errors/dessem_engine.tsv`): a regra mora no plugin (`history_window`, chamada pelas fachadas de treino e inferencia), sem nome de modelo na fachada. Isso fixa o 1095 da ADR-046.
 - A janela comum so encurta (`history_days.train < 1095`) pelo caminho EXPLICITO de teste `options(prevcarga.test_short_history = TRUE)`, definido apenas pelos gates (`scripts/tools/gates/m5_facades.R`, `m7_harness.R`) e pelos helpers de teste; nem o run.yaml nem a CLI o definem. Testes: `scripts/lib/tests/test-history-guard.R` (com CONTROLs).
