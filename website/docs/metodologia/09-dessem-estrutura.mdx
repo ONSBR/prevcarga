@@ -72,7 +72,7 @@ O motor não é um modelo: não tem `run.yaml` e o prefixo `_` o tira da descobe
 | Peça | Onde mora | O que tem |
 |---|---|---|
 | Motor | `models/_dessem-engine/R/` | Primitivas do motor (`TransformaDeck`, `SVM_DemandaMedia`, `RD_DemandaMediaHyndman`, `SVMhorario`, `RL_perfilFeriado`, `desagregaModeloSH`), guardas de robustez, serializador de SVM e `model_parameters.json` |
-| dessem-linear | `models/dessem-linear/R/` | Ingestão, séries, passe de treino, cabeça de nowcast e passe de predição; membros `LIN_MED`, `LIN_MAX`, `LIN_MXMN` |
+| dessem-linear | `models/dessem-linear/R/` | Ingestão, séries, passe de treino, cabeça de nowcast e passe de predição; membros `LIN_MED`, `LIN_MAX`, `LIN_MXMN`, `LIN_UNI` |
 | dessem-regdin | `models/dessem-regdin/R/` | Os mesmos estágios, com o ARIMA da DM e as guardas de janela; membros `RGD_MED`, `RGD_MAX` |
 
 A cabeça de nowcast é do plugin (`helpers_nowcast.R` de cada um), não do motor. O motor não guarda estado e não faz aritmética de hora.
@@ -124,10 +124,13 @@ A variante é o parâmetro `exogena` do plugin (`variant_param = "exogena"` no d
 | `LIN_MED` | dessem-linear | MED | `Linear.TmpMedia` | média das horas |
 | `LIN_MAX` | dessem-linear | MAX | `Linear.TmpMaxima` | máxima das horas |
 | `LIN_MXMN` | dessem-linear | MXMN | `Linear.TmpMaxMin` | máxima e mínima (duas colunas) |
+| `LIN_UNI` | dessem-linear | UNI | `Linear.Univariado` | nenhuma (`exogenaOper` SEM; sem clima) |
 | `RGD_MED` | dessem-regdin | MED | `RegDin.Radial.TmpMed` | média das horas |
 | `RGD_MAX` | dessem-regdin | MAX | `RegDin.Radial.TmpMax` | máxima das horas |
 
-O dessem-regdin aceita só MED e MAX. Qualquer outro valor, MXMN incluído, aborta com `plugin.regdin_bad_exogena` antes de qualquer treino. No dessem-linear, valor fora de MED, MAX e MXMN aborta com `plugin.dessem_linear_bad_exogena`.
+O dessem-regdin aceita só MED e MAX. Qualquer outro valor, MXMN incluído, aborta com `plugin.regdin_bad_exogena` antes de qualquer treino. No dessem-linear, valor fora de MED, MAX, MXMN e UNI aborta com `plugin.dessem_linear_bad_exogena`.
+
+A variante UNI não usa clima. O descriptor declara `variants = list(UNI = list(requires = c("data.load.load_mwh", "data.holidays.prevcarga_code")))`, então o despachante não exige `weather_observed` nem `weather_forecast` dela. A decisão de "sem clima" vem do motor (`exogenaOper` igual a SEM em `getConfigModel`), nunca do nome da variante. A ingestão monta `EXOGENAHIST` e `EXOGENAPREV` com temperatura 0 só para o `TransformaDeck`, e a construção de séries remove toda coluna `Exo_*` logo depois, no treino e na inferência. Sem golden do oráculo, o aceite da UNI é por invariância ao clima: somar graus ao clima não muda o artefato nem a previsão.
 
 Dentro de uma família, as entradas de `model_parameters.json` diferem só em `exogenaOper`, a agregação da temperatura (e no rótulo `nomModelo`). Entre as famílias, os campos que mudam o método são estes:
 

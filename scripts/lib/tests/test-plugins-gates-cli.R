@@ -376,8 +376,9 @@ pcg_check_readme <- function(path) {
 
 pcg_check_estado <- function(path) {
   x <- readLines(path, encoding = "UTF-8", warn = FALSE)
-  siglas <- c("RF", "LGBM", "HW", "LIN_MED", "LIN_MAX", "LIN_MXMN", "RGD_MED", "RGD_MAX")
+  siglas <- c("RF", "LGBM", "HW", "LIN_MED", "LIN_MAX", "LIN_MXMN", "LIN_UNI", "RGD_MED", "RGD_MAX")
   falta <- siglas[!vapply(siglas, function(s) any(grepl(sprintf("^\\|\\s*%s\\s*\\|", s), x)), NA)]
+  ## paridade so dos 8 membros com golden do oraculo; LIN_UNI nao tem golden (aceite por invariancia ao clima) e nao leva sha
   linhas <- x[grepl("^\\|\\s*(RF|LGBM|HW|LIN_MED|LIN_MAX|LIN_MXMN|RGD_MED|RGD_MAX)\\s*\\|", x)]
   sha_ok <- length(linhas) == 8L && all(grepl("[0-9a-f]{64}", linhas))
   vered <- c(s3 = any(grepl("ADR-0019 s3 LGBM: (confirma|refuta)", x)), s4 = any(grepl("ADR-0019 s4 RF: (confirma|refuta)", x)))
@@ -400,19 +401,19 @@ test_that("[ac-44] cada models/<m>/README.md tem mapa file:line do oraculo, cont
   }
 })
 
-test_that("[ac-44] docs/estado/m5-training.md: 8 membros, [TBD: ADR-0031], RNG do DESSEM, modulos do M5 vivos e os 2 vereditos do spike", {
+test_that("[ac-44] docs/estado/m5-training.md: 9 membros (8 com sha de paridade), [TBD: ADR-0031], RNG do DESSEM, modulos do M5 vivos e os 2 vereditos do spike", {
   s <- .pcg$get()
   p <- file.path(s$root, "docs", "estado", "m5-training.md")
   expect_true(file.exists(p))
   chk <- pcg_check_estado(p)
   expect_identical(chk$falta, character())
-  expect_true(chk$sha_ok, info = "as 8 linhas da tabela precisam do sha256 do relatorio")
+  expect_true(chk$sha_ok, info = "as 8 linhas de membros com golden precisam do sha256 do relatorio")
   expect_true(all(chk$vereditos))
   expect_true(chk$tbd_0031); expect_true(chk$rng)
   expect_identical(chk$modulos_falta, character())
-  ## as 8 siglas da tabela == os membros da topologia (nunca lista fixa paralela)
+  ## as 9 siglas da tabela == os membros da topologia (nunca lista fixa paralela)
   topo <- .pcc_members(s$root, file.path(s$root, "config", "topology.yaml"))
-  expect_setequal(topo$sigla, c("RF", "LGBM", "HW", "LIN_MED", "LIN_MAX", "LIN_MXMN", "RGD_MED", "RGD_MAX"))
+  expect_setequal(topo$sigla, c("RF", "LGBM", "HW", "LIN_MED", "LIN_MAX", "LIN_MXMN", "LIN_UNI", "RGD_MED", "RGD_MAX"))
   ## os arquivos citados existem
   for (f in c("scripts/lib/training.R", "scripts/lib/inference.R", "scripts/lib/cli/train-models.R", "scripts/lib/cli/infer-model.R",
               "scripts/lib/cli/registry.R", "scripts/tools/gates/m5_facades.R"))

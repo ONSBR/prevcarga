@@ -1,19 +1,19 @@
-## test-members-coverage.R -- cobertura dos 8 membros da topologia (M5.11; AC38). So VERIFICA: nao escreve codigo de modelo.
+## test-members-coverage.R -- cobertura dos 9 membros da topologia (M5.11; AC38). So VERIFICA: nao escreve codigo de modelo.
 ## Matriz: cada linha de prevcarga_members() resolve para um plugin carregado + variante aceita; o conjunto de `mdir` e o de
 ## models/*/run.yaml; cada membro treina e infere pelas fachadas sobre o deck sintetico de fixture_store.R e entrega a grade
 ## prevcarga_delivery_grid. Os cenarios rodam em `Rscript --vanilla` filho (helper-porte-closure.R); a topologia-fixture vai por
 ## um config.yaml em tempdir (--config), nunca por variavel de ambiente. Linux e Windows.
 
-PCC_SIGLAS <- c("RF", "LGBM", "HW", "LIN_MED", "LIN_MAX", "LIN_MXMN", "RGD_MED", "RGD_MAX")
+PCC_SIGLAS <- c("RF", "LGBM", "HW", "LIN_MED", "LIN_MAX", "LIN_MXMN", "LIN_UNI", "RGD_MED", "RGD_MAX")
 .na1 <- function(x) is.null(x) || (length(x) == 1L && is.na(x))
 .topo <- function(cfg) file.path(dirname(cfg), "topology.yaml")
 
-test_that("[ac-38] 8/8 membros: plugin registra, exogena NA <=> variant_param NA, exogena em allowed; sem plugin orfao", {
+test_that("[ac-38] 9/9 membros: plugin registra, exogena NA <=> variant_param NA, exogena em allowed; sem plugin orfao", {
   cfg <- pcc_topology_fixture("none")
   r <- pcc_run_child("check_members", list(topology = .topo(cfg)))
   expect_identical(r$status, 0L, info = paste(r$stderr, collapse = "\n"))
   rows <- r$json$members
-  expect_length(rows, 8L)
+  expect_length(rows, 9L)
   expect_setequal(vapply(rows, `[[`, "", "sigla"), PCC_SIGLAS)
   for (m in rows) {
     expect_identical(.na1(m$exogena), .na1(m$variant_param), info = m$sigla)
@@ -29,10 +29,14 @@ test_that("[ac-38] 8/8 membros: plugin registra, exogena NA <=> variant_param NA
   expect_setequal(unlist(r$json$run_yaml_dirs), pcc_all_plugins())
   expect_setequal(pcc_all_plugins(), basename(dirname(Sys.glob(file.path(pc_root(), "models", "*", "run.yaml")))))
   expect_length(pcc_all_plugins(), 5L)
-  ## horizonte de entrega: O..O+8 nos 7 de horizonte longo, O..O+1 no LGBM
+  ## horizonte de entrega: O..O+8 nos 8 de horizonte longo, O..O+1 no LGBM
   dd <- vapply(rows, function(m) as.integer(m$delivery_days), 1L); names(dd) <- vapply(rows, `[[`, "", "sigla")
   expect_identical(dd[["LGBM"]], 2L)
   expect_true(all(dd[setdiff(PCC_SIGLAS, "LGBM")] == 9L))
+  ## LIN_UNI: exogena UNI do dessem-linear, em allowed (checado no laco acima) e entrega O..O+8
+  uni <- rows[[which(vapply(rows, `[[`, "", "sigla") == "LIN_UNI")]]
+  expect_identical(uni$mdir, "dessem-linear"); expect_identical(uni$exogena, "UNI")
+  expect_true("UNI" %in% unlist(uni$allowed))
 })
 
 test_that("[ac-38][CONTROL] topologia-fixture com (dessem-regdin, MXMN): exit 2 [prevcarga/contract] citando exogena=MXMN", {
@@ -66,12 +70,12 @@ test_that("[ac-38][CONTROL] a topologia real nao foi tocada pelas fixtures (conf
   expect_false(identical(normalizePath(dirname(cfg)), normalizePath(file.path(pc_root(), "config"))))
 })
 
-test_that("[ac-38] entrega de cada um dos 8 membros (treino+infer pelas fachadas) == prevcarga_delivery_grid, available_until 09:30", {
+test_that("[ac-38] entrega de cada um dos 9 membros (treino+infer pelas fachadas) == prevcarga_delivery_grid, available_until 09:30", {
   r <- pcc_run_child("delivery")
   expect_identical(r$status, 0L, info = paste(utils::tail(r$stderr, 12L), collapse = "\n"))
   expect_false(is.null(r$json))
   mem <- r$json$members
-  expect_length(mem, 8L)
+  expect_length(mem, 9L)
   expect_setequal(vapply(mem, `[[`, "", "sigla"), PCC_SIGLAS)
   for (m in mem) {
     expect_true(isTRUE(m$identical), info = m$sigla)                         # identical(target_datetime, grade)

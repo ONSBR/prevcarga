@@ -109,10 +109,23 @@ plugin_build_features <- function(deck, spec, norm = NULL) {
     processado$DIASPREV <- processado$DIASPREV[seq_len(deck$horizon)]
     processado$NDIASPREV <- deck$horizon
   }
-  s <- dl_build_series(processado$SERIECOMP, config_mdl, norm)
+  ## variante SEM clima: a coluna Exo_* (zeros sinteticos) sai ANTES de dl_build_series e das constantes de normalizacao,
+  ## porque o perfil horario (entrada_perfil.R) a usaria; vale no treino e na inferencia (mesma funcao).
+  if (dl_variant_weatherless(v$model_key)) {
+    sc <- processado$SERIECOMP
+    exo <- grep("^Exo_", names(sc), value = TRUE)
+    if (length(exo)) sc[, (exo) := NULL]
+    processado$SERIECOMP <- sc
+  }
+  ## sem coluna Exo_ o getNormalizaExogena do motor avalia max() de zero colunas (-Inf, descartado pelo ifelse da flag FALSE):
+  ## o aviso e so deste caso e e silenciado aqui; o motor fica intacto
+  quiet0 <- function(expr) withCallingHandlers(expr, warning = function(w)
+    if (dl_variant_weatherless(v$model_key) && grepl("no non-missing arguments to max", conditionMessage(w), fixed = TRUE))
+      invokeRestart("muffleWarning"))
+  s <- quiet0(dl_build_series(processado$SERIECOMP, config_mdl, norm))
   frame <- deck
   frame$variant <- v$exogena
   frame$model_key <- v$model_key
   list(processado = processado, serieDM = s$serieDM, seriePF = s$seriePF, config_mdl = config_mdl,
-       norm = if (is.null(norm)) dl_norm_constants(processado$SERIECOMP, config_mdl) else norm, deck = frame)
+       norm = if (is.null(norm)) quiet0(dl_norm_constants(processado$SERIECOMP, config_mdl)) else norm, deck = frame)
 }

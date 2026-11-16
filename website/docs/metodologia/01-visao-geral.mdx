@@ -45,7 +45,7 @@ commit_base: "fb28da6"
 
 <span className="pc-overline">Metodologia · 1.1</span>
 
-<p className="pc-lead">O PrevCarga prevê a carga semi-horária (48 patamares por dia) de cada uma das 24 áreas-folha do SIN, a partir de uma origem O, por oito membros de cinco plugins de modelo. Em cada folha, os membros são combinados por uma média convexa com pesos congelados; os subsistemas saem da soma das folhas corrigida pelo k-hat, e o SIN é a soma dos quatro subsistemas. A entrega cobre de O a O+8 (D−1 a D+7). A rodada diária e o backtest rodam o mesmo código.</p>
+<p className="pc-lead">O PrevCarga prevê a carga semi-horária (48 patamares por dia) de cada uma das 24 áreas-folha do SIN, a partir de uma origem O, por nove membros de cinco plugins de modelo. Em cada folha, os membros são combinados por uma média convexa com pesos congelados; os subsistemas saem da soma das folhas corrigida pelo k-hat, e o SIN é a soma dos quatro subsistemas. A entrega cobre de O a O+8 (D−1 a D+7). A rodada diária e o backtest rodam o mesmo código.</p>
 
 ## Os modelos internos do DESSEM
 
@@ -81,7 +81,7 @@ O PrevCarga usa as famílias Linear e RegDin, como os plugins `dessem-linear` e 
 | `lgbm` | LGBM | 2 | O..O+1 (D−1..D) |
 | `holt-winters` | HW | 9 | O..O+8 (D−1..D+7) |
 | `dessem-regdin` | RGD_MED, RGD_MAX | 9 | O..O+8 (D−1..D+7) |
-| `dessem-linear` | LIN_MED, LIN_MAX, LIN_MXMN | 9 | O..O+8 (D−1..D+7) |
+| `dessem-linear` | LIN_MED, LIN_MAX, LIN_MXMN, LIN_UNI | 9 | O..O+8 (D−1..D+7) |
 
 Em cada lead, a combina usa só os membros que cobrem aquele lead. Depois de O+1, o LGBM sai da combinação.
 
@@ -166,7 +166,7 @@ Um modelo novo é uma pasta nova em `models/`, sem edição no harness (ADR-0009
 
 A previsão sobe em três etapas:
 
-1. **Previsão por membro em cada folha.** Os oito membros de <Tag>config/topology.yaml</Tag> rodam em cada uma das 24 folhas. Um membro `origin_agnostic` (RF, LGBM) só lê o artefato já treinado; um membro `origin_scoped` (HW e DESSEM) treina uma vez na rodada quando não há artefato da origem O.
+1. **Previsão por membro em cada folha.** Os nove membros de <Tag>config/topology.yaml</Tag> rodam em cada uma das 24 folhas. Um membro `origin_agnostic` (RF, LGBM) só lê o artefato já treinado; um membro `origin_scoped` (HW e DESSEM) treina uma vez na rodada quando não há artefato da origem O.
 2. **Combinação por folha.** A combina aplica `a + Σ wᵢ·fᵢ`, com `wᵢ ≥ 0` e `Σ wᵢ = 1`, usando os pesos congelados no treino da combina, sem reajuste na rodada (ver [Combinação convexa](/metodologia/combina)).
 3. **Reconciliação até o SIN.** Em cada subsistema, `y_pred = BU_pred × k-hat`, onde `BU_pred` é a soma das folhas e o k-hat é um perfil por hora × mês × dia da semana ajustado na janela `[O−W, O−1]` (W padrão 730 dias). O perfil usado na rodada tem de ter sido ajustado na própria origem (`khat_origin == O`). O SIN é a soma dos quatro subsistemas (ver [Reconciliação](/metodologia/reconciliacao)).
 
@@ -197,7 +197,7 @@ flowchart LR
   C["Leitor: available_until do dado de carga"]:::corte
   T["Corte de treino por membro (dates.R)"]:::corte
   subgraph MAP["MAP: célula membro × folha"]
-    M["8 membros × 24 folhas<br/>O..O+8; LGBM O..O+1"]:::plugin
+    M["9 membros × 24 folhas<br/>O..O+8; LGBM O..O+1"]:::plugin
     L["LONG de 8 colunas"]
   end
   subgraph REDUCE["REDUCE: por origem"]

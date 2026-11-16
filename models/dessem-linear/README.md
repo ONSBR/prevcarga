@@ -1,8 +1,8 @@
-# Plugin dessem-linear (membros `LIN_MED`, `LIN_MAX` e `LIN_MXMN` do clean-room)
+# Plugin dessem-linear (membros `LIN_MED`, `LIN_MAX`, `LIN_MXMN` e `LIN_UNI` do clean-room)
 
 Porte R-only do modelo DESSEM linear do oraculo `prevcargadessem3/models/dessem-linear`, sobre o motor unico `models/_dessem-engine`
 (so primitivas `pkgfun_*`, serializador de SVM e `engine_manifest()`; README proprio em `models/_dessem-engine/README.md`). Split
-`origin_scoped` (ADR-0023), 60 min, H = 9 dias, um modelo por (area, variante `exogena` MED|MAX|MXMN). O estado duravel do plugin mora
+`origin_scoped` (ADR-0023), 60 min, H = 9 dias, um modelo por (area, variante `exogena` MED|MAX|MXMN|UNI; a UNI e `Linear.Univariado`, sem exogena de clima: `exogenaOper` SEM no motor, descriptor `variants$UNI` sem `data.weather_*`, aceite por invariancia ao clima em `tests/testthat/test-uni.R`, sem golden do oraculo). O estado duravel do plugin mora
 em `docs/estado/dessem_linear.md`; este README e o mapa de leitura e nao o duplica. So ASCII. O plugin nao le variavel de ambiente,
 nao faz aritmetica de hora e nao conta corte: le tudo de `cuts` e de `run.yaml`.
 

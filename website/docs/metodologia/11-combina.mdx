@@ -3,7 +3,7 @@ title: Combinação convexa (combina) e a máscara de treino
 sidebar_label: Combinação convexa
 sidebar_position: 11
 slug: /metodologia/combina
-description: Como a combina mistura os 8 membros por célula (lead, corte, mês de origem) e como a máscara de treino impede que os pesos usem informação do horizonte.
+description: Como a combina mistura os 9 membros por célula (lead, corte, mês de origem) e como a máscara de treino impede que os pesos usem informação do horizonte.
 fontes:
   - scripts/lib/combination.R
   - scripts/lib/cli/combine.R
@@ -27,7 +27,7 @@ commit_base: "f2d1734"
 
 <span className="pc-overline">Metodologia · 1.11</span>
 
-<p className="pc-lead">A combina transforma as previsões dos 8 membros de uma área numa única previsão por área. É uma média convexa com intercepto livre: pesos não negativos que somam 1, ajustados por célula (lead, corte, mês de origem). Os pesos de um mês m só aprendem com alvos anteriores ao início de m, para não usar informação do horizonte.</p>
+<p className="pc-lead">A combina transforma as previsões dos 9 membros de uma área numa única previsão por área. É uma média convexa com intercepto livre: pesos não negativos que somam 1, ajustados por célula (lead, corte, mês de origem). Os pesos de um mês m só aprendem com alvos anteriores ao início de m, para não usar informação do horizonte.</p>
 
 Todo o método mora num só módulo, `scripts/lib/combination.R`. O verbo `combine` (`scripts/lib/cli/combine.R`) e a rodada (`forecast.R`) só o chamam.
 
@@ -62,7 +62,7 @@ O painel de uma área tem uma linha por (origem, lead, corte). O lead é o índi
 
 `prevcarga_combina_fit` ajusta uma célula por **(lead, corte, mês de origem)**. O mês de origem (`ym`) são os 7 primeiros caracteres de `forecast_origin`. Dentro de cada par (lead, corte), os meses são percorridos em ordem, e o ajuste do mês m usa todas as linhas do par com alvo anterior ao início de m (ver [A máscara de treino](#a-máscara-de-treino)). A janela cresce a cada mês. O ajuste de m parte dos pesos do último mês ajustado do mesmo par quando o conjunto de membros presentes é o mesmo (*warm start*).
 
-A célula cai no **fallback EQW** (pesos 1/k sobre os k membros presentes e a = 0) em três casos, gravados na coluna `fallback`:
+A célula cai no **fallback EQW** (pesos 1/k sobre os k membros presentes e a = 0) em três casos, gravados na coluna `fallback`. Com os 9 membros da topologia presentes, cada peso da EQW é 1/9:
 
 | `fallback` | Quando |
 |---|---|
@@ -76,7 +76,7 @@ No `train`, cada par (lead, corte) congela também a **célula do mês seguinte*
 
 ```mermaid
 flowchart TB
-  A["8 membros declarados na topologia"]:::fundacao --> B["assert_members_aligned"]:::fundacao
+  A["9 membros declarados na topologia"]:::fundacao --> B["assert_members_aligned"]:::fundacao
   B -->|desalinhado| X["contract.member_misaligned · exit 2"]:::erro
   B --> C["build_panel · f_sigla = NA fora da faixa"]:::fundacao
   C --> D["join_fresh_truth · y_true do leitor"]:::fundacao
@@ -178,7 +178,7 @@ O corte faz parte da célula, então cada corte intradiário (o HHMM de `availab
 
 ### Entrada
 
-O painel é largo, uma linha por (área, origem, lead, corte), com uma coluna `f_<sigla>` por membro na ordem da topologia (`config/topology.yaml`: RF, LGBM, HW, RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN). O `y_true` que vem no LONG de cada membro é descartado. A verdade entra por `prevcarga_join_fresh_truth`, que lê a carga pelo leitor único (`prevcarga_read_actual`) e casa por igualdade exata `target_datetime == interval_end`. Na rodada, o painel não tem verdade: a combina só aplica.
+O painel é largo, uma linha por (área, origem, lead, corte), com uma coluna `f_<sigla>` por membro na ordem da topologia (`config/topology.yaml`: RF, LGBM, HW, RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN, LIN_UNI). O `y_true` que vem no LONG de cada membro é descartado. A verdade entra por `prevcarga_join_fresh_truth`, que lê a carga pelo leitor único (`prevcarga_read_actual`) e casa por igualdade exata `target_datetime == interval_end`. Na rodada, o painel não tem verdade: a combina só aplica.
 
 O caminho de montagem é um só, `prevcarga_combina_load`: descoberta dos runs, alinhamento, painel e verdade fresca. A rodada e o backtest montam o mesmo painel por `prevcarga_assert_members_aligned` e `prevcarga_build_panel`.
 

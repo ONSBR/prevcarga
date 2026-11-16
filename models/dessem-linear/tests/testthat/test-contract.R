@@ -21,7 +21,7 @@ test_that("[PLUGINS] gate08_contrato: exogena ausente ou 'XYZ' => contract exit 
     spec <- dl_fx_spec(); spec$params$exogena <- bad
     e <- dl_err(dl_train(st, cuts, spec))
     expect_dl_class(e, "contract", 2L, id = "plugin.dessem_linear_bad_exogena")
-    expect_identical(e$details$allowed, c("MED", "MAX", "MXMN"))
+    expect_identical(e$details$allowed, c("MED", "MAX", "MXMN", "UNI"))
   }
   expect_identical(spy$log$n, 0L)
   ## o mesmo nos estagios de treino e de ingestao com spec (variante validada ANTES de tocar o painel)
@@ -74,10 +74,10 @@ test_that("[PLUGINS] gate09_dado_faltante: hora faltando no historico => complet
   expect_identical(nrow(deck$CARGAHIST) %% 24L, 0L)
 })
 
-test_that("[PLUGINS] gate04_exogena_params: os 3 membros resolvem a variante e MED x MAX dao y_pred diferente (> 1e-5)", {
+test_that("[PLUGINS] gate04_exogena_params: os 4 membros resolvem a variante (UNI sem clima, ver test-uni.R) e MED x MAX dao y_pred diferente (> 1e-5)", {
   p <- dl_plugin(); env <- p$env
   keys <- env$plugin_constants()$model_key
-  expect_identical(names(keys), c("MED", "MAX", "MXMN"))
+  expect_identical(names(keys), c("MED", "MAX", "MXMN", "UNI"))
   for (ex in names(keys)) {
     v <- env$dl_resolve_variant(dl_fx_spec(ex))
     expect_identical(v$exogena, ex); expect_identical(v$model_key, unname(keys[[ex]]))
@@ -95,7 +95,8 @@ test_that("[PLUGINS] gate04_exogena_params: os 3 membros resolvem a variante e M
   expect_identical(max_$payload$model_key, "Linear.TmpMaxima")
   expect_false(identical(dl_sha(med), dl_sha(max_)))
   o_med <- dl_infer(med, st, cuts)
-  o_max <- dl_infer(max_, st, cuts)
+  p_max <- p; p_max$spec <- dl_fx_spec("MAX", p)   # a variante da inferencia vem do spec do plugin (canal cuts$spec) e deve bater com o artefato
+  o_max <- dl_infer(max_, st, cuts, p_max)
   expect_gt(dl_delta(o_med$delivery, o_max$delivery), DL8_TOL)
   expect_identical(o_med$variant, "MED"); expect_identical(o_max$variant, "MAX")
   ## artefato de uma variante nao serve a outra: o spec do infer e o do artefato (contract)

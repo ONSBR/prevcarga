@@ -41,7 +41,7 @@ commit_base: "7c57514"
 
 <span className="pc-overline">Arquitetura · 2.8</span>
 
-<p className="pc-lead">Dois arquivos YAML são a fonte única da forma do problema. `config/topology.yaml` declara a árvore do SIN (subsistemas, áreas, nós de perda), a faixa do k-hat e os oito membros da combina. Cada `models/<m>/run.yaml` declara o contrato de modelagem de um modelo: classe de split, granularidade, horizonte, histórico, seed, modos, protocolo de backtest padrão e parâmetros. `scripts/lib/topology.R` só carrega e valida esses arquivos. Ele não contém nenhuma área, faixa ou granularidade literal, e qualquer violação dos arquivos aborta com classe contract (exit 2), sem devolver objeto parcial. Área fora da topologia tem um único código em todo o sistema: `topology.area_undeclared` (exit 4).</p>
+<p className="pc-lead">Dois arquivos YAML são a fonte única da forma do problema. `config/topology.yaml` declara a árvore do SIN (subsistemas, áreas, nós de perda), a faixa do k-hat e os nove membros da combina. Cada `models/<m>/run.yaml` declara o contrato de modelagem de um modelo: classe de split, granularidade, horizonte, histórico, seed, modos, protocolo de backtest padrão e parâmetros. `scripts/lib/topology.R` só carrega e valida esses arquivos. Ele não contém nenhuma área, faixa ou granularidade literal, e qualquer violação dos arquivos aborta com classe contract (exit 2), sem devolver objeto parcial. Área fora da topologia tem um único código em todo o sistema: `topology.area_undeclared` (exit 4).</p>
 
 ## topology.yaml e topology.R: só carregar e validar
 
@@ -68,6 +68,7 @@ A ordem canônica (`order`) é SECO, S, N, NE. Os membros da combina são declar
 | LIN_MED | dessem-linear | MED |
 | LIN_MAX | dessem-linear | MAX |
 | LIN_MXMN | dessem-linear | MXMN |
+| LIN_UNI | dessem-linear | UNI |
 
 :::warning O subsistema N precisa de aspas
 O parser YAML 1.1 lê `N` sem aspas como o booleano FALSE. Por isso o arquivo escreve `"N"` entre aspas, tanto na chave de `subsystems` quanto na lista `order`.
