@@ -7,6 +7,8 @@
 ## Sem golden do oraculo para a UNI (decisao L2: aceite por invariancia). Tempo: 2 treinos reais do SVM (~1-3 min).
 ## Sem variaveis de ambiente; datas por lubridate com tz explicito; saida ASCII.
 library(testthat)
+## guarda de history_days (E8-T3): a janela curta do deck sintetico exige a option explicita de teste
+options(prevcarga.test_short_history = TRUE)
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
 env <- pc_source_lib(c("runtime", "errors", "config", "provenance", "topology", "deck_reader", "validation", "dates",
                        "registry", "features", "holiday_islands", "inference_needs", "training", "inference"))
