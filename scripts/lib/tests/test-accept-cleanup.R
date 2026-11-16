@@ -29,7 +29,7 @@ test_that("espaco livre abaixo do minimo => exit 2 contract.accept_disk_low ante
 
 test_that("estagio ainda nao implementado e opcao desconhecida => contract.accept_bad_args sem objeto Docker", {
   fk <- acc_fake_docker(); b <- acc_bundle_fixture(); st <- acc_store()
-  r1 <- acc_run(c("--stage", "aceite", "--out", tempfile("acc-out-"), "--data", st), fk)
+  r1 <- acc_run(c("--stage", "medicao", "--out", tempfile("acc-out-"), "--data", st), fk)
   expect_equal(r1$status, 2L); expect_equal(r1$json$error_id, "contract.accept_bad_args")
   r2 <- acc_run(c("--stage", "smoke", "--nao-existe", "x", "--out", tempfile("acc-out-"), "--data", st), fk)
   expect_equal(r2$status, 2L); expect_equal(r2$json$error_id, "contract.accept_bad_args")
@@ -106,7 +106,7 @@ test_that("base preexistente e cache preexistente ficam; so ids novos saem por p
 test_that("pc_accept_run_unit monta o docker run isolado, sem -e, e acrescenta a linha de index.tsv; a fila devolve 14 se falhar", {
   for (mode in c("ok", "oom", "unit_refuse", "unit_fail")) {
     fk <- acc_fake_docker(mode = mode); st <- acc_store(); out <- tempfile("acc-out-"); dir.create(out)
-    u <- file.path(out, "u1"); mf <- file.path(out, "mounts.txt"); writeLines("/x/topology.yaml:/cfg/topology.yaml:ro", mf)
+    u <- file.path(out, "u1"); mf <- file.path(out, "mounts.txt"); { tp <- file.path(out, "topology.yaml"); writeLines("x", tp); writeLines(paste0(tp, ":/cfg/topology.yaml:ro"), mf) }
     tsv <- file.path(out, "units.tsv")
     writeLines(c(paste("1", u, "ref", "7", mf, "2026-01-01", "SE", "m1", "forecast", sep = "\t"),
                  paste("1", file.path(out, "u2"), "ref", "8", "", "2026-01-02", "SE", "m1", "forecast", sep = "\t")), tsv)
@@ -120,7 +120,7 @@ test_that("pc_accept_run_unit monta o docker run isolado, sem -e, e acrescenta a
     for (pat in c("--rm", "--name pc-accept-RID1-7 ", "--label prevcarga.accept.run=RID1", "--network none", "--memory 8g", "--cpus 1",
                   sprintf("--user %s:%s", system("id -u", intern = TRUE), system("id -g", intern = TRUE)),
                   sprintf("-v %s:/data:ro", st), sprintf("-v %s:/out", u), sprintf("-v %s/tmp:/tmp", u),
-                  "-v /x/topology.yaml:/cfg/topology.yaml:ro"))
+                  sprintf("-v %s/topology.yaml:/cfg/topology.yaml:ro", out)))
       expect_true(grepl(pat, one, fixed = TRUE), info = pat)
     expect_false(grepl(" -e | --env", one))
     idx <- utils::read.delim(file.path(out, "index.tsv"), stringsAsFactors = FALSE)
@@ -151,13 +151,13 @@ test_that("todo error_id do script existe em accept.tsv com o exit da classe; tu
   sh <- readLines(acc_script())
   cat_ <- utils::read.delim(file.path(pc_root(), "scripts", "lib", "errors", "accept.tsv"), stringsAsFactors = FALSE, quote = "")
   exits <- pc_source_lib("errors")$prevcarga_exit_codes
-  ids <- unique(unlist(regmatches(sh, gregexpr("(contract|bundle|integrity|partial|runtime)\\.accept_[a-z_]+", sh))))
+  ids <- unique(unlist(regmatches(sh, gregexpr("(contract|bundle|integrity|partial|runtime|repro)\\.accept_[a-z_]+", sh))))
   expect_gt(length(ids), 5L)
   expect_true(all(ids %in% cat_$id))
   expect_true(all(cat_$class %in% names(exits)))
   expect_equal(sort(cat_$id), sort(ids))
   ## exit usado no script: tabela pc_accept_class_exit
-  tab <- c(contract = 2L, bundle = 6L, runtime = 7L, integrity = 9L, partial = 14L)
+  tab <- c(contract = 2L, bundle = 6L, runtime = 7L, integrity = 9L, repro = 12L, partial = 14L)
   for (cl in names(tab)) expect_equal(unname(exits[[cl]]), tab[[cl]])
   for (cl in names(tab))
     expect_true(any(grepl(sprintf("%s) echo %d ;;", cl, tab[[cl]]), paste(sh, collapse = " "), fixed = TRUE)), info = cl)
