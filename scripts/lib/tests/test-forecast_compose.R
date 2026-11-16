@@ -27,11 +27,17 @@ fx_copy <- function(deck = DECK, topo = TOPO, .frame = parent.frame(), ...) {
   m6f_ctx(deck, st, topo, list(...))
 }
 
-## troca binding do env de teste e restaura ao fim do teste
+## troca binding do env de teste e restaura ao fim do teste. O original vem de uma copia tirada UMA vez, antes de qualquer
+## mock (E8-T4): restaurar o valor lido na hora do mock deixava um stub "proibido" vazar para o teste seguinte quando o
+## arquivo rodava depois de test-forecast_artifacts_dir.R na mesma sessao.
+PRISTINE <- new.env()
+for (nm in c("prevcarga_infer_cell", "prevcarga_train", "prevcarga_reconcile_apply", "prevcarga_reconcile_train",
+             "prevcarga_khat_fit", "prevcarga_combina_fit", "prevcarga_validate_deck"))
+  if (!is.null(env[[nm]])) PRISTINE[[nm]] <- env[[nm]]
 mock <- function(..., .frame = parent.frame()) {
   fs <- list(...)
   for (n in names(fs)) local({
-    nm <- n; old <- env[[nm]]
+    nm <- n; old <- if (!is.null(PRISTINE[[nm]])) PRISTINE[[nm]] else env[[nm]]
     withr::defer(assign(nm, old, envir = env), envir = .frame)
   })
   for (n in names(fs)) assign(n, fs[[n]], envir = env)
