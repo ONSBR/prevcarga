@@ -83,6 +83,7 @@ pcc_plant <- function(copy, rel, line) {
 ## Lib da fundacao no ambiente global (como a CLI): o interino dos plugins le `prevcarga_abort` & cia. do globalenv.
 pcc_child_lib <- function(root) {
   options(prevcarga.lib = file.path(root, "scripts", "lib"))
+  options(prevcarga.test_short_history = TRUE)   # E8-T3: o filho de teste encurta history_days.train do DESSEM (so o caminho de teste liga)
   g <- globalenv()
   for (m in PCC_FOUNDATION) sys.source(file.path(root, "scripts", "lib", paste0(m, ".R")), envir = g)
   sys.source(file.path(root, "scripts", "tools", "fixture_store.R"), envir = g)
