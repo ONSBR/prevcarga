@@ -19,6 +19,7 @@ const globMdx = (dir) => {
 };
 
 const ERROS_PAGE = 'website/docs/execucao/13-erros-troubleshooting.mdx';
+const RODADA_PAGE = 'website/docs/execucao/08-rodada-diaria.mdx';
 const CLI_PAGE = 'website/docs/execucao/12-referencia-cli.mdx';
 const DOCS = ['README.md', ...globMdx('website/docs')];
 
@@ -47,6 +48,10 @@ export const RULES = [
     msg: '--artifacts-dir so na nota de apelido; use --data-artifacts' },
   ...['set-data-dir', '--data-train', '--data-inference', '--data-artifacts', '--jobs', 'apelido']
     .map((t) => ({ files: [CLI_PAGE], require: new RegExp(t), msg: `referencia da CLI cita ${t}` })),
+  ...[[/--data-inference/, '--data-inference'], [/anexo de feriados/i, 'anexo de feriados'],
+    [/deck-inference/, 'o verbo deck-inference'], [/03:00/, 'o treino das 03:00'],
+    [/08:00/, 'a rodada das 08:00'], [/mensal|todo m[e\u00ea]s/i, 'a cadencia mensal da combina']]
+    .map(([re, t]) => ({ files: [RODADA_PAGE], require: re, msg: `rodada diaria cita ${t}` })),
   ...['warning.combina_stale', 'warning.combina_member_set']
     .map((t) => ({ files: [ERROS_PAGE], require: new RegExp(t.replace('.', '\\.')), msg: `pagina de erros cita ${t}` })),
 ];
