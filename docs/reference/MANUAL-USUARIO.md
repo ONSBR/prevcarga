@@ -22,8 +22,8 @@ so em HKCU. Nao precisa de administrador nem de R instalado: o R e o do bundle.
 - Conferir: `prevcarga doctor` (bundle, plataforma, R, integridade do `RUNTIME.json`, artefatos).
 
 ## 2. Rodada operacional: `forecast`
-`prevcarga forecast --origin <AAAA-MM-DD> [--subsistema <s> | --area <a>] [--incluir-membros] [--report] [--jobs <n>] [--data-inference <dir>] [--data-artifacts <dir>] [--format json]`. E UMA origem por rodada: valida o deck, infere cada
-modelo (com o deck de inferencia o `forecast` so infere: os artefatos ja estao na raiz de `--data-artifacts`, e a falta de um aborta com `state.inference_artifact_missing`, exit 13), combina, reconcilia e exporta a entrega em `<state>/forecasts/...` com
+`prevcarga forecast --origin <AAAA-MM-DD> [--subsistema <s> | --area <a>] [--incluir-membros] [--report] [--jobs <n>] [--data-train <dir> | --data-inference <dir>] [--data-artifacts <dir>] [--format json]`. E UMA origem por rodada: valida o deck, infere cada
+modelo (a rodada diaria usa o deck de inferencia e so infere; com `--data-train` o `forecast` ainda treina o `origin_scoped` sem versao de O na raiz padrao, por compatibilidade com a v0.1.5. Com o deck de inferencia os artefatos ja estao na raiz de `--data-artifacts`, e a falta de um aborta com `state.inference_artifact_missing`, exit 13), combina, reconcilia e exporta a entrega em `<state>/forecasts/...` com
 `manifest.json` e `run_manifest.json`. O escopo define a saida (nao ha flag de nivel): `--area` entrega so as folhas, sem reconciliar; `--subsistema` entrega as folhas do
 subsistema e ele proprio; sem flag (ou `--subsistema all`) entrega tudo ate o SIN. Membro ausente nao derruba a rodada (aviso, e a combina renormaliza; falha so se uma folha fica sem nenhum membro);
 sem pesos treinados a combinacao e a media simples (aviso `warning.combina_eqw`); clima previsto curto corta o horizonte do LGBM, e DESSEM e RF ficam ausentes (`completude.weather_forecast_short`),

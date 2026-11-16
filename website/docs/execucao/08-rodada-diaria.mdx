@@ -126,7 +126,7 @@ Antes do `forecast`, a rodada pode ter o seu próprio deck de inferência: um re
 
 ## Ordem treino -> rodada
 
-A rodada diária não treina. Todo artefato que o `forecast` usa já está na raiz `--data-artifacts` quando ele começa: o treino roda antes, em outra execução, e a rodada só infere. Isso separa dois relógios: o treino diário, com dados até O−1, e a rodada no corte do dia, com o deck de inferência.
+A rodada diária usa o deck de inferência (`--data-inference`) e não treina. Todo artefato que o `forecast` usa já está na raiz `--data-artifacts` quando ele começa: o treino roda antes, em outra execução, e a rodada só infere. Com `--data-train` o `forecast` ainda treina, por compatibilidade com a v0.1.5: o `origin_scoped` sem versão de O na raiz padrão é treinado dentro da rodada, e com `--data-artifacts` apontado o membro fica ausente (`state.artifact_missing`, com aviso). Isso separa dois relógios: o treino diário, com dados até O−1, e a rodada no corte do dia, com o deck de inferência.
 
 ### O deck de inferência e o anexo de feriados
 
@@ -175,7 +175,7 @@ flowchart TB
   K --> E["Export para forecasts/"]:::fundacao
   E --> Q["Relatório (só com --report)"]:::fundacao
   Q --> OK["exit 0"]
-  F -->|"flag inválida, sem --data-inference, subsistema fora"| X8["exit 8 ou 4"]:::erro
+  F -->|"flag inválida, sem diretório de dados, subsistema fora"| X8["exit 8 ou 4"]:::erro
   F -->|"artefato de membro ausente na raiz"| X13a["exit 13"]:::erro
   G -->|"deck reprovado; dia O completo"| X3["exit da classe; 3 no dia O"]:::erro
   P -->|"folha fora da topologia"| X4["exit 4"]:::erro
@@ -195,7 +195,7 @@ flowchart TB
 | Topologia | Resolve o escopo (`--area`, `--subsistema` ou SIN) pela topologia | `topology.area_undeclared` | 4 |
 | Validação do deck | `prevcarga_validate_deck` (salvo `--skip-validate`) e `prevcarga_resolve_cuts`. Deck reprovado aborta com o primeiro erro da classe dominante, a mesma regra do [validate-deck](/execucao/validar-deck) | `<classe>.<what>` do achado; `completude.origin_day_gap`; `completude.forecast_origin_day_complete` | o da classe do achado; 3 nos dois de completude |
 | Plano | Folhas do escopo e o que a reconciliação fecha: `area` não fecha nada, `subsistema` fecha `S`, `sin` fecha tudo | `topology.area_undeclared` | 4 |
-| Membros | Pré-checagem do artefato de cada membro na raiz (só leitura) e `prevcarga_infer_cell` por célula (folha × membro), em serial ou com `--jobs`. Nada treina. Célula que falha por outro motivo vira membro ausente | `state.inference_artifact_missing` (artefato ausente, aborta); `warning.forecast_member_absent`, `warning.forecast_weather_horizon_cut`; sem nenhum membro na folha, `completude.forecast_leaf_no_member` | 13 ou 3 |
+| Membros | Pré-checagem do artefato de cada membro na raiz (só leitura) e `prevcarga_infer_cell` por célula (folha × membro), em serial ou com `--jobs`. Com deck de inferência nada treina; com `--data-train` o `origin_scoped` sem versão de O é treinado na raiz padrão. Célula que falha por outro motivo vira membro ausente | `state.inference_artifact_missing` (artefato ausente, aborta); `warning.forecast_member_absent`, `warning.forecast_weather_horizon_cut`; sem nenhum membro na folha, `completude.forecast_leaf_no_member` | 13 ou 3 |
 | LONG e combina | `prevcarga_build_long` por membro, alinhamento, painel e `prevcarga_combina_apply` com os pesos congelados; sem pesos, média simples com `warning.combina_eqw`; pesos de outro conjunto de membros, média simples com `warning.combina_member_set`; célula do mês ausente (retreino mensal atrasado), a mais recente com `warning.combina_stale` | `contract.combina_input`, `contract.combina_artifact_mismatch` | 2 |
 | Reconcile | `prevcarga_reconcile_apply` uma vez, em memória, só nas folhas cobertas | `honesty.khat_after_origin` (15); `state.khat_missing` (13); `contract.*` (2) | 15, 13 ou 2 |
 | Chave e scratch | `prevcarga_forecast_versao`, `prevcarga_export_key`, scratch recriado, `run.json` e `run_manifest.json` | `io.out_unwritable` (scratch não criado) | 6 |
@@ -206,7 +206,7 @@ flowchart TB
 ### O que já está em disco quando a rodada falha
 
 - **Até o reconcile, inclusive**, nada é gravado em `forecasts/` nem em `scratch/`. Um erro do reconcile (15, 13 ou 2) não deixa diretório de entrega.
-- O `forecast` nunca grava na raiz de artefatos: nada de treino, nenhum artefato novo, mesmo quando a rodada falha. Quem grava é o `train-models`, antes da rodada.
+- Com deck de inferência, e também com a raiz apontada por `--data-artifacts`, o `forecast` não grava na raiz de artefatos: nada de treino, nenhum artefato novo, mesmo quando a rodada falha. Quem grava é o `train-models`, antes da rodada. Só com `--data-train` e a raiz padrão o `forecast` grava o treino do `origin_scoped` faltante, como na v0.1.5.
 - **No export**, o scratch `<state_dir>/scratch/<run_id>/` já existe. A cópia vai para um staging no mesmo volume e só vira a chave final por `file.rename`; em erro, o staging é removido e nenhuma entrega parcial fica.
 - **No relatório**, a entrega já foi publicada e não é desfeita.
 
