@@ -92,11 +92,11 @@ test_that("os 5 run.yaml entregues tem os valores do contrato", {
     c("random-forest" = 9L, lgbm = 1L, "holt-winters" = 8L, "dessem-linear" = 9L, "dessem-regdin" = 9L))
   expect_identical(vapply(S, function(s) s$seed, 1L),
     c("random-forest" = 123L, lgbm = 123L, "holt-winters" = 1234L, "dessem-linear" = 42L, "dessem-regdin" = 42L))
-  expect_identical(S[["holt-winters"]]$history_days, list(train = 730L, infer = 2L))
-  expect_identical(S[["random-forest"]]$history_days, list(train = 365L, infer = 9L))
-  expect_identical(S[["lgbm"]]$history_days, list(train = 730L, infer = 5L))
-  expect_identical(S[["dessem-linear"]]$history_days, list(train = 1095L, infer = 15L))   # inferencia de 15 dias (E3/E4; ADR-045)
-  expect_identical(S[["dessem-regdin"]]$history_days, list(train = 1095L, infer = 15L))
+  expect_identical(S[["holt-winters"]]$history_days, list(train = 730L, infer = 45L))
+  expect_identical(S[["random-forest"]]$history_days, list(train = 365L, infer = 45L))
+  expect_identical(S[["lgbm"]]$history_days, list(train = 730L, infer = 45L))
+  expect_identical(S[["dessem-linear"]]$history_days, list(train = 1095L, infer = 1095L))
+  expect_identical(S[["dessem-regdin"]]$history_days, list(train = 1095L, infer = 1095L))
   for (m in ms) {
     fc <- "forecast" %in% S[[m]]$modes
     expect_identical(fc, m %in% c("holt-winters", "dessem-linear", "dessem-regdin"))
@@ -110,7 +110,7 @@ test_that("os 5 run.yaml entregues tem os valores do contrato", {
   expect_identical(S$lgbm$params, list(disable_loess = TRUE, calendar_yearend = TRUE, train_cv = TRUE,
                                        tipodia_legacy = FALSE, cutoff_scheme = "v2_old",
                                        sazonalidade_scope = "train", prevespera_1230 = FALSE))
-  expect_length(S[["dessem-regdin"]]$constraints, 0L)     # infer 15 dias: a regra infer_history_equals_train segue valida, mas nao e declarada
+  expect_true(S[["dessem-regdin"]]$constraints$infer_history_equals_train)
 })
 
 test_that("run.yaml invalidos (tempdir) falham contract; horizon 1->3 e lido", {
@@ -123,7 +123,7 @@ test_that("run.yaml invalidos (tempdir) falham contract; horizon 1->3 e lido", {
   expect_pc_error(try_edit("lgbm", function(x) { x$seed <- NULL; x }), "contract.seed_missing", "seed")
   expect_pc_error(try_edit("lgbm", function(x) { x$granularity_min <- 15L; x }), "contract.run_yaml_bad_value", "granularity_min")
   expect_pc_error(try_edit("lgbm", function(x) { x$split <- "daily"; x }), "contract.run_yaml_bad_value", "split")
-  expect_pc_error(try_edit("dessem-regdin", function(x) { x$constraints$infer_history_equals_train <- TRUE; x }),
+  expect_pc_error(try_edit("dessem-regdin", function(x) { x$history_days$infer <- 45L; x }),
                   "contract.constraint_violated", "infer_history_equals_train")
   expect_pc_error(try_edit("lgbm", function(x) { x$resources <- list(vcpu = 2L); x }), "contract.run_yaml_forbidden_key", "resources")
   expect_pc_error(try_edit("lgbm", function(x) { x$name <- "outro"; x }), "contract.run_yaml_name_mismatch", "outro")
