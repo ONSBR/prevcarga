@@ -216,7 +216,8 @@ prevcarga_cell_row <- function(member, area, cuts, version, status, path) {
 prevcarga_train <- function(member, area, origin, ctx, force = FALSE) {
   inp <- prevcarga_train_inputs(member, area, origin, ctx)
   id <- prevcarga_train_fingerprint(member, inp$spec, inp$cuts, inp$panel, ctx)
-  key <- prevcarga_registry_key(member, area, ctx, spec = inp$spec)
+  key <- prevcarga_registry_key(member, area, ctx,
+                                spec = if (length(inp$plugin$descriptor$key_params)) inp$spec)
   dest <- file.path(key, id$version)
   if (dir.exists(dest) && !isTRUE(force))
     return(prevcarga_cell_row(member, area, inp$cuts, id$version, "reused", dest))
@@ -368,7 +369,8 @@ prevcarga_train_plan <- function(cells, origin, ctx) {
     inp <- prevcarga_train_inputs(m, cells$area[[i]], origin, ctx, rc = rc, read_panel = read_panel,
                                   plugin = plugins[[m$mdir]], spec = specs[[sk]])
     id <- prevcarga_train_fingerprint(m, inp$spec, inp$cuts, inp$panel, ctx)
-    key <- prevcarga_registry_key(m, cells$area[[i]], ctx, spec = inp$spec)
+    key <- prevcarga_registry_key(m, cells$area[[i]], ctx,
+                                  spec = if (length(plugins[[m$mdir]]$descriptor$key_params)) inp$spec)
     prevcarga_cell_row(m, cells$area[[i]], inp$cuts, id$version, "planned", file.path(key, id$version))
   })
   .prevcarga_tr_sort(do.call(rbind, rows))
