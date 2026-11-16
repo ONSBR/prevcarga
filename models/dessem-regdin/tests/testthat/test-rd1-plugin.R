@@ -133,7 +133,7 @@ test_that("[PLUGINS] descritor: ids plugin.regdin_* constam em errors/dessem_reg
   expect_setequal(c("plugin.regdin_train_panel_has_origin", "plugin.regdin_history_short", "plugin.regdin_window_mismatch",
                     "plugin.regdin_arima_drift", "plugin.regdin_bad_exogena", "plugin.regdin_panel_contract",
                     "plugin.regdin_series_gap", "warning.regdin_desagrega_fallback", "plugin.regdin_artifact_tampered",
-                    "warning.regdin_rng_deviation", "plugin.regdin_artifact_mismatch"), tsv$id)
+                    "warning.regdin_rng_deviation", "plugin.regdin_artifact_mismatch", "plugin.regdin_bad_clima_hist"), tsv$id)
   cat <- rd_lib$prevcarga_errors_load(file.path(rd_root(), "scripts", "lib", "errors"))
   expect_true(all(tsv$id %in% cat$id))
   expect_false(anyDuplicated(cat$id) > 0L)

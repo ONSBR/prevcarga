@@ -25,6 +25,14 @@
   ov
 }
 
+## Spec efetivo para a chave do registry (E5-T4): so quando o descriptor declara key_params (senao NULL => chave de sempre).
+## Mesmos overrides do treino (.prevcarga_tr_overrides), para treino, inferencia e forecast resolverem a mesma celula.
+.prevcarga_tr_key_spec <- function(member, ctx) {
+  plugin <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))
+  if (!length(plugin$descriptor$key_params)) return(NULL)
+  prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
+}
+
 ## --- Painel e cortes da celula ------------------------------------------------------------------------------
 ## Devolve plugin, spec efetivo, cuts (formato do despachante) e o painel de TREINO ja cortado em last_data_day.
 ## `rc`, `read_panel`, `plugin` e `spec` (todos opcionais) vem do prevcarga_train_plan, que os memoiza por chamada; sem eles
@@ -40,7 +48,7 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
   d <- plugin$descriptor
   if (is.null(spec)) {
     spec <- prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
-    prevcarga_plugin_check_params(spec$params, d$params_schema, member$mdir)
+    prevcarga_plugin_check_params(spec$params, d$params_schema, member$mdir, optional = names(d$key_params))
   }
 
   if (is.null(rc))
@@ -208,7 +216,7 @@ prevcarga_cell_row <- function(member, area, cuts, version, status, path) {
 prevcarga_train <- function(member, area, origin, ctx, force = FALSE) {
   inp <- prevcarga_train_inputs(member, area, origin, ctx)
   id <- prevcarga_train_fingerprint(member, inp$spec, inp$cuts, inp$panel, ctx)
-  key <- prevcarga_registry_key(member, area, ctx)
+  key <- prevcarga_registry_key(member, area, ctx, spec = inp$spec)
   dest <- file.path(key, id$version)
   if (dir.exists(dest) && !isTRUE(force))
     return(prevcarga_cell_row(member, area, inp$cuts, id$version, "reused", dest))
@@ -353,13 +361,14 @@ prevcarga_train_plan <- function(cells, origin, ctx) {
     sk <- paste(m$mdir, m$exogena, sep = "|")
     if (is.null(specs[[sk]])) {
       sp <- prevcarga_model_spec(m$mdir, ctx$root, .prevcarga_tr_overrides(plugins[[m$mdir]], m, ctx))
-      prevcarga_plugin_check_params(sp$params, plugins[[m$mdir]]$descriptor$params_schema, m$mdir)
+      prevcarga_plugin_check_params(sp$params, plugins[[m$mdir]]$descriptor$params_schema, m$mdir,
+                                    optional = names(plugins[[m$mdir]]$descriptor$key_params))
       specs[[sk]] <<- sp
     }
     inp <- prevcarga_train_inputs(m, cells$area[[i]], origin, ctx, rc = rc, read_panel = read_panel,
                                   plugin = plugins[[m$mdir]], spec = specs[[sk]])
     id <- prevcarga_train_fingerprint(m, inp$spec, inp$cuts, inp$panel, ctx)
-    key <- prevcarga_registry_key(m, cells$area[[i]], ctx)
+    key <- prevcarga_registry_key(m, cells$area[[i]], ctx, spec = inp$spec)
     prevcarga_cell_row(m, cells$area[[i]], inp$cuts, id$version, "planned", file.path(key, id$version))
   })
   .prevcarga_tr_sort(do.call(rbind, rows))

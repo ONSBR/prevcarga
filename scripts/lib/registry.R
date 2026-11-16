@@ -91,7 +91,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
   "params_schema", "variant_param", "native_layout", "semihourly_rule", "weather_resample", "delivery_days", "data_lag_days",
   "model_time_offset_min", "reads_day_O", "weather_forecast_in_train", "uses_rng", "history_infer_equals_train",
   "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages", "weather_cut", "variants",
-  "data_needs", "history_window")
+  "data_needs", "history_window", "key_params")
 .prevcarga_plugin_param_types <- c("integer", "numeric", "logical", "character")
 
 .prevcarga_plugin_cache <- new.env(parent = emptyenv())
@@ -314,6 +314,14 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
         bad(paste0("variants$", k, "$ignores_params"))
     }
   }
+  ## key_params (E5-T4): list nomeada param -> default character(1); o param existe em params_schema. Ausente => list().
+  kp <- pick("key_params", list())
+  if (length(kp)) {
+    if (!is.list(kp) || is.null(names(kp)) || any(!nzchar(names(kp))) || anyDuplicated(names(kp))) bad("key_params")
+    for (k in names(kp))
+      if (!(k %in% names(schema)) || !(is.character(kp[[k]]) && length(kp[[k]]) == 1L && !is.na(kp[[k]])))
+        bad(paste0("key_params$", k))
+  }
   flags <- list(reads_day_O = FALSE, weather_forecast_in_train = FALSE, uses_rng = FALSE,
                 history_infer_equals_train = FALSE)
   for (f in names(flags)) {
@@ -360,7 +368,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     weather_forecast_in_train = flags$weather_forecast_in_train, uses_rng = flags$uses_rng,
     history_infer_equals_train = flags$history_infer_equals_train, rng_deviation = rd,
     packages = pk, attach = at, engine = eng, freeze = d[["freeze"]], thaw = d[["thaw"]], stages = stages,
-    data_needs = dn, history_window = hw, weather_cut = wcut, variants = vars)
+    data_needs = dn, history_window = hw, weather_cut = wcut, variants = vars, key_params = kp)
   out
 }
 
@@ -378,15 +386,15 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
   TRUE
 }
 
-prevcarga_plugin_check_params <- function(params, schema, model) {
+prevcarga_plugin_check_params <- function(params, schema, model, optional = character()) {
   params <- if (is.null(params)) list() else params
   bad <- function(n) .prevcarga_plugin_abort("plugin.bad_run_yaml", where = model, reason = paste0("params$", n),
                                              details = list(model = model, field = paste0("params$", n)))
   extra <- setdiff(names(params), names(schema))
   if (length(extra)) bad(extra[[1L]])
-  miss <- setdiff(names(schema), names(params))
+  miss <- setdiff(setdiff(names(schema), optional), names(params))
   if (length(miss)) bad(miss[[1L]])
-  for (n in names(schema)) if (!.prevcarga_plugin_param_ok(params[[n]], schema[[n]])) bad(n)
+  for (n in intersect(names(schema), names(params))) if (!.prevcarga_plugin_param_ok(params[[n]], schema[[n]])) bad(n)
   invisible(TRUE)
 }
 
@@ -400,7 +408,7 @@ prevcarga_plugin_check_params <- function(params, schema, model) {
   if (isTRUE(d$history_infer_equals_train) && !identical(spec$history_days$infer, spec$history_days$train))
     .prevcarga_plugin_abort("plugin.history_window", where = model, reason = "history_days.infer",
                             details = list(model = model, field = "history_days.infer"))
-  prevcarga_plugin_check_params(spec$params, d$params_schema, model)
+  prevcarga_plugin_check_params(spec$params, d$params_schema, model, optional = names(d$key_params))
 }
 
 ## --- 7. Registro Tier A atomico --------------------------------------------------------------------
@@ -1073,11 +1081,22 @@ prevcarga_registry_contain <- function(path, ctx) {
 }
 
 ## Segmento de variante sse `member$exogena` nao for NA/vazia: decisao so pelo membro, nunca pelo nome do modelo.
-prevcarga_registry_key <- function(member, area, ctx) {
+## Com `spec` (E5-T4), cada descriptor$key_params fora do default e nao ignorado pela variante vira o segmento
+## <param>-<valor> entre a variante e a area; spec NULL ou valores default => layout anterior byte a byte.
+prevcarga_registry_key <- function(member, area, ctx, spec = NULL) {
   if (is.null(member$mdir) || is.null(member$exogena))
     prevcarga_abort("contract.variant_required", where = "membro sem mdir/exogena")
   exo <- member$exogena
-  seg <- c(member$mdir, if (!is.na(exo) && nzchar(exo)) exo, area)
+  kp <- character()
+  if (!is.null(spec)) {
+    d <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))$descriptor
+    ign <- if (!is.na(exo) && nzchar(exo)) d$variants[[exo]]$ignores_params else NULL
+    for (p in setdiff(names(d$key_params), ign)) {
+      v <- spec$params[[p]]
+      if (!is.null(v) && !identical(v, d$key_params[[p]])) kp <- c(kp, paste0(p, "-", v))
+    }
+  }
+  seg <- c(member$mdir, if (!is.na(exo) && nzchar(exo)) exo, kp, area)
   prevcarga_registry_contain(do.call(file.path, as.list(c(prevcarga_registry_root(ctx), seg))), ctx)
 }
 
@@ -1334,6 +1353,8 @@ prevcarga_registry_unpin <- function(key, version, ctx = NULL) {
 
 ## model (sigla ou mdir de prevcarga_members, ou nome de pasta do registry como combina/reconcile) -> segmentos
 .prevcarga_reg_model_segs <- function(model, ctx) {
+  ## formato mdir/exogena/<param>-<valor> (segmentos separados por /): ja e o caminho relativo da celula
+  if (grepl("/", model, fixed = TRUE)) return(strsplit(model, "/", fixed = TRUE)[[1L]])
   mem <- tryCatch(prevcarga_members(root = ctx$root), error = function(e) NULL)
   if (!is.null(mem)) {
     i <- which(mem$sigla == model)
@@ -1416,6 +1437,7 @@ prevcarga_registry_cell_key <- function(ctx, model, area) {
   segs <- .prevcarga_reg_model_segs(model, ctx)
   key <- prevcarga_registry_key(list(mdir = segs[[1L]], exogena = if (length(segs) > 1L) segs[[2L]] else NA_character_),
                                 area, ctx)
+  if (length(segs) > 2L) key <- prevcarga_registry_contain(do.call(file.path, as.list(c(dirname(key), segs[-(1:2)], area))), ctx)
   if (!dir.exists(key)) prevcarga_abort("state.cell_missing", where = key)
   key
 }

@@ -39,6 +39,12 @@ dl_check_payload <- function(deck, payload) {
   if (!is.na(deck$model_key) && !identical(deck$model_key, payload$model_key))
     mis("model_key", payload$model_key, deck$model_key)
   if (!identical(payload$area, deck$area)) mis("area", payload$area, deck$area)
+  ## clima_hist (E5-T4): payload sem o bloco = observado (nao_se_aplica se a variante nao usa clima); o deck traz o modo efetivo
+  if (!is.null(deck$clima_hist)) {
+    mp <- if (!is.null(payload$clima_hist$modo)) payload$clima_hist$modo else
+      if (dl_variant_weatherless(payload$model_key)) "nao_se_aplica" else "observado"
+    if (!identical(mp, deck$clima_hist$modo)) mis("clima_hist", mp, deck$clima_hist$modo)
+  }
   if (!identical(as.integer(payload$horizon_days), as.integer(deck$horizon)))
     mis("horizon_days", payload$horizon_days, deck$horizon)
   invisible(TRUE)
