@@ -6,25 +6,34 @@
 # Uso:
 #   accept_docker.sh --stage smoke|aceite|medicao|relatorio|all --out DIR --data STORE [--config YAML]
 #                    [--ref-bundle TAR --new-bundle TAR] [--jobs 12-14] [--resume] [--format text|json]
-#                    [--min-free-gb-docker N] [--min-free-gb-out N]
-#   Estagios implementados aqui: smoke e aceite. medicao/relatorio/all sao despachos que os tickets seguintes preenchem; ate la
-#   recusam com contract.accept_bad_args (antes de qualquer objeto Docker).
+#                    [--min-free-gb-docker N] [--min-free-gb-out N] [--receipts-dir DIR]
+#   Estagios: smoke, aceite, medicao, relatorio e all (smoke -> aceite -> medicao -> relatorio; o relatorio roda mesmo apos falha de um
+#   estagio anterior, para registrar o veredito; smoke falho pula aceite e medicao).
 #   --config (default scripts/tools/accept_docker.yaml nos estagios aceite/medicao): jobs, memory, cpus, min_free e ref_rev saem de
 #   scripts/tools/accept_cases.R --settings; precedencia flag > YAML > default embutido. Config invalida: contract.accept_bad_config.
 #   Estagio aceite: accept_cases.R expande units.aceite.tsv (ondas 1..3; a onda k+1 so abre depois da onda k), cada unidade ganha
 #   <out>/units/<unit>/{config.yaml,mounts.txt,overlay/}; as montagens extras sao SO :ro (overlay de topology.yaml e de run.yaml
 #   extraidos da propria imagem, artefatos da unidade de treino em /artifacts, deck-inference em /deckinf). Depois accept_delta.R
 #   compara backtest S ref x new (delta.tsv) e infer-model train x inference (delta.inference.tsv) e emite aceite.json.
+#   Estagio medicao (E8-T3): accept_cases.R --stage medicao expande units.medicao.tsv (origens x areas x mdirs x ref/nova, backtest
+#   --origin --area --model) e a fila roda tudo com --jobs. --resume pula a unidade cuja ULTIMA linha em index.tsv tem rc 0, runtime_id igual
+#   ao da imagem atual e sha256 dos LONGs recalculado igual ao gravado; senao apaga units/<unit>/state e roda de novo. Recusa classificada
+#   (rc 2-15 com error_id) vira celula ausente e NAO derruba a fila; so rc 1 sem envelope ou 137 contam failed (partial, exit 14).
+#   Estagio relatorio: scripts/tools/accept_report.R (R do host) grava report.tsv/report.md/report.json em --out, a limpeza roda e o
+#   recibo <sha256 do bundle novo>.docker-accept.json (PASS so com smoke, aceite e medicao verdes, relatorio ok, residuo zero e store
+#   intacto) vai para --receipts-dir (default <repo>/tests/.receipts). stages.tsv em --out guarda o veredito de cada estagio.
 #
 # Bundles: sem --ref-bundle/--new-bundle, constroi por build_bundle_linux.sh (ref = --rev de24021, nova = HEAD; arvore suja recusa).
 # Com eles, confere o .sha256 ao lado de cada tar.zst. Cada imagem = prevcarga-accept:<RUN_ID>-ref|-new (label prevcarga.accept.run=<RUN_ID>).
 # O store (--data) so e montado como :ro e a listagem antes/depois (store.before.tsv/store.after.tsv) tem que ser igual.
 #
 # Saida: UM JSON em stdout (--format json, default) ou texto ASCII (--format text); mensagens em stderr. Arquivos em --out:
-#   run.json, store.before.tsv, store.after.tsv, cache.snapshot, residue.json ({containers,images,cache}), index.tsv (unidades).
+#   run.json, store.before.tsv, store.after.tsv, cache.snapshot, residue.json ({containers,images,cache}), index.tsv (unidades), stages.tsv,
+#   report.tsv/report.md/report.json (relatorio). O JSON unico traz report e receipt (caminhos) ao fim do estagio relatorio.
 #
 # Exits (classe do id em scripts/lib/errors/accept.tsv; tabela em scripts/lib/errors.R):
-#   0 ok; 2 contract.accept_bad_args | contract.accept_bad_config | contract.accept_out_forbidden | contract.accept_disk_low;
+#   0 ok; 2 contract.accept_bad_args | contract.accept_bad_config | contract.accept_out_forbidden | contract.accept_disk_low |
+#   contract.accept_report_input;
 #   6 bundle.accept_image_build | bundle.accept_image_smoke; 9 integrity.accept_residue | integrity.accept_store_changed;
 #   12 repro.accept_delta_nonzero | repro.accept_unexpected_error | repro.accept_infer_not_faster; 14 partial.accept_units_failed; 130 INT; 143 TERM. (runtime.accept_oom_killed e o error_id de uma unidade rc 137 em index.tsv.)
 #
@@ -41,13 +50,13 @@ PC_SELF_DIR="$(dirname "$PC_SELF")"
 PC_ACCEPT_DOCKERFILE="$PC_SELF_DIR/accept_docker.Dockerfile"
 PC_ACCEPT_REF_REV="de24021"
 PC_TOOLS="$PC_SELF_DIR"
-PC_ACCEPT_STAGES_IMPL="smoke aceite"
 
 declare -A RUNTIME_ID=()
 declare -A BUNDLE_PATH=()
 declare -A BUNDLE_SHA=()
 STAGE="all"; OUT=""; DATA=""; CONFIG=""; REF_BUNDLE=""; NEW_BUNDLE=""; JOBS=""; RESUME=0; FORMAT="json"
-MIN_FREE_DOCKER=""; MIN_FREE_OUT=""; MEMORY=8g; CPUS=1; OVERLAY_MDIRS=""
+MIN_FREE_DOCKER=""; MIN_FREE_OUT=""; MEMORY=8g; CPUS=1; OVERLAY_MDIRS=""; RECEIPTS_DIR=""
+REPORT_PATH=""; RECEIPT_PATH=""; REPORT_ID=""; STATE_FILE=""; STAGE_RC=0
 DELTA_MAX=""; DELTA_KEYS=""; UNITS_RC=0
 RUN_ID=""; BASE=""; BASE_PREEXISTENTE=0; DROOT=""; REPO=""
 CLEANED=0; TRAP_ARMED=0; OUT_READY=0; FINAL_ID=""; FINAL_RC=0; FINAL_MSG=""
@@ -80,13 +89,14 @@ pc_accept_emit() {
   jq -nc --arg run_id "$RUN_ID" --arg stage "$STAGE" --arg ir "$imgref" --arg in "$imgnew" --arg rr "$ridref" --arg rn "$ridnew" \
     --argjson ut "$UNITS_TOTAL" --argjson uo "$UNITS_OK" --argjson ur "$UNITS_REFUSED" --argjson uf "$UNITS_FAILED" \
     --argjson c "$RES_C" --argjson i "$RES_I" --argjson k "$RES_K" --argjson su "$STORE_UNCHANGED" \
-    --arg verdict "$verdict" --arg eid "$eid" --arg dm "$DELTA_MAX" --arg dk "$DELTA_KEYS" \
+    --arg verdict "$verdict" --arg eid "$eid" --arg dm "$DELTA_MAX" --arg dk "$DELTA_KEYS" --arg rpt "$REPORT_PATH" --arg rcp "$RECEIPT_PATH" \
     '{run_id:$run_id, stage:$stage,
       images:{ref:(if $ir=="" then null else $ir end), new:(if $in=="" then null else $in end)},
       runtime_id:{ref:(if $rr=="" then null else $rr end), new:(if $rn=="" then null else $rn end)},
       units:{total:$ut, ok:$uo, refused:$ur, failed:$uf},
       delta:(if $dm=="" then null else {max_abs:($dm|tonumber), keys_only:($dk|tonumber)} end),
-      residue:{containers:$c, images:$i, cache:$k}, store_unchanged:$su, report:null, receipt:null,
+      residue:{containers:$c, images:$i, cache:$k}, store_unchanged:$su,
+      report:(if $rpt=="" then null else $rpt end), receipt:(if $rcp=="" then null else $rcp end),
       verdict:$verdict, error_id:(if $eid=="" then null else $eid end)}'
 }
 
@@ -112,7 +122,7 @@ pc_accept_parse_args() {
     a="$1"
     case "$a" in
       --resume) RESUME=1; shift; continue ;;
-      --stage|--out|--config|--data|--ref-bundle|--new-bundle|--jobs|--format|--min-free-gb-docker|--min-free-gb-out) ;;
+      --stage|--out|--config|--data|--ref-bundle|--new-bundle|--jobs|--format|--min-free-gb-docker|--min-free-gb-out|--receipts-dir) ;;
       *) pc_accept_die contract.accept_bad_args "opcao desconhecida: $a" ;;
     esac
     [ $# -ge 2 ] || pc_accept_die contract.accept_bad_args "$a sem valor"
@@ -121,6 +131,7 @@ pc_accept_parse_args() {
       --stage) STAGE="$v" ;; --out) OUT="$v" ;; --config) CONFIG="$v" ;; --data) DATA="$v" ;;
       --ref-bundle) REF_BUNDLE="$v" ;; --new-bundle) NEW_BUNDLE="$v" ;; --jobs) JOBS="$v" ;; --format) FORMAT="$v" ;;
       --min-free-gb-docker) MIN_FREE_DOCKER="$v" ;; --min-free-gb-out) MIN_FREE_OUT="$v" ;;
+      --receipts-dir) RECEIPTS_DIR="$v" ;;
     esac
   done
   case "$STAGE" in smoke|aceite|medicao|relatorio|all) ;; *) pc_accept_die contract.accept_bad_args "--stage invalido: $STAGE" ;; esac
@@ -134,10 +145,6 @@ pc_accept_parse_args() {
   if [ -n "$REF_BUNDLE$NEW_BUNDLE" ]; then
     [ -n "$REF_BUNDLE" ] && [ -n "$NEW_BUNDLE" ] || pc_accept_die contract.accept_bad_args "--ref-bundle e --new-bundle andam juntos"
   fi
-  case " $PC_ACCEPT_STAGES_IMPL " in
-    *" $STAGE "*) ;;
-    *) pc_accept_die contract.accept_bad_args "estagio $STAGE ainda nao implementado" ;;
-  esac
 }
 
 # flag > YAML > default embutido. Sem --config e com estagio smoke nao ha leitura de YAML (defaults); nos demais estagios o YAML
@@ -545,6 +552,169 @@ pc_accept_stage_aceite() {
   return 0
 }
 
+# --- estagio medicao ------------------------------------------------------------------------------------------------------
+# $1 = unit; 0 = pular (ultima linha em index.tsv com rc 0, runtime_id da imagem atual e sha256 dos LONGs recalculado igual ao gravado).
+# Divergencia: apaga units/<unit>/state e devolve 1 (a unidade roda de novo).
+pc_accept_resume_skip() {
+  local u="$1" row ver rid rc longs sha now
+  row="$(awk -F'\t' -v u="$u" '$1==u' "$OUT/index.tsv" 2>/dev/null | tail -n 1)"
+  [ -n "$row" ] || return 1
+  IFS=$'\t' read -r _ ver _ rid _ _ _ rc _ _ longs sha <<< "$row"
+  [ "$rc" = 0 ] && [ "$rid" = "${RUNTIME_ID[$ver]:-}" ] && [ "${longs:--}" != - ] || return 1
+  now="$(cd "$OUT/units/$u" 2>/dev/null && printf '%s\n' "${longs//,/$'\n'}" | xargs -d '\n' sha256sum 2>/dev/null | sha256sum | cut -c1-64)" || now=""
+  [ -n "$now" ] && [ "$now" = "$sha" ] && return 0
+  rm -rf "$OUT/units/$u/state"
+  return 1
+}
+
+# totais de <units.tsv> pela ULTIMA linha de cada unidade em index.tsv: UNITS_TOTAL/OK/REFUSED/FAILED (sem linha = failed)
+pc_accept_units_totals() {
+  local tsv="$1"
+  read -r UNITS_TOTAL UNITS_OK UNITS_REFUSED UNITS_FAILED < <(awk -F'\t' '
+    NR==FNR { if (FNR>1) want[$1]=1; next }
+    FNR>1 && ($1 in want) { rc[$1]=$8; eid[$1]=$9 }
+    END { t=0; o=0; r=0; f=0
+      for (u in want) { t++
+        if (!(u in rc)) f++
+        else if (rc[u]==0) o++
+        else if (rc[u]>=2 && rc[u]<=15 && eid[u]!="-") r++
+        else f++ }
+      print t, o, r, f }' "$tsv" "$OUT/index.tsv" 2>/dev/null || echo "0 0 0 0")
+}
+
+pc_accept_stage_medicao() {
+  local tsv="$OUT/units.medicao.tsv" pend="$OUT/units.medicao.pending.tsv" q="$OUT/queue.medicao.tsv" line unit
+  Rscript --vanilla "$PC_TOOLS/accept_cases.R" --config "$CONFIG" --stage medicao --out "$tsv" >/dev/null \
+    || pc_accept_die contract.accept_bad_config "accept_cases.R recusou $CONFIG"
+  head -n 1 "$tsv" > "$pend"
+  while IFS= read -r line; do
+    unit="${line%%$'\t'*}"
+    [ "$unit" = unit ] && continue
+    if [ "$RESUME" = 1 ] && pc_accept_resume_skip "$unit"; then continue; fi
+    rm -rf "$OUT/units/$unit/state"
+    printf '%s\n' "$line" >> "$pend"
+  done < "$tsv"
+  pc_accept_prepare_all "$pend" "$q"
+  UNITS_RC=0
+  pc_accept_queue "$q" "$JOBS" || UNITS_RC=$?
+  pc_accept_units_totals "$tsv"
+  if [ "$UNITS_FAILED" -gt 0 ]; then pc_accept_die partial.accept_units_failed "unidades failed na medicao (veja $OUT/index.tsv)"; fi
+  return 0
+}
+
+# --- veredito por estagio, relatorio e recibo ---------------------------------------------------------------------------------
+# stages.tsv (stage<TAB>rc<TAB>error_id): uma linha por estagio; 255 = nao concluiu
+pc_accept_stage_mark() {
+  local s="$1" rc="$2" id="${3:--}" f="$OUT/stages.tsv" t
+  t="$(mktemp "$OUT/.stages-XXXXXX")"
+  { [ -f "$f" ] && awk -F'\t' -v s="$s" '$1!=s' "$f"; printf '%s\t%s\t%s\n' "$s" "$rc" "$id"; } > "$t" || true
+  mv -f "$t" "$f"
+}
+
+# 0 se o estagio $1 terminou com rc 0 segundo stages.tsv
+pc_accept_stage_green() { awk -F'\t' -v s="$1" '$1==s && $2==0{f=1} END{exit f?0:1}' "$OUT/stages.tsv" 2>/dev/null; }
+
+# estado do estagio rodado em subshell (todas as variaveis que o JSON unico usa), gravado pelo trap EXIT do subshell
+pc_accept_dump_state() {
+  local rc=$? v
+  for v in UNITS_TOTAL UNITS_OK UNITS_REFUSED UNITS_FAILED DELTA_MAX DELTA_KEYS FINAL_ID; do printf '%s=%q\n' "$v" "${!v}"; done > "$STATE_FILE"
+  printf 'STAGE_RC=%s\n' "$rc" >> "$STATE_FILE"
+}
+
+pc_accept_isolated() {
+  trap pc_accept_dump_state EXIT
+  set -e
+  "$1"
+}
+
+# roda o estagio $1 em subshell de fundo (o trap de sinal do pai segue vivo), recarrega o estado e devolve o rc em STAGE_RC
+pc_accept_run_isolated() {
+  local st="$1"
+  STATE_FILE="$(mktemp "$OUT/.state-XXXXXX")"
+  FINAL_ID=""
+  set +e
+  pc_accept_bg pc_accept_isolated "pc_accept_stage_$st"
+  set -e
+  # shellcheck disable=SC1090
+  source "$STATE_FILE"
+  rm -f "$STATE_FILE"
+}
+
+pc_accept_write_receipt() {   # $1 = PASS|FAIL
+  local dir="${RECEIPTS_DIR:-$REPO/tests/.receipts}" bp="${BUNDLE_PATH[new]:-}" rid="${RUNTIME_ID[new]:--}"
+  [ -n "$bp" ] && [ -f "$bp" ] || return 1
+  RECEIPT_PATH="$(Rscript --vanilla -e 'a <- commandArgs(TRUE); source(a[1])
+    cat(pc_receipt_write(gate = "docker-accept", bundle_path = a[2], platform = "linux-x86_64", resultado = a[3],
+                         runtime_id = if (a[4] %in% c("", "-")) NULL else a[4], dir = a[5]), "\n", sep = "")' \
+    "$PC_TOOLS/receipts.R" "$bp" "$1" "$rid" "$dir" 2>/dev/null | tail -n 1)" || RECEIPT_PATH=""
+  return 0
+}
+
+# relatorio e recibo; NAO sai em falha do relatorio (o recibo FAIL precisa ser gravado): deixa o id em REPORT_ID
+pc_accept_stage_relatorio() {
+  local rc=0 res="$OUT/report.result.json" verdict=PASS s
+  REPORT_ID=""
+  Rscript --vanilla "$PC_TOOLS/accept_report.R" --out-dir "$OUT" --data "$DATA" > "$res" 2> "$OUT/report.stderr.log" || rc=$?
+  cat "$OUT/report.stderr.log" >&2
+  case "$rc" in
+    0) REPORT_PATH="$OUT/report.tsv" ;;
+    2) REPORT_ID=contract.accept_report_input ;;
+    9) REPORT_ID=integrity.accept_store_changed ;;
+    *) REPORT_ID=contract.accept_bad_args ;;
+  esac
+  pc_accept_cleanup   # residuo ANTES do recibo: o PASS exige residuo zero e store intacto
+  for s in smoke aceite medicao; do pc_accept_stage_green "$s" || verdict=FAIL; done
+  [ -z "$REPORT_ID" ] || verdict=FAIL
+  [ $((RES_C + RES_I + RES_K)) -eq 0 ] && [ "$STORE_UNCHANGED" = true ] || verdict=FAIL
+  pc_accept_write_receipt "$verdict"
+  pc_accept_stage_mark relatorio "$([ -z "$REPORT_ID" ] && echo 0 || echo 1)" "${REPORT_ID:--}"
+  return 0
+}
+
+# smoke -> aceite -> medicao -> relatorio. Estagio falho nao interrompe o relatorio; smoke falho pula aceite e medicao.
+pc_accept_all() {
+  local st first_id="" first_rc=0 t=0 o=0 r=0 f=0 skip=0
+  for st in smoke aceite medicao; do
+    if [ "$skip" = 1 ]; then pc_accept_stage_mark "$st" 255 -; continue; fi
+    pc_accept_stage_mark "$st" 255 incompleto
+    pc_accept_run_isolated "$st"
+    if [ "$STAGE_RC" = 0 ]; then
+      pc_accept_stage_mark "$st" 0 -
+    else
+      pc_accept_stage_mark "$st" "$STAGE_RC" "${FINAL_ID:--}"
+      if [ -z "$first_id" ]; then first_id="${FINAL_ID:-contract.accept_bad_args}"; first_rc="$STAGE_RC"; fi
+      [ "$st" = smoke ] && skip=1
+    fi
+    t=$((t + UNITS_TOTAL)); o=$((o + UNITS_OK)); r=$((r + UNITS_REFUSED)); f=$((f + UNITS_FAILED))
+  done
+  UNITS_TOTAL=$t; UNITS_OK=$o; UNITS_REFUSED=$r; UNITS_FAILED=$f
+  FINAL_ID=""
+  pc_accept_stage_mark relatorio 255 incompleto
+  pc_accept_stage_relatorio
+  [ -n "$first_id" ] || first_id="$REPORT_ID"
+  [ -z "$first_id" ] || pc_accept_die "$first_id" "estagio falhou (veja $OUT/stages.tsv e $OUT/report.md)"
+  return 0
+}
+
+# estagio unico: marca 255 antes e 0 depois (falha deixa 255 em stages.tsv)
+pc_accept_single() {
+  pc_accept_stage_mark "$1" 255 incompleto
+  "pc_accept_stage_$1"
+  pc_accept_stage_mark "$1" 0 -
+}
+
+# standalone relatorio: bundles, runtime_id e RUN_ID do run.json do estagio anterior (nenhum objeto Docker e criado)
+pc_accept_load_run_json() {
+  local j="$OUT/run.json" ver
+  [ -f "$j" ] || pc_accept_die contract.accept_bad_args "run.json ausente em $OUT (rode antes o estagio medicao)"
+  RUN_ID="$(jq -r '.run_id' "$j")"
+  for ver in ref new; do
+    BUNDLE_PATH[$ver]="$(jq -r ".bundles.$ver.path" "$j")"
+    BUNDLE_SHA[$ver]="$(jq -r ".bundles.$ver.sha256" "$j")"
+    RUNTIME_ID[$ver]="$(jq -r ".runtime_id.$ver" "$j")"
+  done
+}
+
 # --- despacho -----------------------------------------------------------------------------------------------------------
 pc_accept_main() {
   RUN_ID="$(pc_accept_run_id)"
@@ -554,14 +724,18 @@ pc_accept_main() {
   trap 'pc_accept_on_signal INT' INT
   trap pc_accept_on_exit EXIT
   TRAP_ARMED=1
-  pc_accept_bundles
-  pc_accept_build_image ref
-  pc_accept_build_image new
-  pc_accept_write_run_json
+  if [ "$STAGE" = relatorio ]; then
+    pc_accept_load_run_json
+  else
+    pc_accept_bundles
+    pc_accept_build_image ref
+    pc_accept_build_image new
+    pc_accept_write_run_json
+  fi
   case "$STAGE" in
-    smoke) pc_accept_stage_smoke ;;
-    aceite) pc_accept_stage_aceite ;;
-    medicao|relatorio|all) pc_accept_die contract.accept_bad_args "estagio $STAGE ainda nao implementado" ;;
+    smoke|aceite|medicao) pc_accept_single "$STAGE" ;;
+    relatorio) pc_accept_stage_relatorio; [ -z "$REPORT_ID" ] || pc_accept_die "$REPORT_ID" "relatorio falhou (veja $OUT/report.stderr.log)" ;;
+    all) pc_accept_all ;;
   esac
   exit 0
 }
