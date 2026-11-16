@@ -14,15 +14,18 @@ for (ph in c("train", "weights", "run", "rerun", "weights00", "run00")) {
 ## Membros da topologia real: a contagem e as siglas vem de prevcarga_members(), nunca de literal.
 E2E_MEMBERS <- pc_source_lib(c("errors", "topology"))$prevcarga_members(root = pc_root())
 E2E_N <- nrow(E2E_MEMBERS)
+## celulas origin_scoped (treinam dentro do forecast): derivadas do split de cada membro, nunca de literal
+E2E_SCOPED <- sum(vapply(E2E_MEMBERS$mdir, function(m)
+  identical(pc_source_lib(c("errors", "config", "topology"))$prevcarga_model_spec(m, root = pc_root())$split, "origin_scoped"), NA))
 skip_if_stopped <- function(ph) if (is.null(PH[[ph]])) skip(paste("fase", ph, "nao rodou (prevcarga.m6e_stop)"))
 ok <- function(ph) { r <- PH[[ph]]; expect_identical(r$status, 0L, info = paste(utils::tail(r$log, 30), collapse = "\n")); r$json }
 
-test_that("[e2e] sem pesos da combina a 1a rodada sai pela media simples (EQW, F3.4) e as 6 celulas origin_scoped treinaram dentro do forecast, 1x cada", {
+test_that("[e2e] sem pesos da combina a 1a rodada sai pela media simples (EQW, F3.4) e as celulas origin_scoped (derivadas dos splits) treinaram dentro do forecast, 1x cada", {
   skip_if_stopped("train")
   j <- ok("train")
   expect_null(j$pre_error$id)                                      # nao aborta mais: combina sem pesos = media simples
   expect_true(isTRUE(j$pre_error$eqw))
-  expect_identical(j$trained_in_forecast, 6L)                      # HW, LIN_MED/MAX/MXMN, RGD_MED/MAX
+  expect_identical(j$trained_in_forecast, E2E_SCOPED)                      # HW, LIN_MED/MAX/MXMN, RGD_MED/MAX
   skip_if_stopped("weights")
   w <- ok("weights")
   expect_identical(w$trained_in_weights, 0L)                       # o setup dos pesos so reusou os artefatos de O
