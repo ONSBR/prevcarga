@@ -48,9 +48,9 @@ O método (por que o harness só trunca o tempo, a matriz de compatibilidade e o
 `plan` monta a matriz de células e imprime as contagens. Não treina, não infere e não cria arquivo nem diretório. `backtest --dry-run` chama o mesmo handler e devolve a mesma saída.
 
 <Terminal title="prevcarga — bash" lines={[
-  {type:'cmd', text:'prevcarga plan --data=./deck --origin=2025-01-01..2025-01-31'},
-  {type:'cmd', text:'prevcarga plan --data=./deck --origin=2025-01-01..2025-01-31 --corte=08:00,09:30 --model=lgbm'},
-  {type:'cmd', text:'prevcarga backtest --data=./deck --origin=2025-01-01..2025-01-31 --dry-run --format=json'}
+  {type:'cmd', text:'prevcarga plan --data-train=./deck --origin=2025-01-01..2025-01-31'},
+  {type:'cmd', text:'prevcarga plan --data-train=./deck --origin=2025-01-01..2025-01-31 --corte=08:00,09:30 --model=lgbm'},
+  {type:'cmd', text:'prevcarga backtest --data-train=./deck --origin=2025-01-01..2025-01-31 --dry-run --format=json'}
 ]} />
 
 ### Flags
@@ -66,7 +66,7 @@ O método (por que o harness só trunca o tempo, a matriz de compatibilidade e o
 
 A janela `A..B` só é aceita em `plan` e `backtest`. Nos demais verbos, `--origin` recebe uma única data, e uma janela é <Tag>config.bad_origin</Tag> (exit 8). A janela é inclusiva nas duas pontas: `2025-01-01..2025-01-31` são 31 origens.
 
-`plan` exige o deck (`--data` ou `data_dir` do `config.yaml`). Ele lê o manifest para o fuso e o rótulo da carga e calcula a identidade do deck, que entra na chave de cada célula. Esse cálculo faz o sha256 de todos os parquet de `load`, `weather/observed`, `weather/forecast` e `auxiliary/holidays`, por isso o `plan` não é instantâneo num store grande.
+`plan` exige o deck (`--data-train` ou `data_train_dir` do `config.yaml`). Ele lê o manifest para o fuso e o rótulo da carga e calcula a identidade do deck, que entra na chave de cada célula. Esse cálculo faz o sha256 de todos os parquet de `load`, `weather/observed`, `weather/forecast` e `auxiliary/holidays`, por isso o `plan` não é instantâneo num store grande.
 
 ### O que a matriz contém
 
@@ -101,16 +101,16 @@ O protocolo só decide quando treinar. A compatibilidade com a classe de split d
 6. Rode `plan` com o protocolo pretendido antes do `backtest`: a incompatibilidade aborta no plano, antes de criar qualquer arquivo.
 
 <Terminal title="prevcarga — bash" lines={[
-  {type:'cmd', text:'prevcarga plan --data=./deck --origin=2025-01-01..2025-01-31 --model=random-forest,lgbm --protocol=fixed'},
-  {type:'cmd', text:'prevcarga backtest --data=./deck --origin=2025-01-01..2025-01-31 --model=random-forest,lgbm --protocol=fixed'}
+  {type:'cmd', text:'prevcarga plan --data-train=./deck --origin=2025-01-01..2025-01-31 --model=random-forest,lgbm --protocol=fixed'},
+  {type:'cmd', text:'prevcarga backtest --data-train=./deck --origin=2025-01-01..2025-01-31 --model=random-forest,lgbm --protocol=fixed'}
 ]} />
 
 ## Executar, retomar e paralelizar
 
 <Terminal title="prevcarga — bash" lines={[
-  {type:'cmd', text:'prevcarga backtest --data=./deck --origin=2025-01-01..2025-01-31'},
-  {type:'cmd', text:'prevcarga backtest --data=./deck --origin=2025-01-01..2025-01-31 --resume --keep-going --jobs=4'},
-  {type:'cmd', text:'prevcarga backtest --data=./deck --origin=2025-01-01..2025-01-31 --resume --break-lock'}
+  {type:'cmd', text:'prevcarga backtest --data-train=./deck --origin=2025-01-01..2025-01-31'},
+  {type:'cmd', text:'prevcarga backtest --data-train=./deck --origin=2025-01-01..2025-01-31 --resume --keep-going --jobs=4'},
+  {type:'cmd', text:'prevcarga backtest --data-train=./deck --origin=2025-01-01..2025-01-31 --resume --break-lock'}
 ]} />
 
 ### Ciclo de uma execução

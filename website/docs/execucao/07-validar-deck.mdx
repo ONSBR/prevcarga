@@ -44,7 +44,7 @@ O verbo aceita as flags globais da CLI e acrescenta só `--area`. As que importa
 
 | Flag | Efeito na validação |
 |---|---|
-| `--data=<dir>` | Deck a validar. Sem ela e sem `data_dir` no `config.yaml`, o verbo sai com `config.data_dir_missing` (exit 8). |
+| `--data-inference=<dir>` (ou `--data-train=<dir>`) | Deck a validar. Sem ela e sem a chave `data_inference_dir` (ou `data_train_dir`) no `config.yaml`, o verbo sai com `config.data_dir_missing` (exit 8). |
 | `--origin=<data>` | Origem O no formato `YYYY-MM-DD`. Opcional: sem ela, a origem vem do próprio deck (`origin_source` = `deck`). Com ela, `origin_source` = `flag`. |
 | `--area=<a>` | Restringe o escopo a uma área declarada em `config/topology.yaml`. Um subsistema expande para as suas áreas mais o próprio subsistema. Área fora da topologia vira `topology.scope_undeclared` (exit 4). |
 | `--model=<m>` | Restringe os cortes e as janelas a um membro (`mdir`). Modelo fora de `members` vira `topology.scope_undeclared`. |
@@ -55,9 +55,9 @@ O verbo aceita as flags globais da CLI e acrescenta só `--area`. As que importa
 A validação é somente leitura: nenhum arquivo do deck é alterado.
 
 ```bash
-prevcarga validate-deck --data=./deck
-prevcarga validate-deck --data=./deck --area=SECO
-prevcarga validate-deck --data=./deck --origin=2025-11-21 --format=json
+prevcarga validate-deck --data-inference=./deck
+prevcarga validate-deck --data-inference=./deck --area=SECO
+prevcarga validate-deck --data-inference=./deck --origin=2025-11-21 --format=json
 ```
 
 A ordem das checagens (sonda e schema, manifest e rótulo, escopo, cortes, completude, sanidade da carga, janelas, avisos, clima e feriados) e o cálculo do `data_hash` estão em [Validação do deck](/arquitetura/validacao-deck).
@@ -122,7 +122,7 @@ Quando o veredito reprova, o envelope de erro sai com `result: null`. Os finding
 :::
 
 ```bash title="extrair os erros do JSON reprovado"
-prevcarga validate-deck --data=./deck --format=json \
+prevcarga validate-deck --data-inference=./deck --format=json \
   | jq '.error.details.items[] | select(.level == "error") | {area, what, detail}'
 ```
 
@@ -163,7 +163,7 @@ Cada finding tem uma classe. Os avisos (`level` = `warning`) nunca reprovam. Se 
 | 5 | `window` | `window_train_deficit`, `window_infer_deficit` | Histórico menor que `history_days` do `run.yaml` de algum membro. |
 | 8 | `config` | `data_dir_missing`, flag mal formada | Erro de uso. Não há relatório de findings. |
 
-O exit 8 não é um finding. Erros das classes `config` e `runtime` sobem direto, sem relatório. Saem com exit 8, por exemplo: falta de `--data`, `--origin=2026-13-45`, `--weather-cutoff=xyz`, `--format=xml`, `--color=xyz` e `--load-label=xyz`.
+O exit 8 não é um finding. Erros das classes `config` e `runtime` sobem direto, sem relatório. Saem com exit 8, por exemplo: falta do deck (`--data-inference`/`--data-train`), `--origin=2026-13-45`, `--weather-cutoff=xyz`, `--format=xml`, `--color=xyz` e `--load-label=xyz`.
 
 :::tip A precedência esconde classes
 Um deck pode ter erros de várias classes ao mesmo tempo. O exit mostra só a dominante. Corrigir o erro de `contract` pode revelar um exit 3 ou 5 que já estava na tabela. Leia a tabela inteira, não só o exit. Há um caso em que a tabela não mostra tudo: se o defeito de contrato impede ler a carga (dataset `load` ausente, coluna obrigatória faltando, manifest ou rótulo inválido), as checagens de completude e de janela nem rodam.

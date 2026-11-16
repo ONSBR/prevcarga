@@ -73,7 +73,7 @@ sh install.sh --add-to-path
 sh install.sh --bundle prevcarga-<v>-linux-x86_64.tar.zst
 ```
 
-`--add-to-path` acrescenta `<raiz>/bin` ao `PATH` num bloco marcado do `~/.profile`. Para apontar o deck e o estado já na instalação, use `--data-train <dir>`, `--data-inference <dir>`, `--data-artifacts <dir>` e `--state <dir>` (`--data` segue como apelido de `--data-train` por uma versão, com aviso); para outra raiz, `--root <dir>`. Na forma em uma linha, as opções vão depois de `sh -s --`.
+`--add-to-path` acrescenta `<raiz>/bin` ao `PATH` num bloco marcado do `~/.profile`. Para apontar o deck e o estado já na instalação, use `--data-train <dir>`, `--data-inference <dir>`, `--data-artifacts <dir>` e `--state <dir>` (o apelido `--data` foi removido e o instalador o recusa); para outra raiz, `--root <dir>`. Na forma em uma linha, as opções vão depois de `sh -s --`.
 
 ### Windows
 
@@ -93,7 +93,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Bundle prevcarga-<v>-windows-x86_64.zip
 ```
 
-No Windows o `PATH` é ajustado sempre, só no registro do usuário (`HKCU`). Os parâmetros espelham os do Linux: `-Root`, `-DataTrain`, `-DataInference`, `-DataArtifacts` (`-Data` é apelido de `-DataTrain`), `-State`, `-Rollback`, `-Uninstall -Yes`, `-Purge`; na forma em uma linha, vão depois do `-File ...\install.ps1`. O `Tls12` do começo é para o Windows PowerShell 5.1, que nem sempre oferece TLS 1.2 por padrão.
+No Windows o `PATH` é ajustado sempre, só no registro do usuário (`HKCU`). Os parâmetros espelham os do Linux: `-Root`, `-DataTrain`, `-DataInference`, `-DataArtifacts` (o apelido `-Data` foi removido), `-State`, `-Rollback`, `-Uninstall -Yes`, `-Purge`; na forma em uma linha, vão depois do `-File ...\install.ps1`. O `Tls12` do começo é para o Windows PowerShell 5.1, que nem sempre oferece TLS 1.2 por padrão.
 
 > [!NOTE]
 > O bundle vem das GitHub Releases de `onsbr/prevcarga` (tag `v<v>`). Para um espelho, passe `--release-base <url>` (ou `-ReleaseBase`); fora do `github.com` vale o layout `<base>/releases/<v>/`. Sem rede, instale de um arquivo local com `--bundle`. Os artefatos oficiais continuam vindo do repositório online, pelo `prevcarga-sync`.

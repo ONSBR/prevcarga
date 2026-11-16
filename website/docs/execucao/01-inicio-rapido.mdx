@@ -129,19 +129,19 @@ O `doctor` lista uma linha por checagem, com `PASS`, `WARN`, `FAIL` ou `N/A`: o 
 
 ### 3. Apontar o deck
 
-A CLI acha o deck pela chave `data_dir` do `config.yaml` ou pela flag global `--data=<dir>`, que tem precedência. Sem nenhum dos dois, todo verbo que lê dados sai com `config.data_dir_missing` (exit 8). O jeito mais simples é o verbo `set-data-dir`, que grava a chave no `<R>/config.yaml` da instalação (o diretório tem de existir; o caminho vai absoluto):
+A CLI acha o deck pelas chaves `data_train_dir` e `data_inference_dir` do `config.yaml` ou pelas flags globais `--data-train=<dir>` e `--data-inference=<dir>`, que têm precedência. Sem nenhum dos dois, todo verbo que lê dados sai com `config.data_dir_missing` (exit 8). O jeito mais simples é o verbo `set-data-dir`, que grava a chave no `<R>/config.yaml` da instalação (o diretório tem de existir; o caminho vai absoluto):
 
 <Terminal title="prevcarga — bash" lines={[
   {type:'cmd', text:'prevcarga set-data-dir /caminho/do/deck'}
 ]} />
 
-Também dá para passar `--data` ao instalador, que grava a mesma chave, ou editar `<R>/config.yaml`:
+Também dá para passar `--data-train` ao instalador, que grava a mesma chave, ou editar `<R>/config.yaml`:
 
 ```yaml title="<R>/config.yaml"
 schema_version: 1
 format: text
 color: auto
-data_dir: '/caminho/do/deck'
+data_train_dir: '/caminho/do/deck'
 state_dir: '/home/operador/.local/share/prevcarga/state'
 ```
 
@@ -176,7 +176,7 @@ O `validate-deck` é a validação prévia do deck: confere o manifest, o rótul
 
 O `forecast` é a rodada diária, uma origem por chamada. Ele roda a mesma validação do deck antes de tudo (a menos de `--skip-validate`), infere cada membro, treina dentro da rodada os modelos `origin_scoped` que ainda não têm artefato da origem O, combina, reconcilia e exporta. `--origin` é o único flag de data; sem ele, a origem é o último dia de carga do deck. O corte intradiário (`available_until`) sai do próprio dado de carga e o corte de treino de cada modelo sai do descriptor, como em [Os três cortes de data](/metodologia/tres-cortes). Nenhum desses dois cortes é flag: um flag de corte é recusado pelo docopt com `config.usage` (exit 8). A única regra de corte que o operador escolhe é a do clima previsto, pela flag global `--weather-cutoff` ou pela chave `weather_issue_cutoff` (default `available_until`, ADR-0024).
 
-A entrega fica em `<state_dir>/forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/`, onde a data é a origem, o segundo segmento é o `available_until` no fuso do deck e a `versao` é um hash do que entrou na rodada. Ela traz os parquets LONG, o `manifest.json` com o sha256 de cada arquivo e o `run_manifest.json` com a identidade da rodada (`data_hash`, `bundle_id`, `model_versions`). Na saída em texto, a linha `saida:` mostra esse caminho. Os demais flags (`--area`, `--subsistema`, `--incluir-membros`, `--report`, `--jobs`, `--artifacts-dir`) estão em [Rodada diária](/execucao/rodada-diaria).
+A entrega fica em `<state_dir>/forecasts/<AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/`, onde a data é a origem, o segundo segmento é o `available_until` no fuso do deck e a `versao` é um hash do que entrou na rodada. Ela traz os parquets LONG, o `manifest.json` com o sha256 de cada arquivo e o `run_manifest.json` com a identidade da rodada (`data_hash`, `bundle_id`, `model_versions`). Na saída em texto, a linha `saida:` mostra esse caminho. Os demais flags (`--area`, `--subsistema`, `--incluir-membros`, `--report`, `--jobs`, `--data-artifacts`) estão em [Rodada diária](/execucao/rodada-diaria).
 
 ### 6. Verificar contra a inferência oficial
 
