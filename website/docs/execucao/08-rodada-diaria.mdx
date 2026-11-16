@@ -12,6 +12,8 @@ fontes:
   - scripts/lib/dates.R
   - scripts/lib/deck_reader.R
   - scripts/lib/deck_inference.R
+  - scripts/lib/inference_needs.R
+  - scripts/lib/cli/train-models.R
   - scripts/lib/cli/deck-inference.R
   - scripts/lib/errors/deck_inference.tsv
   - scripts/lib/reconcile.R
@@ -35,13 +37,13 @@ fontes:
   - docs/estado/m6-forecast.md
   - docs/estado/export.md
 adrs: [ADR-0023, ADR-0024, ADR-0033, ADR-0039, ADR-0040]
-revisado_em: 2026-11-13
-commit_base: "f2d1734"
+revisado_em: 2026-11-16
+commit_base: "4afdb45"
 ---
 
 <span className="pc-overline">Execução · 3.8</span>
 
-<p className="pc-lead">A rodada diária é o verbo <code>prevcarga forecast</code>: uma origem O, todos os membros em cada folha, combina com pesos congelados, reconciliação até o SIN e uma entrega imutável em <code>forecasts/</code>. O verbo só compõe módulos e não treina nada que seja <code>origin_agnostic</code>, nem pesos, nem k-hat. O escopo (<code>--area</code>, <code>--subsistema</code> ou o SIN inteiro) decide o que entra na entrega. A rodada tolera membro ausente, clima previsto curto e área sem pesos treinados, com aviso classificado. A ordem dos passos é fixa, e toda falha fatal antes do export encerra a rodada sem deixar entrega parcial.</p>
+<p className="pc-lead">A rodada diária é o verbo <code>prevcarga forecast</code>: uma origem O, todos os membros em cada folha, combina com pesos congelados, reconciliação até o SIN e uma entrega imutável em <code>forecasts/</code>. O verbo só infere: lê o deck de inferência (<code>--data-inference</code>) e a raiz de artefatos (<code>--data-artifacts</code>) e não treina nada, nem membros, nem pesos, nem k-hat. O treino acontece antes, em outra cadência (<a href="#ordem-treino---rodada">Ordem treino -&gt; rodada</a>). O escopo (<code>--area</code>, <code>--subsistema</code> ou o SIN inteiro) decide o que entra na entrega. A rodada tolera membro ausente, clima previsto curto e área sem pesos treinados, com aviso classificado. A ordem dos passos é fixa, e toda falha fatal antes do export encerra a rodada sem deixar entrega parcial.</p>
 
 ## Uma origem por rodada
 
@@ -55,10 +57,10 @@ Cada execução de `forecast` atende exatamente uma origem O. Quem itera origens
 O relógio da máquina nunca entra. Não existe flag de corte no `forecast`: o `available_until` sai do próprio dado de carga, e um `--corte` na linha de comando é recusado pela fachada com `config.usage` (exit 8), porque `--corte` é flag de escopo só do `backtest` e do `plan`.
 
 <Terminal lines={[
-  {type: 'cmd', text: 'prevcarga forecast --data-inference=./deck'},
+  {type: 'cmd', text: 'prevcarga forecast --data-inference=./deck-inf --data-artifacts=./artefatos'},
   {type: 'dim', text: '# origem = último dia de carga do deck'},
-  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck --report'},
-  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --subsistema=SECO --jobs=4 --format=json'},
+  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck-inf --data-artifacts=./artefatos --report'},
+  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --subsistema=SECO --jobs=4 --format=json --data-inference=./deck-inf --data-artifacts=./artefatos'},
   {type: 'cmd', text: 'prevcarga forecast --help'},
 ]} />
 
@@ -73,7 +75,8 @@ O relógio da máquina nunca entra. Não existe flag de corte no `forecast`: o `
 | `--report-format=<f>` | `html` | `html` ou `pdf`; outro valor dá exit 8 |
 | `--skip-validate` | desligada | Pula a validação do deck. Os cortes continuam vindo do leitor |
 | `--jobs=<n>` | `1` | Inteiro maior ou igual a 1 (senão `config.bad_type`, exit 8). Com `n` maior que 1, as células (folha × membro) rodam em workers PSOCK; a entrega, a `versao` e o `run_manifest.json` saem idênticos aos da rodada serial |
-| `--data-artifacts=<dir>` | `<state_dir>/artifacts` | Raiz, só de leitura, dos artefatos de membros, combina e k-hat (também `artifacts_dir` no `config.yaml`). Com ela o forecast nunca treina; ver [Pré-condições de estado](#pré-condições-de-estado) |
+| `--data-inference=<dir>` | `data_inference_dir` no `config.yaml` | Deck de inferência da origem O, gerado por `prevcarga deck-inference`; ver [Deck de inferência](#deck-de-inferência-deck-inference) |
+| `--data-artifacts=<dir>` | `<state_dir>/artifacts` | Raiz, só de leitura, dos artefatos de membros, combina e k-hat (também `artifacts_dir` no `config.yaml`). A rodada nunca treina; ver [Pré-condições de estado](#pré-condições-de-estado) |
 
 `prevcarga forecast --help` imprime só a ajuda do verbo: a usage do `forecast`, as opções comuns e as opções que a usage cita, em ASCII e com exit 0. A ajuda global (`prevcarga --help`) segue listando todas as opções de todos os verbos.
 
@@ -98,15 +101,15 @@ A rodada continua quando uma célula (folha × membro) não entrega, em vez de a
 - **Sem pesos treinados.** Se a folha não tem `latest.txt` em `combina/<folha>/`, a combinação é a média simples dos membros presentes (EQW): sai `warning.combina_eqw` (um por folha), o `run.json` e o `result` registram `pesos=EQW` na proveniência da folha e nada é gravado em `combina/`. Pesos inválidos (`latest.txt` ilegível, `weights.rds` alterado) e pesos de outro rótulo de carga ou fuso continuam abortando.
 - **Pesos de outro conjunto de membros.** Se os pesos foram treinados com outro conjunto de membros (um membro novo entrou antes do retreino mensal, ou um saiu), a folha sai em média simples dos presentes (EQW) com `warning.combina_member_set` (um por folha). O `run_manifest.json` e o `run.json` registram `combina_motivo` por folha (`not_trained` ou `member_set`). Retreine com `prevcarga combine --mode=train --area=<a>` para voltar aos pesos.
 - **Célula de pesos stale.** Com pesos treinados mas sem a célula do mês da rodada (retreino mensal atrasado), a combinação usa a célula de maior mês anterior do mesmo lead e corte e emite `warning.combina_stale` (um por folha e mês pedido). O `run_manifest.json` e o `run.json` registram `combina_celula` por folha (`mes_pedido`, `mes_usado`, `stale`). Mês pedido anterior a toda célula aborta `contract.combina_input`; o `combine --mode=apply` não tolera célula ausente.
- (`--data-inference`, `--state`, `--config`, `--format`, `--weather-cutoff`) valem como em qualquer verbo; ver [Configuração](/execucao/configuracao). Sem `--data-inference` nem a chave `data_inference_dir` (ou `data_train_dir`) no `config.yaml`, o verbo para com `config.data_dir_missing` (exit 8).
+As opções comuns (`--data-inference`, `--data-artifacts`, `--state`, `--config`, `--format`, `--weather-cutoff`) valem como em qualquer verbo; ver [Configuração](/execucao/configuracao). Sem `--data-inference` nem a chave `data_inference_dir` (ou `data_train_dir`) no `config.yaml`, o verbo para com `config.data_dir_missing` (exit 8).
 
 ## Deck de inferência (deck-inference)
 
 Antes do `forecast`, a rodada pode ter o seu próprio deck de inferência: um recorte mínimo do deck de treino para a origem O, gerado por `prevcarga deck-inference`. O verbo lê o deck de treino (`--data-train`), as necessidades gravadas nos artefatos (`--data-artifacts`) e grava um deck `kind: inference` em `--out`. Depois, o `forecast` roda sobre ele com `--data-inference`.
 
 <Terminal lines={[
-  {type: 'cmd', text: 'prevcarga deck-inference --origin=2026-10-01 --out=./deck-inferencia'},
-  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck-inferencia'},
+  {type: 'cmd', text: 'prevcarga deck-inference --origin=2026-10-01 --out=./deck-inf --data-train=./deck --data-artifacts=./artefatos'},
+  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck-inf --data-artifacts=./artefatos'},
 ]} />
 
 | Flag | Efeito |
@@ -121,6 +124,40 @@ Antes do `forecast`, a rodada pode ter o seu próprio deck de inferência: um re
 - Área sem nenhuma carga na janela dá `completude.no_load` (exit 3).
 - Duas gerações com as mesmas entradas dão arquivos com o mesmo SHA-256, manifest incluído. A escrita é atômica: o deck sai de `<out>.partial-<hash>` com um único `rename`.
 
+## Ordem treino -> rodada
+
+A rodada diária não treina. Todo artefato que o `forecast` usa já está na raiz `--data-artifacts` quando ele começa: o treino roda antes, em outra execução, e a rodada só infere. Isso separa dois relógios: o treino diário, com dados até O−1, e a rodada no corte do dia, com o deck de inferência.
+
+### O deck de inferência e o anexo de feriados
+
+O `forecast` lê o deck de inferência da origem O, gerado por [`prevcarga deck-inference`](#deck-de-inferência-deck-inference) a partir do deck de treino e das necessidades gravadas nos artefatos. É um recorte de 15 dias, em vez do histórico longo do deck de treino. Quando um membro pede o anexo de feriados, o deck leva o subdeck `holiday_annex/` (`kind: holiday_annex`); a inferência do DESSEM não lê esse anexo. O formato e a validação estão em [Formato do deck](/execucao/formato-deck) e [Validar o deck](/execucao/validar-deck).
+
+### Cadência de cada artefato
+
+| Artefato | Cadência | Quando | Comando | Dados |
+|---|---|---|---|---|
+| HW | diária | 03:00 de O | `prevcarga train-models --data-train=<deck> --data-artifacts=<raiz>` | até O−1 |
+| DESSEM (RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN, LIN_UNI) | diária | 03:00 de O | `prevcarga train-models --data-train=<deck> --data-artifacts=<raiz>` | até O−1 |
+| k-hat | diária | 03:00 de O | `prevcarga reconcile --mode=train --data-train=<deck> --data-artifacts=<raiz>` | até O−1 |
+| RF, LGBM | reaproveitado | sem treino na rodada | os artefatos já publicados na raiz | o treino anterior |
+| Pesos da combina | mensal | todo mês, com a célula do mês seguinte | `prevcarga combine --mode=train`; ver [Combina](/metodologia/combina) | o histórico do mês |
+| Rodada | diária | 08:00 de O (corte do dia) | `prevcarga forecast --data-inference=<deck-inf> --data-artifacts=<raiz>` | deck de inferência de O; sem treino |
+
+Os horários são exemplos: o que vale é a ordem. O treino das 03:00 usa dados até O−1, e a rodada das 08:00 só infere sobre o que o treino deixou na raiz.
+
+<Figura id="FIG-E07" titulo="Ordem treino -> rodada" natureza="Fluxo" fontes={['scripts/lib/cli/train-models.R', 'scripts/lib/cli/deck-inference.R', 'scripts/lib/forecast.R']} adrs={['ADR-0040']}>
+
+```mermaid
+flowchart LR
+  T["03:00 de O: train-models --data-train (HW, DESSEM com LIN_UNI) até O-1"]:::plugin --> K["reconcile --mode=train (k-hat de O)"]:::corte
+  C["todo mês: combine --mode=train (célula do mês seguinte)"]:::plugin -.-> R
+  D["deck-inference (deck de O + anexo de feriados)"]:::fundacao --> R
+  K --> R["08:00 de O: forecast --data-inference --data-artifacts (sem treino)"]:::fundacao
+  A["RF e LGBM reaproveitados"]:::plugin -.-> R
+```
+
+</Figura>
+
 ## Passos da rodada e onde cada falha encerra
 
 `prevcarga_forecast` (`scripts/lib/forecast.R`) roda os passos sempre na mesma ordem. Cada passo chama a função de outro módulo; nenhum cálculo de corte, peso, k-hat ou hora mora no `forecast.R`.
@@ -131,14 +168,15 @@ Antes do `forecast`, a rodada pode ter o seu próprio deck de inferência: um re
 flowchart TB
   F["Flags, --data-inference e topologia"]:::fundacao --> G["Validação do deck e cortes"]:::corte
   G --> P["Plano de folhas"]:::fundacao
-  P --> M["Membros: infer por folha (origin_scoped treina 1 vez)"]:::plugin
+  P --> M["Membros: infer por folha, sem treino"]:::plugin
   M --> C["LONG por membro e combina"]:::fundacao
   C --> R["Reconcile em memória"]:::fundacao
   R --> K["Versão, chave, scratch, run.json e run_manifest.json"]:::fundacao
   K --> E["Export para forecasts/"]:::fundacao
   E --> Q["Relatório (só com --report)"]:::fundacao
   Q --> OK["exit 0"]
-  F -->|"flag inválida, sem deck, subsistema fora"| X8["exit 8 ou 4"]:::erro
+  F -->|"flag inválida, sem --data-inference, subsistema fora"| X8["exit 8 ou 4"]:::erro
+  F -->|"artefato de membro ausente na raiz"| X13a["exit 13"]:::erro
   G -->|"deck reprovado; dia O completo"| X3["exit da classe; 3 no dia O"]:::erro
   P -->|"folha fora da topologia"| X4["exit 4"]:::erro
   M -->|"folha sem nenhum membro"| X3b["exit 3 (sin, subsistema) ou 14 (area)"]:::erro
@@ -157,7 +195,7 @@ flowchart TB
 | Topologia | Resolve o escopo (`--area`, `--subsistema` ou SIN) pela topologia | `topology.area_undeclared` | 4 |
 | Validação do deck | `prevcarga_validate_deck` (salvo `--skip-validate`) e `prevcarga_resolve_cuts`. Deck reprovado aborta com o primeiro erro da classe dominante, a mesma regra do [validate-deck](/execucao/validar-deck) | `<classe>.<what>` do achado; `completude.origin_day_gap`; `completude.forecast_origin_day_complete` | o da classe do achado; 3 nos dois de completude |
 | Plano | Folhas do escopo e o que a reconciliação fecha: `area` não fecha nada, `subsistema` fecha `S`, `sin` fecha tudo | `topology.area_undeclared` | 4 |
-| Membros | `prevcarga_infer_cell` por célula (folha × membro), em serial ou com `--jobs`; `origin_scoped` sem artefato de O treina antes, salvo com `--data-artifacts`. Célula que falha vira membro ausente | `warning.forecast_member_absent`, `warning.forecast_weather_horizon_cut`; sem nenhum membro na folha, `completude.forecast_leaf_no_member` | 3 |
+| Membros | Pré-checagem do artefato de cada membro na raiz (só leitura) e `prevcarga_infer_cell` por célula (folha × membro), em serial ou com `--jobs`. Nada treina. Célula que falha por outro motivo vira membro ausente | `state.inference_artifact_missing` (artefato ausente, aborta); `warning.forecast_member_absent`, `warning.forecast_weather_horizon_cut`; sem nenhum membro na folha, `completude.forecast_leaf_no_member` | 13 ou 3 |
 | LONG e combina | `prevcarga_build_long` por membro, alinhamento, painel e `prevcarga_combina_apply` com os pesos congelados; sem pesos, média simples com `warning.combina_eqw`; pesos de outro conjunto de membros, média simples com `warning.combina_member_set`; célula do mês ausente (retreino mensal atrasado), a mais recente com `warning.combina_stale` | `contract.combina_input`, `contract.combina_artifact_mismatch` | 2 |
 | Reconcile | `prevcarga_reconcile_apply` uma vez, em memória, só nas folhas cobertas | `honesty.khat_after_origin` (15); `state.khat_missing` (13); `contract.*` (2) | 15, 13 ou 2 |
 | Chave e scratch | `prevcarga_forecast_versao`, `prevcarga_export_key`, scratch recriado, `run.json` e `run_manifest.json` | `io.out_unwritable` (scratch não criado) | 6 |
@@ -168,14 +206,14 @@ flowchart TB
 ### O que já está em disco quando a rodada falha
 
 - **Até o reconcile, inclusive**, nada é gravado em `forecasts/` nem em `scratch/`. Um erro do reconcile (15, 13 ou 2) não deixa diretório de entrega.
-- A exceção é o registry: um membro `origin_scoped` sem artefato de O treina no passo de membros (sem `--data-artifacts`) e grava o artefato antes de qualquer falha posterior. A próxima rodada da mesma origem o reutiliza.
+- O `forecast` nunca grava na raiz de artefatos: nada de treino, nenhum artefato novo, mesmo quando a rodada falha. Quem grava é o `train-models`, antes da rodada.
 - **No export**, o scratch `<state_dir>/scratch/<run_id>/` já existe. A cópia vai para um staging no mesmo volume e só vira a chave final por `file.rename`; em erro, o staging é removido e nenhuma entrega parcial fica.
 - **No relatório**, a entrega já foi publicada e não é desfeita.
 
 Os erros chegam no formato do [contrato de erros](/arquitetura/erros-exit). Exemplo da recusa do dia O completo, impresso em `stderr` no modo texto:
 
 <Terminal lines={[
-  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck'},
+  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck-inf --data-artifacts=./artefatos'},
   {type: 'err', text: 'prevcarga: erro [completude] (exit 3)'},
   {type: 'out', text: 'o que: o dia da origem esta completo no deck (available_until >= O+1 00:00): nao ha corte entregavel da combina'},
   {type: 'out', text: 'onde: 2026-10-01'},
@@ -208,18 +246,18 @@ Na rodada das 00h o deck termina no intervalo O−1 23:30–24:00, então passe 
 
 ## Pré-condições de estado
 
-O `forecast` lê do diretório de estado (`<state_dir>`: `--state`, ou `state_dir` no `config.yaml`, ou `.state` sob a raiz do pacote). Antes de rodar uma origem O, o estado deve ter:
+O `forecast` lê o deck de inferência e, do diretório de estado (`<state_dir>`: `--state`, ou `state_dir` no `config.yaml`, ou `.state` sob a raiz do pacote). Antes de rodar uma origem O, o estado deve ter:
 
 | Artefato | Quem produz | Onde fica | Sem ele |
 |---|---|---|---|
-| Artefato de cada membro `origin_agnostic` (RF, LGBM) em cada folha | `prevcarga train-models` ou a sincronização dos artefatos oficiais ([prevcarga-sync](/execucao/sync)) | `<state_dir>/artifacts/<modelo>/<folha>/v_<hash>/` | A célula aborta com `state.artifact_missing` e vira membro ausente (`warning.forecast_member_absent`). O forecast nunca treina esses membros |
-| Artefato dos membros `origin_scoped` (HW, RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN, LIN_UNI) | O próprio forecast, se não houver artefato da origem O | `<state_dir>/artifacts/<modelo>/<exogena>/<folha>/v_<hash>/` (sem `<exogena>` no HW) | Treina uma vez por célula, dentro do passo `infer`. Com `--data-artifacts` não treina: a célula vira membro ausente (`state.artifact_missing`) |
-| Pesos da combina de cada folha, com o corte HHMM do `available_until` da rodada | `prevcarga combine --mode=train`, refeito uma vez por mês | `<state_dir>/artifacts/combina/<folha>/` | Opcional: sem `latest.txt`, a folha usa a média simples (EQW) com `warning.combina_eqw`. Com pesos mas sem o corte da rodada, `contract.combina_input` (exit 2) |
-| Perfil k-hat de cada subsistema fechado, ajustado na própria origem O | `prevcarga reconcile --mode=train --origin=O` | `<state_dir>/artifacts/reconcile/<ss>/` | `state.khat_missing` (exit 13) se ausente ou de origem anterior; `honesty.khat_after_origin` (exit 15) se de origem posterior |
+| Artefato de cada membro `origin_agnostic` (RF, LGBM) em cada folha | `prevcarga train-models` ou a sincronização dos artefatos oficiais ([prevcarga-sync](/execucao/sync)) | `<artefatos>/<modelo>/<folha>/v_<hash>/` | Com o deck de inferência, a pré-checagem aborta a rodada com `state.inference_artifact_missing` (exit 13). O forecast nunca treina esses membros |
+| Artefato dos membros `origin_scoped` (HW, RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN, LIN_UNI), com a versão da origem O | `prevcarga train-models` todo dia (ex.: 03:00), com `--data-train` e `--data-artifacts` e dados até O−1 | `<artefatos>/<modelo>/<exogena>/<folha>/v_<hash>/` (sem `<exogena>` no HW) | A rodada nunca treina. Com `--data-inference`, a falta (por exemplo, LIN_UNI sem a versão de O) aborta a pré-checagem com `state.inference_artifact_missing` (exit 13), sem tocar na raiz. Quando a raiz é apontada e o artefato some depois da pré-checagem, a célula vira membro ausente (`state.artifact_missing`, `warning.forecast_member_absent`) |
+| Pesos da combina de cada folha, com o corte HHMM do `available_until` da rodada | `prevcarga combine --mode=train`, refeito uma vez por mês | `<artefatos>/combina/<folha>/` | Opcional: sem `latest.txt`, a folha usa a média simples (EQW) com `warning.combina_eqw`. Com pesos mas sem o corte da rodada, `contract.combina_input` (exit 2) |
+| Perfil k-hat de cada subsistema fechado, ajustado na própria origem O | `prevcarga reconcile --mode=train --origin=O` (junto do treino diário) | `<artefatos>/reconcile/<ss>/` | `state.khat_missing` (exit 13) se ausente ou de origem anterior; `honesty.khat_after_origin` (exit 15) se de origem posterior |
 
-Os artefatos de membros, da combina e do k-hat saem de uma raiz só: `<state_dir>/artifacts`, ou a pasta de `--data-artifacts` (só leitura; o forecast não escreve nela, e `<state_dir>/artifacts` nem é criado). O `result` e o `run.json` trazem `artefatos` com a `raiz` e o `modo` (`registry` ou `apontado`).
+Os artefatos de membros, da combina e do k-hat saem de uma raiz só: a pasta de `--data-artifacts` (ou `<state_dir>/artifacts`, sem a flag). A raiz é só de leitura: o forecast não escreve nela. O `result` e o `run.json` trazem `artefatos` com a `raiz` e o `modo` (`registry` ou `apontado`).
 
-A classe de split de cada membro vem do `run.yaml` do modelo (ADR-0023); a lista de membros vem de `config/topology.yaml`. O artefato `origin_scoped` da origem O é achado pelo campo `origin` do `run_manifest.json` de cada versão do registry, do próprio estado ou sincronizado. Um deck novo do mesmo O, com `available_until` maior, reutiliza o mesmo artefato; só o infer muda.
+A classe de split de cada membro vem do `run.yaml` do modelo (ADR-0023); a lista de membros vem de `config/topology.yaml`. O artefato `origin_scoped` da origem O é achado pelo campo `origin` do `run_manifest.json` de cada versão da raiz de artefatos, treinada ou sincronizada. Um deck novo do mesmo O, com `available_until` maior, reutiliza o mesmo artefato; só o infer muda.
 
 A política do k-hat é `khat_origin == O` sempre (`prevcarga_khat_check_policy`, em `reconcile.R`): o perfil é reajustado a cada origem, sem reuso de perfil de outra origem. Um perfil gravado com outro `load_label` ou outro fuso dá `contract.khat_convention` (exit 2).
 
@@ -290,7 +328,7 @@ O relatório só descreve a rodada. Ele não lê a verdade do painel e não emit
 Se o relatório falhar, a entrega já publicada fica como está e o verbo sai com `partial.report_failed` (exit 14). No modo JSON o `result` completo vem no envelope de erro, com `report.status` = `failed`. No modo texto só a mensagem de erro é impressa:
 
 <Terminal lines={[
-  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck --report'},
+  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck-inf --data-artifacts=./artefatos --report'},
   {type: 'err', text: 'prevcarga: erro [partial] (exit 14)'},
   {type: 'out', text: 'o que: entrega publicada, mas o relatorio falhou'},
   {type: 'out', text: 'onde: prevcarga_forecast'},
@@ -313,13 +351,13 @@ A fachada injeta um relógio (`proc.time`) e a rodada mede cada passo. O tempo v
 O que cada passo cobre:
 
 - `validate-deck`: validação e resolução dos cortes;
-- `infer`: plano de folhas e infer de todos os membros, inclusive o treino dos `origin_scoped` sem artefato de O;
+- `infer`: pré-checagem dos artefatos, plano de folhas e infer de todos os membros, sem treino;
 - `combina`: LONG por membro e combina por folha;
 - `reconcile`: a chamada única do reconcile;
 - `export`: versão, chave, scratch, `run.json`, `run_manifest.json` e a cópia para `forecasts/`;
 - `report`: o relatório.
 
 <Terminal lines={[
-  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck --format=json'},
+  {type: 'cmd', text: 'prevcarga forecast --origin=2026-10-01 --data-inference=./deck-inf --data-artifacts=./artefatos --format=json'},
   {type: 'dim', text: '# result.duracao_s e result.passos[] no envelope'},
 ]} />
