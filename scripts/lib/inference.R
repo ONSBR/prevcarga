@@ -195,11 +195,19 @@ prevcarga_infer_check_alignment <- function(pred, cuts, descriptor) {
 ## inference_needs declara segmentos de previsto, troca o previsto por prevcarga_read_forecast_by_rule (so as emissoes que a regra
 ## do plugin escolhe, <= limite; E2-T2). `needs` NULL => prevcarga_inference_needs_of (default generico sem data_needs).
 ## Devolve list(panel, cuts). Nenhum corte e calculado aqui.
-prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, truncate_at = NULL, needs = NULL) {
+prevcarga_infer_read_panel <- function(plugin, spec, cuts, area, origin, ctx, truncate_at = NULL, needs = NULL,
+                                       artifact_needs = FALSE) {
   ## Janela por plugin (E3-T2): descriptor$history_window, quando existe, define o span comum e a janela do anexo.
   hw <- plugin$descriptor$history_window
   w <- if (is.function(hw)) hw(origin, spec) else NULL
   hist_days <- if (!is.null(w)) as.integer(origin - w$common_from) else spec$history_days$infer
+  ## E4-T4 (ADR-045; resolucao 01M7GFR748KR43TF644B5Y7CNY): com `artifact_needs` (needs vindo do artefato) o plugin que declara
+  ## history_window le so o que o artefato pede: dias de carga/observado de inference_needs e anexo so se holiday_annex. O estado
+  ## derivado (serie, amostra, perfil) vem do artefato, entao o store longo nao e mais lido; o resultado e o do deck de 15 dias.
+  if (isTRUE(artifact_needs) && !is.null(w) && !is.null(needs)) {
+    hist_days <- max(as.integer(needs$load$days_before), as.integer(needs$weather_observed$days_before))
+    if (!isTRUE(needs$holiday_annex)) w <- NULL
+  }
   panel <- prevcarga_read_panel(ctx, origin, union(cuts$deck_areas, area), spec$horizon_days, hist_days,
                                 truncate_at = truncate_at, holiday_window = w)
   au <- panel$attrs$available_until
@@ -292,7 +300,8 @@ prevcarga_infer_cell <- function(member, area, origin, ctx, variant = NULL, vers
   prevcarga_infer_check_conventions(art, cuts, list(load_label = cuts$load_label), plugin$descriptor)
   .prevcarga_inf_check_artifact_cut(art, spec, cuts, member$mdir)
   needs_in <- if (is.null(art$inference_needs)) prevcarga_inference_needs_of(plugin, spec, area) else art$inference_needs
-  rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, origin, ctx, truncate_at = truncate_at, needs = needs_in)
+  rp <- prevcarga_infer_read_panel(plugin, spec, cuts, area, origin, ctx, truncate_at = truncate_at, needs = needs_in,
+                                   artifact_needs = !is.null(art$inference_needs))
   panel <- rp$panel
   cuts <- .prevcarga_inf_apply_weather_cut(plugin, member$mdir, area, origin, panel$attrs, rp$cuts,
                                          variant = want_variant)
