@@ -79,6 +79,9 @@ prevcarga_m7h_deck <- function(dir, last, days, load_until = NULL) {
 prevcarga_m7h_ctx <- function(root, deck, state, overrides) {
   ctx <- prevcarga_ctx(list("--data-train" = deck, "--state" = state, "--weather-cutoff" = "origin_midnight_utc"), root, "backtest")
   ctx$spec_overrides <- overrides
+  ## caminho EXPLICITO de teste (decisao do Gabriel, 2026-11-16): os DESSEM fixam history_days.train = 1095 (contract.dessem_history_train_fixed);
+  ## so o gate encurta a janela, por esta opcao. O run.yaml e a CLI nao a definem.
+  if (!is.null(overrides[["history_days.train"]])) options(prevcarga.test_short_history = TRUE)
   ctx$code_commit <- "c0ffee"
   ctx$renv_lock_hash <- "ab12"
   ctx$progress <- function(done, total) NULL

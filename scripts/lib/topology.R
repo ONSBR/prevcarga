@@ -122,7 +122,13 @@ prevcarga_members <- function(path = prevcarga_topology_path(root), root) {
   infer_history_equals_train = function(spec)
     identical(as.integer(spec$history_days$infer), as.integer(spec$history_days$train))
 )
+## Invariante do contrato (ADR-045 emenda o item 3 da ADR-0031): history_days.infer <= history_days.train, sempre. Vale para o run.yaml e
+## para os overrides (spec EFETIVO); nao e opt-in como as `constraints` acima. Recusa antes de qualquer leitura de deck ou treino.
 .prevcarga_apply_constraints <- function(spec) {
+  inf <- as.integer(spec$history_days$infer); tr <- as.integer(spec$history_days$train)
+  if (length(inf) != 1L || length(tr) != 1L || is.na(inf) || is.na(tr) || inf > tr)
+    prevcarga_abort("contract.history_infer_gt_train", where = paste0(spec$name, ": history_days.infer"),
+                    details = list(model = spec$name, infer = inf, train = tr))
   for (k in names(spec$constraints)) {
     rule <- .prevcarga_constraints[[k]]
     if (is.null(rule)) prevcarga_abort("contract.run_yaml_unknown_key", where = paste0("constraints.", k))

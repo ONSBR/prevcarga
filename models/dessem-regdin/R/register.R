@@ -102,11 +102,25 @@ rd_pick <- function(name, stub) {
   if (is.null(f)) stub else f
 }
 
+## Janela de treino FIXA do DESSEM (ADR-046, accepted; decisao do Gabriel em 2026-11-16): history_days.train = 1095. Outro valor (run.yaml
+## adulterado) e recusado com contract.dessem_history_train_fixed (exit 2). Nem o run.yaml nem a CLI encurtam a janela: so os gates e
+## testes, por opcao EXPLICITA de teste (`options(prevcarga.test_short_history = TRUE)`), que nenhum caminho de usuario define.
+rd_history_train_days <- function() 1095L
+rd_assert_history_train <- function(spec) {
+  if (isTRUE(getOption("prevcarga.test_short_history"))) return(invisible(TRUE))
+  tr <- spec$history_days$train
+  if (is.null(tr) || length(tr) != 1L || is.na(tr) || as.integer(tr) != rd_history_train_days())
+    rd_abort("contract.dessem_history_train_fixed", where = "history_days.train",
+             details = list(model = "dessem-regdin", train = if (is.null(tr)) NA_integer_ else as.integer(tr), fixed = rd_history_train_days()))
+  invisible(TRUE)
+}
+
 ## Janela do DESSEM (ADR-046; E3-T1): puro; delega a regra unica da fundacao (scripts/lib/holiday_islands.R), que o registry
 ## expoe a este plugin (prevcarga_dessem_window). Sem o param, ano_civil.
-## history_days.train ABAIXO da janela de ano_civil (1095) encurta a janela comum nos dois modos (override de teste/gate; o
-## run.yaml declara 1095): common_from = O - history_days.train. Em producao (1095) a regra da fundacao vale como esta.
+## history_days.train ABAIXO da janela de ano_civil (1095) encurta a janela comum nos dois modos (so com a opcao de teste
+## `prevcarga.test_short_history`, ver acima; o run.yaml declara 1095 e o guard o fixa): common_from = O - history_days.train. Em producao (1095) a regra da fundacao vale como esta.
 rd_history_window <- function(origin, spec) {
+  rd_assert_history_train(spec)
   mode <- spec$params$janela_dessem
   w <- prevcarga_dessem_window(origin, if (is.null(mode)) "ano_civil" else mode)
   tr <- spec$history_days$train

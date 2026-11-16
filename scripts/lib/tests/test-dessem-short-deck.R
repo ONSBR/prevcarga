@@ -11,6 +11,7 @@
 ## Tempo: ~10 min (1 treino do linear e 4 do regdin, em cache de sessao). Feriados no horizonte (unico, dois seguidos, trio, ultimo
 ## dia entregue): so no regdin; a fixture pequena do linear nao sustenta o SVM de dia especial do motor. Sem variaveis de ambiente; datas por lubridate com tz explicito.
 
+pc_allow_short_history()   # caminho explicito de teste: DESSEM fixa history_days.train = 1095 (decisao do Gabriel, 2026-11-16)
 sd_helpers <- function(dir, files) {
   e <- new.env(parent = globalenv())
   for (f in files) sys.source(file.path(pc_root(), dir, "tests", "testthat", f), envir = e)
