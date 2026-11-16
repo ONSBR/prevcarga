@@ -76,7 +76,8 @@ Na instalação, o `config.yaml` de `<R>` é escrito pelo instalador (`install.s
 | Chave | Tipo | Valores | Default | Flag que a sobrepõe |
 |---|---|---|---|---|
 | `schema_version` | inteiro | só `1`; obrigatória no arquivo | `1` | nenhuma |
-| `data_dir` | texto não vazio | caminho do deck | nenhum | `--data` |
+| `data_train_dir` | texto não vazio | caminho do deck de treino | nenhum | `--data-train` |
+| `data_inference_dir` | texto não vazio | caminho do deck de inferência | nenhum | `--data-inference` |
 | `state_dir` | texto não vazio | caminho do estado | `<root>/.state` | `--state` |
 | `load_label` | enum | `end`, `start` | nenhum | `--load-label` (ver abaixo) |
 | `weather_issue_cutoff` | enum | `available_until`, `origin_midnight_utc` | `available_until` | `--weather-cutoff` |
@@ -113,7 +114,9 @@ Os enums são conferidos ao carregar o arquivo e de novo ao montar o ctx: `weath
 | `root` | fachada da CLI | raiz do código em execução |
 | `install_root` | `prevcarga_install_dir(root)` | `<R>` numa instalação; `NULL` fora do layout `versions/<v>/code` |
 | `config_path` | busca do `config.yaml` | caminho normalizado do arquivo lido, ou `NULL` |
-| `data_dir` | `--data` > `data_dir` | sem default; caminho normalizado |
+| `data_train_dir` | `--data-train` > `data_train_dir` | sem default; caminho normalizado |
+| `data_inference_dir` | `--data-inference` > `data_inference_dir` | sem default; caminho normalizado |
+| `data_dir` | deck ativo do papel do verbo (`prevcarga_resolve_deck_role`) | sem default; vem de `data_train_dir` ou `data_inference_dir` |
 | `state_dir` | `--state` > `state_dir` > `<root>/.state` | só resolvido, nunca criado aqui |
 | `origin` | `--origin` | `Date`, ou `from`/`to` em `backtest` e `plan`, ou `NULL` |
 | `load_label_flag` | `--load-label` | validado, não aplicado |

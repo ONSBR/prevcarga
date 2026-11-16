@@ -60,9 +60,8 @@ O schema é fechado. Estas são as únicas chaves aceitas, e qualquer outra abor
 | Chave | Tipo | Valores | Default | Flag que sobrescreve |
 |---|---|---|---|---|
 | `schema_version` | inteiro | `1` | obrigatório no arquivo | nenhuma |
-| `data_train_dir` | texto | caminho do deck de treino | sem default | `--data-train` (apelido `--data`) |
+| `data_train_dir` | texto | caminho do deck de treino | sem default | `--data-train` |
 | `data_inference_dir` | texto | caminho do deck de inferência | sem default | `--data-inference` |
-| `data_dir` | texto | apelido legado de `data_train_dir` | sem default | `--data` |
 | `state_dir` | texto | caminho do estado | `<raiz>/.state` | `--state` |
 | `load_label` | enum | `end`, `start` | sem default no `ctx` | `--load-label` |
 | `weather_issue_cutoff` | enum | `available_until`, `origin_midnight_utc` | `available_until` | `--weather-cutoff` |
@@ -73,9 +72,9 @@ O schema é fechado. Estas são as únicas chaves aceitas, e qualquer outra abor
 Observações de cada chave:
 
 - **`schema_version`** é obrigatório. Ausente ou diferente de `1` aborta com `config.bad_type`.
-- **Precedência por papel:** `data_train_dir` = `--data-train` > `--data` > `data_train_dir` > `data_dir`; `data_inference_dir` = `--data-inference` > `data_inference_dir`; `artifacts_dir` = `--data-artifacts` > `--artifacts-dir` > `artifacts_dir` > `<state_dir>/artifacts`.
-- **Apelidos** (`--data`, `--artifacts-dir`, `data_dir`) valem por uma versão e emitem o aviso `warning.option_alias` (alias e nome novo). Apelido e nome novo com valores diferentes na linha de comando abortam com `config.usage` (exit 8); no `config.yaml`, `data_dir` diferente de `data_train_dir` perde, com o mesmo aviso.
-- **`data_dir`** (apelido de `data_train_dir`) não tem default. Um verbo que lê o deck sem `data_dir` nem `--data` aborta com `config.data_dir_missing`. Para gravá-lo, `prevcarga set-data-dir --train=<dir>`.
+- **Precedência por papel:** `data_train_dir` = `--data-train` > `data_train_dir`; `data_inference_dir` = `--data-inference` > `data_inference_dir`; `artifacts_dir` = `--data-artifacts` > `artifacts_dir` > `<state_dir>/artifacts`.
+- **Nota de migração (sem apelido):** `--data`, `--artifacts-dir` e a chave `data_dir` foram removidos (clean break da ADR-044). Não há apelido nem aviso: a flag antiga sai com `config.usage` (exit 8) e a chave antiga no `config.yaml`, com `config.unknown_key` (exit 8). Troque por `--data-train`, `--data-inference`, `--data-artifacts` e pelas chaves `data_train_dir`, `data_inference_dir`, `artifacts_dir`.
+- **`data_train_dir` e `data_inference_dir`** não têm default. Um verbo que lê o deck sem o deck do seu papel aborta com `config.data_dir_missing`. Para gravá-los, `prevcarga set-data-dir --train=<dir>` e `--inference=<dir>`.
 - **`state_dir`** só é resolvido como caminho, nunca criado pela leitura da configuração.
 - **`load_label`** tem uma precedência própria, resolvida pelo leitor do deck: `manifest.json` acima de `--load-label`, acima do `config.yaml`, e `end` por último. Se o manifest declara um valor e a flag diz outro, o leitor aborta com `contract.load_label_conflict` (exit 2). O efeito do rótulo está em [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
 - **`weather_issue_cutoff`** escolhe a regra do clima previsto (ADR-0024). Com `available_until`, a emissão só entra se `issue_time` for no máximo `available_until` menos o atraso de publicação do manifest. Com `origin_midnight_utc`, o limite é 00:00 UTC do dia O, sem atraso.
@@ -86,7 +85,7 @@ Observações de cada chave:
 
 ```yaml title="config.yaml"
 schema_version: 1
-data_dir: /srv/prevcarga/deck
+data_train_dir: /srv/prevcarga/deck
 state_dir: /srv/prevcarga/state
 weather_issue_cutoff: available_until
 color: auto
@@ -99,7 +98,7 @@ Os caminhos acima são ilustrativos. O `load_label` foi omitido de propósito: c
 
 ## Flags globais
 
-A CLI tem flags globais (duas são apelidos, ver abaixo). Quando a flag falta, vale o `config.yaml`, e depois o default embutido.
+A CLI tem flags globais. Quando a flag falta, vale o `config.yaml`, e depois o default embutido.
 
 | Flag | Chave do config.yaml | Default | O que faz | Erro se inválida |
 |---|---|---|---|---|
@@ -107,8 +106,6 @@ A CLI tem flags globais (duas são apelidos, ver abaixo). Quando a flag falta, v
 | `--data-train=<dir>` | `data_train_dir` | sem default | Diretório do deck de treino | `config.data_dir_missing` se ausente |
 | `--data-inference=<dir>` | `data_inference_dir` | sem default | Diretório do deck de inferência | nenhum na leitura da configuração |
 | `--data-artifacts=<dir>` | `artifacts_dir` | `<state_dir>/artifacts` | Raiz de artefatos | `config.artifacts_dir_missing` se não existe |
-| `--data=<dir>` | `data_dir` | sem default | Apelido de `--data-train` (sai na próxima versão) | `config.usage` se difere de `--data-train` |
-| `--artifacts-dir=<dir>` | nenhuma | sem default | Apelido de `--data-artifacts` (sai na próxima versão) | `config.usage` se difere de `--data-artifacts` |
 | `--state=<dir>` | `state_dir` | `<raiz>/.state` | Diretório de estado | nenhum na leitura da configuração |
 | `--config=<arquivo>` | nenhuma | busca descrita acima | Arquivo `config.yaml` a usar | `config.bad_type` se o arquivo não existe |
 | `--load-label=<l>` | `load_label` | resolvido pelo leitor | Rótulo da carga: `end` ou `start` | `config.bad_load_label` |

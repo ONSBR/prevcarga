@@ -56,8 +56,8 @@ Os quatro são obrigatórios. Falta de qualquer um reprova com `contract.dataset
 
 O deck é indicado à CLI de duas formas. A flag vence o arquivo de configuração.
 
-- Flag global `--data=<dir>` em qualquer verbo que lê dado.
-- Chave `data_dir` no `config.yaml` (ver [Configuração](/execucao/configuracao)).
+- Flags globais `--data-train=<dir>` e `--data-inference=<dir>` em qualquer verbo que lê dado (cada verbo aceita o papel que lhe cabe).
+- Chaves `data_train_dir` e `data_inference_dir` no `config.yaml` (ver [Configuração](/execucao/configuracao)).
 
 Sem nenhuma das duas, o verbo sai com `config.data_dir_missing` (exit 8). A CLI nunca escreve no `data_dir`: o deck é somente leitura para o produto.
 
@@ -349,7 +349,7 @@ O que acontece em cada caso:
 | Código de feriado `-1` | `contract.code_negative` | 2 | Use 0 ou o código correto. |
 | Dia com 46 ou 47 intervalos | `completude.day_incomplete` | 3 | Reponha os intervalos do dia indicado em `DETAIL` (`dia: n/48`). |
 | Buraco no meio do dia O | `completude.origin_day_gap` | 3 | Reponha o intervalo em `where` (`área:HH:MM`). |
-| `--origin` muito à frente do dado | `completude.no_load` | 3 | O deck precisa de carga em O−1 ou em O. Confira `--origin` e `--data`. |
+| `--origin` muito à frente do dado | `completude.no_load` | 3 | O deck precisa de carga em O−1 ou em O. Confira `--origin` e `--data-inference`. |
 | Área com nome fora da lista | `topology.area_undeclared` | 4 | Use o código da topologia. |
 | Deck com menos de 5 anos de carga | `window.window_train_deficit`, `window.window_infer_deficit` | 5 | Complete o histórico até o tamanho de `history_days` de cada membro. |
 | `--load-label` diferente do manifest | `contract.load_label_conflict` | 2 | Remova a flag. |
@@ -361,7 +361,7 @@ A leitura do relatório, a precedência entre classes e o formato JSON estão em
 Rode a validação com a origem da rodada que você vai fazer. O verbo não grava nada no deck.
 
 <Terminal title="prevcarga — bash" lines={[
-  {type:'cmd',text:'prevcarga validate-deck --origin=<O> --data=<dir>'},
+  {type:'cmd',text:'prevcarga validate-deck --origin=<O> --data-inference=<dir>'},
   {type:'out',text:'validate-deck origin=<O> (flag) available_until=<HH:MM> load_label=start (manifest) weather_issue_cutoff=available_until data_hash=<12 hex>'},
   {type:'dim',text:'MODEL SPLIT GRAN TRAIN_ORIGIN LAST_DATA_DAY INPUT_CUT FIRST_DELIVERY'},
   {type:'dim',text:'...'},

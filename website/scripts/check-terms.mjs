@@ -18,6 +18,10 @@ const globMdx = (dir) => {
   return out.sort();
 };
 
+const ERROS_PAGE = 'website/docs/execucao/13-erros-troubleshooting.mdx';
+const CLI_PAGE = 'website/docs/execucao/12-referencia-cli.mdx';
+const DOCS = ['README.md', ...globMdx('website/docs')];
+
 export const RULES = [
   { files: ['docs/reference/DECK-CANONICO.md', 'website/docs/metodologia/02-dados-de-entrada.mdx', 'website/docs/execucao/06-formato-deck.mdx'],
     forbid: /n[aã]o\*{0,2} reatribuir/i, msg: 'issue_time vem de dat_referencia (regra antiga removida)' },
@@ -35,7 +39,16 @@ export const RULES = [
   { files: ['website/docs/metodologia/12-reconciliacao.mdx'], forbid: /Nota defasada|reutilizado em O/i, plant: 'Nota defasada no estado do modulo: perfil reutilizado em O', msg: 'nota defasada de k-hat removida' },
   { files: ['website/docs/metodologia/13-backtest.mdx'], require: /retrain_harness/, msg: 'default dos origin_scoped e retrain_harness' },
   { files: globMdx('website/docs'), forbid: /\bNT\b|MAPE medido/, plant: 'conforme a NT, o MAPE medido', msg: 'site nao cita a NT nem resultado medido' },
-  ...['set-data-dir', '--artifacts-dir', '--jobs'].map((t) => ({ files: ['website/docs/execucao/12-referencia-cli.mdx'], require: new RegExp(t), msg: `referencia da CLI cita ${t}` })),
+  { files: DOCS, forbid: /\b(8|oito)\s+(membros|modelos)\b|\b(3|tr[e\u00ea]s)\s+variantes\b/i,
+    plant: 'combina os 8 membros', msg: 'contagem antiga de membros/variantes (a topologia define a lista)' },
+  { files: DOCS, forbid: /--data(?![-\w])/, allow: /apelido/, plant: 'prevcarga forecast --data=./deck',
+    msg: '--data sem sufixo so na nota de apelido; use --data-train/--data-inference/--data-artifacts' },
+  { files: DOCS, forbid: /--artifacts-dir\b/, allow: /apelido/, plant: 'prevcarga forecast --artifacts-dir=./a',
+    msg: '--artifacts-dir so na nota de apelido; use --data-artifacts' },
+  ...['set-data-dir', '--data-train', '--data-inference', '--data-artifacts', '--jobs', 'apelido']
+    .map((t) => ({ files: [CLI_PAGE], require: new RegExp(t), msg: `referencia da CLI cita ${t}` })),
+  ...['warning.combina_stale', 'warning.combina_member_set']
+    .map((t) => ({ files: [ERROS_PAGE], require: new RegExp(t.replace('.', '\\.')), msg: `pagina de erros cita ${t}` })),
 ];
 
 // Regra de ids: todo token `classe.codigo` entre crases em 13-erros-troubleshooting.mdx precisa existir em scripts/lib/errors/*.tsv.
@@ -54,15 +67,35 @@ export function idViolations(page, text, ids) {
   text.split('\n').forEach((l, i) => { for (const m of l.matchAll(re)) if (!ARQUIVO.test(m[1]) && !ids.has(m[1])) out.push(`${page}:${i + 1}: id ${m[1]} nao existe em scripts/lib/errors/*.tsv`); });
   return out;
 }
-const ERROS_PAGE = 'website/docs/execucao/13-erros-troubleshooting.mdx';
-
 export function violations(rules, read) {
   const out = [];
   for (const r of rules) for (const f of r.files) {
     const lines = read(f).split('\n');
-    if (r.forbid) lines.forEach((l, i) => { if (r.forbid.test(l)) out.push(`${f}:${i + 1}: ${r.msg}`); });
+    if (r.forbid) lines.forEach((l, i) => { if (r.forbid.test(l) && !(r.allow && r.allow.test(l))) out.push(`${f}:${i + 1}: ${r.msg}`); });
     if (r.require && !r.require.test(lines.join('\n'))) out.push(`${f}: falta -- ${r.msg}`);
   }
+  return out;
+}
+
+// Siglas dos membros: topologia x glossario x bloco Terminal de `prevcarga models` (sem parser YAML).
+const GLOSS = 'website/docs/metodologia/16-glossario.mdx';
+const CONF = 'website/docs/execucao/03-configuracao.mdx';
+export const topologyMembers = (read) => [...read('config/topology.yaml').matchAll(/sigla:\s*([A-Z_]+)/g)].map((m) => m[1]);
+const diff = (page, got, want) => {
+  const falta = want.filter((s) => !got.includes(s)), sobra = got.filter((s) => !want.includes(s));
+  return falta.length || sobra.length ? [`${page}: siglas diferentes da topologia (falta: ${falta.join(',') || '-'}; sobra: ${sobra.join(',') || '-'})`] : [];
+};
+export function membersViolations(read) {
+  const top = topologyMembers(read), out = [];
+  const par = read(GLOSS).split('\n').find((l) => l.startsWith('**Membro.**'));
+  if (!par) out.push(`${GLOSS}: falta -- paragrafo **Membro.**`);
+  else out.push(...diff(GLOSS, [...par.matchAll(/`([A-Z][A-Z_]+)`/g)].map((m) => m[1]), top));
+  const conf = read(CONF), i = conf.indexOf("text:'prevcarga models'");
+  if (i < 0) { out.push(`${CONF}: falta -- bloco Terminal de prevcarga models`); return out; }
+  const bloco = conf.slice(i, conf.indexOf(']}', i));
+  const n = bloco.match(/models: (\d+) membros/);
+  if (!n || Number(n[1]) !== top.length) out.push(`${CONF}: 'models: ${top.length} membros' esperado`);
+  out.push(...diff(CONF, [...bloco.matchAll(/text:'([A-Z][A-Z_]+)\s/g)].map((m) => m[1]), top));
   return out;
 }
 
@@ -75,15 +108,26 @@ if (process.argv.includes('--self-test')) {
     return violations([{ ...r, files: ['x'] }], () => text).length === 0;
   });
   if (bad.length) { console.error('self-test: regra nao dispara:', bad.map((r) => r.msg).join('; ')); process.exit(1); }
+  // isencao: a linha plantada com 'apelido' nao pode disparar
+  const semIsencao = RULES.filter((r) => r.allow && violations([{ ...r, files: ['x'] }], () => `${r.plant} (apelido)`).length !== 0);
+  if (semIsencao.length) { console.error('self-test: isencao por apelido falhou:', semIsencao.map((r) => r.msg).join('; ')); process.exit(1); }
+  // CONTROL de membersViolations: topologia de 9 siglas contra texto de 8 viola; 9 contra 9 nao
+  const s9 = ['RF', 'LGBM', 'HW', 'RGD_MED', 'RGD_MAX', 'LIN_MED', 'LIN_MAX', 'LIN_MXMN', 'LIN_UNI'];
+  const fake = (gl, n) => (f) => f.endsWith('topology.yaml') ? s9.map((s) => `  - {sigla: ${s}}`).join('\n')
+    : f.endsWith('16-glossario.mdx') ? `**Membro.** ${gl.map((s) => '`' + s + '`').join(', ')}`
+    : ["{type:'cmd', text:'prevcarga models'},", `{type:'out', text:'models: ${n} membros'},`, ...gl.map((s) => `{type:'out', text:'${s} x'},`), ']} />'].join('\n');
+  if (membersViolations(fake(s9.slice(0, 8), 8)).length === 0 || membersViolations(fake(s9, 9)).length !== 0) {
+    console.error('self-test: membersViolations nao distingue 9 siglas de 8'); process.exit(1);
+  }
   // CONTROL da regra de ids: um id inventado dispara; um id do catalogo, nao
   const ids = new Set(['state.artifact_missing']);
   const falso = idViolations('x', 'a `state.nao_existe_xyz` b', ids);
   const certo = idViolations('x', 'a `state.artifact_missing` b', ids);
   if (falso.length !== 1 || certo.length !== 0) { console.error('self-test: a regra de ids nao distingue id inventado de id do catalogo'); process.exit(1); }
-  console.log(`self-test ok (${RULES.length} regras e a regra de ids disparam)`);
+  console.log(`self-test ok (${RULES.length} regras, a regra de ids e a de membros disparam)`);
 } else {
   const ids = catalogIds((d) => readdirSync(resolve(ROOT, d)), read);
-  const v = [...violations(RULES, read), ...idViolations(ERROS_PAGE, read(ERROS_PAGE), ids)];
+  const v = [...violations(RULES, read), ...membersViolations(read), ...idViolations(ERROS_PAGE, read(ERROS_PAGE), ids)];
   if (v.length) { console.error(v.join('\n')); process.exit(1); }
   console.log('check-terms ok');
 }

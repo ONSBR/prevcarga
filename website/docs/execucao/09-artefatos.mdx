@@ -57,7 +57,7 @@ commit_base: "f2d1734"
 
 <span className="pc-overline">Execução · 3.9</span>
 
-<p className="pc-lead">A rodada diária só consome artefatos. Ela não treina os membros <code>origin_agnostic</code>, não ajusta os pesos da combina e não ajusta o perfil k-hat. Esses três artefatos são produzidos antes, por <code>train-models</code>, <code>combine --mode train</code> e <code>reconcile --mode train</code>, ou chegam do repositório online pelo <code>prevcarga-sync</code>. Todos moram no mesmo layout do registry, em <code>state_dir/artifacts/</code>, e o verbo <code>registry</code> governa o ponteiro <code>latest.txt</code> de cada célula. A única exceção é o membro <code>origin_scoped</code>: se não há artefato da origem O, a própria rodada o treina uma vez, a menos que o <code>forecast</code> aponte uma raiz com <code>--artifacts-dir</code>. Os pesos da combina são opcionais na rodada: sem eles a combinação é a média simples dos membros.</p>
+<p className="pc-lead">A rodada diária só consome artefatos. Ela não treina os membros <code>origin_agnostic</code>, não ajusta os pesos da combina e não ajusta o perfil k-hat. Esses três artefatos são produzidos antes, por <code>train-models</code>, <code>combine --mode train</code> e <code>reconcile --mode train</code>, ou chegam do repositório online pelo <code>prevcarga-sync</code>. Todos moram no mesmo layout do registry, em <code>state_dir/artifacts/</code>, e o verbo <code>registry</code> governa o ponteiro <code>latest.txt</code> de cada célula. A única exceção é o membro <code>origin_scoped</code>: se não há artefato da origem O, a própria rodada o treina uma vez, a menos que o <code>forecast</code> aponte uma raiz com <code>--data-artifacts</code>. Os pesos da combina são opcionais na rodada: sem eles a combinação é a média simples dos membros.</p>
 
 Esta página é o roteiro do operador. A semântica do registry está em [Registry de artefatos](/arquitetura/registry), o corte de treino por classe de split em [Os três cortes de data](/metodologia/tres-cortes), e o que a rodada faz com os artefatos em [Rodada diária](/execucao/rodada-diaria).
 
@@ -68,13 +68,13 @@ Cada artefato é uma célula do registry. A célula tem as versões imutáveis `
 | Artefato | Célula | Quem produz | Frequência | Se faltar na rodada |
 |---|---|---|---|---|
 | Membro `origin_agnostic` (`random-forest`, `lgbm`) | `<mdir>/<area>/` | `train-models` | antes da rodada; o artefato serve às origens seguintes enquanto o seu `last_data_day` não passar o da origem | `state.artifact_missing` na célula, que vira membro ausente (`warning.forecast_member_absent`); a rodada nunca treina esse membro |
-| Membro `origin_scoped` (`holt-winters`, `dessem-linear`, `dessem-regdin`) | `<mdir>/[<exogena>/]<area>/` | `train-models --origin=O` ou a própria rodada | um artefato por origem O | a rodada treina uma vez pela fachada de treino e segue; com `--artifacts-dir` não treina e a célula vira membro ausente |
+| Membro `origin_scoped` (`holt-winters`, `dessem-linear`, `dessem-regdin`) | `<mdir>/[<exogena>/]<area>/` | `train-models --origin=O` ou a própria rodada | um artefato por origem O | a rodada treina uma vez pela fachada de treino e segue; com `--data-artifacts` não treina e a célula vira membro ausente |
 | Pesos da combina | `combina/<area>/` | `combine --mode train`, a partir do histórico dos membros | retreino uma vez por mês | média simples (EQW) com `warning.combina_eqw`; a rodada segue |
 | Perfil k-hat | `reconcile/<ss>/` | `reconcile --mode train --origin=O` | um perfil por origem O (`khat_origin == O`) | `state.khat_missing` (exit 13); perfil posterior a O dá `honesty.khat_after_origin` (exit 15) |
 
-### Artefatos apontados (`--artifacts-dir`)
+### Artefatos apontados (`--data-artifacts`)
 
-`prevcarga forecast --artifacts-dir=<dir>` (ou `artifacts_dir` no `config.yaml`) troca a raiz de leitura dos artefatos de membros, combina e k-hat. A raiz é só de leitura: o forecast não escreve nela e não cria `<state_dir>/artifacts`. Entrega, scratch e relatório continuam em `<state_dir>`. Sem treino implícito, uma célula `origin_scoped` sem versão da origem O vira membro ausente em vez de treinar. A proveniência `artefatos` (`raiz` e `modo`, `registry` ou `apontado`) vai no `run.json` e no `result`.
+`prevcarga forecast --data-artifacts=<dir>` (ou `artifacts_dir` no `config.yaml`) troca a raiz de leitura dos artefatos de membros, combina e k-hat. A raiz é só de leitura: o forecast não escreve nela e não cria `<state_dir>/artifacts`. Entrega, scratch e relatório continuam em `<state_dir>`. Sem treino implícito, uma célula `origin_scoped` sem versão da origem O vira membro ausente em vez de treinar. A proveniência `artefatos` (`raiz` e `modo`, `registry` ou `apontado`) vai no `run.json` e no `result`.
 
 A classe de split de cada modelo vem do `split` do seu `models/<mdir>/run.yaml`. O segmento `<exogena>` só existe para o membro que declara variante na topologia: `RGD_MED` vive em `dessem-regdin/MED/<area>/`, `RF` vive em `random-forest/<area>/`.
 
