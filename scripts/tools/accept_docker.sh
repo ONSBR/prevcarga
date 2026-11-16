@@ -7,8 +7,14 @@
 #   accept_docker.sh --stage smoke|aceite|medicao|relatorio|all --out DIR --data STORE [--config YAML]
 #                    [--ref-bundle TAR --new-bundle TAR] [--jobs 12-14] [--resume] [--format text|json]
 #                    [--min-free-gb-docker N] [--min-free-gb-out N]
-#   Estagios implementados aqui: smoke. aceite/medicao/relatorio/all sao despachos que os tickets seguintes preenchem; ate la
+#   Estagios implementados aqui: smoke e aceite. medicao/relatorio/all sao despachos que os tickets seguintes preenchem; ate la
 #   recusam com contract.accept_bad_args (antes de qualquer objeto Docker).
+#   --config (default scripts/tools/accept_docker.yaml nos estagios aceite/medicao): jobs, memory, cpus, min_free e ref_rev saem de
+#   scripts/tools/accept_cases.R --settings; precedencia flag > YAML > default embutido. Config invalida: contract.accept_bad_config.
+#   Estagio aceite: accept_cases.R expande units.aceite.tsv (ondas 1..3; a onda k+1 so abre depois da onda k), cada unidade ganha
+#   <out>/units/<unit>/{config.yaml,mounts.txt,overlay/}; as montagens extras sao SO :ro (overlay de topology.yaml e de run.yaml
+#   extraidos da propria imagem, artefatos da unidade de treino em /artifacts, deck-inference em /deckinf). Depois accept_delta.R
+#   compara backtest S ref x new (delta.tsv) e infer-model train x inference (delta.inference.tsv) e emite aceite.json.
 #
 # Bundles: sem --ref-bundle/--new-bundle, constroi por build_bundle_linux.sh (ref = --rev de24021, nova = HEAD; arvore suja recusa).
 # Com eles, confere o .sha256 ao lado de cada tar.zst. Cada imagem = prevcarga-accept:<RUN_ID>-ref|-new (label prevcarga.accept.run=<RUN_ID>).
@@ -18,9 +24,9 @@
 #   run.json, store.before.tsv, store.after.tsv, cache.snapshot, residue.json ({containers,images,cache}), index.tsv (unidades).
 #
 # Exits (classe do id em scripts/lib/errors/accept.tsv; tabela em scripts/lib/errors.R):
-#   0 ok; 2 contract.accept_bad_args | contract.accept_out_forbidden | contract.accept_disk_low;
+#   0 ok; 2 contract.accept_bad_args | contract.accept_bad_config | contract.accept_out_forbidden | contract.accept_disk_low;
 #   6 bundle.accept_image_build | bundle.accept_image_smoke; 9 integrity.accept_residue | integrity.accept_store_changed;
-#   14 partial.accept_units_failed; 130 INT; 143 TERM. (runtime.accept_oom_killed e o error_id de uma unidade rc 137 em index.tsv.)
+#   12 repro.accept_delta_nonzero | repro.accept_unexpected_error | repro.accept_infer_not_faster; 14 partial.accept_units_failed; 130 INT; 143 TERM. (runtime.accept_oom_killed e o error_id de uma unidade rc 137 em index.tsv.)
 #
 # Regra de limpeza (maquina compartilhada): o trap pc_accept_cleanup (EXIT/INT/TERM, instalado apos o preflight e antes do primeiro
 # docker build, idempotente) mata os jobs de fundo e remove SO o que esta execucao criou: containers e imagens com o label do RUN_ID,
@@ -34,13 +40,15 @@ PC_SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE
 PC_SELF_DIR="$(dirname "$PC_SELF")"
 PC_ACCEPT_DOCKERFILE="$PC_SELF_DIR/accept_docker.Dockerfile"
 PC_ACCEPT_REF_REV="de24021"
-PC_ACCEPT_STAGES_IMPL="smoke"
+PC_TOOLS="$PC_SELF_DIR"
+PC_ACCEPT_STAGES_IMPL="smoke aceite"
 
 declare -A RUNTIME_ID=()
 declare -A BUNDLE_PATH=()
 declare -A BUNDLE_SHA=()
-STAGE="all"; OUT=""; DATA=""; CONFIG=""; REF_BUNDLE=""; NEW_BUNDLE=""; JOBS=13; RESUME=0; FORMAT="json"
-MIN_FREE_DOCKER=50; MIN_FREE_OUT=20
+STAGE="all"; OUT=""; DATA=""; CONFIG=""; REF_BUNDLE=""; NEW_BUNDLE=""; JOBS=""; RESUME=0; FORMAT="json"
+MIN_FREE_DOCKER=""; MIN_FREE_OUT=""; MEMORY=8g; CPUS=1; OVERLAY_MDIRS=""
+DELTA_MAX=""; DELTA_KEYS=""; UNITS_RC=0
 RUN_ID=""; BASE=""; BASE_PREEXISTENTE=0; DROOT=""; REPO=""
 CLEANED=0; TRAP_ARMED=0; OUT_READY=0; FINAL_ID=""; FINAL_RC=0; FINAL_MSG=""
 RES_C=0; RES_I=0; RES_K=0; STORE_UNCHANGED=true
@@ -51,7 +59,7 @@ UNIT_ORIGEM="-"; UNIT_AREA="-"; UNIT_MDIR="-"
 # --- erros: id -> classe -> exit (tabela de scripts/lib/errors.R) ------------------------------------------------------
 pc_accept_class_exit() {
   case "${1%%.*}" in
-    contract) echo 2 ;; bundle) echo 6 ;; runtime) echo 7 ;; integrity) echo 9 ;; partial) echo 14 ;;
+    contract) echo 2 ;; bundle) echo 6 ;; runtime) echo 7 ;; integrity) echo 9 ;; repro) echo 12 ;; partial) echo 14 ;;
     *) echo 1 ;;
   esac
 }
@@ -72,11 +80,12 @@ pc_accept_emit() {
   jq -nc --arg run_id "$RUN_ID" --arg stage "$STAGE" --arg ir "$imgref" --arg in "$imgnew" --arg rr "$ridref" --arg rn "$ridnew" \
     --argjson ut "$UNITS_TOTAL" --argjson uo "$UNITS_OK" --argjson ur "$UNITS_REFUSED" --argjson uf "$UNITS_FAILED" \
     --argjson c "$RES_C" --argjson i "$RES_I" --argjson k "$RES_K" --argjson su "$STORE_UNCHANGED" \
-    --arg verdict "$verdict" --arg eid "$eid" \
+    --arg verdict "$verdict" --arg eid "$eid" --arg dm "$DELTA_MAX" --arg dk "$DELTA_KEYS" \
     '{run_id:$run_id, stage:$stage,
       images:{ref:(if $ir=="" then null else $ir end), new:(if $in=="" then null else $in end)},
       runtime_id:{ref:(if $rr=="" then null else $rr end), new:(if $rn=="" then null else $rn end)},
-      units:{total:$ut, ok:$uo, refused:$ur, failed:$uf}, delta:null,
+      units:{total:$ut, ok:$uo, refused:$ur, failed:$uf},
+      delta:(if $dm=="" then null else {max_abs:($dm|tonumber), keys_only:($dk|tonumber)} end),
       residue:{containers:$c, images:$i, cache:$k}, store_unchanged:$su, report:null, receipt:null,
       verdict:$verdict, error_id:(if $eid=="" then null else $eid end)}'
 }
@@ -116,9 +125,9 @@ pc_accept_parse_args() {
   done
   case "$STAGE" in smoke|aceite|medicao|relatorio|all) ;; *) pc_accept_die contract.accept_bad_args "--stage invalido: $STAGE" ;; esac
   case "$FORMAT" in text|json) ;; *) pc_accept_die contract.accept_bad_args "--format invalido: $FORMAT" ;; esac
-  case "$JOBS" in 12|13|14) ;; *) pc_accept_die contract.accept_bad_args "--jobs deve ser 12, 13 ou 14: $JOBS" ;; esac
-  case "$MIN_FREE_DOCKER" in ''|*[!0-9]*) pc_accept_die contract.accept_bad_args "--min-free-gb-docker invalido" ;; esac
-  case "$MIN_FREE_OUT" in ''|*[!0-9]*) pc_accept_die contract.accept_bad_args "--min-free-gb-out invalido" ;; esac
+  case "$JOBS" in ''|12|13|14) ;; *) pc_accept_die contract.accept_bad_args "--jobs deve ser 12, 13 ou 14: $JOBS" ;; esac
+  case "$MIN_FREE_DOCKER" in *[!0-9]*) pc_accept_die contract.accept_bad_args "--min-free-gb-docker invalido" ;; esac
+  case "$MIN_FREE_OUT" in *[!0-9]*) pc_accept_die contract.accept_bad_args "--min-free-gb-out invalido" ;; esac
   [ -n "$OUT" ] || pc_accept_die contract.accept_bad_args "--out e obrigatorio"
   [ -n "$DATA" ] || pc_accept_die contract.accept_bad_args "--data e obrigatorio"
   [ -d "$DATA" ] || pc_accept_die contract.accept_bad_args "--data nao e diretorio: $DATA"
@@ -129,6 +138,30 @@ pc_accept_parse_args() {
     *" $STAGE "*) ;;
     *) pc_accept_die contract.accept_bad_args "estagio $STAGE ainda nao implementado" ;;
   esac
+}
+
+# flag > YAML > default embutido. Sem --config e com estagio smoke nao ha leitura de YAML (defaults); nos demais estagios o YAML
+# default fica ao lado do script. accept_cases.R valida o YAML (contract.accept_bad_config) e imprime k=v.
+pc_accept_load_settings() {
+  local k v line j=13 mem=8g cpu=1 mfd=50 mfo=20 rev="$PC_ACCEPT_REF_REV" ovl=""
+  [ -n "$CONFIG" ] || case "$STAGE" in smoke) ;; *) CONFIG="$PC_SELF_DIR/accept_docker.yaml" ;; esac
+  if [ -n "$CONFIG" ]; then
+    local errf; errf="$(mktemp)"
+    line="$(Rscript --vanilla "$PC_TOOLS/accept_cases.R" --config "$CONFIG" --settings 2> "$errf")" \
+      || { cat "$errf" >&2; rm -f "$errf"; pc_accept_die contract.accept_bad_config "config invalida: $CONFIG"; }
+    rm -f "$errf"
+    while IFS='=' read -r k v; do
+      case "$k" in
+        jobs) j="$v" ;; memory) mem="$v" ;; cpus) cpu="$v" ;; min_free_gb_docker) mfd="$v" ;; min_free_gb_out) mfo="$v" ;;
+        ref_rev) rev="$v" ;; overlay_mdirs) ovl="$v" ;;
+      esac
+    done <<< "$line"
+  fi
+  [ -n "$JOBS" ] || JOBS="$j"
+  [ -n "$MIN_FREE_DOCKER" ] || MIN_FREE_DOCKER="$mfd"
+  [ -n "$MIN_FREE_OUT" ] || MIN_FREE_OUT="$mfo"
+  MEMORY="$mem"; CPUS="$cpu"; PC_ACCEPT_REF_REV="$rev"; OVERLAY_MDIRS="$ovl"
+  case "$JOBS" in 12|13|14) ;; *) pc_accept_die contract.accept_bad_args "--jobs deve ser 12, 13 ou 14: $JOBS" ;; esac
 }
 
 # <UTC %Y%m%dT%H%M%SZ>-<8 hex>
@@ -165,6 +198,8 @@ pc_accept_preflight() {
   for t in docker jq sha256sum Rscript flock; do
     command -v "$t" >/dev/null 2>&1 || pc_accept_die contract.accept_bad_args "ferramenta ausente no host: $t"
   done
+  [ -f "$PC_TOOLS/accept_cases.R" ] || pc_accept_die contract.accept_bad_args "accept_cases.R ausente em $PC_TOOLS"
+  pc_accept_load_settings
   OUT="$(readlink -m "$OUT")"; DATA="$(readlink -f "$DATA")"
   REPO="$(git -C "$PC_SELF_DIR" rev-parse --show-toplevel)"
   DROOT="$(readlink -m "$(docker info --format '{{.DockerRootDir}}')")"
@@ -303,13 +338,20 @@ pc_accept_run_unit() {
     while IFS= read -r m; do
       [ -n "$m" ] || continue
       case "$m" in *:ro) extra+=(-v "$m") ;; *) return 2 ;; esac
+      if [ ! -e "${m%%:*}" ]; then   # docker -v criaria o diretorio ausente como root: a unidade falha sem rodar
+        printf 'accept_docker: montagem ausente no host: %s\n' "${m%%:*}" > "$u/stderr.log"; rc=1
+      fi
     done < "$mf"
   fi
   t0="$(date -u +%s)"
-  docker run --rm --name "pc-accept-$RUN_ID-$n" --label "prevcarga.accept.run=$RUN_ID" \
-    --network none --memory 8g --cpus 1 --user "$(id -u):$(id -g)" \
-    -v "$DATA:/data:ro" -v "$u:/out" -v "$u/tmp:/tmp" ${extra[@]+"${extra[@]}"} "$img" "$@" \
-    --config=/out/config.yaml --state=/out/state --format=json < /dev/null > "$u/result.json" 2> "$u/stderr.log" || rc=$?
+  if [ "$rc" = 0 ]; then
+    docker run --rm --name "pc-accept-$RUN_ID-$n" --label "prevcarga.accept.run=$RUN_ID" \
+      --network none --memory "$MEMORY" --cpus "$CPUS" --user "$(id -u):$(id -g)" \
+      -v "$DATA:/data:ro" -v "$u:/out" -v "$u/tmp:/tmp" ${extra[@]+"${extra[@]}"} "$img" "$@" \
+      --config=/out/config.yaml --state=/out/state --format=json < /dev/null > "$u/result.json" 2> "$u/stderr.log" || rc=$?
+  else
+    : > "$u/result.json"
+  fi
   secs=$(( $(date -u +%s) - t0 ))
   eid="$(jq -r '.error.id // "-"' "$u/result.json" 2>/dev/null || true)"; [ -n "$eid" ] || eid="-"
   [ "$rc" = 137 ] && eid="runtime.accept_oom_killed"
@@ -375,6 +417,134 @@ pc_accept_stage_smoke() {
   done
 }
 
+# --- estagio aceite -----------------------------------------------------------------------------------------------------
+# argumentos do verbo de uma unidade (sem --config/--state/--format, que o executor acrescenta)
+# pc_accept_unit_argv <versao> <verbo> <origem> <area> <mdir> <data_flag> <artifacts_from>
+pc_accept_unit_argv() {
+  local ver="$1" verbo="$2" origem="$3" area="$4" mdir="$5" flag="$6" art="$7" a data=/data
+  [ "$flag" = --data-inference ] && data=/deckinf
+  case "$verbo" in
+    backtest) a="backtest --origin=$origem --area=$area"; [ "$mdir" = - ] || a="$a --model=$mdir" ;;
+    train-models) a="train-models --origin=$origem --area=$area --model=$mdir" ;;
+    infer-model) a="infer-model --origin=$origem --area=$area --model=${mdir%%/*} --variant=${mdir#*/} --out=/out/long.parquet" ;;
+    deck-inference) a="deck-inference --origin=$origem --area=$area --out=/out/deck" ;;
+    *) pc_accept_die contract.accept_bad_config "verbo desconhecido em units: $verbo" ;;
+  esac
+  a="$a $flag=$data"
+  if [ "$art" != - ]; then
+    if [ "$ver" = ref ]; then a="$a --artifacts-dir=/artifacts"; else a="$a --data-artifacts=/artifacts"; fi
+  fi
+  printf '%s' "$a"
+}
+
+# extrai da PROPRIA imagem o arquivo <caminho no bundle> para <destino> (docker run --rm --network none --entrypoint cat)
+pc_accept_extract() {
+  local ver="$1" src="$2" dst="$3"
+  [ -s "$dst" ] && return 0
+  mkdir -p "$(dirname "$dst")"
+  pc_accept_bg docker run --rm --name "pc-accept-$RUN_ID-x$(basename "$(dirname "$dst")")-$(basename "$dst" .yaml)" --label "prevcarga.accept.run=$RUN_ID" \
+    --network none --entrypoint cat "prevcarga-accept:$RUN_ID-$ver" "$src" > "$dst" 2>/dev/null \
+    || pc_accept_die bundle.accept_image_smoke "nao extraiu $src da imagem $ver"
+  [ -s "$dst" ] || pc_accept_die bundle.accept_image_smoke "arquivo vazio extraido da imagem $ver: $src"
+}
+
+# overlay somente leitura de uma unidade: pc_accept_overlay <kind> <entrada> <saida>
+pc_accept_overlay() {
+  Rscript --vanilla "$PC_TOOLS/accept_cases.R" --overlay "$1" --in "$2" --out "$3" >/dev/null \
+    || pc_accept_die contract.accept_bad_config "overlay $1 falhou para $2"
+}
+
+# prepara <out>/units/<unit>: config.yaml (schema 1, format json), overlays e mounts.txt (SO :ro)
+# pc_accept_prepare_unit <unit> <versao> <stage> <origem> <area> <topologia> <janela> <data_flag> <artifacts_from>
+pc_accept_prepare_unit() {
+  local unit="$1" ver="$2" stage="$3" origem="$4" area="$5" topo="$6" janela="$7" flag="$8" art="$9" u m
+  u="$OUT/units/$unit"
+  mkdir -p "$u/tmp" "$u/state" "$u/overlay"
+  printf 'schema_version: 1\nformat: json\n' > "$u/config.yaml"
+  : > "$u/mounts.txt"
+  if [ "$topo" = sem_lin_uni ]; then
+    pc_accept_extract "$ver" /opt/prevcarga/config/topology.yaml "$OUT/overlay-src/$ver/topology.yaml"
+    pc_accept_overlay topologia "$OUT/overlay-src/$ver/topology.yaml" "$u/overlay/topology.yaml"
+    printf '%s\n' "$u/overlay/topology.yaml:/opt/prevcarga/config/topology.yaml:ro" >> "$u/mounts.txt"
+  fi
+  if [ "$janela" = referencia ]; then
+    for m in ${OVERLAY_MDIRS//,/ }; do
+      pc_accept_extract "$ver" "/opt/prevcarga/models/$m/run.yaml" "$OUT/overlay-src/$ver/$m/run.yaml"
+      pc_accept_overlay janela "$OUT/overlay-src/$ver/$m/run.yaml" "$u/overlay/$m.run.yaml"
+      printf '%s\n' "$u/overlay/$m.run.yaml:/opt/prevcarga/models/$m/run.yaml:ro" >> "$u/mounts.txt"
+    done
+  fi
+  [ "$art" = - ] || printf '%s\n' "$OUT/units/$art/state/artifacts:/artifacts:ro" >> "$u/mounts.txt"
+  [ "$flag" = --data-inference ] || return 0
+  printf '%s\n' "$OUT/units/$stage-new-deck-inference-$area-$origem/deck:/deckinf:ro" >> "$u/mounts.txt"
+}
+
+# preparo de todas as unidades de um units.tsv e a fila (sem cabecalho, ver pc_accept_queue): pc_accept_prepare_all <units.tsv> <fila.tsv>
+pc_accept_prepare_all() {
+  local tsv="$1" q="$2" n=0 unit stage wave ver origem area mdir verbo topo janela flag art
+  : > "$q"
+  while IFS=$'\t' read -r unit stage wave ver origem area mdir verbo topo janela flag art; do
+    [ "$unit" = unit ] && continue
+    n=$((n + 1))
+    pc_accept_prepare_unit "$unit" "$ver" "$stage" "$origem" "$area" "$topo" "$janela" "$flag" "$art"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$wave" "$OUT/units/$unit" "$ver" "$n" "$OUT/units/$unit/mounts.txt" \
+      "$origem" "$area" "$mdir" "$(pc_accept_unit_argv "$ver" "$verbo" "$origem" "$area" "$mdir" "$flag" "$art")" >> "$q"
+  done < "$tsv"
+}
+
+# recusa classificada (rc 2..15, exceto 14 = partial do REDUCE, com error_id) e RESULTADO, nao defeito: nao entra no delta
+pc_accept_unit_refused() {
+  awk -F'\t' -v u="$1" '$1==u && $8>=2 && $8<=15 && $8!=14 && $9!="-"{f=1} END{exit f?0:1}' "$OUT/index.tsv" 2>/dev/null
+}
+
+# max_abs e keys_only agregados dos delta*.tsv de <out> para o JSON unico
+pc_accept_delta_totals() {
+  local f; local files=()
+  for f in "$OUT/delta.tsv" "$OUT/delta.inference.tsv"; do [ -s "$f" ] && files+=("$f"); done
+  [ "${#files[@]}" -gt 0 ] || return 0
+  read -r DELTA_MAX DELTA_KEYS < <(awk -F'\t' 'FNR>1{v=($7=="Inf")?1e308:$7+0; if(v>m)m=v; k+=$5+$6} END{printf "%.17g %d\n", m+0, k+0}' "${files[@]}")
+}
+
+# um par do delta: pc_accept_delta_pair <unit ref> <unit new> <saida tsv> -> rc 0|12|outro; id do erro em DELTA_ID
+pc_accept_delta_pair() {
+  local ur="$1" un="$2" out="$3" rc=0 res="$3.result.json"
+  if pc_accept_unit_refused "$ur" || pc_accept_unit_refused "$un"; then
+    printf 'accept_docker: par %s x %s com recusa classificada; fora do delta\n' "$ur" "$un" >&2
+    return 0
+  fi
+  Rscript --vanilla "$PC_TOOLS/accept_delta.R" --ref "$OUT/units/$ur" --new "$OUT/units/$un" --out "$out" > "$res" || rc=$?
+  [ "$rc" = 0 ] || DELTA_ID="$(jq -r '.error_id // empty' "$res" 2>/dev/null || true)"
+  return "$rc"
+}
+
+pc_accept_stage_aceite() {
+  local tsv="$OUT/units.aceite.tsv" q="$OUT/queue.aceite.tsv" rc1=0 rc2=0 rc3=0 id="" detail="" o sub ta
+  Rscript --vanilla "$PC_TOOLS/accept_cases.R" --config "$CONFIG" --stage aceite --out "$tsv" >/dev/null \
+    || pc_accept_die contract.accept_bad_config "accept_cases.R recusou $CONFIG"
+  pc_accept_prepare_all "$tsv" "$q"
+  UNITS_RC=0
+  pc_accept_queue "$q" "$JOBS" || UNITS_RC=$?
+  read -r o sub < <(awk -F'\t' 'NR>1 && $8=="backtest" && $4=="ref"{print $5, $6; exit}' "$tsv")
+  read -r ta < <(awk -F'\t' 'NR>1 && $8=="infer-model" && $11=="--data-inference"{print $6; exit}' "$tsv")
+  DELTA_ID=""
+  pc_accept_delta_pair "aceite-ref-backtest-$sub-$o" "aceite-new-backtest-$sub-$o" "$OUT/delta.tsv" || rc1=$?
+  [ -n "$DELTA_ID" ] && id="$DELTA_ID"; DELTA_ID=""
+  pc_accept_delta_pair "aceite-new-infer-model-$ta-$o-train" "aceite-new-infer-model-$ta-$o-inference" "$OUT/delta.inference.tsv" || rc2=$?
+  [ -z "$id" ] && id="$DELTA_ID"
+  Rscript --vanilla "$PC_TOOLS/accept_delta.R" --verdict --index "$OUT/index.tsv" --units "$tsv" --out "$OUT/aceite.json" \
+    > "$OUT/aceite.result.json" || rc3=$?
+  pc_accept_delta_totals
+  if [ "$rc3" != 0 ] && [ "$rc3" != 12 ]; then pc_accept_die contract.accept_bad_args "accept_delta.R --verdict rc=$rc3"; fi
+  if [ "$rc3" = 12 ]; then
+    detail="$(jq -r '.error_id // empty' "$OUT/aceite.result.json" 2>/dev/null || true)"
+    pc_accept_die "${detail:-repro.accept_unexpected_error}" "veredito do aceite (veja $OUT/aceite.json)"
+  fi
+  if [ "$rc1" = 12 ] || [ "$rc2" = 12 ]; then pc_accept_die "${id:-repro.accept_delta_nonzero}" "delta ref x new (veja $OUT/delta.tsv)"; fi
+  if [ "$rc1" != 0 ] || [ "$rc2" != 0 ]; then pc_accept_die contract.accept_bad_args "accept_delta.R rc=$rc1/$rc2 (veja $OUT/delta.tsv.result.json)"; fi
+  if [ "$UNITS_RC" = 14 ]; then pc_accept_die partial.accept_units_failed "unidades failed (veja $OUT/index.tsv)"; fi
+  return 0
+}
+
 # --- despacho -----------------------------------------------------------------------------------------------------------
 pc_accept_main() {
   RUN_ID="$(pc_accept_run_id)"
@@ -390,7 +560,8 @@ pc_accept_main() {
   pc_accept_write_run_json
   case "$STAGE" in
     smoke) pc_accept_stage_smoke ;;
-    aceite|medicao|relatorio|all) pc_accept_die contract.accept_bad_args "estagio $STAGE ainda nao implementado" ;;
+    aceite) pc_accept_stage_aceite ;;
+    medicao|relatorio|all) pc_accept_die contract.accept_bad_args "estagio $STAGE ainda nao implementado" ;;
   esac
   exit 0
 }

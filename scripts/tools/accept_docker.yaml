@@ -1,0 +1,21 @@
+# Configuracao do aceite em Docker local (accept_docker.sh; spec RegDin Linear Refactor, E8). ASCII.
+# Precedencia: flag do accept_docker.sh > este YAML > default embutido. Chaves desconhecidas recusam (contract.accept_bad_config).
+# ATENCAO: "N" (subsistema Norte) entre aspas; o YAML 1.1 le N sem aspas como FALSE.
+schema_version: 1
+ref_rev: de24021            # v0.1.5
+jobs: 13                    # faixa 12-14 (16 CPUs, 125 GB)
+memory: 8g
+cpus: 1
+min_free_gb_docker: 10
+min_free_gb_out: 50
+aceite:
+  origem: "2023-06-01"
+  subsistema: S             # RS, PR, SC, 8 membros, EQW
+  areas_feriado: [AM, BAOE, CE, DF, GO, PA, RJ, TON]
+  area_tempo: RJ
+  membro_tempo: dessem-linear/MED
+medicao:
+  origens: ["2023-02-19", "2023-03-15", "2023-05-10", "2023-06-07", "2023-08-16", "2023-10-18",
+            "2023-12-31", "2024-02-11", "2024-04-17", "2024-05-29", "2024-09-11", "2024-12-24"]
+  areas: [RJ, SP, GO, MS, RS, AM, PA, CE]
+  mdirs: [dessem-linear, dessem-regdin]
