@@ -8,3 +8,7 @@ integrity.accept_residue	integrity	container, imagem ou cache do RUN_ID sobrou a
 integrity.accept_store_changed	integrity	o store montado em /data mudou durante o aceite (store.before.tsv diferente de store.after.tsv)	o store e somente leitura: confira o diff das duas listagens e restaure o store
 partial.accept_units_failed	partial	alguma unidade do aceite terminou failed (sem envelope ou rc inesperado)	veja index.tsv e o stderr.log da unidade; recusas classificadas nao contam como falha
 runtime.accept_oom_killed	runtime	unidade morta por falta de memoria (rc 137) com --memory 8g	registrada em index.tsv; rode a unidade isolada ou revise o limite de memoria
+contract.accept_bad_config	contract	YAML do aceite invalido ou area fora da topologia	corrija scripts/tools/accept_docker.yaml: chaves conhecidas, origem AAAA-MM-DD e areas de config/topology.yaml (N entre aspas)
+repro.accept_delta_nonzero	repro	LONG ref x new difere pela chave (area, forecast_origin, target_datetime, lead)	veja delta.tsv em --out: max_abs e keys_only_ref/keys_only_new por artefato e area
+repro.accept_unexpected_error	repro	unidade de feriado do dessem-linear terminou com generic.unexpected	veja aceite.json e o stderr.log da unidade culpada; o bug de feriado com poucas amostras nao pode voltar
+repro.accept_infer_not_faster	repro	a inferencia do dessem-linear MED em RJ da nova nao e menor que a da ref	compare os segundos em index.tsv e em aceite.json; a nova precisa ser estritamente menor
