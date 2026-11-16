@@ -67,7 +67,7 @@ test_that("[ac-1] variants invalido => plugin.bad_descriptor com o campo; sem va
   expect_identical(d0$variants, list())
   expect_identical(d1$variants, fx_vars)
   expect_identical(d1[setdiff(names(d1), "variants")], d0[setdiff(names(d0), "variants")])
-  expect_identical(names(d1)[length(d1)], "variants")
+  expect_identical(utils::tail(names(d1), 2L), c("variants", "key_params"))   # variants (E5-T1) e key_params (E5-T4) fecham o descriptor
   expect_identical(fx_descriptor(NULL)$variants, list())
 })
 
