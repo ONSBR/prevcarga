@@ -202,6 +202,8 @@ npm ci
 npm run start
 ```
 
+Antes de publicar mudanças no texto, rode as guardas do site (`npm run check`, `npm run check:mdx`, `npm run check:terms`) e o `npm run build`; `docs/estado/site.md` descreve cada uma.
+
 ## Licença
 
 Copyright 2026 Operador Nacional do Sistema Elétrico - ONS.

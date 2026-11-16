@@ -53,8 +53,8 @@ fontes:
   - docs/estado/dessem_linear.md
   - docs/estado/dessem_regdin.md
 adrs: [ADR-0031, ADR-0023, ADR-0012, ADR-0019]
-revisado_em: 2026-11-13
-commit_base: "f2d1734"
+revisado_em: 2026-11-16
+commit_base: "b6d99da"
 ---
 
 <span className="pc-overline">Metodologia · 1.9</span>
@@ -156,7 +156,7 @@ Dentro de uma família, as entradas de `model_parameters.json` diferem só em `e
 | Pipeline (`funcProcessamento`) | `processaModelosDMPerfil` | `processaModelosDMTSPerfil` |
 | Defasagens da temperatura na DM | lags de 1, 2 e 7 dias como colunas | `lagsExogenaDia` 1, 2 e 7 na fórmula do ARIMA |
 
-## Janela de treino e o invariante infer == train
+## Janelas de treino e de inferência
 
 Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `params.janela_dessem: ano_civil`. Os dois declaram `history_days: {train: 1095, infer: 15}`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
 

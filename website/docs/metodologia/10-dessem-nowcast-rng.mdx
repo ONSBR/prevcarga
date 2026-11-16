@@ -31,8 +31,8 @@ fontes:
   - docs/estado/dessem_regdin.md
   - docs/estado/m5-training.md
 adrs: [ADR-0023, ADR-0012, ADR-0019, ADR-0036, ADR-0040]
-revisado_em: 2026-11-13
-commit_base: "f2d1734"
+revisado_em: 2026-11-16
+commit_base: "b6d99da"
 ---
 
 <span className="pc-overline">Metodologia · 1.10</span>
@@ -220,7 +220,7 @@ Na rodada das 00h o clima previsto da última emissão publicada chega com o atr
 | `plugin.dessem_linear_train_sees_day_o` | `contract` | 2 | o painel de treino do linear contém o dia O ou posterior |
 | `plugin.regdin_train_panel_has_origin` | `contract` | 2 | o painel de treino do regdin contém o dia O ou posterior |
 | `contract.constraint_violated` | `contract` | 2 | `history_days.infer` diferente de `train` com a restrição do `run.yaml` ligada |
-| `plugin.history_window` | `contract` | 2 | o descriptor exige `infer == train` e o `run.yaml` diverge |
+| `plugin.history_window` | `contract` | 2 | o descriptor declara `history_infer_equals_train = TRUE` e o `run.yaml` diverge (nenhum plugin atual declara) |
 | `plugin.regdin_window_mismatch` | `window` | 5 | o painel do infer não cobre exatamente o `train_window` |
 | `plugin.regdin_arima_drift` | `contract` | 2 | o ARIMA refeito diverge do fingerprint, ou o refit devolve modelo nulo |
 | `warning.dessem_linear_rng_deviation`, `warning.regdin_rng_deviation` | `repro` | aviso | plano B ativo |

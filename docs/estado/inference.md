@@ -2,7 +2,7 @@
 
 Codigo: `scripts/lib/inference.R`; verbo `scripts/lib/cli/infer-model.R`; catalogo `scripts/lib/errors/inference.tsv`;
 testes `scripts/lib/tests/test-infer-model.R` (plugins-brinquedo com estagio de inferencia real e deck de `fixture_store.R`;
-so o RF tem inferencia entre os modelos reais). Espelha a fachada de treino (`docs/estado/training.md`).
+fixtures sinteticas; os modelos reais sao exercidos pelos testes de cada plugin e pelo forecast). Espelha a fachada de treino (`docs/estado/training.md`).
 
 - Params 100% do artefato congelado: `artifact$spec_efetivo` (nunca run.yaml atual nem flag). O Usage do verbo nao declara
   `--horizon`/`--exogena` (docopt => exit 8). A janela e `history_days$infer` DO ARTEFATO (lida pelo leitor e reaplicada em

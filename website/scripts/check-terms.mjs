@@ -21,7 +21,7 @@ const globMdx = (dir) => {
 const ERROS_PAGE = 'website/docs/execucao/13-erros-troubleshooting.mdx';
 const RODADA_PAGE = 'website/docs/execucao/08-rodada-diaria.mdx';
 const CLI_PAGE = 'website/docs/execucao/12-referencia-cli.mdx';
-const DOCS = ['README.md', ...globMdx('website/docs')];
+const DOCS = ['README.md', 'docs/reference/MANUAL-USUARIO.md', ...globMdx('website/docs')];
 
 export const RULES = [
   { files: ['docs/reference/DECK-CANONICO.md', 'website/docs/metodologia/02-dados-de-entrada.mdx', 'website/docs/execucao/06-formato-deck.mdx'],

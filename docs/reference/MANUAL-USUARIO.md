@@ -6,11 +6,11 @@ O produto nao le variaveis de ambiente: toda configuracao e flag > `config.yaml`
 ## 1. Instalacao
 
 ### Linux (`install.sh`)
-`install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]] [--root <dir>] [--data <dir>] [--state <dir>] [--add-to-path]`.
+`install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]] [--root <dir>] [--data-train <dir>] [--data-inference <dir>] [--data-artifacts <dir>] [--state <dir>] [--add-to-path]`.
 Sem administrador; raiz padrao `~/.local/share/prevcarga` (`<R>`). Exige glibc >= 2.35, x86_64, `tar`, `zstd`, `sha256sum` e `curl` ou `wget`.
 
 ### Windows (`install.ps1`)
-`install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-Data <dir>] [-State <dir>]`, com
+`install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-DataTrain <dir>] [-DataInference <dir>] [-DataArtifacts <dir>] [-State <dir>]`, com
 `powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 ...` (Windows PowerShell 5.1 ou pwsh 7). Raiz padrao `%LOCALAPPDATA%\prevcarga`; o PATH muda
 so em HKCU. Nao precisa de administrador nem de R instalado: o R e o do bundle.
 
@@ -22,12 +22,12 @@ so em HKCU. Nao precisa de administrador nem de R instalado: o R e o do bundle.
 - Conferir: `prevcarga doctor` (bundle, plataforma, R, integridade do `RUNTIME.json`, artefatos).
 
 ## 2. Rodada operacional: `forecast`
-`prevcarga forecast --origin <AAAA-MM-DD> [--subsistema <s> | --area <a>] [--incluir-membros] [--report] [--jobs <n>] [--artifacts-dir <dir>] [--format json]`. E UMA origem por rodada: valida o deck, infere cada
-modelo (o re-treino dos modelos `origin_scoped` acontece dentro da rodada, salvo com `--artifacts-dir`), combina, reconcilia e exporta a entrega em `<state>/forecasts/...` com
+`prevcarga forecast --origin <AAAA-MM-DD> [--subsistema <s> | --area <a>] [--incluir-membros] [--report] [--jobs <n>] [--data-train <dir> | --data-inference <dir>] [--data-artifacts <dir>] [--format json]`. E UMA origem por rodada: valida o deck, infere cada
+modelo (a rodada diaria usa o deck de inferencia e so infere; com `--data-train` o `forecast` ainda treina o `origin_scoped` sem versao de O na raiz padrao, por compatibilidade com a v0.1.5. Com o deck de inferencia os artefatos ja estao na raiz de `--data-artifacts`, e a falta de um aborta com `state.inference_artifact_missing`, exit 13), combina, reconcilia e exporta a entrega em `<state>/forecasts/...` com
 `manifest.json` e `run_manifest.json`. O escopo define a saida (nao ha flag de nivel): `--area` entrega so as folhas, sem reconciliar; `--subsistema` entrega as folhas do
 subsistema e ele proprio; sem flag (ou `--subsistema all`) entrega tudo ate o SIN. Membro ausente nao derruba a rodada (aviso, e a combina renormaliza; falha so se uma folha fica sem nenhum membro);
 sem pesos treinados a combinacao e a media simples (aviso `warning.combina_eqw`); clima previsto curto corta o horizonte do LGBM, e DESSEM e RF ficam ausentes (`completude.weather_forecast_short`),
-enquanto o Holt-Winters, univariado, entrega o horizonte inteiro. `--jobs <n>` paraleliza por (folha, membro) com saida identica a serial; `--artifacts-dir <dir>` aponta uma raiz de artefatos so de leitura (sem treino implicito). `--origin` e o unico flag de data humano; os cortes de treino e de dado saem do descriptor e do proprio deck.
+enquanto o Holt-Winters, univariado, entrega o horizonte inteiro. `--jobs <n>` paraleliza por (folha, membro) com saida identica a serial; `--data-artifacts <dir>` aponta uma raiz de artefatos so de leitura (sem treino implicito). `--origin` e o unico flag de data humano; os cortes de treino e de dado saem do descriptor e do proprio deck.
 A rodada das 0h (sem carga do dia da origem) e valida. Orcamento de desempenho: 30 minutos (`docs/estado/nfr-performance.md`).
 O `export` e o `features` existem como verbos soltos para depuracao; a rotina diaria e so o `forecast`. `prevcarga <verbo> --help` mostra so a ajuda daquele verbo.
 `prevcarga train-models --keep-going` treina as demais celulas quando uma falha e sai com o resumo por celula e exit 14 (`partial.train_models_delivery`) se alguma falhou.

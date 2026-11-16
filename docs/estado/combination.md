@@ -52,7 +52,7 @@
   continua reportando o rotulo do LONG (interval_end).
 - `tzone` fora do fuso da carga: o leitor unico (`read_long`) ja recusa com `contract.long_tz` no discover; a recusa da
   combina cobre LONG montado em memoria. Teste exercita os dois.
-- Testes: `test-combination-align.R` + `helper-combination-align.R` (8 membros alinhados, 10 mutacoes, CONTROL do sentinela).
+- Testes: `test-combination-align.R` + `helper-combination-align.R` (membros da topologia alinhados, via `prevcarga_members()`, 10 mutacoes, CONTROL do sentinela).
 
 ## M4.2c -- combinacao por lead (delivery_days)
 - Regra do ADR-0032 c em `combination.R`: cada membro cobre `target_datetime <= ymd(O) + days(delivery_days)`; a faixa vem so do
@@ -70,7 +70,7 @@
   faixa e confere por `(origem, corte)` que os alvos == `prevcarga_delivery_grid` (P.0a, features.R) ate a MAIOR `delivery_days` do corte.
   Dependencia nova de carga: `combination.R` precisa de `features.R` so nesta funcao.
 - `prevcarga_combina_full`/`_apply` (M4.3) ainda nao existem: os testes compoem fit + produce + trim, o mesmo caminho.
-- Testes: `test-combination-lead.R` + `helper-combination-lead.R` (8 membros, curto ate O+1; FORBIDDEN cauda mascarada, CONTROL dd=9).
+- Testes: `test-combination-lead.R` + `helper-combination-lead.R` (membros da topologia, curto ate O+1; FORBIDDEN cauda mascarada, CONTROL dd=9).
 
 ## M4.3 -- freeze/apply content-addressed + saida LONG
 - `prevcarga_combina_full(panel, ctx, t_cut, ..., detail)`: fit + produce num passo, so do corte selecionado (celulas de cortes sao
@@ -101,7 +101,7 @@
 - `scripts/lib/cli/combine.R` (auto-descoberto por `cli.R`; `scripts/prevcarga`, `cli.R` e `test-facade.R` intocados): `prevcarga_verb_combine`
   (owner M4, nao isento do runtime-first) + `cmd_combine(ctx, args)` fino. A fachada atual embrulha o envelope (`prevcarga_emit`): o handler devolve o `result`
   (JSON) ou as linhas ASCII de `.render_combine_text` (text). `prevcarga_build_combine` valida na ordem: `--mode` (`config.bad_mode`, antes de IO) -> area
-  (`topology.area_undeclared`, exit 4, so topologia) -> `--out` em apply/full e `dirname(--out)` (`config.usage`) -> `--data` (`config.data_dir_missing`).
+  (`topology.area_undeclared`, exit 4, so topologia) -> `--out` em apply/full e `dirname(--out)` (`config.usage`) -> deck exigido (`--data-train` em train/full; `--data-train` ou `--data-inference` em apply; `config.data_dir_missing`).
   `artifact_dir` default `<state_dir>/artifacts/combina`; LONG gravado por `.prevcarga_write_parquet_atomic` (tmp irmao + `file.rename`).
 - `--origin` (unico flag de data) restringe so a SAIDA do apply/full (o fit do full usa o painel inteiro => full == train+apply); origem sem linha = `config.usage`.
   `--cut` seleciona o corte (em train recorta o painel). `--area` ja e declarada em `validate-deck` no bloco Options; o verbo nao a repete (duplicata deixa o docopt ambiguo).
@@ -112,7 +112,7 @@
   (`prevcarga_proj_grad_norm` bruto, so fitadas-e-convergidas, treino reconstruido por `train_mask`). `quality` por `(area, d_plus)` so REPORTADA, via
   `prevcarga_scorecard` (combina, EQW, cada membro `f_<s>` so onde finito em todo o grupo); `le_best`/`le_eqw` informativos, sem folga e sem gate de
   dominancia (so assertada nos fixtures desenhados; M8 estagio D / M7 so reportam).
-- Testes: `test-combine.R` + `helper-combination-cli.R` (fixture de 8 membros alinhados x 3 meses, `prevcarga_main` in-process com runtime real; espiao de
+- Testes: `test-combine.R` + `helper-combination-cli.R` (fixture dos membros de `prevcarga_members()` alinhados x 3 meses, `prevcarga_main` in-process com runtime real; espiao de
   `prevcarga_combina_load` por env intermediario). Os modulos do verbo sao carregados no globalenv pelo helper, como o dispatch faz.
 
 ## F3.4 -- fallback EQW no apply
