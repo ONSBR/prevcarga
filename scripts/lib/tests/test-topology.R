@@ -92,11 +92,20 @@ test_that("os 5 run.yaml entregues tem os valores do contrato", {
     c("random-forest" = 9L, lgbm = 1L, "holt-winters" = 8L, "dessem-linear" = 9L, "dessem-regdin" = 9L))
   expect_identical(vapply(S, function(s) s$seed, 1L),
     c("random-forest" = 123L, lgbm = 123L, "holt-winters" = 1234L, "dessem-linear" = 42L, "dessem-regdin" = 42L))
-  expect_identical(S[["holt-winters"]]$history_days, list(train = 730L, infer = 45L))
-  expect_identical(S[["random-forest"]]$history_days, list(train = 365L, infer = 45L))
-  expect_identical(S[["lgbm"]]$history_days, list(train = 730L, infer = 45L))
-  expect_identical(S[["dessem-linear"]]$history_days, list(train = 1095L, infer = 1095L))
-  expect_identical(S[["dessem-regdin"]]$history_days, list(train = 1095L, infer = 1095L))
+  ## history_days (ADR-045 emenda o item 3 da ADR-0031): infer <= train em todo plugin e cada plugin declara o seu minimo
+  ## (o minimo vem do run.yaml lido pela fachada; nenhum literal de modelo em topology.R). infer == train deixou de ser exigido.
+  hist_ok <- function(spec) spec$history_days$infer >= 1L && spec$history_days$infer <= spec$history_days$train
+  for (m in ms) expect_true(hist_ok(S[[m]]), info = m)
+  minimo <- c("holt-winters" = 2L, lgbm = 5L, "random-forest" = 9L, "dessem-linear" = 15L, "dessem-regdin" = 15L)
+  expect_identical(vapply(S[names(minimo)], function(s) s$history_days$infer, 1L), minimo)
+  expect_identical(vapply(S, function(s) s$history_days$train, 1L),
+    c("random-forest" = 365L, lgbm = 730L, "holt-winters" = 730L, "dessem-linear" = 1095L, "dessem-regdin" = 1095L))
+  ## CONTROL: o mesmo predicado reprova infer > train (run.yaml adulterado em tempdir) e a fachada ainda o le sem erro
+  r <- tmp_root(); on.exit(unlink(r, recursive = TRUE), add = TRUE)
+  edit_yaml(file.path(r, "models", "lgbm", "run.yaml"), function(x) { x$history_days$infer <- x$history_days$train + 1L; x })
+  bad <- prevcarga_model_spec("lgbm", root = r)
+  expect_false(hist_ok(bad))
+  expect_true(hist_ok(S$lgbm))
   for (m in ms) {
     fc <- "forecast" %in% S[[m]]$modes
     expect_identical(fc, m %in% c("holt-winters", "dessem-linear", "dessem-regdin"))
@@ -110,7 +119,7 @@ test_that("os 5 run.yaml entregues tem os valores do contrato", {
   expect_identical(S$lgbm$params, list(disable_loess = TRUE, calendar_yearend = TRUE, train_cv = TRUE,
                                        tipodia_legacy = FALSE, cutoff_scheme = "v2_old",
                                        sazonalidade_scope = "train", prevespera_1230 = FALSE))
-  expect_true(S[["dessem-regdin"]]$constraints$infer_history_equals_train)
+  expect_false("infer_history_equals_train" %in% names(S[["dessem-regdin"]]$constraints))
 })
 
 test_that("run.yaml invalidos (tempdir) falham contract; horizon 1->3 e lido", {
@@ -123,7 +132,9 @@ test_that("run.yaml invalidos (tempdir) falham contract; horizon 1->3 e lido", {
   expect_pc_error(try_edit("lgbm", function(x) { x$seed <- NULL; x }), "contract.seed_missing", "seed")
   expect_pc_error(try_edit("lgbm", function(x) { x$granularity_min <- 15L; x }), "contract.run_yaml_bad_value", "granularity_min")
   expect_pc_error(try_edit("lgbm", function(x) { x$split <- "daily"; x }), "contract.run_yaml_bad_value", "split")
-  expect_pc_error(try_edit("dessem-regdin", function(x) { x$history_days$infer <- 45L; x }),
+  ## a regra infer_history_equals_train segue existindo como opt-in; o regdin nao a declara mais (ADR-045)
+  expect_identical(try_edit("dessem-regdin", function(x) { x$history_days$infer <- 45L; x })$history_days$infer, 45L)
+  expect_pc_error(try_edit("dessem-regdin", function(x) { x$history_days$infer <- 45L; x$constraints <- list(infer_history_equals_train = TRUE); x }),
                   "contract.constraint_violated", "infer_history_equals_train")
   expect_pc_error(try_edit("lgbm", function(x) { x$resources <- list(vcpu = 2L); x }), "contract.run_yaml_forbidden_key", "resources")
   expect_pc_error(try_edit("lgbm", function(x) { x$name <- "outro"; x }), "contract.run_yaml_name_mismatch", "outro")

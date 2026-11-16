@@ -325,7 +325,7 @@ prevcarga_set_data_dir_interactive <- function(ctx, base, input = stdin(), is_tt
   }
   cat("gravar? [s/N]: ", file = output)
   r <- readLines(input, n = 1L, warn = FALSE)
-  if (!length(r) || !(trimws(r) %in% c("s", "S"))) {
+  if (!length(r) || !identical(tolower(trimws(r)), "s")) {
     cat("\nnada gravado\n", file = output)
     return(list(config_path = ctx$config_path, changes = list(), gravado = FALSE))
   }

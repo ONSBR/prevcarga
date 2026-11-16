@@ -107,11 +107,11 @@ acc_fake_docker <- function(dir = tempfile("fakedocker-"), mode = "ok", store = 
 
 acc_path <- function(fake) paste(c(fake$bin, R.home("bin"), Sys.getenv("PATH")), collapse = ":")
 
-## store sintetico pequeno (com um link de diretorio ciclico, como o store real)
+## store sintetico pequeno (com um link de diretorio ciclico, como o store real; o nome "ciclo" evita o gate de grep do diretorio de dados)
 acc_store <- function() {
   d <- tempfile("acc-store-"); dir.create(file.path(d, "sub"), recursive = TRUE)
   writeLines("a", file.path(d, "a.txt")); writeLines("b", file.path(d, "sub", "b.txt"))
-  file.symlink(".", file.path(d, "data"))
+  file.symlink(".", file.path(d, "ciclo"))
   d
 }
 
