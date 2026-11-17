@@ -3,7 +3,8 @@
 ## Todos os caminhos ficam embutidos no proprio script (sem variavel de ambiente). Nenhum teste chama docker real nem AWS.
 ##
 ## Modos: ok, smoke_tz (zoneinfo ausente na imagem nova), sticky (rm -f nao remove), hang (run dorme), oom (unidade rc 137),
-##        base_present (base ja presente), cache_pre (registro de cache preexistente), build_fail (docker build falha),
+##        base_present (base ja presente), cache_pre (registro de cache preexistente no builder default), build_fail (buildx build falha),
+##        cache_foreign (outra sessao grava cache no builder default durante o build), builder_sticky (buildx rm nao remove o builder),
 ##        unit_refuse (unidade rc 2 com envelope), unit_fail (unidade rc 1 sem envelope), store_touch (run altera o store).
 ## E8-T2: long_fixture (docker run copia para /out/state um LONG sintetico de 8 colunas conforme o verbo; extrai topology.yaml e
 ##        run.yaml do "bundle" por --entrypoint cat; a ref demora 2 s no infer-model para a nova ser estritamente mais rapida),
@@ -22,14 +23,28 @@ label_of() { sed -n 2p "$1" 2>/dev/null; }
 case "$1" in
   info) echo "$ROOT" ;;
   buildx)
-    for f in "$ST"/cache/*; do [ -e "$f" ] || continue; printf 'ID:\t\t%s\nCreated at:\tx\n\n' "$(basename "$f")"; done ;;
-  build)
-    shift; tag=; label=
-    while [ $# -gt 0 ]; do case "$1" in -t) tag=$2; shift 2 ;; --label) label=$2; shift 2 ;; -f) shift 2 ;; *) shift ;; esac; done
-    [ -e "$ST/images/base" ] || printf 'base\n\n' > "$ST/images/base"
-    : > "$ST/cache/build-$$-$(date +%s%N)"
-    [ "$MODE" = build_fail ] && exit 1
-    printf '%s\n%s\n' "$tag" "$label" > "$ST/images/$(ref_file "$tag")" ;;
+    shift; sub=$1; [ $# -gt 0 ] && shift
+    case "$sub" in
+      create)
+        name=; while [ $# -gt 0 ]; do case "$1" in --name) name=$2; shift 2 ;; *) shift ;; esac; done
+        [ -n "$name" ] || exit 1; : > "$ST/builders/$name" ;;
+      build)
+        tag=; label=; bld=
+        while [ $# -gt 0 ]; do case "$1" in -t) tag=$2; shift 2 ;; --label) label=$2; shift 2 ;; --builder) bld=$2; shift 2 ;; -f) shift 2 ;; *) shift ;; esac; done
+        [ -e "$ST/builders/$bld" ] || exit 1
+        [ "$MODE" = cache_foreign ] && : > "$ST/cache/foreign-$$-$(date +%s%N)"
+        [ "$MODE" = build_fail ] && exit 1
+        printf '%s\n%s\n' "$tag" "$label" > "$ST/images/$(ref_file "$tag")" ;;
+      rm)
+        [ "$MODE" = builder_sticky ] && exit 0
+        for a in "$@"; do case "$a" in -*) ;; *) rm -f "$ST/builders/$a" ;; esac; done ;;
+      ls)
+        printf 'NAME/NODE DRIVER/ENDPOINT STATUS BUILDKIT PLATFORMS\ndefault* docker\n \\_ default \\_ default running v0 linux/amd64\n'
+        for f in "$ST"/builders/*; do [ -e "$f" ] || continue
+          printf '%s docker-container\n \\_ %s0 \\_ unix:///x running v0 linux/amd64\n' "$(basename "$f")" "$(basename "$f")"; done ;;
+      *)
+        for f in "$ST"/cache/*; do [ -e "$f" ] || continue; printf 'ID:\t\t%s\nCreated at:\tx\n\n' "$(basename "$f")"; done ;;
+    esac ;;
   create)
     shift; name=; label=; net=default
     while [ $# -gt 0 ]; do case "$1" in --name) name=$2; shift 2 ;; --label) label=$2; shift 2 ;; --network) net=$2; shift 2 ;; -*) shift ;; *) break ;; esac; done
@@ -181,7 +196,7 @@ acc_cfg_fixture <- function() {
 acc_fake_docker <- function(dir = tempfile("fakedocker-"), mode = "ok", store = NULL, med = NULL, ctrl = NULL) {
   dir.create(file.path(dir, "bin"), recursive = TRUE)
   st <- file.path(dir, "state"); root <- file.path(dir, "dockerroot")
-  for (s in c("containers", "images", "cache")) dir.create(file.path(st, s), recursive = TRUE)
+  for (s in c("containers", "images", "cache", "builders")) dir.create(file.path(st, s), recursive = TRUE)
   dir.create(root)
   if (identical(mode, "cache_pre")) file.create(file.path(st, "cache", "pre0001"))
   if (identical(mode, "base_present")) writeLines(c("base", ""), file.path(st, "images", "base"))

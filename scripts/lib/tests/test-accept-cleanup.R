@@ -2,7 +2,7 @@
 ## Docker FALSO em tempdir (helper-accept.R); nenhum docker real, nenhuma chamada AWS.
 
 acc_zero <- list(containers = 0L, images = 0L, cache = 0L)
-acc_no_object_calls <- function(calls) !any(grepl("^(build|run|create|pull|images|rmi) ", calls))
+acc_no_object_calls <- function(calls) !any(grepl("^(build|run|create|pull|images|rmi|buildx (create|build)) ", calls))
 
 test_that("--out dentro do store, do repo ou do DockerRootDir => exit 2 contract.accept_out_forbidden sem objeto Docker", {
   fk <- acc_fake_docker(); b <- acc_bundle_fixture(); st <- acc_store()
@@ -23,7 +23,7 @@ test_that("espaco livre abaixo do minimo => exit 2 contract.accept_disk_low ante
     expect_equal(r$status, 2L, info = flag)
     expect_equal(r$json$error_id, "contract.accept_disk_low", info = flag)
     expect_equal(acc_residue(out), acc_zero, info = flag)
-    expect_false(any(grepl("^build ", r$calls)), info = flag)
+    expect_false(any(grepl("^buildx (create|build) ", r$calls)), info = flag)
   }
 })
 
@@ -83,7 +83,7 @@ test_that("store alterado durante o run => exit 9 integrity.accept_store_changed
   expect_false(r$json$store_unchanged)
 })
 
-test_that("base preexistente e cache preexistente ficam; so ids novos saem por prune com --filter; nunca system prune", {
+test_that("builder buildx dedicado por RUN_ID: criado, usado com --load e removido; nunca prune; cache do builder default fica", {
   st <- acc_store(); b <- acc_bundle_fixture()
   fk <- acc_fake_docker(mode = "base_present"); out <- tempfile("acc-out-")
   r <- acc_run(acc_args(out, st, b), fk)
@@ -95,12 +95,53 @@ test_that("base preexistente e cache preexistente ficam; so ids novos saem por p
   expect_equal(r2$status, 0L)
   expect_equal(acc_state_files(fk2, "cache"), "pre0001")
   expect_equal(jsonlite::read_json(file.path(out2, "run.json"))$base_preexistente, FALSE)
+  rid <- r2$json$run_id
+  expect_length(acc_state_files(fk2, "builders"), 0L)
   for (calls in list(r$calls, r2$calls)) {
-    pr <- grep("prune", calls, value = TRUE)
-    expect_false(any(grepl("system", calls)))
-    expect_true(all(grepl("^builder prune -f --filter id=", pr)))
+    expect_false(any(grepl("prune", calls)))                       # nenhum prune: o cache e do builder dedicado
+    expect_false(any(grepl("^build ", calls)))                     # nada no builder default
+    bb <- grep("^buildx build ", calls, value = TRUE)
+    expect_length(bb, 2L)
+    expect_true(all(grepl("--load", bb, fixed = TRUE)))
+    expect_true(all(grepl("--label prevcarga.accept.run=", bb, fixed = TRUE)))
   }
-  expect_true(any(grepl("^builder prune -f --filter id=build-", r2$calls)))
+  expect_true(any(grepl(sprintf("^buildx create --name pc-accept-%s --driver docker-container", rid), r2$calls)))
+  expect_true(any(grepl(sprintf("^buildx rm --force pc-accept-%s$", rid), r2$calls)))
+  expect_true(all(grepl(sprintf("--builder pc-accept-%s ", rid), grep("^buildx build ", r2$calls, value = TRUE), fixed = TRUE)))
+})
+
+test_that("cache que outra sessao grava no builder default durante o run nao e residuo nem e tocado", {
+  st <- acc_store(); b <- acc_bundle_fixture()
+  fk <- acc_fake_docker(mode = "cache_foreign"); out <- tempfile("acc-out-")
+  r <- acc_run(acc_args(out, st, b), fk)
+  expect_equal(r$status, 0L); expect_equal(r$json$verdict, "PASS")
+  expect_equal(acc_residue(out), acc_zero)
+  expect_gte(length(acc_state_files(fk, "cache")), 1L)
+  expect_false(any(grepl("prune", r$calls)))
+})
+
+test_that("builder que sobra apos buildx rm => exit 9 integrity.accept_residue com cache >= 1", {
+  st <- acc_store(); b <- acc_bundle_fixture()
+  fk <- acc_fake_docker(mode = "builder_sticky"); out <- tempfile("acc-out-")
+  r <- acc_run(acc_args(out, st, b), fk)
+  expect_equal(r$status, 9L); expect_equal(r$json$error_id, "integrity.accept_residue")
+  expect_gte(acc_residue(out)$cache, 1L)
+  expect_equal(acc_residue(out)$images, 0L)
+})
+
+test_that("runtime_id sem o campo no RUNTIME.json vem de prevcarga_runtime_id() sobre o proprio arquivo", {
+  st <- acc_store(); b <- acc_bundle_fixture()
+  rj <- sub("\\.tar\\.zst$", ".RUNTIME.json", b$new)
+  writeLines('{"version":"x","files":[],"platform":"linux-x86_64"}', rj)
+  e <- new.env(); sys.source(file.path(pc_root(), "scripts", "lib", "runtime.R"), envir = e)
+  want <- e$prevcarga_runtime_id(rj)
+  expect_match(want, "^[0-9a-f]{64}$")
+  fk <- acc_fake_docker(mode = "ok"); out <- tempfile("acc-out-")
+  r <- acc_run(acc_args(out, st, b), fk)
+  expect_equal(r$status, 0L)
+  expect_equal(r$json$runtime_id$new, want)
+  expect_equal(jsonlite::read_json(file.path(out, "run.json"))$runtime_id$new, want)
+  expect_equal(r$json$runtime_id$ref, "rt-ref")            # campo presente => vale o campo
 })
 
 test_that("pc_accept_run_unit monta o docker run isolado, sem -e, e acrescenta a linha de index.tsv; a fila devolve 14 se falhar", {
@@ -164,5 +205,6 @@ test_that("todo error_id do script existe em accept.tsv com o exit da classe; tu
   asc <- function(x) !any(as.integer(unlist(lapply(x, function(s) as.integer(charToRaw(s))))) > 127L)
   expect_true(asc(sh)); expect_true(asc(readLines(file.path(pc_root(), "scripts", "lib", "errors", "accept.tsv"))))
   expect_true(asc(readLines(acc_dockerfile())))
-  expect_false(any(grepl("system prune|builder prune -f( |$)", sh[!grepl("^#", sh)]) & !grepl("--filter", sh[!grepl("^#", sh)])))
+  expect_false(any(grepl("prune", sh[!grepl("^#", sh)])))                       # nenhum prune (nem system, nem builder): o cache e do builder dedicado
+  expect_true(any(grepl("docker buildx rm --force", sh[!grepl("^#", sh)], fixed = TRUE)))
 })
