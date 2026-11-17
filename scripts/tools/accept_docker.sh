@@ -344,6 +344,10 @@ pc_accept_build_image() {
   ctx="$(mktemp -d)"; CTX_DIRS+=("$ctx")
   cp "${BUNDLE_PATH[$ver]}" "$ctx/bundle.tar.zst"
   printf '%s  bundle.tar.zst\n' "${BUNDLE_SHA[$ver]}" > "$ctx/bundle.tar.zst.sha256"
+  # o bundle nao traz o instalador: usa o install.sh do MESMO commit do bundle (code_commit do RUNTIME.json; sem ele, o HEAD do repo)
+  local cc; cc="$(jq -r '.code_commit // empty' "${BUNDLE_PATH[$ver]%.tar.zst}.RUNTIME.json" 2>/dev/null || true)"
+  git -C "$REPO" show "${cc:-HEAD}:install/install.sh" > "$ctx/install.sh" 2>/dev/null \
+    || pc_accept_die bundle.accept_image_build "install.sh do commit ${cc:-HEAD} ausente em $REPO"
   pc_accept_bg docker buildx build --builder "$BUILDER" --load --label "prevcarga.accept.run=$RUN_ID" -t "$img" -f "$PC_ACCEPT_DOCKERFILE" "$ctx" >&2 \
     || pc_accept_die bundle.accept_image_build "docker buildx build da imagem $img falhou (builder $BUILDER)"
   rm -rf "$ctx"
