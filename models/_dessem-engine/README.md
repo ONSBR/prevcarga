@@ -51,8 +51,10 @@ processaModelosDMTSPerfil -> exec_modelos.R -> pkgfun_execModelos.R:106
 O oraculo aplicava estas guardas como patch pos-source no globalenv; aqui vivem no env do motor
 (SVM_DemandaMedia/SVMhorario chamam `tune_wsvm` sem `::`, que resolve no env do motor antes do pacote anexado).
 `.tune_wsvm_real` (`_load_engine.R:264`, alias do pacote) vira funcao que chama `WeightSVM::tune_wsvm`. Caminho feliz bit-identico (chama o real primeiro). Sinalizam `dessem_engine_guard` (subclasse de `message`,
-codigos `warning.engine_empty_model_guard` e `warning.engine_cross_clamped` do catalogo); o despachante do plugin
-as coleta com `withCallingHandlers`; o motor nao guarda estado.
+codigos `warning.engine_empty_model_guard`, `warning.engine_cross_clamped` e `warning.engine_tune_fallback` do catalogo); o despachante do plugin
+as coleta com `withCallingHandlers`; o motor nao guarda estado. O ultimo e o fallback sem tune (E8-T4, decisao do Gabriel de 2026-11-17, ADR-046):
+quando o tune devolve modelo vazio ou dobra constante e a guarda encadeada nao resolve, o perfil treina sem tune com os padroes do `wsvm`
+(`cost = 1`, `epsilon = 0.1`, ambos nos `ranges` do `model_parameters.json`) em vez de abortar `engine.dessem_tune_small_sample`.
 
 ```
 .wsvm_guard_retry -> robustez.R -> _load_engine.R:265

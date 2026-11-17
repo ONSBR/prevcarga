@@ -152,12 +152,18 @@ test_that("clamp_encadeado: sampling size -> empty no cross clampado -> guarda r
   expect_identical(r$guards[[1L]]$details$to, 5L)
 })
 
-test_that("clamp_encadeado: guarda falhando, n_eff = 1 e outra classe de erro no retry abortam small_sample", {
+test_that("clamp_encadeado: guarda falhando entrega o fallback sem tune (E8-T4, ADR-046); com o fallback sem saida aborta small_sample", {
   eng <- rb_engine()
   env <- rb_env(eng)
-  ## guarda tambem falha
+  ## guarda tambem falha => treino sem tune com o warning classificado (antes: aborto small_sample)
   rb_stub(eng, "sampling size", "Model is empty!")
   assign(".wsvm_guard_retry", function(.args, msg) stop("Model is empty!", call. = FALSE), envir = env)
+  r <- rb_collect(do.call(eng$tune_wsvm, rb_args5()))
+  expect_s3_class(r$value, "tune")
+  expect_identical(rb_guard_codes(r), c("warning.engine_cross_clamped", "warning.engine_tune_fallback"))
+  ## fallback tambem sem saida => o aborto original
+  rb_stub(eng, "sampling size", "Model is empty!")
+  assign(".wsvm_notune_fallback", function(...) NULL, envir = env)
   e <- tryCatch(do.call(eng$tune_wsvm, rb_args5()), error = function(e) e)
   expect_match(conditionMessage(e), "engine.dessem_tune_small_sample", fixed = TRUE)
   ## n_eff = 1 (new_cross < 2)
