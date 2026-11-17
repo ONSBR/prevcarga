@@ -1080,6 +1080,30 @@ prevcarga_registry_contain <- function(path, ctx) {
   p
 }
 
+## --- Variante, overrides do ctx e spec efetivo da chave (movidos de training.R, E8-T4) ----------------------------
+## Ficam aqui, e nao em training.R, porque inference/features/validate-deck/forecast os chamam e nao carregam training.R.
+.prevcarga_tr_variant <- function(member) {
+  exo <- member$exogena
+  if (is.null(exo) || length(exo) != 1L || is.na(exo) || !nzchar(exo)) NA_character_ else as.character(exo)
+}
+
+## Overrides do ctx (--horizon, ...) mais a variante do membro na chave que o descriptor declara (`variant_param`).
+.prevcarga_tr_overrides <- function(plugin, member, ctx) {
+  ov <- if (is.null(ctx$spec_overrides)) list() else ctx$spec_overrides
+  vp <- plugin$descriptor$variant_param
+  exo <- .prevcarga_tr_variant(member)
+  if (is.character(vp) && length(vp) == 1L && !is.na(vp) && !is.na(exo)) ov[[paste0("params.", vp)]] <- exo
+  ov
+}
+
+## Spec efetivo para a chave do registry (E5-T4): so quando o descriptor declara key_params (senao NULL => chave de sempre).
+## Mesmos overrides do treino (.prevcarga_tr_overrides), para treino, inferencia e forecast resolverem a mesma celula.
+.prevcarga_tr_key_spec <- function(member, ctx) {
+  plugin <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))
+  if (!length(plugin$descriptor$key_params)) return(NULL)
+  prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
+}
+
 ## Segmento de variante sse `member$exogena` nao for NA/vazia: decisao so pelo membro, nunca pelo nome do modelo.
 ## Com `spec` (E5-T4), cada descriptor$key_params fora do default e nao ignorado pela variante vira o segmento
 ## <param>-<valor> entre a variante e a area; spec NULL ou valores default => layout anterior byte a byte.

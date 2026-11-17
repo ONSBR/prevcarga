@@ -53,7 +53,7 @@ test_that("[PLUGINS] readme: secoes, gates, sha256 dos relatorios, mapa do oracu
   expect_true(file.exists(est))
   et <- paste(readLines(est, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl("## DL.11", et, fixed = TRUE))
-  for (needle in c("LIN_MED", "LIN_MAX", "LIN_MXMN", "engine_manifest()", "history_days.infer == train", "rng_deviation",
+  for (needle in c("LIN_MED", "LIN_MAX", "LIN_MXMN", "engine_manifest()", "history_days.infer <= history_days.train", "infer: 15", "rng_deviation",
                    "foundation_report.json", "fanout_report.json",
                    digest::digest(file = file.path(dl_models(), "dessem-linear", "tests", "parity", "foundation_report.json"), algo = "sha256"),
                    digest::digest(file = file.path(dl_models(), "dessem-linear", "tests", "parity", "fanout_report.json"), algo = "sha256")))

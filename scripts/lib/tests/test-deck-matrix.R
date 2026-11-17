@@ -5,7 +5,7 @@
 ## existe em MUTATIONS, salvo a lista curta de excecoes justificadas. Fixtures so em tempdir (nunca data/).
 library(testthat)
 options(prevcarga.lib = file.path(pc_root(), "scripts", "lib"))
-mv <- pc_source_lib(c("errors", "runtime", "config", "topology", "deck_reader", "dates", "validation"))
+mv <- pc_source_lib(c("errors", "runtime", "config", "topology", "deck_reader", "dates", "validation", "inference_needs"))
 mv$prevcarga_runtime_enforce()
 
 mx_O <- lubridate::ymd("2026-10-01")
@@ -43,12 +43,14 @@ mx_deck <- function() {                                   # limpo de 40 dias (RS
 }
 root_std <- mx_root()
 root_hw60 <- mx_root(hw = c(60, 10))       # treino de HW maior que o deck de 40 dias
-root_hw45 <- mx_root(hw = c(30, 45))       # so a inferencia de HW excede o deck
+root_hw45 <- mx_root(hw = c(30, 45))       # history_days.infer 45 > train 30: contract.history_infer_gt_train (ADR-045, infer <= train)
+root_hw5060 <- mx_root(hw = c(60, 50))     # infer <= train, mas o deck de 40 dias nao cobre nenhum dos dois
 
 mx_run <- function(deck, opts = list()) {
   ctx <- pc_ctx_deck(deck, load_label = opts$flag_label, source = if (is.null(opts$flag_label)) "default" else "flag")
   ctx$root <- if (is.null(opts$root)) root_std else opts$root
   ctx$weather_issue_cutoff <- if (is.null(opts$cutoff)) "available_until" else opts$cutoff
+  for (k in names(opts$ctx)) ctx[[k]] <- opts$ctx[[k]]               # papel do deck (data_role) e --origin do ctx
   mv$prevcarga_validate_deck(ctx, origin = if (is.null(opts$origin)) mx_O else opts$origin, scope = opts$scope,
                              data_lag_days = opts$data_lag)
 }
@@ -97,7 +99,10 @@ MUTATIONS <- list(
   mx_row("scope_undeclared", function(d) invisible(NULL), "topology", opts = list(scope = list(area = "XX"))),
   ## window
   mx_row("window_train_deficit", function(d) invisible(NULL), "window", opts = list(root = root_hw60, scope = list(model = "holt-winters"))),
-  mx_row("window_infer_deficit", function(d) invisible(NULL), "window", opts = list(root = root_hw45, scope = list(model = "holt-winters"))),
+  ## ADR-045: infer <= train. A mutacao que antes dava window_infer_deficit (infer 45 > train 30) agora e o contrato de topologia
+  mx_row("history_infer_gt_train", function(d) invisible(NULL), "contract", opts = list(root = root_hw45, scope = list(model = "holt-winters"))),
+  mx_row("window_infer_deficit", function(d) invisible(NULL), "window", opts = list(root = root_hw5060, scope = list(model = "holt-winters")),
+         also = "window_train_deficit"),
   ## avisos (level warning; nao reprovam)
   mx_row("outlier",          function(d) pc_mut_load(d, function(dt) dt[area_code == MX_A1 & timestamp == mx_stamp("2026-09-20 12:00:00"), load_mwh := 28]),
          "contract", "warning"),
@@ -130,6 +135,54 @@ mx_check_row <- function(row) {
     if (identical(row$level, "error") != !isTRUE(v$ok) && !length(row$also)) sprintf("%s: veredito ok=%s inconsistente com level %s", row$what, v$ok, row$level))
   list(ok = !length(msgs), msg = paste(msgs, collapse = "; "), v = v)
 }
+
+## ---- whats do deck de inferencia (E1-E3, ADR-044): kind/origem abortam; necessidade e schema de data_needs sao checks puros ------
+MX_INF <- list(origin = "2026-10-01", available_until = "2026-10-01T08:00:00", train_deck_hash = strrep("a1", 32L),
+               windows = list(load = list(from = "2026-08-01", to = "2026-10-01")))
+mx_inference_deck <- function(d) pc_deck_manifest(d, mutate = function(m) { m$kind <- "inference"; m$inference <- MX_INF; m })
+mx_needs <- function(annex = FALSE) list(
+  schema_version = 1L, load = list(days_before = 3L), weather_observed = list(days_before = 3L),
+  weather_forecast = list(area = MX_A1, segments = list(list(kind = "freshest", from = 0L, to = 1L))),
+  holidays = list(from = -3L, to = 2L), holiday_annex = annex)
+mx_abort <- function(expr) tryCatch({ force(expr); NULL }, prevcarga_error = identity)
+## Cada linha devolve a condicao/finding que o what produz; `got` = id (aborts) ou what (findings)
+MUTATIONS_INF <- list(
+  list(what = "deck_kind_mismatch", id = "contract.deck_kind_mismatch", class = "contract",
+       run = function() { d <- mx_deck(); mx_abort(mx_run(d, list(ctx = list(data_role = "inference")))) }),
+  list(what = "deck_origin_mismatch", id = "contract.deck_origin_mismatch", class = "contract",
+       run = function() { d <- mx_deck(); mx_inference_deck(d)
+         mx_abort(mx_run(d, list(ctx = list(data_role = "inference", origin = "2026-10-02")))) }),
+  list(what = "inference_needs_invalid", id = "contract.inference_needs_invalid", class = "contract",
+       run = function() mx_abort(mv$prevcarga_inference_needs_normalize(c(mx_needs(), list(extra = 1)), "mdl"))),
+  list(what = "need_gap", id = "completude.need_gap", class = "completude",
+       run = function() {            # anexo de feriados pedido e ausente no manifest: finding de erro need_gap
+         d <- mx_deck(); man <- mv$prevcarga_deck_manifest(d)
+         rows <- data.table::data.table(member = "m", mdir = "m", area = MX_A1, needs = list(mx_needs(annex = TRUE)), source = "artifacts")
+         cuts <- list(weather_issue_limit = lubridate::force_tz(lubridate::as_datetime(mx_O), "Etc/GMT+3"))
+         chk <- mv$.prevcarga_check_inference_needs(list(data_dir = d, root = pc_root()), mx_O, cuts,
+                                                    mv$prevcarga_inference_needs_aggregate(rows), "Etc/GMT+3", man)
+         f <- chk$findings; f[f$dataset == "holiday_annex" & f$what == "need_gap", ] }))
+MX_WHATS <- c(MX_WHATS, vapply(MUTATIONS_INF, function(r) r$what, ""))
+
+for (row in MUTATIONS_INF) local({
+  r <- row
+  test_that(paste0("[CONTROL] ", r$what, " (", r$class, "/error): a mutacao do deck de inferencia produz exatamente o seu what"), {
+    got <- r$run()
+    if (inherits(got, "prevcarga_error")) {
+      expect_identical(got$id, r$id); expect_identical(got$class_name, r$class)
+    } else {
+      expect_identical(nrow(got), 1L)
+      expect_identical(got$what, r$what); expect_identical(got$class, r$class); expect_identical(got$level, "error")
+    }
+  })
+})
+
+test_that("[FORBIDDEN] deck de inferencia coerente (papel e origem corretos) nao aborta; anexo ausente so some quando pedido", {
+  d <- mx_deck(); mx_inference_deck(d)
+  expect_null(mx_abort(mv$prevcarga_require_deck(list(data_dir = d, data_role = "inference", origin = "2026-10-01"))))
+  expect_null(mx_abort(mv$prevcarga_require_deck(list(data_dir = mx_deck(), data_role = "train"))))
+  expect_null(mx_abort(mv$prevcarga_inference_needs_normalize(mx_needs(), "mdl")))
+})
 
 ## ---- FORBIDDEN: deck limpo ---------------------------------------------------------------------------------------------------
 test_that("[FORBIDDEN] deck limpo: ok, classe ok e zero findings (nenhuma mutacao => nenhum what)", {

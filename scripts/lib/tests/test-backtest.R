@@ -125,9 +125,9 @@ test_that("[AC1] --corte 09:00 trunca a carga ANTES do leitor: available_until 0
   ctx <- bctx()
   seen <- new.env(); seen$cut <- list()
   orig <- mod$prevcarga_read_panel
-  mock(prevcarga_read_panel = function(ctx, origin, areas, horizon_days, history_days, truncate_at = NULL) {
+  mock(prevcarga_read_panel = function(ctx, origin, areas, horizon_days, history_days, truncate_at = NULL, holiday_window = NULL) {
     seen$cut[[length(seen$cut) + 1L]] <- truncate_at
-    orig(ctx, origin, areas, horizon_days, history_days, truncate_at = truncate_at)
+    orig(ctx, origin, areas, horizon_days, history_days, truncate_at = truncate_at, holiday_window = holiday_window)
   })
   res <- run_bt(ctx, models = "toy-s", cortes = "09:00")
   expect_identical(res$summary$verdict, "ok")

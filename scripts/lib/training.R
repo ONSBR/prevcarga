@@ -10,28 +10,7 @@
 ## `code_commit`, `renv_lock_hash` (injetados; ausentes => calculados), `trained_at`, `run_id`, `version` (laterais).
 ## Requer errors.R, topology.R, provenance.R, deck_reader.R, dates.R, features.R e registry.R carregados antes.
 
-## --- Variante e overrides -------------------------------------------------------------------------------
-.prevcarga_tr_variant <- function(member) {
-  exo <- member$exogena
-  if (is.null(exo) || length(exo) != 1L || is.na(exo) || !nzchar(exo)) NA_character_ else as.character(exo)
-}
-
-## Overrides do ctx (--horizon, ...) mais a variante do membro na chave que o descriptor declara (`variant_param`).
-.prevcarga_tr_overrides <- function(plugin, member, ctx) {
-  ov <- if (is.null(ctx$spec_overrides)) list() else ctx$spec_overrides
-  vp <- plugin$descriptor$variant_param
-  exo <- .prevcarga_tr_variant(member)
-  if (is.character(vp) && length(vp) == 1L && !is.na(vp) && !is.na(exo)) ov[[paste0("params.", vp)]] <- exo
-  ov
-}
-
-## Spec efetivo para a chave do registry (E5-T4): so quando o descriptor declara key_params (senao NULL => chave de sempre).
-## Mesmos overrides do treino (.prevcarga_tr_overrides), para treino, inferencia e forecast resolverem a mesma celula.
-.prevcarga_tr_key_spec <- function(member, ctx) {
-  plugin <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))
-  if (!length(plugin$descriptor$key_params)) return(NULL)
-  prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
-}
+## --- Variante, overrides e spec da chave: movidos para registry.R (todos os verbos carregam registry.R; E8-T4) ---
 
 ## --- Painel e cortes da celula ------------------------------------------------------------------------------
 ## Devolve plugin, spec efetivo, cuts (formato do despachante) e o painel de TREINO ja cortado em last_data_day.

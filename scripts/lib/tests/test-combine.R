@@ -96,8 +96,9 @@ test_that("M4.4 - ac-2 train: JSON unico, artefato no layout do bucket, latest.t
   expect_setequal(unlist(r$members_present), fx$members$sigla)
   n_of <- function(lead) unique(vapply(Filter(function(m) pc_cmb_lead_day(m$lead) %in% lead, r$members_by_lead),
                                        function(m) m$n_members, 0L))
-  expect_identical(n_of(0:1), 8L)                                    # O..O+1: os 8 membros
-  expect_identical(n_of(2:8), 7L)                                    # O+2..O+8: o curto ja saiu
+  n_all <- nrow(fx$members)                                          # contagem derivada de prevcarga_members(), sem literal
+  expect_identical(n_of(0:1), n_all)                                 # O..O+1: todos os membros
+  expect_identical(n_of(2:8), n_all - 1L)                            # O+2..O+8: o curto ja saiu
   expect_identical(r$load_label, "start")
   expect_identical(r$timezone, pc_cmb_tz)
   expect_identical(r$weather_issue_cutoff, "available_until")

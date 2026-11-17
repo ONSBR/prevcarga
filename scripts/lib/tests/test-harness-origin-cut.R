@@ -61,9 +61,9 @@ for (proto in names(OC_CASES)) local({
     ctx <- pc_m7h_ctx(OC_ROOT, OC_DECK)
     seen <- new.env(); seen$cut <- list()
     orig <- oc_mod$prevcarga_read_panel
-    pc_m7h_mock(prevcarga_read_panel = function(ctx, origin, areas, horizon_days, history_days, truncate_at = NULL) {
+    pc_m7h_mock(prevcarga_read_panel = function(ctx, origin, areas, horizon_days, history_days, truncate_at = NULL, holiday_window = NULL) {
       seen$cut[[length(seen$cut) + 1L]] <- truncate_at
-      orig(ctx, origin, areas, horizon_days, history_days, truncate_at = truncate_at)
+      orig(ctx, origin, areas, horizon_days, history_days, truncate_at = truncate_at, holiday_window = holiday_window)
     })
     res <- oc_backtest(ctx, model, proto)
     expect_identical(res$summary$verdict, "ok")

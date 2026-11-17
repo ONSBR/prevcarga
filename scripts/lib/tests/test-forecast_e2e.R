@@ -1,6 +1,6 @@
-## test-forecast_e2e.R -- prevcarga_forecast ponta a ponta (M6.4) com os 8 membros REAIS sobre um deck de fixture_store.R.
+## test-forecast_e2e.R -- prevcarga_forecast ponta a ponta (M6.4) com os membros REAIS da topologia sobre um deck de fixture_store.R.
 ## Roda em `Rscript --vanilla` filhos por fase (helper-m6-fixtures.R: m6e_*): train -> weights -> run -> rerun; LENTO (treino dos
-## 8 membros: ~10 min no total, 1 processo, 1 thread). `options(prevcarga.m6e_work = <dir>)` reaproveita o diretorio de trabalho e
+## membros: ~10 min no total, 1 processo, 1 thread). `options(prevcarga.m6e_work = <dir>)` reaproveita o diretorio de trabalho e
 ## retoma da fase seguinte (cada fase grava out-<fase>.json); `options(prevcarga.m6e_stop = "<fase>")` para depois dela.
 ## [DEFERRED M6.9] o verbo `forecast` (docopt) e do M6.9: aqui a rodada entra pela funcao publica, no filho que a CLI usaria.
 work <- getOption("prevcarga.m6e_work")
@@ -11,21 +11,27 @@ for (ph in c("train", "weights", "run", "rerun", "weights00", "run00")) {
   PH[[ph]] <- m6e_run_child(work, ph)
   if (identical(STOP, ph)) break
 }
+## Membros da topologia real: a contagem e as siglas vem de prevcarga_members(), nunca de literal.
+E2E_MEMBERS <- pc_source_lib(c("errors", "topology"))$prevcarga_members(root = pc_root())
+E2E_N <- nrow(E2E_MEMBERS)
+## celulas origin_scoped (treinam dentro do forecast): derivadas do split de cada membro, nunca de literal
+E2E_SCOPED <- sum(vapply(E2E_MEMBERS$mdir, function(m)
+  identical(pc_source_lib(c("errors", "config", "topology"))$prevcarga_model_spec(m, root = pc_root())$split, "origin_scoped"), NA))
 skip_if_stopped <- function(ph) if (is.null(PH[[ph]])) skip(paste("fase", ph, "nao rodou (prevcarga.m6e_stop)"))
 ok <- function(ph) { r <- PH[[ph]]; expect_identical(r$status, 0L, info = paste(utils::tail(r$log, 30), collapse = "\n")); r$json }
 
-test_that("[e2e] sem pesos da combina a 1a rodada sai pela media simples (EQW, F3.4) e as 6 celulas origin_scoped treinaram dentro do forecast, 1x cada", {
+test_that("[e2e] sem pesos da combina a 1a rodada sai pela media simples (EQW, F3.4) e as celulas origin_scoped (derivadas dos splits) treinaram dentro do forecast, 1x cada", {
   skip_if_stopped("train")
   j <- ok("train")
   expect_null(j$pre_error$id)                                      # nao aborta mais: combina sem pesos = media simples
   expect_true(isTRUE(j$pre_error$eqw))
-  expect_identical(j$trained_in_forecast, 6L)                      # HW, LIN_MED/MAX/MXMN, RGD_MED/MAX
+  expect_identical(j$trained_in_forecast, E2E_SCOPED)                      # HW, LIN_MED/MAX/MXMN, RGD_MED/MAX
   skip_if_stopped("weights")
   w <- ok("weights")
   expect_identical(w$trained_in_weights, 0L)                       # o setup dos pesos so reusou os artefatos de O
 })
 
-test_that("[e2e] os 8 membros reais rodam: gate-0 real, infer, combina, reconcile e export na chave imutavel", {
+test_that("[e2e] os membros reais da topologia rodam: gate-0 real, infer, combina, reconcile e export na chave imutavel", {
   skip_if_stopped("run")
   j <- ok("run")
   expect_null(j$error)
@@ -41,7 +47,7 @@ test_that("[e2e] os 8 membros reais rodam: gate-0 real, infer, combina, reconcil
   paths <- vapply(r$arquivos, function(a) a$path, "")
   expect_true(all(c("SIN.parquet", "subsistemas/XX.parquet", "folhas/SP.parquet") %in% paths))
   mem <- sort(sub("^membros/([^/]+)/SP.parquet$", "\\1", grep("^membros/", paths, value = TRUE)), method = "radix")
-  expect_identical(mem, sort(c("RF", "LGBM", "HW", "LIN_MED", "LIN_MAX", "LIN_MXMN", "RGD_MED", "RGD_MAX"), method = "radix"))
+  expect_identical(mem, sort(E2E_MEMBERS$sigla, method = "radix"))
   expect_true(all(vapply(r$arquivos, function(a) a$linhas > 0L, NA)))
   ## scratch registra TUDO o que entrega: nenhum aviso de export_file_missing
   expect_false(any(vapply(j$run1$warnings, function(w) identical(w$id, "completude.export_file_missing"), NA)))
@@ -71,7 +77,7 @@ test_that("[e2e] outro processo, mesmo deck e artefatos: mesma versao e sha256 i
   expect_identical(j2$train_calls_run1, 0L)
 })
 
-test_that("[e2e 00h] rodada das 00h com os 8 membros reais: deck ate O-1 23:30, origem O, entrega de O 00:30 sem carga do dia O", {
+test_that("[e2e 00h] rodada das 00h com os membros reais da topologia: deck ate O-1 23:30, origem O, entrega de O 00:30 sem carga do dia O", {
   skip_if_stopped("run00")
   w <- ok("weights00")
   ## os DESSEM rodam a 00h sem cabeca mm (fix/dl-00h-paridade; regdin cai no ARIMA puro): qualquer erro aqui e regressao, nunca skip
@@ -84,7 +90,7 @@ test_that("[e2e 00h] rodada das 00h com os 8 membros reais: deck ate O-1 23:30, 
   expect_identical(r$available_until, "2024-10-15T00:00")
   expect_match(r$saida, "/forecasts/2024-10-15/20241015T0000/[0-9a-f]{12}$")
   paths <- vapply(r$arquivos, function(a) a$path, "")
-  expect_length(grep("^membros/", paths), 8L)
+  expect_length(grep("^membros/", paths), E2E_N)
   expect_true(all(c("SIN.parquet", "subsistemas/XX.parquet", "folhas/SP.parquet") %in% paths))
   expect_true(j$run2$ja_publicado)
   expect_identical(j$run2$tree, j$run1$tree)
