@@ -416,7 +416,8 @@ pc_accept_run_unit() {
 pc_accept_queue() {
   local tsv="$1" jobs_max="$2" wave w unit ver n mf origem area mdir verb rc row_before running=0
   local waves; waves="$(cut -f1 "$tsv" | LC_ALL=C sort -un)"
-  row_before="$(wc -l < "$OUT/index.tsv" 2>/dev/null || echo 0)"
+  ## index.tsv so existe depois da primeira unidade: sem o arquivo o `< arquivo` falha ANTES do 2>/dev/null e o bash imprime "No such file"
+  if [ -f "$OUT/index.tsv" ]; then row_before="$(wc -l < "$OUT/index.tsv")"; else row_before=0; fi
   UNITS_TOTAL=0
   for w in $waves; do
     while IFS=$'\t' read -r wave unit ver n mf origem area mdir verb; do

@@ -175,6 +175,25 @@ test_that("pc_accept_run_unit monta o docker run isolado, sem -e, e acrescenta a
   }
 })
 
+test_that("pc_accept_queue sem index.tsv previo nao escreve 'No such file' no stderr e conta as unidades desta fila [CONTROL: com index.tsv previo so conta as novas]", {
+  run_queue <- function(prefix) {
+    fk <- acc_fake_docker(mode = "ok"); st <- acc_store(); out <- tempfile("acc-out-"); dir.create(out)
+    tsv <- file.path(out, "units.tsv"); errf <- tempfile("acc-err-")
+    writeLines(paste("1", file.path(out, "u1"), "ref", "7", "", "2026-01-01", "SE", "m1", "forecast", sep = "\t"), tsv)
+    if (prefix) writeLines(c("unit\tversao\timage\truntime_id\torigem\tarea\tmdir\trc\terror_id\tsegundos\tlong_paths\tsha256",
+                             "velha\tref\ti\tr\to\ta\tm\t1\t-\t1\t-\t-"), file.path(out, "index.tsv"))
+    script <- sprintf("source %s; RUN_ID=RID1; DATA=%s; OUT=%s; RUNTIME_ID[ref]=rt-ref; pc_accept_queue %s 2; echo U=$UNITS_TOTAL,$UNITS_OK,$UNITS_REFUSED,$UNITS_FAILED",
+                      shQuote(acc_script()), shQuote(st), shQuote(out), shQuote(tsv))
+    res <- suppressWarnings(system2("bash", c("-c", shQuote(script)), stdout = TRUE, stderr = errf, env = paste0("PATH=", acc_path(fk))))
+    list(out = res, err = readLines(errf, warn = FALSE))
+  }
+  r0 <- run_queue(FALSE)
+  expect_false(any(grepl("No such file|index.tsv", r0$err)))
+  expect_identical(r0$out[grepl("^U=", r0$out)], "U=1,1,0,0")
+  r1 <- run_queue(TRUE)                                 # a linha velha (failed) fica fora da contagem desta fila
+  expect_identical(r1$out[grepl("^U=", r1$out)], "U=1,1,0,0")
+})
+
 test_that("pins do Dockerfile iguais aos do build_bundle_linux.sh, com tzdata, zstd, TZ=UTC e sem aws", {
   df <- readLines(acc_dockerfile()); bb <- readLines(file.path(pc_root(), "scripts", "tools", "build_bundle_linux.sh"))
   image <- sub("^IMAGE='(.*)'$", "\\1", grep("^IMAGE='", bb, value = TRUE))
