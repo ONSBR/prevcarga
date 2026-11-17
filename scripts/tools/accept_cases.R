@@ -9,7 +9,8 @@
 #   Rscript --vanilla accept_cases.R --overlay topologia|janela --in <yaml extraido da imagem> --out <yaml>
 #
 # YAML (schema_version 1; unicas chaves aceitas): ref_rev, jobs (12-14), memory, cpus, min_free_gb_docker, min_free_gb_out,
-#   aceite {origem, subsistema, areas_feriado, area_tempo, membro_tempo}, medicao {origens, areas, mdirs}.
+#   aceite {origem, subsistema, areas_feriado, area_tempo, membro_tempo, [origem_tempo]}, medicao {origens, areas, mdirs}. origem_tempo
+#   (opcional, default = origem) e a origem das unidades de tempo (train-models, infer-model, deck-inference).
 #   Precedencia dos ajustes: flag do accept_docker.sh > YAML > default embutido. Origem e AAAA-MM-DD (lubridate, UTC);
 #   cada area e folha ou subsistema de config/topology.yaml do repo.
 #
@@ -49,9 +50,9 @@ pc_accept_defaults <- list(ref_rev = "de24021", jobs = 13L, memory = "8g", cpus 
   x
 }
 
-.pc_acc_block <- function(b, keys, where) {
+.pc_acc_block <- function(b, keys, where, optional = character()) {
   if (!is.list(b) || is.null(names(b))) .pc_acc_bad(where, "bloco ausente ou invalido")
-  for (k in setdiff(names(b), keys)) .pc_acc_bad(paste0(where, ".", k), "chave desconhecida")
+  for (k in setdiff(names(b), c(keys, optional))) .pc_acc_bad(paste0(where, ".", k), "chave desconhecida")
   for (k in setdiff(keys, names(b))) .pc_acc_bad(paste0(where, ".", k), "chave obrigatoria ausente")
   b
 }
@@ -95,8 +96,9 @@ pc_accept_config_load <- function(path, root) {
     for (a in v) chk_area(a, where)
     v
   }
-  ac <- .pc_acc_block(raw$aceite, c("origem", "subsistema", "areas_feriado", "area_tempo", "membro_tempo"), "aceite")
+  ac <- .pc_acc_block(raw$aceite, c("origem", "subsistema", "areas_feriado", "area_tempo", "membro_tempo"), "aceite", optional = "origem_tempo")
   .pc_acc_date(ac$origem, "aceite.origem")
+  if (!is.null(ac$origem_tempo)) .pc_acc_date(ac$origem_tempo, "aceite.origem_tempo")
   if (!.pc_acc_chr1(ac$subsistema) || !(ac$subsistema %in% names(topo$subsystems))) .pc_acc_bad("aceite.subsistema", "subsistema fora de config/topology.yaml")
   chk_areas(ac$areas_feriado, "aceite.areas_feriado")
   chk_area(ac$area_tempo, "aceite.area_tempo")
@@ -109,8 +111,8 @@ pc_accept_config_load <- function(path, root) {
   chk_areas(me$areas, "medicao.areas")
   if (anyDuplicated(me$areas)) .pc_acc_bad("medicao.areas", "area repetida")
   if (!.pc_acc_chrv(me$mdirs) || !all(me$mdirs %in% members$mdir)) .pc_acc_bad("medicao.mdirs", "mdir fora dos membros da topologia")
-  cfg$aceite <- list(origem = ac$origem, subsistema = ac$subsistema, areas_feriado = ac$areas_feriado,
-                     area_tempo = ac$area_tempo, membro_tempo = ac$membro_tempo)
+  cfg$aceite <- list(origem = ac$origem, origem_tempo = if (is.null(ac$origem_tempo)) ac$origem else ac$origem_tempo, subsistema = ac$subsistema,
+                     areas_feriado = ac$areas_feriado, area_tempo = ac$area_tempo, membro_tempo = ac$membro_tempo)
   cfg$medicao <- list(origens = me$origens, areas = me$areas, mdirs = me$mdirs)
   cfg
 }
@@ -131,28 +133,30 @@ pc_accept_units_medicao <- function(cfg) {
 }
 
 pc_accept_units_aceite <- function(cfg) {
-  a <- cfg$aceite; o <- a$origem; mt <- strsplit(a$membro_tempo, "/", fixed = TRUE)[[1L]]
+  a <- cfg$aceite; o <- a$origem; ot <- a$origem_tempo; mt <- strsplit(a$membro_tempo, "/", fixed = TRUE)[[1L]]
+  ## `origem` = a da celula; as unidades de TEMPO (train-models, infer-model e deck-inference) usam origem_tempo (default = origem): a ref nao
+  ## treina o dessem-linear numa origem com feriado de amostra pequena no horizonte (generic.unexpected herdado), e o tempo precisa dos dois lados
   row <- function(versao, verbo, area, wave, mdir = "-", suffix = mdir, topologia = "full", janela = "-", data_flag = NULL,
-                  artifacts_from = "-") {
+                  artifacts_from = "-", origem = o) {
     data.table::data.table(
-      unit = paste0(c("aceite", versao, verbo, area, o, if (!identical(suffix, "-")) suffix), collapse = "-"),
-      stage = "aceite", wave = as.integer(wave), versao = versao, origem = o, area = area, mdir = mdir, verbo = verbo,
+      unit = paste0(c("aceite", versao, verbo, area, origem, if (!identical(suffix, "-")) suffix), collapse = "-"),
+      stage = "aceite", wave = as.integer(wave), versao = versao, origem = origem, area = area, mdir = mdir, verbo = verbo,
       topologia = topologia, janela = janela, data_flag = if (is.null(data_flag)) .pc_acc_flag(versao) else data_flag,
       artifacts_from = artifacts_from)
   }
-  tr_ref <- row("ref", "train-models", a$area_tempo, 1L, mt[[1L]])$unit
-  tr_new <- row("new", "train-models", a$area_tempo, 1L, mt[[1L]])$unit
+  tr_ref <- row("ref", "train-models", a$area_tempo, 1L, mt[[1L]], origem = ot)$unit
+  tr_new <- row("new", "train-models", a$area_tempo, 1L, mt[[1L]], origem = ot)$unit
   u <- .pc_acc_rows(
     row("ref", "backtest", a$subsistema, 1L),
     row("new", "backtest", a$subsistema, 1L, topologia = "sem_lin_uni", janela = "referencia"),
     do.call(rbind, lapply(a$areas_feriado, function(ar) row("new", "backtest", ar, 1L, mdir = mt[[1L]]))),
-    row("ref", "train-models", a$area_tempo, 1L, mt[[1L]]),
-    row("new", "train-models", a$area_tempo, 1L, mt[[1L]]),
-    row("ref", "infer-model", a$area_tempo, 2L, a$membro_tempo, suffix = "train", artifacts_from = tr_ref),
-    row("new", "infer-model", a$area_tempo, 2L, a$membro_tempo, suffix = "train", artifacts_from = tr_new),
-    row("new", "deck-inference", a$area_tempo, 2L, artifacts_from = tr_new),
+    row("ref", "train-models", a$area_tempo, 1L, mt[[1L]], origem = ot),
+    row("new", "train-models", a$area_tempo, 1L, mt[[1L]], origem = ot),
+    row("ref", "infer-model", a$area_tempo, 2L, a$membro_tempo, suffix = "train", artifacts_from = tr_ref, origem = ot),
+    row("new", "infer-model", a$area_tempo, 2L, a$membro_tempo, suffix = "train", artifacts_from = tr_new, origem = ot),
+    row("new", "deck-inference", a$area_tempo, 2L, artifacts_from = tr_new, origem = ot),
     row("new", "infer-model", a$area_tempo, 3L, a$membro_tempo, suffix = "inference", data_flag = "--data-inference",
-        artifacts_from = tr_new))
+        artifacts_from = tr_new, origem = ot))
   data.table::setorderv(u, c("stage", "wave", "versao", "origem", "area", "mdir", "verbo", "unit"))
   u[, pc_accept_unit_cols, with = FALSE]
 }

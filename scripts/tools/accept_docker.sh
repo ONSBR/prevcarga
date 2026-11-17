@@ -562,18 +562,18 @@ pc_accept_delta_pair() {
 }
 
 pc_accept_stage_aceite() {
-  local tsv="$OUT/units.aceite.tsv" q="$OUT/queue.aceite.tsv" rc1=0 rc2=0 rc3=0 id="" detail="" o sub ta
+  local tsv="$OUT/units.aceite.tsv" q="$OUT/queue.aceite.tsv" rc1=0 rc2=0 rc3=0 id="" detail="" o ot sub ta
   Rscript --vanilla "$PC_TOOLS/accept_cases.R" --config "$CONFIG" --stage aceite --out "$tsv" >/dev/null \
     || pc_accept_die contract.accept_bad_config "accept_cases.R recusou $CONFIG"
   pc_accept_prepare_all "$tsv" "$q"
   UNITS_RC=0
   pc_accept_queue "$q" "$JOBS" || UNITS_RC=$?
   read -r o sub < <(awk -F'\t' 'NR>1 && $8=="backtest" && $4=="ref"{print $5, $6; exit}' "$tsv")
-  read -r ta < <(awk -F'\t' 'NR>1 && $8=="infer-model" && $11=="--data-inference"{print $6; exit}' "$tsv")
+  read -r ot ta < <(awk -F'\t' 'NR>1 && $8=="infer-model" && $11=="--data-inference"{print $5, $6; exit}' "$tsv")
   DELTA_ID=""
   pc_accept_delta_pair "aceite-ref-backtest-$sub-$o" "aceite-new-backtest-$sub-$o" "$OUT/delta.tsv" || rc1=$?
   [ -n "$DELTA_ID" ] && id="$DELTA_ID"; DELTA_ID=""
-  pc_accept_delta_pair "aceite-new-infer-model-$ta-$o-train" "aceite-new-infer-model-$ta-$o-inference" "$OUT/delta.inference.tsv" || rc2=$?
+  pc_accept_delta_pair "aceite-new-infer-model-$ta-$ot-train" "aceite-new-infer-model-$ta-$ot-inference" "$OUT/delta.inference.tsv" || rc2=$?
   [ -z "$id" ] && id="$DELTA_ID"
   Rscript --vanilla "$PC_TOOLS/accept_delta.R" --verdict --index "$OUT/index.tsv" --units "$tsv" --out "$OUT/aceite.json" \
     > "$OUT/aceite.result.json" || rc3=$?

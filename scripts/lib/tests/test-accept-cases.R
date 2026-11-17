@@ -45,7 +45,12 @@ test_that("estagio aceite: backtest S nas duas versoes, 8 feriados, treino e inf
   expect_equal(acc_cases_run(c("--config", acc_cases_real(), "--stage", "aceite", "--out", o))$status, 0L)
   u <- acc_read_units(o)
   expect_identical(names(u), pc_accept_unit_cols)
-  expect_true(all(u$stage == "aceite" & u$origem == "2023-06-01"))
+  cfg <- yaml::read_yaml(acc_cases_real())$aceite
+  expect_true(all(u$stage == "aceite"))
+  ## celulas na origem; unidades de TEMPO na origem_tempo (default = origem; a real usa uma origem sem feriado no horizonte, onde a ref treina)
+  expect_true(all(u[verbo == "backtest"]$origem == cfg$origem))
+  expect_true(all(u[verbo != "backtest"]$origem == cfg$origem_tempo))
+  expect_false(identical(cfg$origem, cfg$origem_tempo))
   s <- u[area == "S"]
   expect_identical(s$versao[order(s$versao)], c("new", "ref"))
   expect_identical(s[versao == "new"]$topologia, "sem_lin_uni"); expect_identical(s[versao == "new"]$janela, "referencia")
@@ -74,6 +79,24 @@ test_that("estagio aceite: backtest S nas duas versoes, 8 feriados, treino e inf
   ## a onda 2 depende so de unidades da onda 1 e a 3, so da 2
   expect_true(all(u[wave == "2"]$artifacts_from %in% u[wave == "1"]$unit))
   expect_identical(nrow(u), 2L + 8L + 2L + 3L + 1L)
+})
+
+test_that("origem_tempo e opcional: ausente = origem; invalida => contract.accept_bad_config; as unidades de tempo seguem a origem_tempo", {
+  fx <- acc_cfg_fixture()
+  real <- yaml::read_yaml(acc_cases_real())
+  w <- function(name, fn) { f <- file.path(fx$dir, name); yaml::write_yaml(fn(real), f, handlers = list(logical = yaml::verbatim_logical)); f }
+  sem <- w("sem_ot.yaml", function(x) { x$aceite$origem_tempo <- NULL; x })
+  o <- tempfile(fileext = ".tsv")
+  expect_equal(acc_cases_run(c("--config", sem, "--stage", "aceite", "--out", o))$status, 0L)
+  expect_true(all(acc_read_units(o)$origem == real$aceite$origem))                  # default: tudo na origem
+  ruim <- w("ot_ruim.yaml", function(x) { x$aceite$origem_tempo <- "2023-02-30"; x })
+  r <- acc_cases_run(c("--config", ruim, "--stage", "aceite", "--out", tempfile()))
+  expect_equal(r$status, 2L); expect_match(r$json$error$where, "aceite.origem_tempo", fixed = TRUE)
+  o2 <- tempfile(fileext = ".tsv")
+  expect_equal(acc_cases_run(c("--config", fx$valid, "--stage", "aceite", "--out", o2))$status, 0L)
+  u <- acc_read_units(o2)
+  expect_true(all(u[verbo %in% c("train-models", "infer-model", "deck-inference")]$unit %in%
+                  grep(real$aceite$origem_tempo, u$unit, value = TRUE, fixed = TRUE)))
 })
 
 test_that("YAML invalido => exit 2 contract.accept_bad_config no envelope e nenhum units.tsv gravado; [CONTROL] o valido grava", {
