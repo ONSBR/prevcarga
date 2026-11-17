@@ -25,6 +25,12 @@ bash scripts/tools/accept_docker.sh --stage all --out /opt/ons-source/prevcarga-
 | `medicao` | 384 unidades `backtest --origin=O --area=A --model=<mdir>` (12 origens x 8 areas x dessem-linear e dessem-regdin x ref e nova) na fila de 13 containers. Recusa classificada (rc 2-15 com `error_id`) e resultado, nao defeito: vira celula ausente. So rc 1 sem envelope ou rc 137 contam failed (`partial.accept_units_failed`, exit 14). |
 | `relatorio` | `accept_report.R` monta `report.tsv`, `report.md` e `report.json` e a limpeza confere residuo zero; grava o recibo `<sha256 do bundle novo>.docker-accept.json` (PASS so com smoke, aceite e medicao verdes, relatorio ok, residuo zero e store intacto). `all` roda o relatorio mesmo apos falha de um estagio (smoke falho pula aceite e medicao). |
 
+## Origem e area das unidades de tempo do aceite
+
+As celulas de corretude do aceite (backtest S e os 8 feriados) ficam em `aceite.origem` (2023-06-01, com Corpus Christi de 2023-06-08 no horizonte). As unidades de TEMPO (train-models, infer-model train e inference, deck-inference) usam `aceite.origem_tempo` (opcional; sem ela vale `aceite.origem`), na area `aceite.area_tempo` e no membro `aceite.membro_tempo`.
+
+Escolha atual: origem_tempo = 2023-05-10, area RJ, membro dessem-linear/MED. Motivo (RUN_ID 20261117T123739Z-1a854584): em 2023-06-01 a ref v0.1.5 nao treina o dessem-linear em RJ (`generic.unexpected` "cross must not exceed sampling size": amostra de 5 dias do feriado, o clamp do cross falha na nova tentativa e o erro original sobe), entao nao ha tempo da ref para comparar. 2023-05-10 nao tem feriado no horizonte (2023-05-10 a 2023-05-19) em nenhuma das 8 areas, e e uma das 12 origens da medicao; ali a ref treina e infere. O delta de inferencia (train x inference) e o tempo passam a ser lidos nessa origem. A origem 2023-06-01 segue so como unidade de corretude (celulas de feriado da nova).
+
 ## Relatorio da medicao
 
 - LONG por (versao, membro, area, origem), com o membro tirado do caminho `members/<membro>/<folha>/<origem>/<corte>/long.parquet` das unidades rc 0. So `d_plus == 1`.

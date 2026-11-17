@@ -37,10 +37,14 @@
 #   6 bundle.accept_image_build | bundle.accept_image_smoke; 9 integrity.accept_residue | integrity.accept_store_changed;
 #   12 repro.accept_delta_nonzero | repro.accept_unexpected_error | repro.accept_infer_not_faster; 14 partial.accept_units_failed; 130 INT; 143 TERM. (runtime.accept_oom_killed e o error_id de uma unidade rc 137 em index.tsv.)
 #
-# Regra de limpeza (maquina compartilhada): o trap pc_accept_cleanup (EXIT/INT/TERM, instalado apos o preflight e antes do primeiro
-# docker build, idempotente) mata os jobs de fundo e remove SO o que esta execucao criou: containers e imagens com o label do RUN_ID,
-# a base pinada se nao existia antes, e os ids de build cache ausentes de cache.snapshot (docker builder prune -f --filter id=<id>).
-# NUNCA usa prune sem filtro nem docker system prune, e nunca toca imagem preexistente. Sobra de container/imagem/cache => exit 9
+# Regra de limpeza (maquina compartilhada, E8-T4): as imagens saem de um builder buildx DEDICADO por RUN_ID (pc-accept-<RUN_ID>, driver
+# docker-container, docker buildx build --load), entao o build cache e do proprio builder e nao se mistura com o do builder default
+# (outras sessoes podem estar construindo ao mesmo tempo). O trap pc_accept_cleanup (EXIT/INT/TERM, instalado apos o preflight e antes
+# do primeiro build, idempotente) mata os jobs de fundo e remove SO o que esta execucao criou: containers e imagens com o label do
+# RUN_ID, o builder dedicado (docker buildx rm --force: container e volume de estado juntos) e a imagem moby/buildkit se ela nao
+# existia antes (rmi sem -f: se outro builder a usa, a remocao falha e ela fica). NAO faz prune algum (nem de cache, nem global, nem
+# docker system prune) e nunca toca imagem preexistente. Residuo de cache = builder, container ou volume do builder deste RUN_ID
+# ainda existentes; cache.snapshot (ids do cache default) e so informativo. Sobra de container/imagem/cache => exit 9
 # (integrity.accept_residue), que prevalece sobre o rc original. Nenhuma variavel de ambiente e lida.
 # =============================================================================
 set -euo pipefail
@@ -59,6 +63,7 @@ MIN_FREE_DOCKER=""; MIN_FREE_OUT=""; MEMORY=8g; CPUS=1; OVERLAY_MDIRS=""; RECEIP
 REPORT_PATH=""; RECEIPT_PATH=""; REPORT_ID=""; STATE_FILE=""; STAGE_RC=0
 DELTA_MAX=""; DELTA_KEYS=""; UNITS_RC=0
 RUN_ID=""; BASE=""; BASE_PREEXISTENTE=0; DROOT=""; REPO=""
+BUILDER=""; BK_IMAGE="moby/buildkit:buildx-stable-1"; BK_PREEXISTENTE=1
 CLEANED=0; TRAP_ARMED=0; OUT_READY=0; FINAL_ID=""; FINAL_RC=0; FINAL_MSG=""
 RES_C=0; RES_I=0; RES_K=0; STORE_UNCHANGED=true
 UNITS_TOTAL=0; UNITS_OK=0; UNITS_REFUSED=0; UNITS_FAILED=0
@@ -221,15 +226,26 @@ pc_accept_preflight() {
   pc_accept_store_listing "$DATA" > "$OUT/store.before.tsv"
   BASE="$(sed -n 's/^ARG BASE=//p' "$PC_ACCEPT_DOCKERFILE")"
   if docker image inspect "$BASE" >/dev/null 2>&1; then BASE_PREEXISTENTE=1; else BASE_PREEXISTENTE=0; fi
-  pc_accept_cache_ids > "$OUT/cache.snapshot"
+  if docker image inspect "$BK_IMAGE" >/dev/null 2>&1; then BK_PREEXISTENTE=1; else BK_PREEXISTENTE=0; fi
+  pc_accept_cache_ids > "$OUT/cache.snapshot"   # informativo: o build cache do builder default nao e nosso nem entra no residuo
 }
 
 # --- limpeza -------------------------------------------------------------------------------------------------------------
+# builder dedicado, container e volume de estado deste RUN_ID ainda existentes (o cache do builder default NAO conta)
+pc_accept_builder_residue() {
+  local n=0 c v
+  [ -n "$BUILDER" ] || { echo 0; return 0; }
+  if docker buildx ls 2>/dev/null | awk -v b="$BUILDER" '$1==b{f=1} END{exit f?0:1}'; then n=$((n + 1)); fi
+  c="$(docker ps -aq --filter "name=buildx_buildkit_${BUILDER}" 2>/dev/null | wc -l)"
+  v="$(docker volume ls -q --filter "name=buildx_buildkit_${BUILDER}" 2>/dev/null | wc -l)"
+  echo $((n + ${c// /} + ${v// /}))
+}
+
 pc_accept_residue() {
   local f="label=prevcarga.accept.run=$RUN_ID"
   RES_C="$(docker ps -aq --filter "$f" 2>/dev/null | wc -l)"
   RES_I="$({ docker images -q --filter "$f"; docker images -q --filter "reference=prevcarga-accept:$RUN_ID-*"; } 2>/dev/null | LC_ALL=C sort -u | wc -l)"
-  RES_K="$(pc_accept_cache_ids | LC_ALL=C comm -13 "$OUT/cache.snapshot" - | wc -l)"
+  RES_K="$(pc_accept_builder_residue)"
   RES_C="${RES_C// /}"; RES_I="${RES_I// /}"; RES_K="${RES_K// /}"
   jq -n --argjson c "$RES_C" --argjson i "$RES_I" --argjson k "$RES_K" '{containers:$c, images:$i, cache:$k}' > "$OUT/residue.json"
   if [ -s "$OUT/store.before.tsv" ] || [ -e "$OUT/store.before.tsv" ]; then
@@ -242,15 +258,13 @@ pc_accept_residue() {
 pc_accept_cleanup() {
   [ "${CLEANED:-0}" = 1 ] && return 0
   CLEANED=1
-  local f="label=prevcarga.accept.run=$RUN_ID" id d
+  local f="label=prevcarga.accept.run=$RUN_ID" d
   jobs -p | xargs -r kill 2>/dev/null || true
   docker ps -aq --filter "$f" 2>/dev/null | xargs -r docker rm -f >/dev/null 2>&1 || true
   { docker images -q --filter "$f"; docker images -q --filter "reference=prevcarga-accept:$RUN_ID-*"; } 2>/dev/null \
     | LC_ALL=C sort -u | xargs -r docker rmi -f >/dev/null 2>&1 || true
-  if [ "$BASE_PREEXISTENTE" = 0 ] && [ -n "$BASE" ]; then docker rmi "$BASE" >/dev/null 2>&1 || true; fi
-  pc_accept_cache_ids | LC_ALL=C comm -13 "$OUT/cache.snapshot" - | while read -r id; do
-    [ -n "$id" ] && { docker builder prune -f --filter "id=$id" >/dev/null 2>&1 || true; }
-  done
+  if [ -n "$BUILDER" ]; then docker buildx rm --force "$BUILDER" >/dev/null 2>&1 || true; fi
+  if [ "$BK_PREEXISTENTE" = 0 ]; then docker rmi "$BK_IMAGE" >/dev/null 2>&1 || true; fi   # sem -f: se outro builder a usa, fica
   for d in ${CTX_DIRS[@]+"${CTX_DIRS[@]}"}; do rm -rf "$d"; done
   pc_accept_residue
 }
@@ -293,6 +307,17 @@ pc_accept_check_bundle() {
     || pc_accept_die contract.accept_bad_args "sha256 do bundle nao confere: $tar"
 }
 
+# runtime_id do bundle: o campo .runtime_id do RUNTIME.json, se houver; senao prevcarga_runtime_id() (runtime.R do repo) sobre o RUNTIME.json
+pc_accept_runtime_id() {
+  local f="$1" id
+  id="$(jq -r '.runtime_id // empty' "$f" 2>/dev/null || true)"
+  if [ -z "$id" ] && [ -f "$f" ]; then
+    id="$(Rscript --vanilla -e 'a <- commandArgs(TRUE); source(a[1]); cat(prevcarga_runtime_id(a[2]), "\n", sep = "")' \
+      "$REPO/scripts/lib/runtime.R" "$f" 2>/dev/null | tail -n 1 || true)"
+  fi
+  printf '%s' "${id:--}"
+}
+
 pc_accept_bundles() {
   local ver tar
   if [ -n "$REF_BUNDLE" ]; then
@@ -310,7 +335,7 @@ pc_accept_bundles() {
     tar="${BUNDLE_PATH[$ver]}"
     pc_accept_check_bundle "$tar"
     BUNDLE_SHA[$ver]="$(cut -c1-64 "$tar.sha256" | head -n 1)"
-    RUNTIME_ID[$ver]="$(jq -r '.runtime_id // "-"' "${tar%.tar.zst}.RUNTIME.json" 2>/dev/null || echo -)"
+    RUNTIME_ID[$ver]="$(pc_accept_runtime_id "${tar%.tar.zst}.RUNTIME.json")"
   done
 }
 
@@ -319,9 +344,20 @@ pc_accept_build_image() {
   ctx="$(mktemp -d)"; CTX_DIRS+=("$ctx")
   cp "${BUNDLE_PATH[$ver]}" "$ctx/bundle.tar.zst"
   printf '%s  bundle.tar.zst\n' "${BUNDLE_SHA[$ver]}" > "$ctx/bundle.tar.zst.sha256"
-  pc_accept_bg docker build --label "prevcarga.accept.run=$RUN_ID" -t "$img" -f "$PC_ACCEPT_DOCKERFILE" "$ctx" >&2 \
-    || pc_accept_die bundle.accept_image_build "docker build da imagem $img falhou"
+  # o bundle nao traz o instalador: usa o install.sh do MESMO commit do bundle (code_commit do RUNTIME.json; sem ele, o HEAD do repo)
+  local cc; cc="$(jq -r '.code_commit // empty' "${BUNDLE_PATH[$ver]%.tar.zst}.RUNTIME.json" 2>/dev/null || true)"
+  git -C "$REPO" show "${cc:-HEAD}:install/install.sh" > "$ctx/install.sh" 2>/dev/null \
+    || pc_accept_die bundle.accept_image_build "install.sh do commit ${cc:-HEAD} ausente em $REPO"
+  pc_accept_bg docker buildx build --builder "$BUILDER" --load --label "prevcarga.accept.run=$RUN_ID" -t "$img" -f "$PC_ACCEPT_DOCKERFILE" "$ctx" >&2 \
+    || pc_accept_die bundle.accept_image_build "docker buildx build da imagem $img falhou (builder $BUILDER)"
   rm -rf "$ctx"
+}
+
+# builder buildx dedicado deste RUN_ID (driver docker-container); o build cache fica dentro dele e sai com o buildx rm do cleanup
+pc_accept_builder_create() {
+  BUILDER="pc-accept-$RUN_ID"
+  pc_accept_bg docker buildx create --name "$BUILDER" --driver docker-container >/dev/null \
+    || pc_accept_die bundle.accept_image_build "docker buildx create do builder $BUILDER falhou"
 }
 
 pc_accept_write_run_json() {
@@ -380,7 +416,8 @@ pc_accept_run_unit() {
 pc_accept_queue() {
   local tsv="$1" jobs_max="$2" wave w unit ver n mf origem area mdir verb rc row_before running=0
   local waves; waves="$(cut -f1 "$tsv" | LC_ALL=C sort -un)"
-  row_before="$(wc -l < "$OUT/index.tsv" 2>/dev/null || echo 0)"
+  ## index.tsv so existe depois da primeira unidade: sem o arquivo o `< arquivo` falha ANTES do 2>/dev/null e o bash imprime "No such file"
+  if [ -f "$OUT/index.tsv" ]; then row_before="$(wc -l < "$OUT/index.tsv")"; else row_before=0; fi
   UNITS_TOTAL=0
   for w in $waves; do
     while IFS=$'\t' read -r wave unit ver n mf origem area mdir verb; do
@@ -525,18 +562,18 @@ pc_accept_delta_pair() {
 }
 
 pc_accept_stage_aceite() {
-  local tsv="$OUT/units.aceite.tsv" q="$OUT/queue.aceite.tsv" rc1=0 rc2=0 rc3=0 id="" detail="" o sub ta
+  local tsv="$OUT/units.aceite.tsv" q="$OUT/queue.aceite.tsv" rc1=0 rc2=0 rc3=0 id="" detail="" o ot sub ta
   Rscript --vanilla "$PC_TOOLS/accept_cases.R" --config "$CONFIG" --stage aceite --out "$tsv" >/dev/null \
     || pc_accept_die contract.accept_bad_config "accept_cases.R recusou $CONFIG"
   pc_accept_prepare_all "$tsv" "$q"
   UNITS_RC=0
   pc_accept_queue "$q" "$JOBS" || UNITS_RC=$?
   read -r o sub < <(awk -F'\t' 'NR>1 && $8=="backtest" && $4=="ref"{print $5, $6; exit}' "$tsv")
-  read -r ta < <(awk -F'\t' 'NR>1 && $8=="infer-model" && $11=="--data-inference"{print $6; exit}' "$tsv")
+  read -r ot ta < <(awk -F'\t' 'NR>1 && $8=="infer-model" && $11=="--data-inference"{print $5, $6; exit}' "$tsv")
   DELTA_ID=""
   pc_accept_delta_pair "aceite-ref-backtest-$sub-$o" "aceite-new-backtest-$sub-$o" "$OUT/delta.tsv" || rc1=$?
   [ -n "$DELTA_ID" ] && id="$DELTA_ID"; DELTA_ID=""
-  pc_accept_delta_pair "aceite-new-infer-model-$ta-$o-train" "aceite-new-infer-model-$ta-$o-inference" "$OUT/delta.inference.tsv" || rc2=$?
+  pc_accept_delta_pair "aceite-new-infer-model-$ta-$ot-train" "aceite-new-infer-model-$ta-$ot-inference" "$OUT/delta.inference.tsv" || rc2=$?
   [ -z "$id" ] && id="$DELTA_ID"
   Rscript --vanilla "$PC_TOOLS/accept_delta.R" --verdict --index "$OUT/index.tsv" --units "$tsv" --out "$OUT/aceite.json" \
     > "$OUT/aceite.result.json" || rc3=$?
@@ -708,6 +745,7 @@ pc_accept_load_run_json() {
   local j="$OUT/run.json" ver
   [ -f "$j" ] || pc_accept_die contract.accept_bad_args "run.json ausente em $OUT (rode antes o estagio medicao)"
   RUN_ID="$(jq -r '.run_id' "$j")"
+  BUILDER="pc-accept-$RUN_ID"   # nada e criado no relatorio; so a conferencia de residuo
   for ver in ref new; do
     BUNDLE_PATH[$ver]="$(jq -r ".bundles.$ver.path" "$j")"
     BUNDLE_SHA[$ver]="$(jq -r ".bundles.$ver.sha256" "$j")"
@@ -728,6 +766,7 @@ pc_accept_main() {
     pc_accept_load_run_json
   else
     pc_accept_bundles
+    pc_accept_builder_create
     pc_accept_build_image ref
     pc_accept_build_image new
     pc_accept_write_run_json

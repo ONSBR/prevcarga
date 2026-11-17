@@ -14,6 +14,10 @@ aceite:
   areas_feriado: [AM, BAOE, CE, DF, GO, PA, RJ, TON]
   area_tempo: RJ
   membro_tempo: dessem-linear/MED
+  # origem das unidades de tempo (train-models, infer-model, deck-inference). Em 2023-06-01 a v0.1.5 nao treina o dessem-linear MED em RJ
+  # (generic.unexpected "cross must not exceed sampling size", feriado de amostra pequena no horizonte): sem a ref nao ha tempo a comparar.
+  # 2023-05-10 nao tem feriado no horizonte e e uma das origens da medicao.
+  origem_tempo: "2023-05-10"
 medicao:
   origens: ["2023-02-19", "2023-03-15", "2023-05-10", "2023-06-07", "2023-08-16", "2023-10-18",
             "2023-12-31", "2024-02-11", "2024-04-17", "2024-05-29", "2024-09-11", "2024-12-24"]

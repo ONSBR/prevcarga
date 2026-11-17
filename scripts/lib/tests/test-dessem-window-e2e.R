@@ -399,7 +399,7 @@ for (m in MODELS) {
     expect_true(any(grepl("Bloco", walk_text(list(f = y ~ LAG_1 + Bloco)))))
   })
 
-  test_that(sprintf("[AC4] fixture do bug v0.1.5 (%s): feriado com 5 amostras sai com modelo valido ou engine.dessem_tune_small_sample (exit 5)", m), {
+  test_that(sprintf("[AC4] fixture do bug v0.1.5 (%s): feriado com 5 amostras sai com modelo valido (inclusive pelo fallback sem tune) ou engine.dessem_tune_small_sample (exit 5)", m), {
     r <- p_cached(m, "corpus5")
     if (!is.null(r$err)) {
       expect_identical(r$err$id, "engine.dessem_tune_small_sample")
@@ -409,7 +409,7 @@ for (m in MODELS) {
     } else {
       expect_s3_class(r$art, "prevcarga_plugin_artifact")
       cat(sprintf("\n[e2e] %s corpus5 avisos do motor: %s\n", m, if (length(r$guards)) paste(unique(r$guards), collapse = ", ") else "(nenhum)"))
-      expect_true(all(r$guards %in% c("warning.engine_cross_clamped", "warning.engine_empty_model_guard")))
+      expect_true(all(r$guards %in% c("warning.engine_cross_clamped", "warning.engine_empty_model_guard", "warning.engine_tune_fallback")))
       expect_false(any(grepl("(^|[^A-Za-z0-9_])Bloco([^A-Za-z0-9_]|$)", walk_text(r$art$payload))))
       expect_false(inherits(r$inf, "prevcarga_error"))
       expect_true(is.matrix(r$inf$values))
