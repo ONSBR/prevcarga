@@ -12,7 +12,7 @@ Fonte: so as previsoes (LONG) que a medicao ja gerou e a verdade fresca do store
 - "dias" = pares distintos (origem, data) com previsao pareada. Chaves pareadas ref x nova com y_true e y_pred finitos (as mesmas do `report.tsv`); LIN_UNI entra so pela nova.
 - Duas coberturas. `d1`: so D+1 (a mesma do `report.tsv`; 12 origens da medicao dao no maximo 12 dias por area, e nenhum cai em dia vizinho: o grupo vizinho fica vazio). `horizonte`: todos os D+k do LONG (10 dias por origem), onde o grupo vizinho aparece.
 - MAPE e WMAPE em %. Celula `F`: a area tem celula de feriado que entregou pelo `warning.engine_tune_fallback` (lista abaixo). A marca vale para o par (membro de dessem-linear, area); a ref nunca tem o fallback (ele e da nova).
-- Ausencias: unidade recusada (ver `aceite-docker.md`) tira o membro da area naquela origem; por isso o numero de dias varia entre membros e areas (MS tem poucos dias).
+- Ausencias: unidade recusada (ver `aceite-docker.md`) tira o membro da area naquela origem; por isso o numero de dias varia entre membros e areas (MS tem poucos dias (MS tem 15 recusas na nova e 13 na ref em `index.tsv`: as 14 de MS em 2023 mais a de 2024-05-29 do regdin; causa: zeros na fonte de MS em jun-dez/2018 quando val_cargasup < 0, alcancados pela janela de 5 anos da ADR-046; detalhe em `aceite-docker.md`).
 
 ## Celulas de feriado que usaram warning.engine_tune_fallback
 
@@ -348,3 +348,11 @@ Todos os membros e as duas versoes estao em `porigem.tsv` (917 linhas). Abaixo, 
 | 2024-05-29 | - / - | - / - | - / - | - / - | - / - | - / - | - / - | - / - |
 | 2024-09-11 | 2.54 / 2.52 | 4.49 / 4.86 | 2.10 / 2.55 | 6.61 / 6.50 | 2.03 / 1.62 | 4.67 / 4.65 | 5.69 / 4.76 | 3.19 / 3.76 |
 | 2024-12-24 | 7.12 / 5.76 | 4.18 / 4.38 | 16.28 / 12.02 | 21.49 / 26.05 | 5.57 / 4.95 | 5.42 / 5.64 | 4.17 / 6.44 | 2.11 / 7.27 |
+
+## Decisoes do Gabriel em 2026-11-18
+
+- Aceitas as recusas como estao (inclui as 15 de MS na nova e 13 na ref; a do "contrasts" de 2024-05-29 no regdin e herdada).
+- Aceito este relatorio de MAPE/WMAPE.
+- Aceito o fallback sem tune, que fica no codigo do E8-T4; a emenda ou ADR sai com a spec do modelo de feriados, que remove o perfil de feriado do DESSEM.
+- Aceito o skip da paridade, porque o golden esta fora do host (pendencia registrada).
+- A area nao entra no warning de fallback.

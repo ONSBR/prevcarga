@@ -113,14 +113,32 @@ A inferencia da nova e mais rapida que a da ref (10 s contra 23 s, 2,3x) e o dec
 
 | Causa | Ref | Nova | Classificacao |
 |---|---|---|---|
-| `plugin.dessem_linear_series_gap` e `plugin.regdin_series_gap` (lacuna de carga do MS: CARGAFER 2018-06-10 com 22/24 horas, CARGAHIST 2018-10-21) em MS, origens 2023-02-19, 03-15, 05-10, 06-07, 08-16, 10-18 | 12 | 12 | HERDADA (dado: mesma recusa nas duas versoes) |
-| `plugin.dessem_linear_series_gap` e `plugin.regdin_series_gap`, MS origem 2023-12-31 | 0 | 2 | NOVA: a ref entrega MS 2023-12-31 e a nova recusa pela lacuna de 2018-06-10, anterior a janela rolante de 1825 dias da ref. Coerente com a janela de feriado da ADR-046 (historico de feriado desde 01-01 de ano(O)-5), nao comprovado aqui |
+| `plugin.dessem_linear_series_gap` e `plugin.regdin_series_gap` em MS, origens 2023-02-19, 03-15, 05-10, 06-07, 08-16, 10-18 (12 unidades por versao; causa na secao "MS: recusas e causa" abaixo) | 12 | 12 | HERDADA (dado: mesma recusa nas duas versoes) |
+| `plugin.dessem_linear_series_gap` e `plugin.regdin_series_gap`, MS origem 2023-12-31 | 0 | 2 | NOVA: a ref entrega MS 2023-12-31 e a nova recusa, porque a janela de feriado da ADR-046 (historico desde 01-01 de ano(O)-5) alcanca 2018, onde a fonte de MS esta zerada (secao "MS: recusas e causa") |
 | "contrasts can be applied only to factors with 2 or more levels" (lm do perfil de feriado do regdin, RGD_MAX, origem 2024-05-29, as 8 areas; sem error_id) | 8 | 8 | HERDADA (bug do regdin, mesmo erro nas duas versoes) |
 | "'cross' must not exceed sampling size!" (dessem-linear LIN_MAX, origem 2023-06-07; sem error_id) em AM, CE, GO, PA e RJ | 5 | 0 | HERDADA da ref; a nova entrega AM, CE, PA e RJ (CE, PA e AM pelo fallback do tune) |
 | `engine.dessem_tune_small_sample` (LIN_MAX, GO, 2023-06-07; fallback sem tune tambem nao resolveu) | 0 | 1 | A celula tambem falha na ref (cross); na nova o erro passou a ser classificado. Falha NOVA como id, mesma celula herdada |
 | Total | 25 | 23 | 48 |
 
 O verbo `features` e o "contrasts" do regdin sao falhas herdadas; o `features` nao faz parte desta medicao. A unidade recusada leva consigo todos os membros do mdir naquela origem e area (a celula so entrega com todos os membros), por isso as ausencias em `report.md` somam 123 linhas (membro x unidade recusada).
+
+#### MS: recusas e causa (confirmado em 2026-11-18)
+
+Contagem em `index.tsv` (RUN_ID 20261117T234854Z-a370b08d, 384 unidades): MS tem 15 unidades recusadas na nova e 13 na ref, todas `partial.backtest_delivery` (rc 14).
+
+- Nova (15): as 14 de MS em 2023 (7 origens: 2023-02-19, 03-15, 05-10, 06-07, 08-16, 10-18 e 12-31, x dessem-linear e dessem-regdin) mais a de 2024-05-29 do dessem-regdin ("contrasts", herdada).
+- Ref (13): 12 de 2023 (as mesmas 6 origens, sem 2023-12-31) mais a de 2024-05-29 do dessem-regdin.
+
+Causa, confirmada na fonte DynamoDB g_cargaverificada (prod): em MS, de junho a dezembro de 2018, `val_cargaglobal` e `val_cargaglobalcons` valem 0 exatamente quando `val_cargasup` < 0 (389 meias-horas em 54 dias). A janela de feriados da ADR-046 comeca em 01-01 de ano(O)-5 e por isso alcanca 2018; a validacao do anexo recusa o deck. A ilha de 2018-06-10 vem do codigo 12 (Copa), que o motor normaliza para 0. A descricao anterior (lacuna de carga, CARGAFER 2018-06-10 com 22/24 horas) era so o sintoma.
+
+#### Decisoes do Gabriel em 2026-11-18
+
+- Aceitas as recusas como estao (a do "contrasts" de 2024-05-29 no regdin e herdada).
+- Aceito o relatorio de MAPE/WMAPE.
+- Aceito o fallback sem tune, que fica no codigo deste ticket; a emenda ou ADR sai com a spec do modelo de feriados, que remove o perfil de feriado do DESSEM.
+- Aceito o skip da paridade, porque o golden esta fora do host (pendencia registrada).
+- A area nao entra no warning de fallback.
+- Correcao do historico de MS 2018 fica como discovery tech_debt nao bloqueante ("dever de casa").
 
 #### Fallback do tune (`warning.engine_tune_fallback`)
 
