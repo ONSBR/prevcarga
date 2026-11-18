@@ -16,9 +16,6 @@ fontes:
   - scripts/lib/errors.R
   - scripts/lib/errors/export.tsv
   - scripts/lib/errors/export_key.tsv
-  - docs/estado/export.md
-  - docs/estado/forecast.md
-  - docs/estado/m6-forecast.md
 adrs: [ADR-0040, ADR-0030]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -131,7 +128,7 @@ O campo `code_commit` do fingerprint recebe a versão do pacote, não o commit g
 
 `.export_key_check` roda com o staging já pronto, antes do `file.rename`, e nunca altera a chave final.
 
-<Figura id="FIG-A17" titulo="Decisão do export diante da chave" natureza="Fluxo" fontes={['scripts/lib/exports.R', 'scripts/lib/forecast.R', 'docs/estado/export.md', 'docs/estado/forecast.md']} adrs={['ADR-0040']}>
+<Figura id="FIG-A17" titulo="Decisão do export diante da chave" natureza="Fluxo" fontes={['scripts/lib/exports.R', 'scripts/lib/forecast.R']} adrs={['ADR-0040']}>
 
 ```mermaid
 flowchart TD

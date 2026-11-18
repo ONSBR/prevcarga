@@ -18,9 +18,6 @@ fontes:
   - scripts/lib/schema_long.R
   - scripts/lib/dates.R
   - config/topology.yaml
-  - docs/estado/reconcile.md
-  - docs/estado/topology.md
-  - docs/adr/0015-reconciliacao-bottomup-khat.md
 adrs: [ADR-0015, ADR-0028]
 revisado_em: 2026-11-13
 commit_base: "5c48c00"
@@ -106,7 +103,7 @@ A regra do módulo é **soma por `interval_end`, bucket por `interval_start`**. 
 
 Bucket sem observação na janela usa o `glob`, com o aviso `reconcile.khat_fallback` e a contagem em `n_fallback`. Não há clamp: o k aplicado é o ajustado, mesmo fora da faixa de coerência.
 
-<Figura id="FIG-M17" titulo="Reconciliação Bottom-Up × k-hat: ramo de treino e ramo de apply" natureza="Fluxo" fontes={['scripts/lib/reconcile.R', 'scripts/lib/forecast.R', 'scripts/lib/evaluation.R', 'config/topology.yaml', 'docs/estado/reconcile.md']} adrs={['ADR-0015', 'ADR-0028']}>
+<Figura id="FIG-M17" titulo="Reconciliação Bottom-Up × k-hat: ramo de treino e ramo de apply" natureza="Fluxo" fontes={['scripts/lib/reconcile.R', 'scripts/lib/forecast.R', 'scripts/lib/evaluation.R', 'config/topology.yaml']} adrs={['ADR-0015', 'ADR-0028']}>
 
 ```mermaid
 flowchart LR

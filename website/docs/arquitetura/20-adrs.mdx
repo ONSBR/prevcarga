@@ -5,8 +5,7 @@ sidebar_position: 20
 slug: /arquitetura/adrs
 description: Índice das 40 ADRs do PrevCarga, com o status em cada fonte, a página do site que trata o tema e a cadeia de emendas e supersessões.
 fontes:
-  - docs/adr/
-  - docs/adr/README.md
+  - .gitignore
 adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0021, ADR-0022, ADR-0023, ADR-0024, ADR-0025, ADR-0026, ADR-0027, ADR-0028, ADR-0029, ADR-0030, ADR-0031, ADR-0032, ADR-0033, ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0038, ADR-0039, ADR-0040, ADR-0041]
 revisado_em: 2026-11-03
 commit_base: "7c57514"
@@ -14,13 +13,13 @@ commit_base: "7c57514"
 
 <span className="pc-overline">Arquitetura · 2.21</span>
 
-<p className="pc-lead">As decisões de arquitetura do PrevCarga vivem em duas fontes que ainda não concordam. A pasta <code>docs/adr/</code> do repositório tem 22 ADRs (0001 a 0022), todas marcadas "Aceito". O SpecForge tem 40 ADRs (0001 a 0040), todas "proposed". Esta página indexa as 40, mostra o status em cada fonte sem escolher um, aponta a página do site que explica cada tema e mostra como as decisões se emendam e se superam.</p>
+<p className="pc-lead">As decisões de arquitetura do PrevCarga vivem em duas fontes que ainda não concordam. A pasta <code>docs/adr/</code>, mantida fora do repositório público (está no <code>.gitignore</code>), tem 22 ADRs (0001 a 0022), todas marcadas "Aceito". O SpecForge tem 40 ADRs (0001 a 0040), todas "proposed". Esta página indexa as 40, mostra o status em cada fonte sem escolher um, aponta a página do site que explica cada tema e mostra como as decisões se emendam e se superam.</p>
 
 ## Onde as ADRs vivem
 
 | Fonte | Faixa | Status registrado | Formato |
 |---|---|---|---|
-| `docs/adr/*.md` no repositório | ADR-0001 a ADR-0022 | Todas "Aceito" | Leve: contexto, decisão, consequências, alternativas, evidência |
+| `docs/adr/*.md`, local e fora do repositório público | ADR-0001 a ADR-0022 | Todas "Aceito" | Leve: contexto, decisão, consequências, alternativas, evidência |
 | SpecForge, projeto da spec "Modular CLI" | ADR-0001 a ADR-0041 | Todas "proposed" | MADR 4.0 |
 
 As ADRs 0023 a 0040 existem só no SpecForge. As 22 primeiras existem nas duas fontes, e em 11 delas o título local difere do título no SpecForge; a tabela abaixo marca a divergência na coluna "Título local".
@@ -89,7 +88,7 @@ Algumas ADRs ainda carregam marcadores de decisão aberta, citados nas páginas 
 
 O SpecForge não registra a supersessão num campo estruturado: nenhuma das 40 ADRs traz `supersedesIds` preenchido, porque esse campo só aceita ADRs aceitas e as ADRs superadas estão "proposed". A relação está escrita no texto de cada ADR (título, decisão, opções consideradas ou seção "More Information"). A figura mostra as relações de supersessão, emenda e substituição parcial; a seta vai da decisão mais antiga para a que a altera.
 
-<Figura id="FIG-A20" titulo="Cadeia de emendas e supersessões das ADRs" natureza="Estrutura" fontes={['docs/adr/README.md']} adrs={['ADR-0003', 'ADR-0006', 'ADR-0007', 'ADR-0008', 'ADR-0014', 'ADR-0017', 'ADR-0020', 'ADR-0023', 'ADR-0025', 'ADR-0026', 'ADR-0027', 'ADR-0029', 'ADR-0033', 'ADR-0035', 'ADR-0037', 'ADR-0040']}>
+<Figura id="FIG-A20" titulo="Cadeia de emendas e supersessões das ADRs" natureza="Estrutura" fontes={[]} adrs={['ADR-0003', 'ADR-0006', 'ADR-0007', 'ADR-0008', 'ADR-0014', 'ADR-0017', 'ADR-0020', 'ADR-0023', 'ADR-0025', 'ADR-0026', 'ADR-0027', 'ADR-0029', 'ADR-0033', 'ADR-0035', 'ADR-0037', 'ADR-0040']}>
 
 ```mermaid
 flowchart LR

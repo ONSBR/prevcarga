@@ -27,11 +27,6 @@ fontes:
   - scripts/lib/errors/orchestrate.tsv
   - scripts/lib/errors/backtest.tsv
   - models/*/run.yaml
-  - docs/estado/backtest.md
-  - docs/estado/m7-orquestracao.md
-  - docs/estado/reconcile.md
-  - docs/adr/0006-backtest-honesto-corte-treino.md
-  - docs/adr/0011-ciclo-artefato-registry.md
 adrs: [ADR-0023]
 revisado_em: 2026-11-13
 commit_base: "5c48c00"
@@ -84,7 +79,7 @@ O despacho vai da origem mais recente para a mais antiga e, dentro da origem, po
 
 O k-hat da reconciliação também é refeito por origem: para cada (origem, corte), o perfil é ajustado na própria origem O, sobre a janela `[O − W, O − 1]` (W = 730 dias por padrão), e nunca é lido do registry de produção.
 
-<Figura id="FIG-M18" titulo="Backtest: origens em sequência" natureza="Fluxo" fontes={['scripts/lib/orchestrate.R', 'scripts/lib/backtest.R', 'scripts/lib/dates.R', 'docs/estado/backtest.md', 'docs/estado/m7-orquestracao.md']} adrs={['ADR-0023']}>
+<Figura id="FIG-M18" titulo="Backtest: origens em sequência" natureza="Fluxo" fontes={['scripts/lib/orchestrate.R', 'scripts/lib/backtest.R', 'scripts/lib/dates.R']} adrs={['ADR-0023']}>
 
 ```mermaid
 flowchart TB
@@ -138,7 +133,7 @@ Uma combinação proibida aborta no plano, antes de criar qualquer célula ou ar
 
 No `retrain_harness`, a célula não usa artefato: lê um painel com a história do treino e a da inferência e chama o despachante `prevcarga_plugin_forecast`, que treina até `last_data_day` e infere no mesmo painel. O despachante não tem um estágio próprio de forecast acoplado: é a composição de treino e inferência em memória (ver [Despachante de plugin](/arquitetura/despachante)).
 
-<Figura id="FIG-M19" titulo="Classe de split × protocolo" natureza="Fluxo" fontes={['scripts/lib/orchestrate.R', 'scripts/lib/backtest.R', 'models/*/run.yaml', 'docs/estado/m7-orquestracao.md']} adrs={['ADR-0023']}>
+<Figura id="FIG-M19" titulo="Classe de split × protocolo" natureza="Fluxo" fontes={['scripts/lib/orchestrate.R', 'scripts/lib/backtest.R', 'models/*/run.yaml']} adrs={['ADR-0023']}>
 
 ```mermaid
 flowchart LR

@@ -28,13 +28,6 @@ fontes:
   - install/prevcarga-sync.sh
   - install/prevcarga-sync.ps1
   - scripts/tools/upload
-  - docs/estado/forecast.md
-  - docs/estado/m6-forecast.md
-  - docs/estado/deck_reader.md
-  - docs/estado/export.md
-  - docs/estado/sync.md
-  - docs/adr/README.md
-  - docs/adr/0016-orquestracao-io-nuvem.md
 adrs: [ADR-0016, ADR-0023, ADR-0032, ADR-0035, ADR-0039, ADR-0040]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -48,7 +41,7 @@ Esta página é a âncora da arquitetura. Ela mostra quem faz o quê e em que or
 
 ## O pipeline
 
-<Figura id="FIG-A08" titulo="Pipeline de dados ponta a ponta" natureza="Fluxo" fontes={['scripts/lib/forecast.R', 'scripts/lib/deck_reader.R', 'scripts/lib/validation.R', 'scripts/lib/dates.R', 'scripts/lib/topology.R', 'scripts/lib/training.R', 'scripts/lib/inference.R', 'scripts/lib/registry.R', 'scripts/lib/build_long_output.R', 'scripts/lib/combination.R', 'scripts/lib/reconcile.R', 'scripts/lib/exports.R', 'scripts/lib/reporting.R', 'docs/estado/forecast.md', 'docs/estado/m6-forecast.md', 'docs/estado/deck_reader.md', 'docs/estado/export.md']} adrs={['ADR-0023', 'ADR-0032', 'ADR-0035']}>
+<Figura id="FIG-A08" titulo="Pipeline de dados ponta a ponta" natureza="Fluxo" fontes={['scripts/lib/forecast.R', 'scripts/lib/deck_reader.R', 'scripts/lib/validation.R', 'scripts/lib/dates.R', 'scripts/lib/topology.R', 'scripts/lib/training.R', 'scripts/lib/inference.R', 'scripts/lib/registry.R', 'scripts/lib/build_long_output.R', 'scripts/lib/combination.R', 'scripts/lib/reconcile.R', 'scripts/lib/exports.R', 'scripts/lib/reporting.R']} adrs={['ADR-0023', 'ADR-0032', 'ADR-0035']}>
 
 ```mermaid
 flowchart LR

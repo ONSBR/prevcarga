@@ -42,14 +42,6 @@ fontes:
   - install/prevcarga-sync.sh
   - config/topology.yaml
   - models/*/run.yaml
-  - docs/estado/training.md
-  - docs/estado/inference.md
-  - docs/estado/combination.md
-  - docs/estado/reconcile.md
-  - docs/estado/registry_lifecycle.md
-  - docs/estado/m5-training.md
-  - docs/estado/m6-forecast.md
-  - docs/estado/sync.md
 adrs: [ADR-0023, ADR-0026, ADR-0030, ADR-0038, ADR-0039, ADR-0040]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -78,7 +70,7 @@ Cada artefato é uma célula do registry. A célula tem as versões imutáveis `
 
 A classe de split de cada modelo vem do `split` do seu `models/<mdir>/run.yaml`. O segmento `<exogena>` só existe para o membro que declara variante na topologia: `RGD_MED` vive em `dessem-regdin/MED/<area>/`, `RF` vive em `random-forest/<area>/`.
 
-<Figura id="FIG-E07" titulo="Artefatos: do treino à rodada" natureza="Fluxo" fontes={['docs/estado/m6-forecast.md', 'docs/estado/registry_lifecycle.md', 'docs/estado/sync.md', 'scripts/lib/forecast.R']} adrs={['ADR-0023', 'ADR-0030', 'ADR-0039']}>
+<Figura id="FIG-E07" titulo="Artefatos: do treino à rodada" natureza="Fluxo" fontes={['scripts/lib/forecast.R']} adrs={['ADR-0023', 'ADR-0030', 'ADR-0039']}>
 
 ```mermaid
 flowchart LR

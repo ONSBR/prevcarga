@@ -28,10 +28,6 @@ fontes:
   - scripts/lib/provenance.R
   - config/config.yaml
   - models/*/run.yaml
-  - docs/estado/orchestrate.md
-  - docs/estado/backtest.md
-  - docs/estado/m7-orquestracao.md
-  - docs/estado/cache.md
 adrs: [ADR-0023, ADR-0024, ADR-0038]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -126,7 +122,7 @@ O protocolo só decide quando treinar. A compatibilidade com a classe de split d
 
 O progresso vai para stderr, uma linha por célula recolhida: `backtest: <feitas>/<total> falhas=<n> eta=<duração|?> ultima=<membro> <folha> <origem> <corte>`. O `eta` é o tempo decorrido por célula desta execução vezes as células que faltam; células já prontas de um `--resume` não entram na conta, e sem nenhuma célula processada ele é `?`. O tempo é só de apresentação: nunca entra no ledger, no `plan.json` nem no `result`.
 
-<Figura id="FIG-E08" titulo="Backtest operacional: lock, ledger e retomada" natureza="Fluxo" fontes={['scripts/lib/orchestrate.R', 'scripts/lib/backtest.R', 'docs/estado/orchestrate.md', 'docs/estado/backtest.md']} adrs={['ADR-0023', 'ADR-0038']}>
+<Figura id="FIG-E08" titulo="Backtest operacional: lock, ledger e retomada" natureza="Fluxo" fontes={['scripts/lib/orchestrate.R', 'scripts/lib/backtest.R']} adrs={['ADR-0023', 'ADR-0038']}>
 
 ```mermaid
 flowchart TB

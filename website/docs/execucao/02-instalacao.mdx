@@ -10,11 +10,6 @@ fontes:
   - install/prevcarga
   - install/prevcarga.cmd
   - scripts/lib/errors/install.tsv
-  - docs/estado/install.md
-  - docs/estado/m8-bundle.md
-  - docs/estado/m8-bundle-windows.md
-  - docs/estado/sync.md
-  - docs/reference/MANUAL-USUARIO.md
 adrs: [ADR-0038, ADR-0040, ADR-0036, ADR-0039, ADR-0017]
 revisado_em: 2026-11-05
 commit_base: "8eaffc0"
@@ -148,7 +143,7 @@ A instalação segue uma ordem fixa. Até a conferência do sha256, a raiz `<R>`
 10. `config.yaml` da instalação, criação do diretório de estado e, com `--add-to-path`, o bloco no perfil.
 11. `<R>/bin/prevcarga doctor --format json`, devolvido em `result.doctor` no modo JSON. Se o doctor não devolve JSON, o campo fica `null` e a instalação termina com 0.
 
-<Figura id="FIG-E02" titulo="Ordem e invariantes do instalador" natureza="Fluxo" fontes={['install/install.sh', 'docs/estado/install.md']} adrs={['ADR-0038', 'ADR-0040']}>
+<Figura id="FIG-E02" titulo="Ordem e invariantes do instalador" natureza="Fluxo" fontes={['install/install.sh']} adrs={['ADR-0038', 'ADR-0040']}>
 
 ```mermaid
 flowchart TD
@@ -308,7 +303,7 @@ A retenção é N=2: depois de uma instalação ficam a versão nova (`current`)
 
 O `config.yaml` da instalação é reescrito a cada instalação. Num upgrade, as chaves existentes são preservadas; só `data_dir` e `state_dir` são regravadas, com o valor da flag quando ela é passada e com o valor anterior quando não é. Ver [Configuração](/execucao/configuracao).
 
-<Figura id="FIG-E03" titulo="Troca de versão: install, upgrade e rollback" natureza="Estrutura" fontes={['install/install.sh', 'docs/estado/install.md']} adrs={['ADR-0038']}>
+<Figura id="FIG-E03" titulo="Troca de versão: install, upgrade e rollback" natureza="Estrutura" fontes={['install/install.sh']} adrs={['ADR-0038']}>
 
 ```mermaid
 stateDiagram-v2
@@ -377,7 +372,7 @@ O comando `prevcarga` que o operador chama é um lançador fino em `<R>/bin`. El
 
 O `--vanilla` ignora os arquivos de perfil e de Renviron do usuário, mas não as variáveis herdadas. Por isso o lançador remove as seis. Sem `current`, ou com uma versão que não existe em disco, o lançador sai com `prevcarga: erro [bundle] (exit 6)` em stderr, em ASCII. O `prevcarga.cmd` não usa blocos entre parênteses, porque um caminho como `Program Files (x86)` quebraria o parser do `cmd` dentro deles.
 
-<Figura id="FIG-E04" titulo="Lançador hermético contra shell sujo" natureza="Fluxo" fontes={['install/prevcarga', 'docs/estado/install.md', 'docs/estado/m8-bundle.md']} adrs={['ADR-0038']}>
+<Figura id="FIG-E04" titulo="Lançador hermético contra shell sujo" natureza="Fluxo" fontes={['install/prevcarga']} adrs={['ADR-0038']}>
 
 ```mermaid
 sequenceDiagram

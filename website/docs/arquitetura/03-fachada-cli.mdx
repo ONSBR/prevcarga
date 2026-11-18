@@ -16,12 +16,6 @@ fontes:
   - scripts/lib/introspect.R
   - install/prevcarga
   - install/prevcarga.cmd
-  - docs/estado/cli.md
-  - docs/estado/introspect.md
-  - docs/estado/banner.md
-  - docs/estado/install.md
-  - docs/estado/m5-purity.md
-  - docs/adr/0022-runtime-guard-dispatch.md
 adrs: [ADR-0040, ADR-0022]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -52,7 +46,7 @@ Antes do shim vem o lançador da instalação. No Linux, `install/prevcarga` (co
 
 `prevcarga_main(argv, verbs, root, runtime, handlers)` é a única função que decide o destino de um comando. Os argumentos `verbs`, `runtime` e `handlers` têm default de produção (`prevcarga_verbs_discover()`, `prevcarga_runtime_enforce`, nenhum) e existem para que se injetem outros verbos e outro runtime sem mudar a função.
 
-<Figura id="FIG-A02" titulo="Do comando ao código de saída" natureza="Fluxo" fontes={['install/prevcarga', 'scripts/prevcarga', 'scripts/lib/cli.R', 'scripts/lib/runtime.R', 'scripts/lib/errors.R', 'docs/estado/cli.md', 'docs/estado/install.md']} adrs={['ADR-0040', 'ADR-0022']}>
+<Figura id="FIG-A02" titulo="Do comando ao código de saída" natureza="Fluxo" fontes={['install/prevcarga', 'scripts/prevcarga', 'scripts/lib/cli.R', 'scripts/lib/runtime.R', 'scripts/lib/errors.R']} adrs={['ADR-0040', 'ADR-0022']}>
 
 ```mermaid
 sequenceDiagram

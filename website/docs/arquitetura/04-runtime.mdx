@@ -23,12 +23,6 @@ fontes:
   - install/install.sh
   - install/prevcarga
   - renv.lock
-  - docs/estado/runtime.md
-  - docs/estado/m1-fundacao.md
-  - docs/estado/m8-bundle.md
-  - docs/estado/m5-training.md
-  - docs/adr/0003-tempo-naive-brt-runtime-env.md
-  - docs/adr/0022-runtime-guard-dispatch.md
 adrs: [ADR-0022, ADR-0037, ADR-0003]
 revisado_em: 2026-11-05
 commit_base: "fb28da6"
@@ -74,7 +68,7 @@ Os pins são variáveis de processo de propósito: workers PSOCK do orquestrador
 
 Os três são da classe `runtime` (exit 7, a primeira na precedência de `scripts/lib/errors.R`) e levam em `details` o par `found` e `effective`. A mesma classe cobre `runtime.install_root_unresolved`, quando a raiz da instalação não sai do `--file=` do Rscript. Ver [Contrato de erros e códigos de saída](/arquitetura/erros-exit).
 
-<Figura id="FIG-A03" titulo="Runtime: encontrado e efetivo" natureza="Fluxo" fontes={['scripts/lib/runtime.R', 'docs/estado/runtime.md']} adrs={['ADR-0022', 'ADR-0037']}>
+<Figura id="FIG-A03" titulo="Runtime: encontrado e efetivo" natureza="Fluxo" fontes={['scripts/lib/runtime.R']} adrs={['ADR-0022', 'ADR-0037']}>
 
 ```mermaid
 flowchart TD

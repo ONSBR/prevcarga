@@ -15,7 +15,6 @@ fontes:
   - models/random-forest/R/freeze.R
   - models/random-forest/R/inference_features.R
   - models/random-forest/R/inference.R
-  - docs/estado/random_forest.md
   - scripts/lib/dates.R
   - scripts/lib/deck_reader.R
   - scripts/lib/features.R
@@ -62,7 +61,7 @@ As constantes intrínsecas vêm de `plugin_constants()` em `register.R` (`horizo
 
 `ntree` e `seed` não têm default no código: sem eles no `run.yaml`, o carregamento do plugin aborta com `plugin.bad_run_yaml`; numa chamada direta sem eles, `plugin_train` aborta com `plugin.contract`.
 
-<Figura id="FIG-M23" titulo="RF: uma linha de origem, 216 florestas" natureza="Estrutura" fontes={['models/random-forest/R/feature_engineering.R', 'models/random-forest/R/training.R', 'models/random-forest/R/inference.R', 'docs/estado/random_forest.md']} adrs={['ADR-0023']}>
+<Figura id="FIG-M23" titulo="RF: uma linha de origem, 216 florestas" natureza="Estrutura" fontes={['models/random-forest/R/feature_engineering.R', 'models/random-forest/R/training.R', 'models/random-forest/R/inference.R']} adrs={['ADR-0023']}>
 
 ```mermaid
 flowchart LR
@@ -210,7 +209,7 @@ Cada bloco passa inteiro por `to_semihourly` com a regra `rf_semihourly_rule` e 
 
 A saída tem de coincidir com `prevcarga_delivery_grid(cuts, 9)`, de `available_until` + 30 min até O+9 00:00. Com corte às 09:00, são 414 slots por área. Duplicata ou desalinhamento aborta com `plugin.output_misaligned`.
 
-<Figura id="FIG-M07" titulo="RF: duas origens nativas e a emenda do dia O" natureza="Linha do tempo" fontes={['models/random-forest/README.md', 'models/random-forest/R/inference.R', 'docs/estado/random_forest.md']} adrs={['ADR-0023']}>
+<Figura id="FIG-M07" titulo="RF: duas origens nativas e a emenda do dia O" natureza="Linha do tempo" fontes={['models/random-forest/README.md', 'models/random-forest/R/inference.R']} adrs={['ADR-0023']}>
 
 ```mermaid
 gantt

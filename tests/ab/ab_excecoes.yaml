@@ -1,8 +1,0 @@
-# LISTA FECHADA de excecoes conscientes ao Delta = 0 do A/B do corte (ADR-0041, que supera o ADR-0034 D23). DONO: Gabriel -- so ele acrescenta itens.
-# A referencia do A/B e a saida da tag v0.1.5 do clean-room (ADR-0041): as 3 entradas semeadas no M8.8 existiam so pela divergencia com o oraculo
-# (regdin.versao_pacotes, dessem_linear.hora_incompleta_clima_previsto, dessem_linear.sp_2024_11_15_residuo_numerico) e SAIRAM; o regdin e o
-# dessem-linear agora sao gerados no mesmo R 4.5.3 + renv.lock da referencia. Hoje nao ha entrada; uma mudanca deliberada de saida nao vira excecao:
-# regera o baseline numa tag nova, por ADR ou decisao registrada do Gabriel (docs/estado/ab.md).
-# Campos de um item: id, membro, estagio, condicao (expressao sobre os campos do caso), justificativa, adr (obrigatorios); opcionais: limite {max_abs,
-# max_rel} (max_rel = max|D| / max|ref|), janela_final_h (a excecao so cobre as ultimas N horas da faixa do membro), decisao, fonte.
-excecoes: []

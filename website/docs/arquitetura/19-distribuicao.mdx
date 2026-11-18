@@ -6,12 +6,6 @@ slug: /arquitetura/distribuicao
 description: Como o PrevCarga chega ao host do operador como um bundle R 4.5.3 relocável e verificável, instalado sem admin em Linux e Windows, e como releases, artefatos e entregas são publicados num repositório online de chaves imutáveis.
 fontes:
   - .github/workflows/release.yml
-  - docs/estado/m8-bundle.md
-  - docs/estado/m8-bundle-windows.md
-  - docs/estado/install.md
-  - docs/estado/sync.md
-  - docs/estado/release-pack.md
-  - docs/estado/m1-spike-r453.md
   - scripts/lib/runtime.R
   - scripts/lib/release_pack.R
   - scripts/lib/cli/release-pack.R
@@ -25,12 +19,10 @@ fontes:
   - scripts/lib/errors/release_pack.tsv
   - scripts/lib/errors/core.tsv
   - scripts/tools/bundle_manifest.R
-  - scripts/tools/bundle_gates.R
   - scripts/tools/build_bundle_linux.sh
   - scripts/tools/build_bundle_windows.ps1
   - scripts/tools/windows_binaries.tsv
   - scripts/tools/export_error_catalog.R
-  - scripts/tools/spike_r453.R
   - scripts/tools/upload
   - install/install.sh
   - install/install.ps1
@@ -39,8 +31,6 @@ fontes:
   - install/prevcarga-sync.sh
   - install/prevcarga-sync.ps1
   - renv.lock
-  - docs/adr/0016-orquestracao-io-nuvem.md
-  - docs/adr/0017-empacotamento-bundle-s3-entrega.md
 adrs: [ADR-0033, ADR-0036, ADR-0038, ADR-0039, ADR-0040, ADR-0017, ADR-0016]
 revisado_em: 2026-11-05
 commit_base: "8eaffc0"
@@ -143,7 +133,7 @@ A fonte única do contrato é `scripts/lib/runtime.R`, a mesma que o `doctor` us
 
 `prevcarga_runtime_validate(root, strict)` recalcula o sha256 de todo `files[]`. Com `strict = TRUE`, qualquer divergência aborta com `bundle.manifest_mismatch` (exit 6) e lista os caminhos em `details.paths`. O instalador a chama sobre o stage antes de trocar a versão corrente. O `doctor` a chama sobre o bundle instalado, na linha `bundle.integridade`. O contrato do lado do runtime está em [Runtime](/arquitetura/runtime).
 
-<Figura id="FIG-A18" titulo="Anatomia do bundle e o runtime_id" natureza="Fluxo" fontes={['docs/estado/m8-bundle.md', 'docs/estado/m8-bundle-windows.md']} adrs={['ADR-0036', 'ADR-0038']}>
+<Figura id="FIG-A18" titulo="Anatomia do bundle e o runtime_id" natureza="Fluxo" fontes={[]} adrs={['ADR-0036', 'ADR-0038']}>
 
 ```mermaid
 flowchart LR

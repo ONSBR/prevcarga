@@ -15,11 +15,6 @@ fontes:
   - scripts/lib/errors/combine.tsv
   - config/topology.yaml
   - models/*/R/register.R
-  - docs/estado/combination.md
-  - docs/estado/m4-combina.md
-  - docs/reference/VAZAMENTO-HORIZONTE-COMBINA.md
-  - docs/adr/0013-combina-convexa-metodo.md
-  - docs/adr/0014-combina-leak-horizonte-solver.md
 adrs: [ADR-0013, ADR-0014, ADR-0026, ADR-0032]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -70,7 +65,7 @@ A célula cai no **fallback EQW** (pesos 1/k sobre os k membros presentes e a = 
 | `no_member` | Nenhum membro tem previsão naquela célula. |
 | `n_min` | Menos de `n_min = 24` linhas de treino completas (alvo com verdade e todos os membros presentes sem NA). |
 
-<Figura id="FIG-M15" titulo="Ajuste por célula da combina" natureza="Fluxo" fontes={['scripts/lib/combination.R', 'docs/estado/combination.md']} adrs={['ADR-0013', 'ADR-0032']}>
+<Figura id="FIG-M15" titulo="Ajuste por célula da combina" natureza="Fluxo" fontes={['scripts/lib/combination.R']} adrs={['ADR-0013', 'ADR-0032']}>
 
 ```mermaid
 flowchart TB
@@ -131,7 +126,7 @@ panel$interval_start < prevcarga_combina_month_start(m, tz[1L]) & !is.na(panel$y
 
 O corte dos pesos não é o corte de treino dos membros (derivado por modelo pela classe de split, ver [Os três cortes de data](/metodologia/tres-cortes)). O horizonte de cada membro só decide quais colunas `f_*` têm valor; quem limita o que os pesos veem é a data do alvo.
 
-<Figura id="FIG-M16" titulo="Máscara de treino por interval_start" natureza="Linha do tempo" fontes={['scripts/lib/combination.R', 'docs/estado/m4-combina.md', 'docs/reference/VAZAMENTO-HORIZONTE-COMBINA.md']} adrs={['ADR-0014']}>
+<Figura id="FIG-M16" titulo="Máscara de treino por interval_start" natureza="Linha do tempo" fontes={['scripts/lib/combination.R']} adrs={['ADR-0014']}>
 
 ```mermaid
 gantt

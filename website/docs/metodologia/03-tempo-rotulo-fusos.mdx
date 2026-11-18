@@ -33,12 +33,6 @@ fontes:
   - models/dessem-regdin/R/register.R
   - models/_dessem-engine/README.md
   - models/_dessem-engine/R/funcoes_apoio.R
-  - docs/estado/deck_reader.md
-  - docs/estado/plugin_dispatch.md
-  - docs/estado/schema_long.md
-  - docs/estado/plugins_porte_fechamento.md
-  - docs/estado/m5-training.md
-  - docs/adr/0019-alinhamento-temp-carga-invariante.md
 adrs: [ADR-0002, ADR-0012, ADR-0019, ADR-0035, ADR-0037]
 revisado_em: 2026-11-13
 commit_base: "5c48c00"
@@ -188,7 +182,7 @@ Dentro do motor DESSEM, os lags de atributo são por índice na grade regular (`
 
 O LGBM mantém offset 0. O spike do ADR-0019 mediu o alinhamento temperatura-carga do LGBM e do RF e não indicou correção (`docs/estado/m5-training.md`).
 
-<Figura id="FIG-M03" titulo="Rótulo da carga e deslocamento de modelagem: ida e volta" natureza="Fluxo" fontes={['docs/estado/deck_reader.md', 'docs/estado/plugin_dispatch.md', 'docs/estado/schema_long.md', 'scripts/lib/features.R', 'models/_dessem-engine/README.md', 'docs/adr/0019-alinhamento-temp-carga-invariante.md']} adrs={['ADR-0012', 'ADR-0019', 'ADR-0035']}>
+<Figura id="FIG-M03" titulo="Rótulo da carga e deslocamento de modelagem: ida e volta" natureza="Fluxo" fontes={['scripts/lib/features.R', 'models/_dessem-engine/README.md']} adrs={['ADR-0012', 'ADR-0019', 'ADR-0035']}>
 
 ```mermaid
 sequenceDiagram

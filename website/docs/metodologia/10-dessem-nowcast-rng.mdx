@@ -27,9 +27,6 @@ fontes:
   - scripts/lib/errors/plugin.tsv
   - scripts/lib/errors/dessem_linear.tsv
   - scripts/lib/errors/dessem_regdin.tsv
-  - docs/estado/dessem_linear.md
-  - docs/estado/dessem_regdin.md
-  - docs/estado/m5-training.md
 adrs: [ADR-0023, ADR-0012, ADR-0019, ADR-0036, ADR-0040]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -58,7 +55,7 @@ Três detalhes do código fixam a regra:
 | `rd_morning_means(panel_hourly, available_until, tz)` | dessem-regdin | Mesma regra, pelo núcleo `.rd_mm_core` (hora do fim no mesmo dia e até a hora de corte) |
 | `rd_normalize_mm` | dessem-regdin | Normaliza só se a DM normaliza; no `model_parameters.json` atual a DM do regdin não é normalizada |
 
-<Figura id="FIG-M12" titulo="Regra do mm por corte intradiário" natureza="Fluxo" fontes={['models/dessem-linear/R/helpers_nowcast.R', 'models/dessem-regdin/R/helpers_nowcast.R', 'models/dessem-regdin/R/inference_features.R', 'docs/estado/dessem_regdin.md']} adrs={['ADR-0019']}>
+<Figura id="FIG-M12" titulo="Regra do mm por corte intradiário" natureza="Fluxo" fontes={['models/dessem-linear/R/helpers_nowcast.R', 'models/dessem-regdin/R/helpers_nowcast.R', 'models/dessem-regdin/R/inference_features.R']} adrs={['ADR-0019']}>
 
 ```mermaid
 flowchart LR
@@ -135,7 +132,7 @@ O ARIMA é re-fitado no infer, então o infer só é honesto se vir exatamente a
 
 O artefato não guarda o modelo ARIMA (sem `mable`). Guarda só o fingerprint, montado por `.rd_arima_fingerprint`: a ordem `(p,d,q)(P,D,Q)`, os coeficientes nomeados e `dm_digest`, o sha256 da série DM histórica (`Data`, `Carga` e as colunas `Exo*`). A conferência exige ordem idêntica, o mesmo `dm_digest`, o mesmo conjunto de coeficientes e cada coeficiente igual com tolerância 0. A mensagem nomeia o campo que divergiu. Um refit que devolva o modelo nulo do `fable`, o que acontece quando a janela não cobre os 12 níveis do fator `Mes` ou os regressores são colineares, também aborta com `plugin.regdin_arima_drift`, campo `null_model`.
 
-<Figura id="FIG-M13" titulo="dessem-regdin: invariantes e nowcast" natureza="Fluxo" fontes={['models/dessem-regdin/R/inference.R', 'models/dessem-regdin/R/helpers_nowcast.R', 'models/dessem-regdin/README.md', 'docs/estado/dessem_regdin.md']} adrs={['ADR-0023']}>
+<Figura id="FIG-M13" titulo="dessem-regdin: invariantes e nowcast" natureza="Fluxo" fontes={['models/dessem-regdin/R/inference.R', 'models/dessem-regdin/R/helpers_nowcast.R', 'models/dessem-regdin/README.md']} adrs={['ADR-0023']}>
 
 ```mermaid
 flowchart TB

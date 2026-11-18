@@ -47,11 +47,6 @@ fontes:
   - scripts/lib/backtest.R
   - scripts/lib/orchestrate.R
   - scripts/lib/topology.R
-  - docs/estado/m5-training.md
-  - docs/estado/inference.md
-  - docs/estado/combination.md
-  - docs/estado/plugins_porte_fechamento.md
-  - docs/estado/dessem_regdin.md
 adrs: [ADR-0021, ADR-0023, ADR-0012, ADR-0019, ADR-0032, ADR-0035]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -137,7 +132,7 @@ Como ler algumas linhas:
 
 Todo membro começa a entregar no primeiro intervalo depois de `available_until` e termina às 00:00 do dia `O + delivery_days`. A grade é uma só, `prevcarga_delivery_grid` (`scripts/lib/features.R`): os `interval_end` de 30 em 30 min, de `available_until + 30 min` até `O + delivery_days` às 00:00. O início depende do dado de carga; o fim, só do descriptor. A combina lê `delivery_days` do run-manifest, nunca do nome do modelo (ADR-0032).
 
-<Figura id="FIG-M06" titulo="Faixa de entrega por membro (exemplo O = 2024-10-01, corte 09:00)" natureza="Linha do tempo" fontes={['scripts/lib/features.R', 'models/lgbm/R/register.R', 'docs/estado/m5-training.md', 'docs/estado/combination.md']} adrs={['ADR-0032']}>
+<Figura id="FIG-M06" titulo="Faixa de entrega por membro (exemplo O = 2024-10-01, corte 09:00)" natureza="Linha do tempo" fontes={['scripts/lib/features.R', 'models/lgbm/R/register.R']} adrs={['ADR-0032']}>
 
 ```mermaid
 gantt

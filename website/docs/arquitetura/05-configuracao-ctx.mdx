@@ -16,8 +16,6 @@ fontes:
   - config/deck-manifest.store.json
   - install/install.sh
   - install/install.ps1
-  - docs/estado/config.md
-  - docs/estado/deck_reader.md
 adrs: [ADR-0037, ADR-0035, ADR-0024, ADR-0040]
 revisado_em: 2026-11-05
 commit_base: "fb28da6"
@@ -33,7 +31,7 @@ commit_base: "fb28da6"
 
 Para cada campo, `config.R` aplica a mesma escolha (`.prevcarga_pick`): se a flag foi passada, ela vence; senão vale o valor do `config.yaml`; senão vale o default do schema. O docopt não carrega default nenhum: o bloco de opções globais da CLI só declara as flags, e o default mora no `config.R` (ADR-0037).
 
-<Figura id="FIG-A04" titulo="Precedência de configuração" natureza="Fluxo" fontes={['scripts/lib/config.R', 'scripts/lib/deck_reader.R', 'config/config.yaml', 'docs/estado/config.md']} adrs={['ADR-0037', 'ADR-0035']}>
+<Figura id="FIG-A04" titulo="Precedência de configuração" natureza="Fluxo" fontes={['scripts/lib/config.R', 'scripts/lib/deck_reader.R', 'config/config.yaml']} adrs={['ADR-0037', 'ADR-0035']}>
 
 ```mermaid
 flowchart LR

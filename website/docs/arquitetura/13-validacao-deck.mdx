@@ -23,9 +23,6 @@ fontes:
   - scripts/lib/errors/dates.tsv
   - scripts/lib/errors/topology.tsv
   - scripts/lib/errors/forecast.tsv
-  - docs/estado/validation.md
-  - docs/estado/validate_deck.md
-  - docs/estado/m2-leitor.md
 adrs: [ADR-0040, ADR-0005, ADR-0035, ADR-0037, ADR-0023]
 revisado_em: 2026-11-03
 commit_base: "7c57514"
@@ -55,7 +52,7 @@ Cada checagem devolve findings para um coletor que preserva a ordem de inserçã
 
 Um dataset reprovado no contrato sai das checagens seguintes. Isso evita cascata: uma carga com coluna faltando gera um finding de schema, não centenas de dias incompletos.
 
-<Figura id="FIG-A10" titulo="Veredito acumulativo do validate-deck" natureza="Fluxo" fontes={['scripts/lib/validation.R', 'scripts/lib/errors.R', 'docs/estado/validation.md', 'docs/estado/validate_deck.md']} adrs={['ADR-0040']}>
+<Figura id="FIG-A10" titulo="Veredito acumulativo do validate-deck" natureza="Fluxo" fontes={['scripts/lib/validation.R', 'scripts/lib/errors.R']} adrs={['ADR-0040']}>
 
 ```mermaid
 flowchart TD

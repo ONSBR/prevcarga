@@ -22,12 +22,6 @@ fontes:
   - config/topology.yaml
   - install/prevcarga-sync.sh
   - install/prevcarga-sync.ps1
-  - docs/estado/registry_core.md
-  - docs/estado/registry_lifecycle.md
-  - docs/estado/sync.md
-  - docs/estado/release-pack.md
-  - docs/adr/0011-ciclo-artefato-registry.md
-  - docs/adr/0016-orquestracao-io-nuvem.md
 adrs: [ADR-0016, ADR-0030, ADR-0039, ADR-0011, ADR-0040]
 revisado_em: 2026-11-04
 commit_base: "379344b"
@@ -127,7 +121,7 @@ O `latest.txt` nunca é escrito diretamente: o novo conteúdo vai para um tempfi
 
 `prevcarga_train(member, area, origin, ctx, force)` (`scripts/lib/training.R`) treina uma célula e compõe o registry sem calcular corte nem hora. A identidade da versão é calculada antes de qualquer treino, a partir dos insumos já cortados.
 
-<Figura id="FIG-A13" titulo="Do treino ao latest: publicação por conteúdo" natureza="Fluxo" fontes={['scripts/lib/training.R', 'scripts/lib/registry.R', 'docs/estado/registry_core.md']} adrs={['ADR-0030', 'ADR-0039']}>
+<Figura id="FIG-A13" titulo="Do treino ao latest: publicação por conteúdo" natureza="Fluxo" fontes={['scripts/lib/training.R', 'scripts/lib/registry.R']} adrs={['ADR-0030', 'ADR-0039']}>
 
 ```mermaid
 flowchart TD
@@ -171,7 +165,7 @@ A linha devolvida por célula traz `status`: `reused` (a versão já existia), `
 prevcarga registry (ls|show|promote|rollback|pin|unpin|gc) [<model>] [<area>] [<version>] [--dry-run]
 ```
 
-<Figura id="FIG-A14" titulo="Ciclo de vida de uma versão no registry" natureza="Estrutura" fontes={['scripts/lib/registry.R', 'docs/estado/registry_lifecycle.md']} adrs={['ADR-0030']}>
+<Figura id="FIG-A14" titulo="Ciclo de vida de uma versão no registry" natureza="Estrutura" fontes={['scripts/lib/registry.R']} adrs={['ADR-0030']}>
 
 ```mermaid
 stateDiagram-v2

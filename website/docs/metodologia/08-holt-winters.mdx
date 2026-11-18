@@ -22,7 +22,6 @@ fontes:
   - scripts/lib/training.R
   - scripts/lib/errors/plugin.tsv
   - scripts/lib/errors/training.tsv
-  - docs/estado/holt_winters.md
 adrs: [ADR-0021, ADR-0023, ADR-0024]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -87,7 +86,7 @@ O plugin não lê nenhuma coluna de clima: o painel pode vir sem clima, e o deck
 
 `plugin_build_features` aplica os seis passos em ordem fixa e roda uma vez por treino. Os passos 1, 3 e 5 vêm de `helpers_aux.R`, cópia única das funções auxiliares; os passos 2 e 6 estão em `feature_engineering.R`.
 
-<Figura id="FIG-M10" titulo="Holt-Winters: tratamento do histórico, treino e inferência" natureza="Fluxo" fontes={['models/holt-winters/R/feature_engineering.R', 'models/holt-winters/R/helpers_aux.R', 'models/holt-winters/R/training.R', 'models/holt-winters/R/inference.R', 'docs/estado/holt_winters.md', 'models/holt-winters/README.md']} adrs={['ADR-0023']}>
+<Figura id="FIG-M10" titulo="Holt-Winters: tratamento do histórico, treino e inferência" natureza="Fluxo" fontes={['models/holt-winters/R/feature_engineering.R', 'models/holt-winters/R/helpers_aux.R', 'models/holt-winters/R/training.R', 'models/holt-winters/R/inference.R', 'models/holt-winters/README.md']} adrs={['ADR-0023']}>
 
 ```mermaid
 flowchart TB

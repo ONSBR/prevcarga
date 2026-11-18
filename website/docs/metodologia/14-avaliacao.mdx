@@ -14,9 +14,6 @@ fontes:
   - scripts/lib/reporting.R
   - scripts/lib/errors/evaluation.tsv
   - scripts/lib/errors/score.tsv
-  - docs/estado/evaluation.md
-  - docs/estado/score.md
-  - docs/estado/backtest.md
 adrs: [ADR-0028]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -107,7 +104,7 @@ A leitura é `prevcarga_read_actual(ctx, area, from, to)`, um invólucro fino so
 
 O casamento é por igualdade exata de instante: `target_datetime` do LONG contra `interval_end` da carga, no mesmo fuso. Como `target_datetime` já é o fim do intervalo, não há conversão nem tolerância no join. Um intervalo sem carga realizada fica com `y_true` NA e sai do scorecard.
 
-<Figura id="FIG-M22" titulo="Pontuação com verdade fresca" natureza="Fluxo" fontes={['scripts/lib/evaluation.R', 'scripts/lib/cli/score.R', 'docs/estado/score.md', 'docs/estado/evaluation.md']} adrs={['ADR-0028']}>
+<Figura id="FIG-M22" titulo="Pontuação com verdade fresca" natureza="Fluxo" fontes={['scripts/lib/evaluation.R', 'scripts/lib/cli/score.R']} adrs={['ADR-0028']}>
 
 ```mermaid
 flowchart LR

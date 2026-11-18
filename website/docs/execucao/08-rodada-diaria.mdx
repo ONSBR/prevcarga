@@ -27,9 +27,6 @@ fontes:
   - scripts/lib/evaluation.R
   - config/topology.yaml
   - models/*/run.yaml
-  - docs/estado/forecast.md
-  - docs/estado/m6-forecast.md
-  - docs/estado/export.md
 adrs: [ADR-0023, ADR-0024, ADR-0033, ADR-0039, ADR-0040]
 revisado_em: 2026-11-13
 commit_base: "f2d1734"
@@ -98,7 +95,7 @@ A rodada continua quando uma célula (folha × membro) não entrega, em vez de a
 
 `prevcarga_forecast` (`scripts/lib/forecast.R`) roda os passos sempre na mesma ordem. Cada passo chama a função de outro módulo; nenhum cálculo de corte, peso, k-hat ou hora mora no `forecast.R`.
 
-<Figura id="FIG-E06" titulo="Rodada forecast e onde ela pode falhar" natureza="Fluxo" fontes={['scripts/lib/forecast.R', 'scripts/lib/cli/forecast.R', 'docs/estado/forecast.md', 'docs/estado/m6-forecast.md']} adrs={['ADR-0040']}>
+<Figura id="FIG-E06" titulo="Rodada forecast e onde ela pode falhar" natureza="Fluxo" fontes={['scripts/lib/forecast.R', 'scripts/lib/cli/forecast.R']} adrs={['ADR-0040']}>
 
 ```mermaid
 flowchart TB
