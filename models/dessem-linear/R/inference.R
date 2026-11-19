@@ -39,34 +39,60 @@
 ## Modo da DM(O), decidido pelo dado: "nowcast" se `mm` tem a linha de O, senao "no_day_o".
 dl_dm_o_mode <- function(mm, origin_day) if (origin_day %in% mm$Data) "nowcast" else "no_day_o"
 
-## Ajuste da DM(O) no infer, na posicao de RNG do chamador (logo apos set.seed(artifact$seed)): cabeca com mm[O] ou, sem
-## linha de O, o SVM_DemandaMedia puro do motor (sem mm, formula do motor). Devolve o best.model.
+## Ajuste da DM(O) no infer, na posicao de RNG do chamador (logo apos set.seed(artifact$seed)): reajusta a cabeca sobre a
+## AMOSTRA GRAVADA no artefato (dm_o_sample; E4-T2, ADR-045 fase B), nunca sobre o historico do deck. nowcast: mm = coluna
+## mm_hHH da hora de corte (normalizada por dl_normalize_mm) e `+ mm` na formula; no_day_o: formula do motor, sem mm. Mesmos
+## argumentos de SVM_DemandaMedia (tune_wsvm do motor, 1 chamada). Devolve o best.model.
 dl_dm_o_fit <- function(a, f, mode = dl_dm_o_mode(f$mm, f$cuts$origin_day)) {
-  if (identical(mode, "nowcast"))
-    return(dl_dm_head(f$engine, f$serieDM, f$config_mdl, f$mm, f$cuts$origin_day, constnorm = a$norm$dm_carga))
-  .dl_best(f$engine$SVM_DemandaMedia(format(f$cuts$origin_day), f$serieDM, f$config_mdl)$modeloTreinado)
+  eng <- f$engine; cfg <- f$config_mdl
+  s <- data.table::as.data.table(a$dm_o_sample)
+  mmc <- grep("^mm_h[0-9]{2}$", names(s), value = TRUE)
+  frm <- stats::as.formula(a$dm_o_formula); environment(frm) <- baseenv()
+  tr <- s[, setdiff(names(s), mmc), with = FALSE]
+  if (identical(mode, "nowcast")) {
+    h <- lubridate::hour(lubridate::floor_date(f$cuts$available_until, "hour"))
+    hh <- sprintf("mm_h%02d", h)
+    if (!(h %in% 0:23) || !(hh %in% names(s)))
+      dl_abort("plugin.dessem_linear_artifact_mismatch", where = "dessem-linear/dm_o_fit",
+               reason = sprintf("dm_o_sample: sem a coluna %s da hora de corte", hh),
+               details = list(field = "dm_o_sample", coluna = hh))
+    mm <- dl_normalize_mm(data.table::data.table(Data = s$Data, mm = s[[hh]]), cfg, a$norm$dm_carga)
+    tr <- merge(tr, mm, by = "Data", all.x = TRUE)
+    frm <- stats::update(frm, . ~ . + mm); environment(frm) <- baseenv()
+  }
+  eng$tune_wsvm(frm, iter.max = 500, weight = eng$getSVMWeights(cfg$alfa, nrow(tr)), data = tr,
+                ranges = cfg$ranges, kernel = cfg$kernel)$best.model
 }
 
 ## Passe de predict (porta de .dl_predict_pass): DM por dia (O: refeita no infer; O+1..O+8: SVM congelado), write-back da
-## DM prevista em serieDM (recursao), 24 perfis com CargaMed = DM, desnormalizacao por norm$pf_cargadm.
+## DM prevista em serieDM (recursao), 24 perfis com CargaMed = DM, desnormalizacao por norm$pf_cargadm. Cada linha de
+## predicao do deck (possivelmente curto) e alinhada as colunas gravadas no treino (dl_align_row; E4-T2).
 .dl_predict_pass <- function(a, f, dm_head, mode = "nowcast") {
   eng <- f$engine
   sDM <- data.table::copy(f$serieDM); sPF <- data.table::copy(f$seriePF)
   O <- format(f$cuts$origin_day)
   for (dp in format(f$processado$DIASPREV)) {
+    what <- paste0("DM ", dp)
     if (identical(dp, O) && identical(mode, "no_day_o")) {
       inp <- eng$obterEntradaFormulaDM(dp, sDM, f$config_mdl)
-      infer <- .dl_predict_row(dm_head, inp$dadosEntrada$serieDiariaModelo[Data == dp], paste0("DM ", dp))
+      row <- dl_align_row(inp$dadosEntrada$serieDiariaModelo[Data == dp], a$columns$dm[[dp]], sDM, dp, what)
+      infer <- .dl_predict_row(dm_head, row, what)
     } else if (identical(dp, O)) {
       inp <- dl_dm_head_input(eng, sDM, f$config_mdl, f$mm, f$cuts$origin_day, TRUE, a$norm$dm_carga)
-      infer <- .dl_predict_row(dm_head, inp$dadosEntrada$serieDiariaModelo[Data == dp], paste0("DM ", dp))
+      row <- inp$dadosEntrada$serieDiariaModelo[Data == dp]
+      mm_o <- row$mm; row[, mm := NULL]                       # as colunas gravadas sao as do motor, sem mm
+      row <- dl_align_row(row, a$columns$dm[[dp]], sDM, dp, what)
+      row[, mm := mm_o]
+      infer <- .dl_predict_row(dm_head, row, what)
     } else {
       inp <- eng$obterEntradaFormulaDM(dp, sDM, f$config_mdl)
-      infer <- .dl_predict_row(.dl_best(a$svm_dm[[dp]]), inp$dadosEntrada$serieDiariaModelo[Data == dp], paste0("DM ", dp))
+      row <- dl_align_row(inp$dadosEntrada$serieDiariaModelo[Data == dp], a$columns$dm[[dp]], sDM, dp, what)
+      infer <- .dl_predict_row(.dl_best(a$svm_dm[[dp]]), row, what)
     }
     sDM[Data == dp, Carga := infer[[1L]]]
     for (h in 0:23) {
       x <- .dl_profile_row(eng, sPF, f$config_mdl, dp, h)
+      x <- dl_align_row(x, a$columns$perfil[[dp]][[h + 1L]], sPF, dp, sprintf("perfil %s h%02d", dp, h))
       x[, CargaMed := infer[[1L]]]
       pf <- .dl_predict_row(.dl_best(a$svm_perfil[[dp]][[h + 1L]]), x, sprintf("perfil %s h%02d", dp, h))
       sPF[Data == dp & lubridate::hour(DataHora) == h, `:=`(CargaMed = infer[[1L]], Carga = pf[[1L]])]

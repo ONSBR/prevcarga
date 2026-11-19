@@ -47,13 +47,18 @@ prevcarga_build_validate_deck <- function(ctx, opts, data_lag_days = NULL) {
     first_delivery = .prevcarga_vd_ts(r$first_delivery, tz)))
   fnd <- .prevcarga_vd_rows(v$findings, function(r) lapply(as.list(r), function(x) if (is.na(x)) "" else x))
 
-  list(schema_version = 1L, ok = isTRUE(v$ok), class = v$class,
+  iw <- if (is.null(v$inference_windows)) NULL else .prevcarga_vd_rows(v$inference_windows, function(r) list(
+    dataset = r$dataset, area = r$area, from = .prevcarga_vd_iso(r$from), to = .prevcarga_vd_iso(r$to), source = r$source))
+
+  res <- list(schema_version = 1L, ok = isTRUE(v$ok), class = v$class,
        forecast_origin = .prevcarga_vd_iso(v$forecast_origin), origin_source = v$origin_source,
        available_until = .prevcarga_vd_ts(v$available_until, tz), available_until_by_area = by_area,
        load_label = v$load_label, load_label_source = v$load_label_source,
        weather_issue_cutoff = v$weather_issue_cutoff,
        weather_issue_limit = if (!is.null(tz)) .prevcarga_vd_ts(v$weather_issue_limit, tz) else NULL,
        timezone = v$timezone, data_hash = hash, scope = v$scope, cuts = cuts, findings = fnd)
+  if (!is.null(v$inference_windows)) res$inference_windows <- iw     # so deck kind inference (train: JSON identico ao anterior)
+  res
 }
 
 ## --- Render texto ASCII ---------------------------------------------------------------------------------
@@ -78,6 +83,9 @@ prevcarga_build_validate_deck <- function(ctx, opts, data_lag_days = NULL) {
     lapply(res$cuts, function(r) c(r$model, r$split, as.character(r$granularity_min),
       .prevcarga_vd_dash(r$train_origin), .prevcarga_vd_dash(r$last_data_day),
       .prevcarga_vd_dash(r$input_cut), .prevcarga_vd_dash(r$first_delivery))))
+  iw <- if (length(res$inference_windows)) .prevcarga_vd_table(
+    c("DATASET", "AREA", "FROM", "TO"),
+    lapply(res$inference_windows, function(r) c(r$dataset, r$area, .prevcarga_vd_dash(r$from), .prevcarga_vd_dash(r$to))))
   f <- res$findings
   if (length(f)) {
     lv <- vapply(f, function(r) r$level, "")
@@ -86,7 +94,7 @@ prevcarga_build_validate_deck <- function(ctx, opts, data_lag_days = NULL) {
   fnd <- if (length(f)) .prevcarga_vd_table(
     c("AREA", "DATASET", "WHAT", "CLASS", "LEVEL", "DETAIL"),
     lapply(f, function(r) c(r$area, r$dataset, r$what, r$class, r$level, .prevcarga_vd_dash(r$detail))))
-  c(head, cuts, fnd, if (isTRUE(res$ok)) "OK" else paste("FALHA", res$class))
+  c(head, cuts, iw, fnd, if (isTRUE(res$ok)) "OK" else paste("FALHA", res$class))
 }
 
 ## --- Handler fino ----------------------------------------------------------------------------------------
@@ -105,7 +113,10 @@ cmd_validate_deck <- function(ctx, args = NULL) {
     if (!identical(ctx$format, "json")) writeLines(iconv(.render_validate_deck_text(res), from = "UTF-8", to = "ASCII", sub = "?"), con = stdout())
     prevcarga_abort(paste0(first$class, ".", first$what),
                     where = if (is.na(first$where) || !nzchar(first$where)) NULL else first$where,
-                    details = list(findings = as.integer(n_err), items = res$findings, origin = res$forecast_origin))
+                    details = c(list(findings = as.integer(n_err), items = res$findings, origin = res$forecast_origin),
+                                if (identical(first$what, "need_gap"))      # completude.need_gap: dataset, area e dias (YYYY-MM-DD, em ordem)
+                                  list(dataset = first$dataset, area = first$area,
+                                       dias = if (nzchar(first$detail)) strsplit(first$detail, ",", fixed = TRUE)[[1L]] else character())))
   }
   for (w in unique(vapply(Filter(function(r) identical(r$level, "warning"), res$findings), function(r) r$what, "")))
     prevcarga_warn(paste0("warning.", w))
@@ -117,7 +128,8 @@ prevcarga_verb_validate_deck <- list(
   usage   = "prevcarga validate-deck [--area=<a>]",
   options = "--area=<a>              Restringe o escopo a uma area (subsistema expande para as folhas)",
   handler = function(ctx, args) cmd_validate_deck(ctx, args),
+  deck_roles = c("train", "inference"),
   owner   = "M2",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R")
+  modules = c("topology.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "inference.R")
 )

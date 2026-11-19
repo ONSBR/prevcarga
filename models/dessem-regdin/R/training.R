@@ -34,10 +34,8 @@ rd_rng_mode <- function(deviation = plugin_descriptor()$rng_deviation) {
   ord <- as.integer(unlist(spec[, c("p", "d", "q", "P", "D", "Q")], use.names = FALSE))
   tt <- fabletools::tidy(fit)
   coef <- stats::setNames(as.numeric(tt$estimate), as.character(tt$term))
-  hist <- data.table::as.data.table(serieDM)[Prev == FALSE, c("Data", "Carga", grep("^Exo", names(serieDM), value = TRUE)),
-                                             with = FALSE]
   list(order = stats::setNames(ord, c("p", "d", "q", "P", "D", "Q")), coef = coef,
-       dm_digest = digest::digest(hist, algo = "sha256"))
+       dm_digest = .rd_dm_hist_digest(serieDM))
 }
 
 ## Passe de fit (porta de .rd_fit_pass, dessem_regdin_fit.R:95-133, com a regra de RNG harmonizada 16a):
@@ -66,12 +64,28 @@ rd_rng_mode <- function(deviation = plugin_descriptor()$rng_deviation) {
   list(base_fit = base$mdl$modeloTreinado, svm_perfil = svm)
 }
 
-## Constantes de normalizacao (Prev == FALSE), as do artefato do oraculo.
+## Constantes de normalizacao (Prev == FALSE e Bloco 0), as do artefato do oraculo.
 .rd_norm_constants <- function(SERIECOMP, config_mdl) {
-  h <- SERIECOMP[Prev == FALSE]
+  h <- .rd_common_base(SERIECOMP)       # so o Bloco 0 (ADR-046 item 1)
   nz <- config_mdl$normalizacao
   list(dm_carga = getNormalizaCarga(nz$carga, h), dm_exo = getNormalizaExogena(nz$exogena, h),
        pf_cargadm = getNormalizaCarga(nz$perfil$cargadm, h), pf_exo = getNormalizaExogena(nz$perfil$exogena, h))
+}
+
+## Ilhas do anexo na janela do treino: island_id/from/to por ilha (data.table vazia sem anexo). `from`/`to` numericos
+## (dias desde 1970), em data.frame puro (data.table carrega um externalptr, recusado pela varredura de pureza do artefato).
+.rd_window_islands <- function(isl) {
+  if (is.null(isl) || !nrow(isl))
+    return(data.frame(island_id = integer(), from = numeric(), to = numeric()))
+  data.frame(island_id = as.integer(isl$island_id), from = as.numeric(isl$from), to = as.numeric(isl$to))
+}
+
+## Perfil de feriado congelado por dia especial do horizonte (E4-T3): list(<dp> = hol_profile). Sem dia especial: lista vazia nomeada.
+.rd_hol_profiles <- function(features) {
+  dts <- features$day_types
+  esp <- features$dias[!is.na(dts[features$dias]) & dts[features$dias] != 0L]
+  stats::setNames(lapply(esp, function(dp) .rd_hol_profile(dp, features$series$seriePF, features$config_mdl,
+                                                            features$norm$pf_cargadm)), esp)
 }
 
 ## Estagio real (formais fixos do loader: features, params, seed).
@@ -83,11 +97,23 @@ rd_training <- function(features, params, seed) {
   hist_days <- s$serieDM[Prev == FALSE]$Data
   mm_ref <- rd_reference_mm(.rd_deck_panel(deck$CARGAHIST), plugin_constants()$reference_mm_hour, deck$tz)
   mode <- rd_rng_mode()
+  ## estado derivado (E4-T3, ADR-045 fase C) ANTES do passe de fit: nao consome RNG (so le o motor) e o passe muta serieDM/seriePF
+  ## por referencia; svm_perfil, norm e arima_fingerprint ficam byte a byte iguais aos da v0.1.5
+  state <- list(
+    serie_dm = .rd_serie_dm_payload(s$serieDM, .rd_deck_panel(deck$CARGAHIST), deck$tz),
+    hol_profile = .rd_hol_profiles(features),
+    columns = rd_columns_of(features),
+    inference_needs = rd_inference_needs(features$config_mdl, deck$area, as.integer(deck$horizon) - 1L,
+                                         deck$clima_hist$modo))
   fits <- .rd_fit_pass(features, seed = seed, mm_ref = mm_ref, mode = mode)
-  list(svm_perfil = fits$svm_perfil, norm = features$norm, config_mdl = features$config_mdl,
-       day_types = features$day_types, dias = features$dias,
-       train_window = list(start = min(hist_days), end = deck$last_data_day), seed = as.integer(seed),
-       arima_fingerprint = .rd_arima_fingerprint(fits$base_fit, s$serieDM))
+  ## payload$clima_hist (E5-T4): so quando o param foi informado. Ausente => observado.
+  clima <- if (!is.null(deck$clima_hist) && !is.null(params$clima_hist))
+    list(clima_hist = deck$clima_hist[c("modo", "dias_completados", "primeiro_dia_lead0")])
+  c(list(svm_perfil = fits$svm_perfil, norm = features$norm, config_mdl = features$config_mdl,
+         day_types = features$day_types, dias = features$dias,
+         train_window = list(start = min(hist_days), end = deck$last_data_day, islands = .rd_window_islands(deck$islands)),
+         seed = as.integer(seed),
+         arima_fingerprint = .rd_arima_fingerprint(fits$base_fit, s$serieDM)), clima, state)
 }
 
 ## Forma do ticket: plugin_train(features, spec).

@@ -35,11 +35,14 @@ O único dono do registry é `scripts/lib/registry.R`. O núcleo (chave, resolu�
 
 ## Layout de uma célula
 
-A raiz é `prevcarga_registry_root(ctx)`, que devolve `<state_dir>/artifacts` normalizado. A chave de uma célula vem de `prevcarga_registry_key(member, area, ctx)`: os segmentos são o `mdir` do membro, o segmento de variante e a área. O segmento de variante entra se e somente se `member$exogena` não for vazio. A decisão é só pelo membro declarado em `config/topology.yaml`, nunca pelo nome do modelo.
+A raiz é `prevcarga_registry_root(ctx)`, que devolve `<state_dir>/artifacts` normalizado. A chave de uma célula vem de `prevcarga_registry_key(member, area, ctx, spec = NULL)`: os segmentos são o `mdir` do membro, o segmento de variante, os segmentos de parâmetro de chave e a área. O segmento de variante entra se e somente se `member$exogena` não for vazio. A decisão é só pelo membro declarado em `config/topology.yaml`, nunca pelo nome do modelo.
+
+Um plugin pode declarar `key_params` no descriptor: uma lista nomeada de parâmetro para default (`character(1)`). Esses parâmetros são opcionais no `run.yaml`, e o default nunca é injetado em `spec$params`. Com `spec`, a chave ganha o segmento `<parâmetro>-<valor>` entre a variante e a área só quando o valor existe, difere do default e o parâmetro não está em `ignores_params` da variante. Sem `spec`, ou com os valores no default, o layout é o de sempre, byte a byte. Hoje os dois DESSEM declaram `key_params = list(clima_hist = "observado")`, então o modo `previsto_lead0` grava em `dessem-linear/MED/clima_hist-previsto_lead0/<area>` com `latest.txt` próprio, e nenhum modo sobrescreve o outro. A UNI ignora `clima_hist` e fica em `dessem-linear/UNI/<area>`. O `registry` aceita `<model>` no formato `mdir/variante/<parâmetro>-<valor>`. O reconcile (k-hat) continua sem `spec`.
 
 ```text title="<state_dir>/artifacts/ (igual ao prefixo artifacts/ do repositório online)"
 <state_dir>/artifacts/
 ├── random-forest/SP/                  membro sem variante (exogena: null)
+├── dessem-linear/MED/clima_hist-previsto_lead0/SP/   mesmo membro com clima_hist fora do default
 ├── dessem-linear/MED/SP/              membro com variante (exogena: MED)
 │   ├── latest.txt                     ponteiro: 1 linha, v_<hash> corrente
 │   ├── .pin                           só local: versões pinadas, uma por linha

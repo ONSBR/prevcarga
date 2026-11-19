@@ -2,7 +2,7 @@ name: lgbm
 split: origin_agnostic            # ADR-0023: train_origin = O-1-H
 granularity_min: 30
 horizon_days: 1
-history_days: {train: 730, infer: 45}
+history_days: {train: 730, infer: 5}   # infer minimo: ondaleta (32 meias-horas) + shift CarWav de 2 dias; guarda interna min 4
 seed: 123
 modes: [train, infer]
 backtest: {protocol_default: daily}

@@ -9,30 +9,80 @@ dl_muffle <- function(patterns, expr) {
   })
 }
 
-## serieDM (diaria) e seriePF (horaria) limpas, na mesma ordem de operacoes do processaModelosDMPerfil.
-dl_build_series <- function(SERIECOMP, config_mdl) {
-  eng <- dl_engine()
-  base <- SERIECOMP[Prev == FALSE]
+## Bloco 0 = janela comum + horizonte; Bloco k > 0 = ilhas do anexo (ADR-046 item 1: normalizacao e serieDM so no Bloco 0).
+## Sem a coluna Bloco (modo referencia ou deck sem anexo) o resultado e identico ao de antes.
+dl_common_base <- function(SERIECOMP) {
+  if ("Bloco" %in% names(SERIECOMP)) SERIECOMP[Bloco == 0L & Prev == FALSE] else SERIECOMP[Prev == FALSE]
+}
+dl_common_series <- function(SERIECOMP) {
+  if ("Bloco" %in% names(SERIECOMP)) SERIECOMP[Bloco == 0L] else SERIECOMP
+}
+
+## Replica local de inclui_CargaMediaRef (_dessem-engine/R/entrada_perfil.R) com a constante DADA (sem getNormalizaCarga);
+## muta seriePF por referencia. Dias sem carga (NaN) ficam NA, como no motor.
+dl_cargamed_ref <- function(seriePF, const) {
+  seriePF[, CargaMed := mean(Carga, na.rm = TRUE) / const, by = .(Data)]
+  seriePF[is.nan(CargaMed), CargaMed := NA_real_]
+  invisible(seriePF)
+}
+
+## norm injetado: lista com as quatro constantes, numericas e sem NA (a forma gravada no artefato). A constante 0 e recusada.
+## Com `config_mdl`, a constante VAZIA (logical(0)) so vale para a flag de normalizacao que o motor nao liga: flag TRUE com
+## constante vazia falha alto (ADR-0005). A flag de cada constante e a mesma que dl_norm_constants usa para calcula-la
+## (pf_exo le `normalizacao$exogena`, chave que os model_parameters nao trazem: flag ausente => vazia e legitima).
+## Sem `config_mdl` a conferencia de vazio fica como antes (nao ha flag para cruzar).
+dl_check_norm <- function(norm, config_mdl = NULL) {
+  need <- c("dm_carga", "dm_exo", "pf_cargadm", "pf_exo")
+  have <- if (is.list(norm)) need[need %in% names(norm)] else character()
   nrm <- config_mdl$normalizacao
+  flag <- list(dm_carga = nrm$dm$carga$flag, dm_exo = nrm$dm$exogena$flag,
+               pf_cargadm = nrm$perfil$cargadm$flag, pf_exo = nrm$exogena$flag)
+  bad <- have[vapply(have, function(k) {
+    x <- norm[[k]]
+    if (length(x) == 0L) return(!is.null(config_mdl) && isTRUE(flag[[k]]))
+    !is.numeric(x) || anyNA(x) || any(x == 0)
+  }, NA)]
+  miss <- setdiff(need, have)
+  if (length(miss) || length(bad)) {
+    k <- c(miss, bad)
+    dl_abort("plugin.dessem_linear_artifact_mismatch", where = "dessem-linear/build_series",
+             reason = sprintf("norm: constante ausente, vazia com a flag ligada, NA ou 0 (%s)", paste(k, collapse = ",")),
+             details = list(field = "norm", constante = k))
+  }
+  invisible(norm)
+}
+
+## serieDM (diaria) e seriePF (horaria) limpas, na mesma ordem de operacoes do processaModelosDMPerfil.
+## norm = NULL: constantes calculadas sobre a base (caminho do treino). norm dado: as quatro constantes vem do argumento
+## e getNormaliza* nao sao chamadas (a serie de um deck curto usa a normalizacao do deck longo).
+dl_build_series <- function(SERIECOMP, config_mdl, norm = NULL) {
+  eng <- dl_engine()
+  nrm <- config_mdl$normalizacao
+  if (!is.null(norm)) dl_check_norm(norm, config_mdl)
+  if (is.null(norm)) {
+    base <- dl_common_base(SERIECOMP)
+    k <- list(dm_carga = eng$getNormalizaCarga(nrm$dm$carga, base),
+              dm_exo = eng$getNormalizaExogena(nrm$dm$exogena, base))
+  } else k <- norm
   serieDM <- eng$aggregaSerie(
-    serieHist = data.table::copy(SERIECOMP),
+    serieHist = data.table::copy(dl_common_series(SERIECOMP)),
     tipotemp = config_mdl$exogenaOper,
     normaliza = any(nrm$dm$carga$flag, nrm$dm$exogena$flag),
-    constnorm = eng$getNormalizaCarga(nrm$dm$carga, base),
-    constnormtemp = eng$getNormalizaExogena(nrm$dm$exogena, base))
+    constnorm = k$dm_carga,
+    constnormtemp = k$dm_exo)
   seriePF <- data.table::copy(SERIECOMP)
-  eng$inclui_CargaMediaRef(seriePF, nrm$perfil$cargadm)
+  if (is.null(norm)) eng$inclui_CargaMediaRef(seriePF, nrm$perfil$cargadm) else dl_cargamed_ref(seriePF, norm$pf_cargadm)
   eng$normalizaSerieRef(
     serieHist = seriePF,
     constnorm = nrm$perfil$carga$oper,
-    constnormtemp = eng$getNormalizaExogena(nrm$exogena, base))
+    constnormtemp = if (is.null(norm)) eng$getNormalizaExogena(nrm$exogena, base) else norm$pf_exo)
   list(serieDM = serieDM, seriePF = seriePF)
 }
 
 ## Constantes de normalizacao calculadas em Prev == FALSE (as do oraculo: dm/perfil).
 dl_norm_constants <- function(SERIECOMP, config_mdl) {
   eng <- dl_engine()
-  base <- SERIECOMP[Prev == FALSE]
+  base <- dl_common_base(SERIECOMP)
   nrm <- config_mdl$normalizacao
   list(dm_carga = eng$getNormalizaCarga(nrm$dm$carga, base),
        dm_exo = eng$getNormalizaExogena(nrm$dm$exogena, base),
@@ -41,22 +91,41 @@ dl_norm_constants <- function(SERIECOMP, config_mdl) {
 }
 
 ## `spec` = list(params = ...); a variante e validada ANTES de qualquer calculo do motor.
-plugin_build_features <- function(deck, spec) {
+plugin_build_features <- function(deck, spec, norm = NULL) {
   v <- dl_resolve_variant(spec)
   eng <- dl_engine()
   config_mdl <- eng$getConfigModel(v$model_key)
+  if (!is.null(norm)) dl_check_norm(norm, config_mdl)   # antes de TransformaDeck e de getNormaliza*
   eng_deck <- list(CARGAHIST = data.table::copy(deck$CARGAHIST), EXOGENAHIST = data.table::copy(deck$EXOGENAHIST),
                    EXOGENAPREV = data.table::copy(deck$EXOGENAPREV), FERIADOS = data.table::copy(deck$FERIADOS))
+  ## anexo de feriados (ADR-046): so entra no deck do motor quando existe (sem anexo o deck e o de antes)
+  if (!is.null(deck$CARGAFER)) {
+    eng_deck$CARGAFER <- data.table::copy(deck$CARGAFER)
+    eng_deck$EXOGENAFER <- data.table::copy(deck$EXOGENAFER)
+  }
   processado <- dl_muffle(c("Exogena prevista nao disponivel", "Ajustanto horizonte"),
     eng$TransformaDeck(deck = eng_deck, dataInicioPrev = deck$dataPrev, horizonteprevisao = "10DIAS", tz = deck$tz))
   if (length(processado$DIASPREV) > deck$horizon) {
     processado$DIASPREV <- processado$DIASPREV[seq_len(deck$horizon)]
     processado$NDIASPREV <- deck$horizon
   }
-  s <- dl_build_series(processado$SERIECOMP, config_mdl)
+  ## variante SEM clima: a coluna Exo_* (zeros sinteticos) sai ANTES de dl_build_series e das constantes de normalizacao,
+  ## porque o perfil horario (entrada_perfil.R) a usaria; vale no treino e na inferencia (mesma funcao).
+  if (dl_variant_weatherless(v$model_key)) {
+    sc <- processado$SERIECOMP
+    exo <- grep("^Exo_", names(sc), value = TRUE)
+    if (length(exo)) sc[, (exo) := NULL]
+    processado$SERIECOMP <- sc
+  }
+  ## sem coluna Exo_ o getNormalizaExogena do motor avalia max() de zero colunas (-Inf, descartado pelo ifelse da flag FALSE):
+  ## o aviso e so deste caso e e silenciado aqui; o motor fica intacto
+  quiet0 <- function(expr) withCallingHandlers(expr, warning = function(w)
+    if (dl_variant_weatherless(v$model_key) && grepl("no non-missing arguments to max", conditionMessage(w), fixed = TRUE))
+      invokeRestart("muffleWarning"))
+  s <- quiet0(dl_build_series(processado$SERIECOMP, config_mdl, norm))
   frame <- deck
   frame$variant <- v$exogena
   frame$model_key <- v$model_key
   list(processado = processado, serieDM = s$serieDM, seriePF = s$seriePF, config_mdl = config_mdl,
-       norm = dl_norm_constants(processado$SERIECOMP, config_mdl), deck = frame)
+       norm = if (is.null(norm)) quiet0(dl_norm_constants(processado$SERIECOMP, config_mdl)) else norm, deck = frame)
 }

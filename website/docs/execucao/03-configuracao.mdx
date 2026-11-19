@@ -3,7 +3,7 @@ title: Configuração
 sidebar_label: Configuração
 sidebar_position: 3
 slug: /execucao/configuracao
-description: Referência do operador para o config.yaml (schema v1), as 12 flags globais, o manifest.json do deck, a topologia e os erros de configuração mais comuns.
+description: Referência do operador para o config.yaml (schema v1), as flags globais, o manifest.json do deck, a topologia e os erros de configuração mais comuns.
 fontes:
   - config/config.yaml
   - config/deck-manifest.store.json
@@ -47,9 +47,9 @@ Esta página é a referência prática. O porquê da precedência e o desenho do
 3. Senão, numa instalação (código em `<R>/versions/<v>/code`), o `<R>/config.yaml` da instalação.
 4. Senão, nenhum arquivo: valem só os defaults e as flags.
 
-O instalador grava o `config.yaml` da instalação. Na primeira instalação ele escreve `schema_version: 1`, `format: text`, `color: auto`, `data_dir` (se `--data` foi passado) e `state_dir` (o `--state`, ou `<R>/state`). Num upgrade, ele preserva as chaves que já existem e só regrava `data_dir` e `state_dir`. Os detalhes estão em [Instalação](/execucao/instalacao).
+O instalador grava o `config.yaml` da instalação. Na primeira instalação ele escreve `schema_version: 1`, `format: text`, `color: auto`, `data_train_dir`, `data_inference_dir` e `artifacts_dir` (se `--data-train`, `--data-inference` e `--data-artifacts` foram passados) e `state_dir` (o `--state`, ou `<R>/state`). Num upgrade, ele preserva as chaves que já existem e só regrava essas, trocando a `data_dir` legada por `data_train_dir`. Os detalhes estão em [Instalação](/execucao/instalacao).
 
-Depois da instalação, `prevcarga set-data-dir <dir>` grava ou troca o `data_dir` nesse mesmo arquivo (ou no de `--config`). O diretório tem de existir, o caminho vai absoluto e entre aspas simples, e as outras linhas do arquivo ficam como estavam. É o único verbo que escreve no `config.yaml`.
+Depois da instalação, `prevcarga set-data-dir` grava ou troca `data_train_dir`, `data_inference_dir` e `artifacts_dir` nesse mesmo arquivo (ou no de `--config`): com `--train`, `--inference` e `--artifacts` grava só as chaves passadas; sem chave é interativo (pede confirmação `[s/N]`, exige terminal e, sem ele, sai com `contract.set_data_dir_noninteractive`, exit 2). O diretório de treino tem de existir, o caminho vai absoluto e entre aspas simples, e as outras linhas do arquivo ficam como estavam. É o único verbo que escreve no `config.yaml`.
 
 ### Chaves e defaults
 
@@ -58,7 +58,8 @@ O schema é fechado. Estas são as únicas chaves aceitas, e qualquer outra abor
 | Chave | Tipo | Valores | Default | Flag que sobrescreve |
 |---|---|---|---|---|
 | `schema_version` | inteiro | `1` | obrigatório no arquivo | nenhuma |
-| `data_dir` | texto | caminho do deck | sem default | `--data` |
+| `data_train_dir` | texto | caminho do deck de treino | sem default | `--data-train` |
+| `data_inference_dir` | texto | caminho do deck de inferência | sem default | `--data-inference` |
 | `state_dir` | texto | caminho do estado | `<raiz>/.state` | `--state` |
 | `load_label` | enum | `end`, `start` | sem default no `ctx` | `--load-label` |
 | `weather_issue_cutoff` | enum | `available_until`, `origin_midnight_utc` | `available_until` | `--weather-cutoff` |
@@ -69,7 +70,9 @@ O schema é fechado. Estas são as únicas chaves aceitas, e qualquer outra abor
 Observações de cada chave:
 
 - **`schema_version`** é obrigatório. Ausente ou diferente de `1` aborta com `config.bad_type`.
-- **`data_dir`** não tem default. Um verbo que lê o deck sem `data_dir` nem `--data` aborta com `config.data_dir_missing`. Para gravá-lo, `prevcarga set-data-dir <dir>`.
+- **Precedência por papel:** `data_train_dir` = `--data-train` > `data_train_dir`; `data_inference_dir` = `--data-inference` > `data_inference_dir`; `artifacts_dir` = `--data-artifacts` > `artifacts_dir` > `<state_dir>/artifacts`.
+- **Nota de migração (sem apelido):** `--data`, `--artifacts-dir` e a chave `data_dir` foram removidos (clean break da ADR-044). Não há apelido nem aviso: a flag antiga sai com `config.usage` (exit 8) e a chave antiga no `config.yaml`, com `config.unknown_key` (exit 8). Troque por `--data-train`, `--data-inference`, `--data-artifacts` e pelas chaves `data_train_dir`, `data_inference_dir`, `artifacts_dir`.
+- **`data_train_dir` e `data_inference_dir`** não têm default. Um verbo que lê o deck sem o deck do seu papel aborta com `config.data_dir_missing`. Para gravá-los, `prevcarga set-data-dir --train=<dir>` e `--inference=<dir>`.
 - **`state_dir`** só é resolvido como caminho, nunca criado pela leitura da configuração.
 - **`load_label`** tem uma precedência própria, resolvida pelo leitor do deck: `manifest.json` acima de `--load-label`, acima do `config.yaml`, e `end` por último. Se o manifest declara um valor e a flag diz outro, o leitor aborta com `contract.load_label_conflict` (exit 2). O efeito do rótulo está em [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
 - **`weather_issue_cutoff`** escolhe a regra do clima previsto (ADR-0024). Com `available_until`, a emissão só entra se `issue_time` for no máximo `available_until` menos o atraso de publicação do manifest. Com `origin_midnight_utc`, o limite é 00:00 UTC do dia O, sem atraso.
@@ -80,7 +83,7 @@ Observações de cada chave:
 
 ```yaml title="config.yaml"
 schema_version: 1
-data_dir: /srv/prevcarga/deck
+data_train_dir: /srv/prevcarga/deck
 state_dir: /srv/prevcarga/state
 weather_issue_cutoff: available_until
 color: auto
@@ -93,12 +96,14 @@ Os caminhos acima são ilustrativos. O `load_label` foi omitido de propósito: c
 
 ## Flags globais
 
-A CLI tem 12 flags globais. Quando a flag falta, vale o `config.yaml`, e depois o default embutido.
+A CLI tem flags globais. Quando a flag falta, vale o `config.yaml`, e depois o default embutido.
 
 | Flag | Chave do config.yaml | Default | O que faz | Erro se inválida |
 |---|---|---|---|---|
 | `--origin=<data>` | nenhuma | omitida, a origem é o dia do último intervalo de carga do deck | Forecast-origin O em `YYYY-MM-DD`. Só `backtest` e `plan` aceitam o intervalo `A..B`, com A anterior ou igual a B | `config.bad_origin` |
-| `--data=<dir>` | `data_dir` | sem default | Diretório do deck | `config.data_dir_missing` se ausente |
+| `--data-train=<dir>` | `data_train_dir` | sem default | Diretório do deck de treino | `config.data_dir_missing` se ausente |
+| `--data-inference=<dir>` | `data_inference_dir` | sem default | Diretório do deck de inferência | nenhum na leitura da configuração |
+| `--data-artifacts=<dir>` | `artifacts_dir` | `<state_dir>/artifacts` | Raiz de artefatos | `config.artifacts_dir_missing` se não existe |
 | `--state=<dir>` | `state_dir` | `<raiz>/.state` | Diretório de estado | nenhum na leitura da configuração |
 | `--config=<arquivo>` | nenhuma | busca descrita acima | Arquivo `config.yaml` a usar | `config.bad_type` se o arquivo não existe |
 | `--load-label=<l>` | `load_label` | resolvido pelo leitor | Rótulo da carga: `end` ou `start` | `config.bad_load_label` |
@@ -189,19 +194,22 @@ Dois verbos mostram o que a CLI leu. Não leem o deck nem pedem `--origin`.
   {type:'out', text:'    areas: ALPE CE PBRN BAOE PI BASE'}
 ]} />
 
-O `prevcarga models` lista os 8 membros, um por linha, com o que vem do `run.yaml` de cada `mdir`: `split`, granularidade, horizonte, histórico de treino e de inferência, `seed`, modos, protocolo de backtest default e `exogena`.
+O `prevcarga models` lista os 9 membros, um por linha, com o que vem do `run.yaml` de cada `mdir`: `split`, granularidade, horizonte, histórico de treino e de inferência, `seed`, modos, protocolo de backtest default e `exogena`.
+
+O segundo número de `historico` é o `history_days.infer`, o mínimo de dias que o deck de inferência precisa trazer antes de O: Holt-Winters 2 (sem temperatura), LGBM 5 (ondaleta e shift de 2 dias; o plugin ainda recusa menos de 4 dias completos) e random-forest 9 (lags de O−8 a O−1 e LOCF do clima desde O−9). A carga, o observado e os feriados pedidos ao deck derivam desse valor, então um deck com mais dias dá a mesma previsão que o mínimo.
 
 <Terminal title="prevcarga — bash" lines={[
   {type:'cmd', text:'prevcarga models'},
-  {type:'out', text:'models: 8 membros'},
-  {type:'out', text:'RF        random-forest  split=origin_agnostic gran=60min horizonte=9d historico=365/45 seed=123 modos=train,infer protocolo=daily exogena=-'},
-  {type:'out', text:'LGBM      lgbm           split=origin_agnostic gran=30min horizonte=1d historico=730/45 seed=123 modos=train,infer protocolo=daily exogena=-'},
-  {type:'out', text:'HW        holt-winters   split=origin_scoped gran=30min horizonte=8d historico=730/45 seed=1234 modos=train,infer,forecast protocolo=retrain_harness exogena=-'},
+  {type:'out', text:'models: 9 membros'},
+  {type:'out', text:'RF        random-forest  split=origin_agnostic gran=60min horizonte=9d historico=365/9 seed=123 modos=train,infer protocolo=daily exogena=-'},
+  {type:'out', text:'LGBM      lgbm           split=origin_agnostic gran=30min horizonte=1d historico=730/5 seed=123 modos=train,infer protocolo=daily exogena=-'},
+  {type:'out', text:'HW        holt-winters   split=origin_scoped gran=30min horizonte=8d historico=730/2 seed=1234 modos=train,infer,forecast protocolo=retrain_harness exogena=-'},
   {type:'out', text:'RGD_MED   dessem-regdin  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MED'},
   {type:'out', text:'RGD_MAX   dessem-regdin  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MAX'},
   {type:'out', text:'LIN_MED   dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MED'},
   {type:'out', text:'LIN_MAX   dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MAX'},
-  {type:'out', text:'LIN_MXMN  dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MXMN'}
+  {type:'out', text:'LIN_MXMN  dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=MXMN'},
+  {type:'out', text:'LIN_UNI   dessem-linear  split=origin_scoped gran=60min horizonte=9d historico=1825/1825 seed=42 modos=train,infer,forecast protocolo=retrain_harness exogena=UNI'}
 ]} />
 
 Com `--format=json`, os dois verbos devolvem o mesmo conteúdo no envelope JSON. O significado de cada campo está em [Os modelos](/metodologia/modelos-visao-geral).
@@ -219,7 +227,7 @@ Os erros da classe `config` saem todos com exit 8. A mensagem em texto tem quatr
 | `config.bad_weather_cutoff` | Regra de clima diferente de `available_until`/`origin_midnight_utc` | a chave do `config.yaml`; `-` quando o valor veio da flag |
 | `config.bad_color` | `color` diferente de `auto`/`always`/`never` | a chave do `config.yaml`; `-` quando o valor veio da flag |
 | `config.bad_format` | `format` diferente de `text`/`json` | a chave do `config.yaml`; `-` quando o valor veio da flag |
-| `config.data_dir_missing` | Verbo que lê o deck sem `data_dir` nem `--data` | `--data` |
+| `config.data_dir_missing` | Verbo que lê o deck sem `data_train_dir` nem `--data-train` | `--data-train` |
 | `config.unknown_model` | `--model` com um nome que não é `mdir` de um membro da topologia; nos verbos de treino também vale `mdir/exogena`, e `--exogena` sem membro correspondente | o nome rejeitado |
 | `config.usage` | Sintaxe inválida, verbo inexistente ou flag de escopo no verbo errado | o token rejeitado |
 

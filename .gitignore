@@ -114,3 +114,5 @@ renv/staging/
 /scripts/tools/reconcile_golden.R
 /scripts/tools/reference_driver.R
 /scripts/tools/spike_r453.R
+/scripts/tools/accept_*
+/scripts/lib/errors/accept.tsv

@@ -36,3 +36,39 @@ fill_forecast_tail <- function(dt, time_col, from, to, slots_per_day, area, orig
   data.table::setorderv(out, time_col)
   out[]
 }
+
+## EXOGENAHIST em modo clima_hist = previsto_lead0 (E5-T3): a regra unica consumida pelos dois DESSEM. Mesma regra de
+## lgbm_weather_vintage com lead 0 (valid_day - issue_day >= 0; dia da emissao em `issue_day_tz`, dia valido no fuso
+## da carga `tz`; por valid_time a emissao de maior issue_time). Completamento por DIA INTEIRO: dia de `days` sem 24
+## horas pelo lead 0 sai inteiro do weather_observed (nunca mistura fontes no dia) e conta em dias_completados; dia sem
+## 24 horas nem la => engine.dessem_exo_gap (completude) com details$dia. Sem aritmetica de hora, sem leitura de arquivo.
+## -> list(dt = data.table(DataHora, Exo_Temperatura) ordenado, dias_completados = integer(1), primeiro_dia_lead0 = Date(1)).
+exo_hist_lead0 <- function(weather_forecast, weather_observed, area, days, tz, issue_day_tz = "UTC") {
+  days <- sort(unique(lubridate::as_date(days)))
+  w <- data.table::as.data.table(weather_forecast)[area_code == area]
+  w[, `:=`(valid_day = lubridate::as_date(valid_time, tz = tz),
+           issue_day = lubridate::as_date(issue_time, tz = issue_day_tz))]
+  w <- w[as.integer(valid_day - issue_day) >= 0L & valid_day %in% days]
+  data.table::setorder(w, valid_time, -issue_time)
+  w <- w[!duplicated(w, by = "valid_time")]
+  n_lead <- w[, list(N = .N), by = valid_day]
+  lead_days <- sort(n_lead$valid_day[n_lead$N == 24L])
+  fill_days <- days[!(days %in% lead_days)]
+  o <- data.table::as.data.table(weather_observed)[area_code == area]
+  o[, valid_day := lubridate::as_date(valid_time, tz = tz)]
+  o <- o[valid_day %in% fill_days]
+  o <- o[!duplicated(o, by = "valid_time")]
+  for (d in fill_days) {
+    d <- lubridate::as_date(d)
+    n_obs <- o[valid_day == d, .N]
+    if (n_obs != 24L)
+      engine_abort("engine.dessem_exo_gap", where = format(d),
+                   details = list(dia = format(d), horas_lead0 = n_lead[valid_day == d, sum(N)],
+                                  horas_observado = n_obs))
+  }
+  dt <- data.table::rbindlist(list(w[valid_day %in% lead_days, list(DataHora = valid_time, Exo_Temperatura = temperature)],
+                                   o[, list(DataHora = valid_time, Exo_Temperatura = temperature)]))
+  data.table::setorder(dt, DataHora)
+  list(dt = dt, dias_completados = length(fill_days),
+       primeiro_dia_lead0 = if (length(lead_days)) min(lead_days) else lubridate::NA_Date_)
+}

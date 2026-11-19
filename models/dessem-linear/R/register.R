@@ -10,8 +10,10 @@
 ## do plugin e, enquanto o arquivo do estagio nao existe, usa um stub que recusa com plugin.stage_missing.
 
 plugin_constants <- function() {
-  list(model_key = c(MED = "Linear.TmpMedia", MAX = "Linear.TmpMaxima", MXMN = "Linear.TmpMaxMin"),
-       hours_per_day = 24L, mm_ref_hour = 12L, max_tail_fill_days = 2L, horizon_days = 9L)
+  list(model_key = c(MED = "Linear.TmpMedia", MAX = "Linear.TmpMaxima", MXMN = "Linear.TmpMaxMin",
+                     UNI = "Linear.Univariado"),
+       hours_per_day = 24L, mm_ref_hour = 12L, max_tail_fill_days = 2L, horizon_days = 9L,
+       reference_history_days = 1825L, clima_hist_modes = c("observado", "previsto_lead0"))
 }
 
 ## Env do motor (pai do env do plugin). Nao ha estado: o motor e uma instancia por plugin carregado.
@@ -33,7 +35,7 @@ dl_warn <- function(id, where = NULL, details = NULL) {
 }
 
 ## --- Variante (exogena) --------------------------------------------------------------------------------------
-## spec$params$exogena in {MED, MAX, MXMN}; ausente ou fora do conjunto aborta ANTES de qualquer treino.
+## spec$params$exogena in {MED, MAX, MXMN, UNI} (names do mapa model_key); ausente ou fora do conjunto aborta ANTES de qualquer treino.
 dl_resolve_variant <- function(spec) {
   ex <- spec$params$exogena
   keys <- plugin_constants()$model_key
@@ -44,6 +46,28 @@ dl_resolve_variant <- function(spec) {
                               paste(names(keys), collapse = ", ")),
              details = list(field = "params.exogena", got = ex, allowed = names(keys)))
   list(exogena = ex, model_key = unname(keys[[ex]]))
+}
+
+## clima_hist (E5-T4): "nao_se_aplica" para variante sem clima (UNI), "observado" quando ausente, o valor se estiver em
+## plugin_constants()$clima_hist_modes; senao aborta (contract, exit 2) antes de qualquer treino.
+dl_resolve_clima_hist <- function(params, model_key) {
+  if (dl_variant_weatherless(model_key)) return("nao_se_aplica")
+  m <- params$clima_hist
+  if (is.null(m)) return("observado")
+  modes <- plugin_constants()$clima_hist_modes
+  if (!is.character(m) || length(m) != 1L || is.na(m) || !(m %in% modes))
+    dl_abort("plugin.dessem_linear_bad_clima_hist", where = "dessem-linear/params",
+             reason = sprintf("params.clima_hist=%s; permitido {%s}", paste(format(m), collapse = ","),
+                              paste(modes, collapse = ", ")),
+             details = list(field = "params.clima_hist", got = m, allowed = modes))
+  m
+}
+
+## TRUE sse o config do motor agrega a exogena com SEM (Linear.Univariado): nenhuma coluna de clima entra no modelo.
+## Decisao pelo motor, nunca pelo literal da variante.
+dl_variant_weatherless <- function(model_key) {
+  if (is.null(model_key) || length(model_key) != 1L || is.na(model_key)) return(FALSE)
+  identical(dl_engine()$getConfigModel(model_key)$exogenaOper, "SEM")
 }
 
 ## --- Regra semi-horaria: desagregaModeloSH do motor; falha => duplicacao :00/:30 + aviso -------------------------
@@ -78,20 +102,74 @@ dl_pick <- function(name, stub) {
   if (is.null(f)) stub else f
 }
 
+## Janela de treino FIXA do DESSEM (ADR-046, accepted; decisao do Gabriel em 2026-11-16): history_days.train = 1095. Outro valor (run.yaml
+## adulterado) e recusado com contract.dessem_history_train_fixed (exit 2). Nem o run.yaml nem a CLI encurtam a janela: so os gates e
+## testes, por opcao EXPLICITA de teste (`options(prevcarga.test_short_history = TRUE)`), que nenhum caminho de usuario define.
+dl_history_train_days <- function() 1095L
+dl_assert_history_train <- function(spec) {
+  if (isTRUE(getOption("prevcarga.test_short_history"))) return(invisible(TRUE))
+  tr <- spec$history_days$train
+  if (is.null(tr) || length(tr) != 1L || is.na(tr) || as.integer(tr) != dl_history_train_days())
+    dl_abort("contract.dessem_history_train_fixed", where = "history_days.train",
+             details = list(model = "dessem-linear", train = if (is.null(tr)) NA_integer_ else as.integer(tr), fixed = dl_history_train_days()))
+  invisible(TRUE)
+}
+
+## Janela do DESSEM (ADR-046; E3-T1): puro; delega a regra unica da fundacao (scripts/lib/holiday_islands.R), que o registry
+## expoe a este plugin (prevcarga_dessem_window). Sem o param, ano_civil.
+## history_days.train ABAIXO da janela de ano_civil (1095) encurta a janela comum nos dois modos (so com a opcao de teste
+## `prevcarga.test_short_history`, ver acima; o run.yaml declara 1095 e o guard o fixa): common_from = O - history_days.train. Em producao (1095) a regra da fundacao vale como esta.
+dl_history_window <- function(origin, spec) {
+  dl_assert_history_train(spec)
+  mode <- spec$params$janela_dessem
+  w <- prevcarga_dessem_window(origin, if (is.null(mode)) "ano_civil" else mode)
+  tr <- spec$history_days$train
+  if (!is.null(tr) && is.finite(tr) &&
+      as.integer(tr) < as.integer(lubridate::as_date(origin) - prevcarga_dessem_window(origin, "ano_civil")$common_from))
+    w$common_from <- lubridate::as_date(origin) - as.integer(tr)
+  w
+}
+
+## data_needs (E2-T2): o que a inferencia/treino precisa do deck, so como dado. O previsto e a emissao mais fresca por
+## valid_time em [O, O + H] (freshest); carga/observado/feriados pela janela atual (n = history_days.infer, nunca literal).
+## E3/E4 trocam esta declaracao depois.
+dl_data_needs <- function(spec, area) {
+  n <- as.integer(spec$history_days$infer); H <- as.integer(spec$horizon_days)
+  mode <- if (is.null(spec$params$janela_dessem)) "ano_civil" else spec$params$janela_dessem
+  wf <- list(area = area, segments = list(list(kind = "freshest", from = 0L, to = H, lead = NA_integer_)))
+  ## clima_hist = previsto_lead0 (E5-T4): o previsto dos dias -n..-1 (lead 0) alimenta os lags da inferencia
+  wfi <- wf
+  if (identical(spec$params$clima_hist, "previsto_lead0"))
+    wfi$segments <- c(wfi$segments, list(list(kind = "min_lead", from = -n, to = -1L, lead = 0L)))
+  list(infer = list(schema_version = 1L, load = list(days_before = n), weather_observed = list(days_before = n),
+                    weather_forecast = wfi, holidays = list(from = -n, to = H), holiday_annex = identical(mode, "ano_civil")),
+       train_weather_forecast = wf)
+}
+
 plugin_descriptor <- function() {
   attach <- c("data.table", "lubridate", "jsonlite", "rlist", "WeightSVM", "e1071", "stats", "utils")
   list(
     model_id = "dessem-linear", contract_version = 1L,
     granularity_supported = 60L, modes_implemented = c("train", "infer", "forecast"),
     weather_resample = "hourly",              # EXOGENAHIST/EXOGENAPREV horarios (to_hourly da fundacao)
-    params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key))),
+    params_schema = list(exogena = list(type = "character", allowed = names(plugin_constants()$model_key)),
+                         janela_dessem = list(type = "character", allowed = c("ano_civil", "referencia")),
+                         clima_hist = list(type = "character")),   # opcional (key_params); conjunto validado por dl_resolve_clima_hist
     variant_param = "exogena",
+    ## clima_hist: ausente = observado (default nao injetado em spec$params); fora do default entra na chave do registry
+    key_params = list(clima_hist = "observado"),
+    ## so a UNI declara requires proprio (sem data.weather_*); MED/MAX/MXMN seguem o requires do estagio (E5-T1)
+    variants = list(UNI = list(requires = c("data.load.load_mwh", "data.holidays.prevcarga_code"),
+                               ignores_params = "clima_hist")),
     native_layout = "dessem_semihourly_48", semihourly_rule = dl_semihourly_rule,
     weather_cut = "absent",   # F3.7: DESSEM so com horizonte inteiro; clima previsto curto => completude.weather_forecast_short (membro ausente)
     delivery_days = 9L, data_lag_days = 0L, model_time_offset_min = 60L,
     reads_day_O = TRUE, weather_forecast_in_train = TRUE, uses_rng = TRUE,   # mm do dia O ate available_until (oraculo data_adapter.R)
-    history_infer_equals_train = TRUE, rng_deviation = NULL,
+    history_infer_equals_train = FALSE, rng_deviation = NULL,   # E4-T2: a inferencia roda sobre o estado do artefato (deck minimo)
     packages = attach, attach = attach, engine = "_dessem-engine",
+    data_needs = dl_data_needs,
+    ## Janela do DESSEM (ADR-046; E3-T1): a fachada consome este campo sem switch por nome. Sem o param, ano_civil.
+    history_window = dl_history_window,
     freeze = dl_pick("dl_freeze", dl_stub_freeze), thaw = dl_pick("dl_thaw", dl_stub_thaw),
     stages = list(
       ingestion = list(fn = dl_ingestion,

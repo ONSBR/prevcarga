@@ -12,16 +12,93 @@
                               holidays = file.path("auxiliary", "holidays"))
 
 ## --- Manifest estrito (schema v1 fechado) --------------------------------------------------------
-.PREVCARGA_MANIFEST_KEYS <- c("schema_version", "load_label", "timezone", "weather_forecast_publication_lag_hours")
+.PREVCARGA_MANIFEST_KEYS <- c("schema_version", "load_label", "timezone", "weather_forecast_publication_lag_hours",
+                              "kind", "inference")
+.PREVCARGA_MANIFEST_INFERENCE_KEYS <- c("origin", "available_until", "train_deck_hash", "windows")
+## Chaves opcionais do bloco inference (nao exigidas): holiday_annex = diretorio do anexo, relativo ao deck.
+## inference_needs_source (E2-T4): proveniencia das necessidades do gerador (artifacts | topology | mixed).
+.PREVCARGA_MANIFEST_INFERENCE_OPTIONAL <- c("holiday_annex", "inference_needs_source")
 .PREVCARGA_MANIFEST_TZ_KEYS <- c("load", "weather_observed", "weather_forecast", "holidays", "dst_periods")
 .PREVCARGA_MANIFEST_FC_KEYS <- c("valid_time", "issue_time")
 
-.prevcarga_manifest_tz <- function(tz, where) {
+## olson injetavel (teste). Base de fusos vazia e falha do ambiente (runtime.tzdata_missing), nao do deck.
+.prevcarga_manifest_tz <- function(tz, where, olson = OlsonNames) {
   if (is.null(tz) || !is.character(tz) || length(tz) != 1L || is.na(tz) || !nzchar(tz))
     prevcarga_abort("contract.tz_missing", where = where)
-  if (!tz %in% OlsonNames())
+  known <- olson()
+  if (!length(known)) prevcarga_abort("runtime.tzdata_missing", where = where, details = list(tz = tz))
+  if (!tz %in% known)
     prevcarga_abort("contract.tz_invalid", where = where, details = list(tz = tz))
   tz
+}
+
+## Fusos declarados no manifest, sem validar (insumo do doctor). Vetor unico, sem NA/vazio.
+prevcarga_deck_manifest_timezones <- function(data_dir) {
+  m <- .prevcarga_manifest_read_json(data_dir)
+  tzm <- if (is.list(m)) m[["timezone"]] else NULL
+  if (!is.list(tzm)) return(character())
+  fc <- tzm[["weather_forecast"]]
+  vals <- c(tzm[["load"]], tzm[["weather_observed"]],
+            if (is.list(fc)) c(fc[["valid_time"]], fc[["issue_time"]]),
+            tzm[["holidays"]], tzm[["dst_periods"]])
+  vals <- unlist(vals[vapply(vals, function(v) is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v), logical(1))])
+  unique(as.character(vals))
+}
+
+## Bloco inference do manifest (kind inference): origem, corte, hash do deck de treino e janelas por dataset.
+.prevcarga_manifest_inference <- function(inf, tz_load) {
+  w <- "manifest.json:inference"
+  bad_ <- function(field, reason = NULL)
+    prevcarga_abort("contract.manifest_invalid", where = paste0(w, ".", field),
+                    details = if (is.null(reason)) list() else list(reason = reason))
+  if (!is.list(inf) || (length(inf) && is.null(names(inf))))
+    prevcarga_abort("contract.manifest_invalid", where = w, details = list(reason = "mapa"))
+  badk <- setdiff(names(inf), c(.PREVCARGA_MANIFEST_INFERENCE_KEYS, .PREVCARGA_MANIFEST_INFERENCE_OPTIONAL))
+  if (length(badk)) prevcarga_abort("contract.manifest_unknown_key", where = paste0("inference.", badk[[1L]]))
+  for (k in .PREVCARGA_MANIFEST_INFERENCE_KEYS) if (is.null(inf[[k]])) bad_(k, "ausente")
+
+  iso_date <- function(x, field) {
+    if (!(is.character(x) && length(x) == 1L && !is.na(x) && grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", x))) bad_(field, "AAAA-MM-DD")
+    d <- suppressWarnings(lubridate::ymd(x, tz = "UTC"))
+    if (is.na(d)) bad_(field, "AAAA-MM-DD")
+    lubridate::as_date(d)
+  }
+  origin <- iso_date(inf[["origin"]], "origin")
+
+  au <- inf[["available_until"]]
+  if (!(is.character(au) && length(au) == 1L && !is.na(au) && grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$", au)))
+    bad_("available_until", "AAAA-MM-DDTHH:MM:SS")
+  au_t <- suppressWarnings(lubridate::ymd_hms(au, tz = tz_load, quiet = TRUE))
+  if (is.na(au_t)) bad_("available_until", "AAAA-MM-DDTHH:MM:SS")
+
+  h <- inf[["train_deck_hash"]]
+  if (!(is.character(h) && length(h) == 1L && !is.na(h) && grepl("^[0-9a-f]{64}$", h)))
+    bad_("train_deck_hash", "sha256 com 64 hex minusculos")
+
+  win <- inf[["windows"]]
+  if (!is.list(win) || (length(win) && (is.null(names(win)) || any(!nzchar(names(win))))))
+    bad_("windows", "mapa dataset -> from/to")
+  wout <- list()
+  for (nm in names(win)) {
+    ft <- win[[nm]]
+    fld <- paste0("windows.", nm)
+    if (!is.list(ft) || is.null(names(ft)) || !setequal(names(ft), c("from", "to"))) bad_(fld, "from/to")
+    f <- iso_date(ft[["from"]], paste0(fld, ".from"))
+    t <- iso_date(ft[["to"]], paste0(fld, ".to"))
+    if (f > t) bad_(fld, "from > to")
+    wout[[nm]] <- list(from = f, to = t)
+  }
+  ann <- inf[["holiday_annex"]]
+  if (!is.null(ann) && !(is.character(ann) && length(ann) == 1L && !is.na(ann) && nzchar(ann) &&
+                         !grepl("^(/|[A-Za-z]:|\\\\)", ann) && !any(strsplit(ann, "[/\\\\]")[[1L]] == "..")))
+    bad_("holiday_annex", "caminho relativo ao deck, sem ..")
+  src <- inf[["inference_needs_source"]]
+  if (!is.null(src) && !(is.character(src) && length(src) == 1L && !is.na(src) && src %in% c("artifacts", "topology", "mixed")))
+    bad_("inference_needs_source", "artifacts|topology|mixed")
+  res <- list(origin = origin, available_until = au_t, train_deck_hash = h, windows = wout)
+  if (!is.null(ann)) res$holiday_annex <- ann
+  if (!is.null(src)) res$inference_needs_source <- src
+  res
 }
 
 ## Atraso de publicacao do clima previsto (ADR-0024): horas inteiras >= 0 entre issue_time e a emissao estar disponivel.
@@ -53,6 +130,13 @@ prevcarga_deck_manifest <- function(data_dir) {
   if (!(is.numeric(sv) && length(sv) == 1L && !is.na(sv) && sv == 1))
     prevcarga_abort("contract.manifest_invalid", where = "manifest.json:schema_version",
                     details = list(expected = 1L))
+  ## kind holiday_annex (E3-T2; ADR-044): manifest minimo do subdeck do anexo, so schema_version + kind. Fuso, load_label e
+  ## train_deck_hash vem do deck de inferencia dono (prevcarga_annex_ctx). Nunca e deck principal (require_deck recusa).
+  if (identical(m[["kind"]], "holiday_annex")) {
+    badan <- setdiff(names(m), c("schema_version", "kind"))
+    if (length(badan)) prevcarga_abort("contract.manifest_unknown_key", where = badan[[1L]])
+    return(list(schema_version = 1L, kind = "holiday_annex"))
+  }
   ll <- m[["load_label"]]
   if (!is.null(ll) && !(is.character(ll) && length(ll) == 1L && ll %in% c("end", "start")))
     prevcarga_abort("contract.manifest_invalid", where = "manifest.json:load_label",
@@ -90,9 +174,42 @@ prevcarga_deck_manifest <- function(data_dir) {
   if (!is.null(tzm[["dst_periods"]]))
     out_tz$dst_periods <- .prevcarga_manifest_tz(tzm[["dst_periods"]], "dst_periods.date")
 
+  kind <- m[["kind"]]
+  if (is.null(kind)) kind <- "train"
+  if (!(is.character(kind) && length(kind) == 1L && !is.na(kind) && kind %in% c("train", "inference")))
+    prevcarga_abort("contract.manifest_invalid", where = "manifest.json:kind",
+                    details = list(allowed = c("train", "inference")))
+  inf <- m[["inference"]]
+  if (identical(kind, "inference") && is.null(inf))
+    prevcarga_abort("contract.manifest_invalid", where = "manifest.json:inference", details = list(reason = "ausente"))
+  if (identical(kind, "train") && !is.null(inf))
+    prevcarga_abort("contract.manifest_invalid", where = "manifest.json:inference", details = list(reason = "kind train"))
+
   out <- list(schema_version = 1L, load_label = ll, timezone = out_tz)
   if (!is.null(lag)) out$weather_forecast_publication_lag_hours <- lag
+  out["kind"] <- list(kind)
+  out["inference"] <- list(if (is.null(inf)) NULL else .prevcarga_manifest_inference(inf, out_tz$load))
+  if (!is.null(out$inference$holiday_annex)) out$holiday_annex <- out$inference$holiday_annex
   out
+}
+
+## Guarda dos verbos que leem deck: data_dir + manifest + conferencia de kind (papel) e de origem (deck de inferencia).
+## ctx$data_role NULL = train (ate o E1-T3 resolver o papel). Nenhuma leitura de dataset aqui.
+prevcarga_require_deck <- function(ctx) {
+  prevcarga_require_data_dir(ctx)
+  man <- prevcarga_deck_manifest(ctx$data_dir)
+  role <- if (is.null(ctx$data_role)) "train" else ctx$data_role
+  opt <- if (is.null(ctx$data_role_option)) c(train = "--data-train", inference = "--data-inference")[[role]] else ctx$data_role_option
+  if (!identical(man$kind, role))
+    prevcarga_abort("contract.deck_kind_mismatch", where = opt, details = list(kind = man$kind, expected = role))
+  if (identical(man$kind, "inference") && !is.null(ctx$origin)) {
+    want <- lubridate::as_date(lubridate::ymd(format(ctx$origin), tz = "UTC"))
+    if (!identical(man$inference$origin, want))
+      prevcarga_abort("contract.deck_origin_mismatch", where = "--origin",
+                      details = list(deck_origin = format(man$inference$origin, "%Y-%m-%d"),
+                                     requested_origin = format(want, "%Y-%m-%d")))
+  }
+  invisible(list(ctx = ctx, manifest = man))
 }
 
 ## --- Precedencia do rotulo da carga: manifest > --load-label > config.yaml > end (ADR-0035) -----------
@@ -168,7 +285,7 @@ prevcarga_resolve_load_label <- function(ctx, manifest) {
 
 .prevcarga_deck_ctx <- function(ctx) {
   prevcarga_require_data_dir(ctx)
-  man <- prevcarga_deck_manifest(ctx$data_dir)
+  man <- if (!is.null(ctx$annex_owner_manifest)) ctx$annex_owner_manifest else prevcarga_deck_manifest(ctx$data_dir)
   list(dir = ctx$data_dir, manifest = man, tz = man$timezone$load,
        label = prevcarga_resolve_load_label(ctx, man))
 }
@@ -200,6 +317,12 @@ prevcarga_available_until <- function(load, origin, areas = NULL) {
        spread = length(unique(as.numeric(until))) > 1L)
 }
 
+## Rotulo da carga -> intervalo [start, end): unico lugar do rotulo de 30 min do deck (carga, geradores de deck derivados).
+.prevcarga_load_interval <- function(ts, label) {
+  start <- if (identical(label, "end")) ts - lubridate::minutes(30L) else ts
+  list(start = start, end = start + lubridate::minutes(30L))
+}
+
 ## --- Carga bruta (sem corte): area_code, interval_start, interval_end, load_mwh -----------------------------
 .prevcarga_load_raw <- function(d, areas, from, to) {
   ds <- .prevcarga_open(d$dir, .PREVCARGA_DECK_DATASETS[["load"]], "load")
@@ -207,8 +330,9 @@ prevcarga_available_until <- function(load, origin, areas = NULL) {
   dt <- .prevcarga_scan(ds, c("area_code", "timestamp", "load_mwh"), from, to, areas)
   ts <- .prevcarga_apply_tz(dt$timestamp, d$manifest$timezone$load, d$tz)
   dt[, timestamp := NULL]
-  dt[, interval_start := if (d$label$value == "end") ts - lubridate::minutes(30L) else ts]
-  dt[, interval_end := interval_start + lubridate::minutes(30L)]
+  iv <- .prevcarga_load_interval(ts, d$label$value)
+  dt[, interval_start := iv$start]
+  dt[, interval_end := iv$end]
   w <- .prevcarga_window(from, to, d$tz)
   dt <- dt[.prevcarga_in_window(interval_start, w)]
   data.table::setcolorder(dt, c("area_code", "interval_start", "interval_end", "load_mwh"))
@@ -318,6 +442,61 @@ prevcarga_read_forecast_vintages <- function(ctx, areas, from, to, limit) {
   fc[issue_time <= limit]
 }
 
+## --- Leitura do previsto pela regra que o plugin declara (E2-T2; data_needs -> weather_forecast.segments) -----------
+## Cada segmento {kind, from, to, lead} e um recorte relativo a O; a uniao deduplicada dos segmentos e o que o plugin recebe.
+## Os tres seletores sao puros e reproduzem a escolha do proprio plugin (freshest: prevcarga_freshest_issue; per_origin:
+## .rf_weather_vintage do random-forest; min_lead: lgbm_weather_vintage), entao entregar so as linhas selecionadas nao muda a
+## escolha do plugin (delta 0 do LONG por membro). Dias por lubridate no tz do valid_time; issue_day sempre em UTC.
+## Nenhum nome de modelo. Emissao > limit nunca entra (honestidade, ADR-0024).
+
+.prevcarga_rule_valid_day <- function(fc) lubridate::as_date(fc$valid_time, tz = lubridate::tz(fc$valid_time))
+
+## freshest: por (area, valid_time), a emissao mais fresca <= limit nos dias validos [O+from, O+to].
+.prevcarga_rule_freshest <- function(fc, O, s, limit) {
+  vd <- .prevcarga_rule_valid_day(fc)
+  prevcarga_freshest_issue(fc[vd >= O + s$from & vd <= O + s$to], limit)
+}
+
+## per_origin: para cada origem nativa T em [O+from, O+to], limit(T) = limit - days(O - T); a emissao mais fresca em
+## (limit(T) - 1 dia, limit(T)] e entregue inteira (todas as suas linhas). Origem sem candidata nao entrega nada.
+.prevcarga_rule_per_origin <- function(fc, O, s, limit) {
+  iss <- sort(unique(fc$issue_time))
+  origins <- seq(O + s$from, O + s$to, by = "day")
+  pick <- vapply(origins, function(Tn) {
+    lim <- limit - lubridate::days(as.integer(O - Tn))
+    cand <- iss[iss > lim - lubridate::days(1L) & iss <= lim]
+    if (length(cand)) as.numeric(max(cand)) else NA_real_
+  }, 0)
+  fc[as.numeric(issue_time) %in% pick[!is.na(pick)]]
+}
+
+## min_lead: valid_day (tz da carga) em [O+from, O+to] e valid_day - issue_day(UTC) >= lead; por valid_time, a mais fresca.
+.prevcarga_rule_min_lead <- function(fc, O, s, limit) {
+  vd <- .prevcarga_rule_valid_day(fc)
+  id <- lubridate::as_date(fc$issue_time, tz = "UTC")
+  w <- fc[vd >= O + s$from & vd <= O + s$to & as.integer(vd - id) >= s$lead]
+  w <- w[order(area_code, valid_time, -as.numeric(issue_time))]
+  w[!duplicated(w, by = c("area_code", "valid_time"))]
+}
+
+prevcarga_read_forecast_by_rule <- function(ctx, area, origin, segments, limit) {
+  O <- lubridate::as_date(origin)
+  if (!length(segments)) return(prevcarga_read_weather(ctx, "forecast", area, O, O)[0L])
+  from <- O + min(vapply(segments, function(s) as.integer(s$from), 0L))
+  fc <- prevcarga_read_weather(ctx, "forecast", area, from, NULL)
+  fc <- fc[issue_time <= limit]
+  pick <- list(freshest = .prevcarga_rule_freshest, per_origin = .prevcarga_rule_per_origin,
+               min_lead = .prevcarga_rule_min_lead)
+  out <- data.table::rbindlist(lapply(segments, function(s) {
+    f <- pick[[s$kind]]
+    if (is.null(f)) prevcarga_abort("contract.inference_needs_invalid", where = "prevcarga_read_forecast_by_rule",
+                                    details = list(field = "weather_forecast.segments.kind"))
+    f(fc, O, s, limit)
+  }))
+  out <- unique(out)
+  out[order(area_code, issue_time, valid_time, method = "radix")]
+}
+
 ## --- Clima por area (exogenas instantaneas: nao deslocadas) --------------------------------------------
 ## Com `origin`: observado so <= available_until (derivado da carga lida pelo proprio leitor, mesmo
 ## origin/truncate_at); previsto so emissoes <= weather_issue_limit (= available_until - lag de publicacao do deck, na regra
@@ -407,6 +586,160 @@ prevcarga_read_holiday_codes <- function(ctx, areas = NULL) {
   h[]
 }
 
+## --- Anexo de feriados (E3-T2; ADR-046) -------------------------------------------------------------------
+## Dias de ilha fora da janela comum, para o plugin que declara descriptor$history_window. Sai
+## list(islands, load, weather_observed): islands no schema de prevcarga_holiday_islands; load e weather_observed nos
+## schemas e atributos dos leitores atuais, SO com dias contidos em alguma ilha e NENHUM dia >= O (FORBIDDEN: corte em O-1).
+## Deck train: calcula as ilhas sobre auxiliary/holidays e le carga/observado pelos leitores. Deck inference: le ilhas,
+## carga e observado do subdeck apontado por manifest$holiday_annex (diretorio relativo ao deck, kind holiday_annex, com
+## load/ e weather/observed/ em hive area_code=/year= e islands/area_code=<a>/part-0.parquet com uma linha por data de
+## feriado: island_id, from, to, holiday_date; ADR-044). Janela NULL ou sem holiday_from (modo referencia) => NULL.
+.PREVCARGA_ANNEX_LOAD_ATTRS <- c("load_label", "load_label_source", "tz", "available_until",
+                                 "available_until_by_area", "available_until_spread", "origin")
+
+.prevcarga_annex_keep_attrs <- function(new, old) {
+  for (n in .PREVCARGA_ANNEX_LOAD_ATTRS)
+    if (!is.null(attr(old, n))) data.table::setattr(new, n, attr(old, n))
+  new
+}
+
+.prevcarga_annex_islands_schema <- function(x) {
+  x <- data.table::as.data.table(x)
+  x[, `:=`(area_code = as.character(area_code), island_id = as.integer(island_id),
+           from = lubridate::as_date(from), to = lubridate::as_date(to))]
+  data.table::setcolorder(x, c("area_code", "island_id", "from", "to", "holiday_dates"))
+  data.table::setindex(x, NULL)
+  x[]
+}
+
+## Primeiro dia (data civil do fuso da carga) do store por area: so a particao `year` mais antiga da area.
+.prevcarga_annex_first_days <- function(d, areas) {
+  ds <- .prevcarga_open(d$dir, .PREVCARGA_DECK_DATASETS[["load"]], "load")
+  .prevcarga_check_naive(ds$schema, "load", "timestamp")
+  scope <- if (length(areas)) areas else sub("^area_code=", "", basename(
+    list.dirs(file.path(d$dir, .PREVCARGA_DECK_DATASETS[["load"]]), recursive = FALSE)))
+  out <- lapply(scope, function(a) {
+    ys <- sub("^year=", "", basename(list.dirs(file.path(d$dir, .PREVCARGA_DECK_DATASETS[["load"]],
+                                                         paste0("area_code=", a)), recursive = FALSE)))
+    ys <- suppressWarnings(as.integer(ys))
+    if (!length(ys) || all(is.na(ys))) return(NULL)
+    dt <- .prevcarga_scan(ds, c("area_code", "timestamp"), NULL, NULL, a, years = min(ys, na.rm = TRUE))
+    if (!nrow(dt)) return(NULL)
+    ts <- .prevcarga_apply_tz(dt$timestamp, d$manifest$timezone$load, d$tz)
+    ist <- if (d$label$value == "end") ts - lubridate::minutes(30L) else ts
+    list(area_code = a, first_day = lubridate::as_date(min(ist), tz = d$tz))
+  })
+  out[!vapply(out, is.null, NA)]
+}
+
+.prevcarga_annex_day_keep <- function(area, day, islands) {
+  if (!nrow(islands) || !length(day)) return(rep(FALSE, length(day)))
+  keys <- unlist(lapply(seq_len(nrow(islands)), function(i)
+    paste(islands$area_code[[i]], as.integer(seq(islands$from[[i]], islands$to[[i]], by = "day")))))
+  paste(as.character(area), as.integer(day)) %in% keys
+}
+
+## Filtro final: so dias de ilha e nenhum dia >= O, preservando chave e atributos.
+.prevcarga_annex_cut <- function(ax, O) {
+  isl <- data.table::copy(ax$islands)
+  isl <- isl[from < O]
+  if (nrow(isl)) isl[, to := pmin(to, O - 1L)]
+  tz <- attr(ax$load, "tz")
+  sel <- function(x, col) {
+    day <- lubridate::as_date(x[[col]], tz = tz)
+    keep <- .prevcarga_annex_day_keep(x$area_code, day, isl) & day < O
+    r <- x[keep]
+    k <- data.table::key(x)
+    if (length(k)) data.table::setkeyv(r, k)
+    data.table::setattr(r, "tz", tz)
+    .prevcarga_annex_keep_attrs(r, x)
+    r[]
+  }
+  list(islands = .prevcarga_annex_islands_schema(isl), load = sel(ax$load, "interval_start"),
+       weather_observed = sel(ax$weather_observed, "valid_time"))
+}
+
+.prevcarga_annex_from_train_deck <- function(ctx, O, areas, window, truncate_at = NULL) {
+  d <- .prevcarga_deck_ctx(ctx)
+  hol <- prevcarga_read_holidays(ctx, areas, window$holiday_from, O - 1L)
+  fds <- .prevcarga_annex_first_days(d, areas)
+  parts <- lapply(fds, function(f)
+    prevcarga_holiday_islands(hol[area_code == f$area_code], O, window$common_from, first_day = f$first_day,
+                              holiday_from = window$holiday_from))
+  isl <- if (length(parts)) data.table::rbindlist(parts) else .prevcarga_islands_empty()
+  isl <- .prevcarga_annex_islands_schema(isl)
+  if (nrow(isl)) {
+    from <- min(isl$from); to <- max(isl$to)
+  } else {
+    from <- O - 1L; to <- O - 1L          # sem ilhas: leitura minima so para herdar schema e atributos
+  }
+  list(islands = isl,
+       load = prevcarga_read_load(ctx, areas, from = from, to = to, origin = O, truncate_at = truncate_at),
+       weather_observed = prevcarga_read_weather(ctx, "observed", areas, from, to, origin = O,
+                                                 truncate_at = truncate_at))
+}
+
+## ctx do subdeck do anexo: data_dir = subdeck; o manifest do subdeck deve ser kind holiday_annex (unico contexto em que esse
+## kind e aceito; no deck principal o require_deck o recusa); fuso e load_label vem do manifest do deck dono.
+.prevcarga_annex_ctx <- function(ctx, man, rel) {
+  adir <- file.path(ctx$data_dir, rel)
+  if (!dir.exists(adir)) prevcarga_abort("contract.dataset_missing", where = "holiday_annex")
+  am <- prevcarga_deck_manifest(adir)
+  if (!identical(am$kind, "holiday_annex"))
+    prevcarga_abort("contract.deck_kind_mismatch", where = "holiday_annex",
+                    details = list(kind = am$kind, expected = "holiday_annex"))
+  actx <- ctx
+  actx$data_dir <- adir
+  actx$annex_owner_manifest <- man
+  actx
+}
+
+## islands/area_code=<a>/part-0.parquet (hive, uma linha por data de feriado: island_id, from, to, holiday_date).
+.prevcarga_annex_read_islands <- function(adir, areas) {
+  idir <- file.path(adir, "islands")
+  if (!dir.exists(idir)) prevcarga_abort("contract.dataset_missing", where = "holiday_annex.islands")
+  fs <- list.files(idir, pattern = "\\.parquet$", recursive = TRUE, full.names = TRUE)
+  parts <- lapply(fs, function(f) {
+    a <- sub("^area_code=", "", basename(dirname(f)))
+    x <- data.table::as.data.table(as.data.frame(arrow::read_parquet(f)))
+    x[, area_code := a]
+    x
+  })
+  raw <- if (length(parts)) data.table::rbindlist(parts) else NULL
+  if (is.null(raw) || !nrow(raw)) return(.prevcarga_islands_empty())
+  if (length(areas)) raw <- raw[area_code %in% areas]
+  if (!nrow(raw)) return(.prevcarga_islands_empty())
+  data.table::set(raw, j = "holiday_date", value = lubridate::as_date(raw$holiday_date))
+  isl <- raw[, list(holiday_dates = list(sort(unique(holiday_date)))),
+             by = list(area_code, island_id, from = lubridate::as_date(from), to = lubridate::as_date(to))]
+  data.table::setorderv(isl, c("area_code", "from"))
+  isl
+}
+
+.prevcarga_annex_from_manifest <- function(ctx, man, O, areas) {
+  rel <- man$holiday_annex
+  if (is.null(rel)) prevcarga_abort("contract.constraint_violated", where = "holiday_annex")
+  actx <- .prevcarga_annex_ctx(ctx, man, rel)
+  isl <- .prevcarga_annex_islands_schema(.prevcarga_annex_read_islands(actx$data_dir, areas))
+  ld <- prevcarga_read_load(actx, areas)
+  obs <- prevcarga_read_weather(actx, "observed", areas)
+  au <- man$inference$available_until
+  for (x in list(ld, obs)) {
+    data.table::setattr(x, "available_until", au)
+    data.table::setattr(x, "origin", O)
+  }
+  list(islands = isl, load = ld, weather_observed = obs)
+}
+
+prevcarga_read_holiday_annex <- function(ctx, origin, areas, window, truncate_at = NULL) {
+  if (is.null(window) || is.null(window$holiday_from)) return(NULL)
+  O <- lubridate::as_date(origin)
+  man <- prevcarga_deck_manifest(ctx$data_dir)
+  ax <- if (identical(man$kind, "inference")) .prevcarga_annex_from_manifest(ctx, man, O, areas)
+        else .prevcarga_annex_from_train_deck(ctx, O, areas, window, truncate_at)
+  .prevcarga_annex_cut(ax, O)
+}
+
 ## --- Painel do leitor (M2.7) ---------------------------------------------------------------------------------
 ## Agrega os atributos dos leitores sem recalcular; aborta se divergirem em tz ou available_until.
 .PREVCARGA_PANEL_LOAD_ATTRS <- c("available_until", "available_until_by_area", "load_label", "load_label_source", "tz")
@@ -449,7 +782,8 @@ pc_panel_attrs <- function(load, weather_obs, weather_fc, origin = NULL) {
 ## Origem ja resolvida pelo chamador (o leitor nao depende de dates.R). Topologia: ctx$topology_path ou
 ## <ctx$root>/config/topology.yaml; area fora dela => topology.area_undeclared antes de qualquer leitura.
 ## `truncate_at` (opcional) vai IGUAL aos tres leitores: carga, observado e previsto derivam o mesmo available_until.
-prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days, truncate_at = NULL) {
+prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days, truncate_at = NULL,
+                                 holiday_window = NULL) {
   O <- lubridate::as_date(origin)
   tp <- if (!is.null(ctx$topology_path)) ctx$topology_path else prevcarga_topology_path(ctx$root)
   undeclared <- setdiff(areas, prevcarga_topology(path = tp)$leaves)
@@ -458,8 +792,11 @@ prevcarga_read_panel <- function(ctx, origin, areas, horizon_days, history_days,
   obs <- prevcarga_read_weather(ctx, "observed", areas, O - history_days, O, origin = O, truncate_at = truncate_at)
   fc <- prevcarga_read_weather(ctx, "forecast", areas, O, O + horizon_days, origin = O, truncate_at = truncate_at)
   hol <- prevcarga_read_holidays(ctx, areas)                    # calendario: todos os feriados da area, sem janela
-  list(load = load, weather_observed = obs, weather_forecast = fc, holidays = hol,
-       attrs = c(list(origin = O), pc_panel_attrs(load, obs, fc, origin = O)))
+  out <- list(load = load, weather_observed = obs, weather_forecast = fc, holidays = hol)
+  ## Anexo de feriados (E3-T2): so com holiday_window e anexo nao NULL; sem ele o painel e identical() ao anterior.
+  ax <- prevcarga_read_holiday_annex(ctx, O, areas, holiday_window, truncate_at = truncate_at)
+  if (!is.null(ax)) out$holiday_annex <- ax
+  c(out, list(attrs = c(list(origin = O), pc_panel_attrs(load, obs, fc, origin = O))))
 }
 
 ## --- Sonda: schema/tipos/Hive sem coletar linhas ---------------------------------------------------------

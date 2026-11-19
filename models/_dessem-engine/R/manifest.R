@@ -4,7 +4,7 @@
 engine_manifest <- function() list(
   engine_id = "_dessem-engine",
   contract_version = 1L,
-  files = c("funcoes_apoio.R", "dados_entrada.R", "entrada_demanda_media.R",
+  files = c("ilhas.R", "funcoes_apoio.R", "dados_entrada.R", "entrada_demanda_media.R",
             "entrada_perfil.R", "modelos_demanda_media.R", "modelos_perfil.R",
             "exec_modelos.R", "engine.R", "robustez.R", "feriados.R", "exogena.R",
             "svm_serial.R"),
@@ -13,7 +13,7 @@ engine_manifest <- function() list(
                          "obterEntradaFormulaDM", "SVM_DemandaMedia", "SVMhorario", "RL_perfilFeriado",
                          "RD_DemandaMediaHyndman", "desagregaModeloSH", "getConfig",
                          "engine_svm_freeze", "engine_svm_thaw", "normalize_special_day_codes",
-                         "fill_forecast_tail", "dessem_engine_guard"),
+                         "fill_forecast_tail", "exo_hist_lead0", "dessem_engine_guard"),
   ## o loader exige um vetor chr em `packages` (checado com requireNamespace); os pacotes de series
   ## temporais (so o regdin os usa) ficam em `packages_ts`, que o loader ignora.
   packages = c("WeightSVM", "e1071", "data.table", "lubridate", "jsonlite", "rlist"),

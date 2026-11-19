@@ -23,8 +23,8 @@ fontes:
   - install/prevcarga-sync.sh
   - install/prevcarga-sync.ps1
 adrs: [ADR-0016, ADR-0018, ADR-0022, ADR-0038, ADR-0039, ADR-0040]
-revisado_em: 2026-11-13
-commit_base: "f2d1734"
+revisado_em: 2026-11-16
+commit_base: "b6d99da"
 ---
 
 <span className="pc-overline">Execução · 3.12</span>
@@ -54,10 +54,13 @@ Estas flags valem em qualquer verbo. A precedência é flag, depois `config.yaml
 | Flag | Valores | Uso |
 |---|---|---|
 | `--origin=<data>` | `AAAA-MM-DD`; `A..B` só em `plan` e `backtest` | Origem O da previsão. É o único flag de data humano. Faixa fora de `plan`/`backtest` ou data inválida sai com 8 (`config.bad_origin`). |
-| `--data=<dir>` | diretório | Deck canônico. Verbos que leem o deck sem ele saem com 8 (`config.data_dir_missing`). |
+| `--data-train=<dir>` | diretório | Deck de treino (kind `train`); chave `data_train_dir`. Verbos que leem o deck sem ele saem com 8 (`config.data_dir_missing`). |
+| `--data-inference=<dir>` | diretório | Deck de inferência (kind `inference`); chave `data_inference_dir`. |
+| `--data-artifacts=<dir>` | caminho | Raiz de artefatos (default `<state_dir>/artifacts`); chave `artifacts_dir`. Inexistente sai com 8 (`config.artifacts_dir_missing`). |
+| `--data=<dir>` | diretório | Nota de migração: o apelido `--data` (de `--data-train`) foi removido; a opção sai com 8 (`config.usage`). Use `--data-train`, `--data-inference` ou `--data-artifacts`. |
 | `--state=<dir>` | diretório | Estado local: artefatos, scratch, entregas. |
 | `--config=<arquivo>` | caminho | `config.yaml` a usar. |
-| `--artifacts-dir=<dir>` | caminho | Raiz de artefatos só de leitura (membros, combina, k-hat); também `artifacts_dir` no `config.yaml`. Hoje só o `forecast` a usa. |
+| `--artifacts-dir=<dir>` | caminho | Nota de migração: o apelido `--artifacts-dir` (de `--data-artifacts`) foi removido; a opção sai com 8 (`config.usage`). A raiz de `--data-artifacts` é só de leitura (membros, combina, k-hat); hoje só o `forecast` a usa. |
 | `--load-label=<l>` | `end`, `start` | Rótulo da carga, quando o deck não declara. |
 | `--weather-cutoff=<w>` | `available_until`, `origin_midnight_utc` | Regra de corte do clima previsto. |
 | `--format=<fmt>` | `text` (default), `json` | Formato da saída. |
@@ -139,12 +142,12 @@ prevcarga describe [--origin=<data>] [--model=<m>]
 Grava no `config.yaml` o que o operador aponta uma vez. As chaves estão em [Configuração](/execucao/configuracao).
 
 ```text title="Sintaxe (scripts/lib/cli/set-data-dir.R)"
-prevcarga set-data-dir <dir>
+prevcarga set-data-dir [<dir>] [--train=<dir>] [--inference=<dir>] [--artifacts=<dir>]
 ```
 
 | Verbo | O que faz | Flags principais | Saídas características |
 |---|---|---|---|
-| `set-data-dir` | Grava `data_dir` (o deck) no `config.yaml` da instalação, `<R>/config.yaml`, ou no de `--config`. O diretório tem de existir; o caminho vai absoluto, e as outras chaves do arquivo ficam como estavam. | `<dir>`, `--config` | 0; 8 com diretório inexistente (`config.data_dir_missing`), fora de uma instalação sem `--config` (`config.usage`) ou falha de escrita (`config.write_failed`) |
+| `set-data-dir` | Grava `data_train_dir`, `data_inference_dir` e `artifacts_dir` no `config.yaml` da instalação, `<R>/config.yaml`, ou no de `--config`. Com chave (`--train`, `--inference`, `--artifacts`) grava só as passadas. Sem chave é interativo: pergunta treino, artefatos e inferência (linha vazia aceita `<base>/train`, `<base>/artifacts`, `<base>/inference`, com `<base>` = `<dir>`, a chave atual ou o diretório corrente), mostra `chave: antigo -> novo` e só `s` grava; cria os diretórios de artefatos e inferência que faltam. O diretório de treino tem de existir; o caminho vai absoluto, e as outras chaves do arquivo ficam como estavam. | `<dir>`, `--train`, `--inference`, `--artifacts`, `--config` | 0 (também quando o usuário não confirma, com `gravado` falso); 2 sem chave e sem terminal (`contract.set_data_dir_noninteractive`); 8 com diretório de treino inexistente (`config.data_dir_missing`), fora de uma instalação sem `--config` (`config.usage`) ou falha de escrita (`config.write_failed`) |
 
 ### Rodada
 
@@ -153,15 +156,15 @@ A rotina diária é `validate-deck` seguido de `forecast`. O passo a passo está
 ```text title="Sintaxe (scripts/lib/cli/validate-deck.R, forecast.R)"
 prevcarga validate-deck [--area=<a>]
 prevcarga forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report]
-                   [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]
+                   [--report-format=<f>] [--skip-validate] [--jobs=<n>] [--data-train=<dir>] [--data-artifacts=<dir>]
 ```
 
 | Verbo | O que faz | Flags principais | Saídas características |
 |---|---|---|---|
 | `validate-deck` | Valida o deck na origem e mostra os cortes de cada modelo e os achados. Avisos não reprovam. | `--area` (subsistema expande para as folhas) | 0; 2, 3, 4 ou 5 pelo primeiro erro da classe dominante |
-| `forecast` | Rodada de uma origem: validação do deck, inferência por membro, combina, reconciliação e entrega imutável. | `--area` (repetível: escopo `area`) ou `--subsistema` (escopo `subsistema`; `all` = SIN), `--incluir-membros`, `--report`, `--report-format` (`html` por default, `pdf`), `--skip-validate`, `--jobs` (workers PSOCK, default 1; a saída é idêntica à serial), `--artifacts-dir` (raiz de artefatos só de leitura, sem treino implícito) | 0; 2 a 5 na validação do deck; 3 quando o dia O já está completo ou uma folha fica sem nenhum membro; 4 com subsistema fora da topologia; 8 com `--jobs` inválido; 9 com conflito de chave na entrega; 14 quando o relatório falha depois da entrega gravada ou uma folha do escopo `area` fica sem membro |
+| `forecast` | Rodada de uma origem: validação do deck, inferência por membro, combina, reconciliação e entrega imutável. | `--area` (repetível: escopo `area`) ou `--subsistema` (escopo `subsistema`; `all` = SIN), `--incluir-membros`, `--report`, `--report-format` (`html` por default, `pdf`), `--skip-validate`, `--jobs` (workers PSOCK, default 1; a saída é idêntica à serial), `--data-artifacts` (raiz de artefatos só de leitura, sem treino implícito) | 0; 2 a 5 na validação do deck; 3 quando o dia O já está completo ou uma folha fica sem nenhum membro; 4 com subsistema fora da topologia; 8 com `--jobs` inválido; 9 com conflito de chave na entrega; 13 com artefato de membro ausente na raiz e deck de inferência; 14 quando o relatório falha depois da entrega gravada ou uma folha do escopo `area` fica sem membro |
 
-O `forecast` não tem flag de corte: o corte intradiário sai do próprio dado de carga. `--area` e `--subsistema` são exclusivos (8). O escopo define a saída: `area` entrega só as folhas, sem reconciliação; `subsistema`, as folhas do subsistema e ele próprio; sem flag ou com `--subsistema=all`, tudo até o SIN. Os modelos `origin_scoped` sem artefato da origem O são treinados uma vez dentro da rodada, salvo com `--artifacts-dir`; os `origin_agnostic` só leem o artefato. Artefato ausente ou erro de um membro não derruba a rodada: o membro fica ausente, com aviso, e a combina renormaliza. Sem pesos treinados, a combinação é a média simples. Detalhes em [Rodada diária](/execucao/rodada-diaria).
+O `forecast` não tem flag de corte: o corte intradiário sai do próprio dado de carga. `--area` e `--subsistema` são exclusivos (8). O escopo define a saída: `area` entrega só as folhas, sem reconciliação; `subsistema`, as folhas do subsistema e ele próprio; sem flag ou com `--subsistema=all`, tudo até o SIN. Com `--data-train` o `forecast` ainda treina o `origin_scoped` sem versão de O na raiz padrão, por compatibilidade com a v0.1.5 (com `--data-artifacts` apontado, o membro fica ausente, com aviso). Com o deck de inferência (`--data-inference`), o `forecast` só infere: artefato de membro ausente na raiz aborta antes de qualquer cálculo, com `state.inference_artifact_missing` (exit 13), e nada é treinado nem gravado. Os `origin_scoped` são treinados antes, pelo `train-models`; os `origin_agnostic` também só leem o artefato. Com a raiz apontada por `--data-artifacts`, um artefato ausente ou o erro de um membro não derruba a rodada: o membro fica ausente, com aviso, e a combina renormaliza. Sem pesos treinados, a combinação é a média simples. Detalhes em [Rodada diária](/execucao/rodada-diaria).
 
 ### Verificação
 
@@ -268,8 +271,8 @@ Estes programas não são verbos e não passam pela fachada. Do lado de quem exe
 
 ```text title="Sintaxe (cabeçalhos dos utilitários)"
 install.sh [--version <v>|latest] [--release-base <url>] [--bundle <arq> [--sha256 <h>]]
-           [--root <dir>] [--data <dir>] [--state <dir>] [--skip-platform-check] [--add-to-path]
-           [--profile <arq>] [--format text|json]
+           [--root <dir>] [--data-train <dir>] [--data-inference <dir>] [--data-artifacts <dir>]
+           [--state <dir>] [--skip-platform-check] [--add-to-path] [--profile <arq>] [--format text|json]
 install.sh --rollback [--root <dir>] [--format json]
 install.sh --uninstall --yes [--purge] [--root <dir>] [--profile <arq>] [--format json]
 
@@ -287,5 +290,5 @@ O repositório online de artefatos, lido pelo `prevcarga-sync`, ainda não está
 </Pendente>
 
 :::note Manual do usuário
-`docs/reference/MANUAL-USUARIO.md` resume os comandos do dia a dia, mas não lista todas as flags (por exemplo `--incluir-membros`, `--skip-validate`, `--jobs`, `--artifacts-dir` e `--report-format` do `forecast`). Esta página segue os registros em `scripts/lib/cli/`, e `prevcarga --help` é a referência da versão instalada.
+`docs/reference/MANUAL-USUARIO.md` resume os comandos do dia a dia, mas não lista todas as flags (por exemplo `--incluir-membros`, `--skip-validate`, `--jobs`, `--data-artifacts` e `--report-format` do `forecast`). Esta página segue os registros em `scripts/lib/cli/`, e `prevcarga --help` é a referência da versão instalada.
 :::

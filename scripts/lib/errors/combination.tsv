@@ -6,3 +6,5 @@ contract.combina_artifact_mismatch	contract	artefato de pesos de outro conjunto 
 state.combina_not_trained	state	nao ha pesos treinados para a area	rode `prevcarga combine --mode=train --area=<a> --root=<dir>` antes de --mode=apply
 config.bad_mode	config	--mode desconhecido	use --mode=train, --mode=apply ou --mode=full
 warning.combina_eqw	completude	sem pesos treinados para a area; combinacao pela media simples dos membros	treine a combina com `prevcarga combine --mode=train --area=<a> --root=<dir>` (retreino mensal); nenhuma acao para esta rodada
+warning.combina_stale	completude	celula de pesos do mes ausente; usada a mais recente do mesmo lead e corte	retreine com prevcarga combine --mode=train --area=<a> (retreino mensal); nenhuma acao para esta rodada
+warning.combina_member_set	completude	pesos de outro conjunto de membros; combinacao pela media simples dos presentes	retreine a combina para a topologia atual com prevcarga combine --mode=train --area=<a>

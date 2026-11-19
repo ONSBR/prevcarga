@@ -21,8 +21,8 @@ fontes:
   - config/config.yaml
   - config/deck-manifest.store.json
 adrs: [ADR-0040, ADR-0023, ADR-0024]
-revisado_em: 2026-11-13
-commit_base: "f2d1734"
+revisado_em: 2026-11-16
+commit_base: "b6d99da"
 ---
 
 <span className="pc-overline">Execução · 3.7</span>
@@ -41,7 +41,7 @@ O verbo aceita as flags globais da CLI e acrescenta só `--area`. As que importa
 
 | Flag | Efeito na validação |
 |---|---|
-| `--data=<dir>` | Deck a validar. Sem ela e sem `data_dir` no `config.yaml`, o verbo sai com `config.data_dir_missing` (exit 8). |
+| `--data-inference=<dir>` (ou `--data-train=<dir>`) | Deck a validar. Sem ela e sem a chave `data_inference_dir` (ou `data_train_dir`) no `config.yaml`, o verbo sai com `config.data_dir_missing` (exit 8). |
 | `--origin=<data>` | Origem O no formato `YYYY-MM-DD`. Opcional: sem ela, a origem vem do próprio deck (`origin_source` = `deck`). Com ela, `origin_source` = `flag`. |
 | `--area=<a>` | Restringe o escopo a uma área declarada em `config/topology.yaml`. Um subsistema expande para as suas áreas mais o próprio subsistema. Área fora da topologia vira `topology.scope_undeclared` (exit 4). |
 | `--model=<m>` | Restringe os cortes e as janelas a um membro (`mdir`). Modelo fora de `members` vira `topology.scope_undeclared`. |
@@ -52,9 +52,9 @@ O verbo aceita as flags globais da CLI e acrescenta só `--area`. As que importa
 A validação é somente leitura: nenhum arquivo do deck é alterado.
 
 ```bash
-prevcarga validate-deck --data=./deck
-prevcarga validate-deck --data=./deck --area=SECO
-prevcarga validate-deck --data=./deck --origin=2025-11-21 --format=json
+prevcarga validate-deck --data-inference=./deck
+prevcarga validate-deck --data-inference=./deck --area=SECO
+prevcarga validate-deck --data-inference=./deck --origin=2025-11-21 --format=json
 ```
 
 A ordem das checagens (sonda e schema, manifest e rótulo, escopo, cortes, completude, sanidade da carga, janelas, avisos, clima e feriados) e o cálculo do `data_hash` estão em [Validação do deck](/arquitetura/validacao-deck).
@@ -119,9 +119,33 @@ Quando o veredito reprova, o envelope de erro sai com `result: null`. Os finding
 :::
 
 ```bash title="extrair os erros do JSON reprovado"
-prevcarga validate-deck --data=./deck --format=json \
+prevcarga validate-deck --data-inference=./deck --format=json \
   | jq '.error.details.items[] | select(.level == "error") | {area, what, detail}'
 ```
+
+## Validar o deck de inferência
+
+Um deck de inferência é o deck com `kind` `inference` no `manifest.json`. Valide-o com `--data-inference` e aponte os artefatos com `--data-artifacts`. Informe a origem com `--origin`.
+
+```bash title="deck de inferência"
+prevcarga validate-deck --data-inference=./deck-inferencia --data-artifacts=./artefatos --origin=2023-06-01
+```
+
+Nesse deck o check de janela por `history_days` não roda: não há `window_train_deficit` nem `window_infer_deficit`. No lugar entra o check de necessidade. Ele une a necessidade (`inference_needs`) gravada em cada artefato, por dataset e área, e confere os dias exigidos contra o que o deck tem:
+
+| Dataset | O que precisa existir |
+|---|---|
+| `load` | 48 intervalos de 30 min em cada dia de `[O - days_before, O - 1]` |
+| `weather_observed` | Pelo menos uma leitura em cada dia da mesma janela |
+| `weather_forecast` | Para cada segmento, uma emissão válida (`issue_time` até o limite, lead cumprido) em cada dia de `[O + from, O + to]`. O segmento `per_origin` exige só a emissão da origem O |
+| `holidays` | A janela `inference.windows.holidays` do manifest cobre `[O + from, O + to]` |
+| `holiday_annex` | Se algum membro pede, o anexo existe no deck |
+
+Cada falta vira um finding de erro `completude.need_gap` (exit 3). `error.details` traz `dataset`, `area`, `dias` (`YYYY-MM-DD`, em ordem) e `origin`. Artefato sem `inference_needs` encerra com `contract.inference_needs_missing` (exit 2), com `member`, `area` e `origin`: retreine o membro.
+
+Com o deck completo, `result` ganha `inference_windows`: uma entrada por dataset e área, com `dataset`, `area`, `from`, `to` e `source` (`artifacts`), em ordem radix. O texto mostra a mesma lista na tabela `DATASET AREA FROM TO`. Num deck de treino o campo não existe.
+
+A rodada com `--data-inference` faz o mesmo check antes de qualquer etapa de plugin, também com `--skip-validate`: ele é parte do preflight, não da validação opcional.
 
 ## Códigos de saída
 
@@ -136,7 +160,7 @@ Cada finding tem uma classe. Os avisos (`level` = `warning`) nunca reprovam. Se 
 | 5 | `window` | `window_train_deficit`, `window_infer_deficit` | Histórico menor que `history_days` do `run.yaml` de algum membro. |
 | 8 | `config` | `data_dir_missing`, flag mal formada | Erro de uso. Não há relatório de findings. |
 
-O exit 8 não é um finding. Erros das classes `config` e `runtime` sobem direto, sem relatório. Saem com exit 8, por exemplo: falta de `--data`, `--origin=2026-13-45`, `--weather-cutoff=xyz`, `--format=xml`, `--color=xyz` e `--load-label=xyz`.
+O exit 8 não é um finding. Erros das classes `config` e `runtime` sobem direto, sem relatório. Saem com exit 8, por exemplo: falta do deck (`--data-inference`/`--data-train`), `--origin=2026-13-45`, `--weather-cutoff=xyz`, `--format=xml`, `--color=xyz` e `--load-label=xyz`.
 
 :::tip A precedência esconde classes
 Um deck pode ter erros de várias classes ao mesmo tempo. O exit mostra só a dominante. Corrigir o erro de `contract` pode revelar um exit 3 ou 5 que já estava na tabela. Leia a tabela inteira, não só o exit. Há um caso em que a tabela não mostra tudo: se o defeito de contrato impede ler a carga (dataset `load` ausente, coluna obrigatória faltando, manifest ou rótulo inválido), as checagens de completude e de janela nem rodam.

@@ -130,7 +130,7 @@ Treinar e prever são etapas separadas, ligadas por um artefato imutável.
 3. A versão é publicada no registry local, cujo layout é o mesmo do prefixo `artifacts/` do repositório online: `<state_dir>/artifacts/<mdir>/[<exogena>/]<area>/` com `latest.txt` e a pasta `v_<hash>/` (artefato, manifest do freeze, `run_manifest.json` e `SHA256SUMS`). O `SHA256SUMS` é conferido antes de o artefato ser lido (<Tag>integrity.artifact_hash</Tag>, exit 9).
 4. A inferência só consome o artefato. Um membro `origin_agnostic` sem artefato aborta com <Tag>state.artifact_missing</Tag> (exit 13) e nunca treina. Um membro `origin_scoped` treina uma vez na rodada, pela fachada de treino, só se não houver artefato da origem O.
 
-Daí a propriedade que interessa ao operador: com o deck do dia e os artefatos oficiais da origem (os 8 membros da topologia, os pesos da combina e os perfis k-hat com `khat_origin` igual a O), qualquer máquina reproduz a previsão sem treinar. Os detalhes estão em [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado) e em [Registry de artefatos](/arquitetura/registry).
+Daí a propriedade que interessa ao operador: com o deck do dia e os artefatos oficiais da origem (os 9 membros da topologia, os pesos da combina e os perfis k-hat com `khat_origin` igual a O), qualquer máquina reproduz a previsão sem treinar. Os detalhes estão em [Proveniência, identidade e layout do estado](/arquitetura/proveniencia-estado) e em [Registry de artefatos](/arquitetura/registry).
 
 ## Verificações transversais
 

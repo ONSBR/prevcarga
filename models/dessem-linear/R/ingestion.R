@@ -15,9 +15,8 @@ dl_series_gap <- function(what, why, details = NULL)
   dl_abort("plugin.dessem_linear_series_gap", where = "dessem-linear/ingest", reason = paste(what, why),
            details = c(list(serie = what), details))
 
-## cada dia de `from` a `to` com exatamente `per_day` linhas (hora faltante = linha ausente pos-agregacao horaria)
-dl_assert_covers_days <- function(dt, col, from, to, what, per_day = 24L) {
-  days <- seq(from, to, by = "day")
+## cada dia de `days` com exatamente `per_day` linhas (hora faltante = linha ausente pos-agregacao horaria)
+dl_assert_days <- function(dt, col, days, what, per_day = 24L) {
   dd <- if (nrow(dt)) dl_day_of(dt[[col]]) else lubridate::as_date(numeric())
   got <- vapply(days, function(d) sum(dd == d), integer(1L))
   bad <- which(got != per_day)
@@ -25,6 +24,20 @@ dl_assert_covers_days <- function(dt, col, from, to, what, per_day = 24L) {
     dl_series_gap(what, sprintf("%s com %d/%d horas", format(days[[bad[[1L]]]]), got[[bad[[1L]]]], per_day),
                   list(dia = format(days[[bad[[1L]]]]), horas = got[[bad[[1L]]]], esperado = per_day))
   invisible(TRUE)
+}
+
+## cada dia de `from` a `to` com exatamente `per_day` linhas
+dl_assert_covers_days <- function(dt, col, from, to, what, per_day = 24L)
+  dl_assert_days(dt, col, seq(from, to, by = "day"), what, per_day)
+
+## Dias de ilha esperados no anexo: cada dia de [from, to] das ilhas da area mais os dias que as series do anexo trazem,
+## sempre <= last_data_day. Dia de ilha sem as 24 horas dentro do store e lacuna (nunca preenchida).
+dl_annex_days <- function(deck, last) {
+  isl <- deck$islands
+  d <- lubridate::as_date(c(
+    if (!is.null(isl) && nrow(isl)) unlist(lapply(seq_len(nrow(isl)), function(i) seq(isl$from[[i]], isl$to[[i]], by = "day"))),
+    dl_day_of(deck$CARGAFER$DataHora), dl_day_of(deck$EXOGENAFER$DataHora)))
+  sort(unique(d[d <= last]))
 }
 
 dl_assert_no_na <- function(dt, col, what) {
@@ -48,16 +61,31 @@ dl_validate_deck <- function(deck, cuts, spec = NULL) {
              details = list(first_day = format(first), required_from = format(hs),
                             history_days = spec$history_days$train))
   if (is.null(spec)) hs <- first
-  for (s in c("CARGAHIST", "EXOGENAHIST")) {
+  ## deck sem clima (variante com exogenaOper SEM): EXOGENAHIST/EXOGENAPREV sao grades sinteticas so para o TransformaDeck
+  nowx <- dl_variant_weatherless(deck$model_key)
+  for (s in c("CARGAHIST", if (!nowx) "EXOGENAHIST")) {
     dt <- deck[[s]]
     dl_assert_covers_days(dt, "DataHora", hs, last, s)
     dl_assert_no_na(dt, if (identical(s, "CARGAHIST")) "Carga" else "Exo_Temperatura", s)
   }
-  dl_assert_covers_days(deck$EXOGENAPREV, "DataHora", O, O + deck$horizon - 1L, "EXOGENAPREV")
-  dl_assert_no_na(deck$EXOGENAPREV, "Exo_Temperatura", "EXOGENAPREV")
+  if (!is.null(deck$CARGAFER)) {
+    days <- dl_annex_days(deck, last)
+    dl_assert_days(deck$CARGAFER, "DataHora", days, "CARGAFER")
+    dl_assert_no_na(deck$CARGAFER, "Carga", "CARGAFER")
+    dl_assert_days(deck$EXOGENAFER, "DataHora", days, "EXOGENAFER")
+    dl_assert_no_na(deck$EXOGENAFER, "Exo_Temperatura", "EXOGENAFER")
+  }
+  if (!nowx) {
+    dl_assert_covers_days(deck$EXOGENAPREV, "DataHora", O, O + deck$horizon - 1L, "EXOGENAPREV")
+    dl_assert_no_na(deck$EXOGENAPREV, "Exo_Temperatura", "EXOGENAPREV")
+  }
   if (!nrow(deck$FERIADOS)) dl_series_gap("FERIADOS", "vazio")
   invisible(TRUE)
 }
+
+## Grade horaria sintetica O..O+days-1 (24 h por dia) no tz de cuts; lubridate, sem aritmetica de hora sobre dado.
+dl_synthetic_exo_grid <- function(O, days, tz)
+  seq(lubridate::ymd_hms(paste(format(O), "00:00:00"), tz = tz), by = "hour", length.out = 24L * as.integer(days))
 
 ## --- Montagem do deck -----------------------------------------------------------------------------------------
 dl_single_area <- function(panel) {
@@ -70,7 +98,13 @@ dl_single_area <- function(panel) {
 }
 
 plugin_ingest <- function(panel, cuts, spec = NULL) {
-  v <- if (is.null(spec)) list(exogena = NA_character_, model_key = NA_character_) else dl_resolve_variant(spec)
+  ## variante: do spec ou, sem spec (despachante), do canal interino cuts$spec (dl_resolve_variant valida)
+  sp <- if (!is.null(spec)) spec else cuts$spec
+  v <- if (is.null(sp)) list(exogena = NA_character_, model_key = NA_character_) else dl_resolve_variant(sp)
+  weatherless <- dl_variant_weatherless(v$model_key)
+  ## clima_hist (E5-T4): valida o modo ANTES de tocar o painel (lead1 aborta antes de qualquer treino)
+  modo <- dl_resolve_clima_hist(if (is.null(sp)) list() else sp$params, v$model_key)
+  clima_hist <- list(modo = modo, dias_completados = 0L, primeiro_dia_lead0 = lubridate::NA_Date_)
   k <- plugin_constants()
   eng <- dl_engine()
   O <- if (!is.null(cuts$origin_day)) cuts$origin_day else cuts$forecast_origin
@@ -80,8 +114,8 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   ## para as ultimas horas do ultimo dia entregue. E contagem de dias, nao aritmetica de hora.
   horizon <- (if (is.null(spec)) k$horizon_days else as.integer(spec$horizon_days)) + 1L
   area <- dl_single_area(panel)
-  ## com spec: janela de history_days.train dias terminando em last_data_day, mais 1 dia de aquecimento antes
-  hs <- if (is.null(spec)) NULL else last - (as.integer(spec$history_days$train) - 1L)
+  ## com spec: janela comum do descriptor (history_window; E3-T4) terminando em last_data_day, mais 1 dia de aquecimento antes
+  hs <- if (is.null(spec)) NULL else dl_history_window(O, spec)$common_from
   from <- if (is.null(hs)) NULL else hs - 1L
   in_window <- function(d) if (is.null(from)) d <= last else d <= last & d >= from
 
@@ -94,18 +128,35 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   if (inherits(au, "POSIXct")) origin_load <- origin_load[interval_end <= lubridate::floor_date(au, "hour")]
   hourly_load <- data.table::rbindlist(list(ld[in_window(dl_day_of(interval_end))], origin_load))
 
-  wo <- data.table::as.data.table(panel$weather_observed)[area_code == area]
-  exogenahist <- wo[in_window(dl_day_of(valid_time)), .(DataHora = valid_time, Exo_Temperatura = temperature)]
-  data.table::setorder(exogenahist, DataHora)
+  if (weatherless) {
+    ## variante SEM clima: nenhum weather_* e lido; zeros so para o TransformaDeck (a coluna Exo_ sai em plugin_build_features)
+    exogenahist <- data.table::data.table(DataHora = cargahist$DataHora, Exo_Temperatura = 0)
+    exogenaprev <- data.table::data.table(DataHora = dl_synthetic_exo_grid(O, horizon, cuts$tz), Exo_Temperatura = 0)
+  } else {
+    ## sem as tabelas de clima a variante com clima nao tem de onde ler: lacuna de completude (nao erro do data.table)
+    if (is.null(panel$weather_observed)) dl_series_gap("EXOGENAHIST", "tabela weather_observed ausente")
+    if (is.null(panel$weather_forecast)) dl_series_gap("EXOGENAPREV", "tabela weather_forecast ausente")
+    wo <- data.table::as.data.table(panel$weather_observed)[area_code == area]
+    exogenahist <- wo[in_window(dl_day_of(valid_time)), .(DataHora = valid_time, Exo_Temperatura = temperature)]
+    data.table::setorder(exogenahist, DataHora)
+    if (identical(modo, "previsto_lead0")) {
+      ## EXOGENAHIST pelo lead 0 do motor (regra unica, E5-T3); os dias sao os do observado na janela
+      days <- sort(unique(dl_day_of(exogenahist$DataHora)))
+      r <- eng$exo_hist_lead0(panel$weather_forecast, panel$weather_observed, area, days, cuts$tz)
+      exogenahist <- r$dt
+      clima_hist <- list(modo = modo, dias_completados = as.integer(r$dias_completados),
+                         primeiro_dia_lead0 = r$primeiro_dia_lead0)
+    }
 
-  wf <- data.table::as.data.table(panel$weather_forecast)[area_code == area]
-  data.table::setorder(wf, valid_time, -issue_time)
-  wf <- wf[, .SD[1L], by = valid_time]
-  d_wf <- dl_day_of(wf$valid_time)
-  exogenaprev <- wf[d_wf >= O & d_wf <= O + horizon - 1L, .(DataHora = valid_time, Exo_Temperatura = temperature)]
-  data.table::setorder(exogenaprev, DataHora)
-  exogenaprev <- eng$fill_forecast_tail(exogenaprev, "DataHora", O, O + horizon - 1L, k$hours_per_day, area, O,
-                                        max_fill_days = k$max_tail_fill_days)
+    wf <- data.table::as.data.table(panel$weather_forecast)[area_code == area]
+    data.table::setorder(wf, valid_time, -issue_time)
+    wf <- wf[, .SD[1L], by = valid_time]
+    d_wf <- dl_day_of(wf$valid_time)
+    exogenaprev <- wf[d_wf >= O & d_wf <= O + horizon - 1L, .(DataHora = valid_time, Exo_Temperatura = temperature)]
+    data.table::setorder(exogenaprev, DataHora)
+    exogenaprev <- eng$fill_forecast_tail(exogenaprev, "DataHora", O, O + horizon - 1L, k$hours_per_day, area, O,
+                                          max_fill_days = k$max_tail_fill_days)
+  }
 
   h <- data.table::as.data.table(panel$holidays)
   if ("area_code" %in% names(h)) h <- h[area_code == area]
@@ -113,10 +164,26 @@ plugin_ingest <- function(panel, cuts, spec = NULL) {
   feriados <- data.table::data.table(Data = dl_day_of(h$date), Tipo = as.integer(h[[code]]))
   feriados <- eng$normalize_special_day_codes(feriados, area = area)
 
+  ## anexo de feriados (ADR-046): ja horario e deslocado pelo despachante; so dias <= last_data_day. Sem anexo, nada muda.
+  ax <- panel$holiday_annex
+  cargafer <- exogenafer <- isl <- NULL
+  if (!is.null(ax)) {
+    la <- data.table::as.data.table(ax$load)[area_code == area & dl_day_of(interval_end) <= last]
+    cargafer <- la[order(interval_end), .(DataHora = interval_end, Carga = load_mwh)]
+    if (weatherless) {
+      exogenafer <- data.table::data.table(DataHora = cargafer$DataHora, Exo_Temperatura = 0)
+    } else {
+      wa <- data.table::as.data.table(ax$weather_observed)[area_code == area & dl_day_of(valid_time) <= last]
+      exogenafer <- wa[order(valid_time), .(DataHora = valid_time, Exo_Temperatura = temperature)]
+    }
+    isl <- data.table::as.data.table(ax$islands)[area_code == area, .(island_id, from, to)]
+  }
+
   deck <- list(CARGAHIST = cargahist, EXOGENAHIST = exogenahist, EXOGENAPREV = exogenaprev, FERIADOS = feriados,
                origin_load = origin_load, hourly_load = hourly_load, dataPrev = O, horizon = as.integer(horizon),
                variant = v$exogena, model_key = v$model_key, area = area, tz = cuts$tz,
-               available_until = au, last_data_day = last, history_start = hs)
+               available_until = au, last_data_day = last, history_start = hs, clima_hist = clima_hist)
+  deck$CARGAFER <- cargafer; deck$EXOGENAFER <- exogenafer; deck$islands <- isl
   dl_validate_deck(deck, cuts, spec)
   deck
 }

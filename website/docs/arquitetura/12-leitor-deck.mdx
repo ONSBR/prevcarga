@@ -45,7 +45,7 @@ Entre os arquivos `.R` da raiz de `scripts/lib`, nenhum outro além do `deck_rea
 | Clima previsto | `weather/forecast/` | `weather_forecast` |
 | Feriados | `auxiliary/holidays/` | `holidays` |
 
-Todos são Hive particionados por `area_code=` e `year=`. O leitor abre o dataset com `area_code` como texto e `year` como inteiro, e filtra as partições com `arrow::Scanner` e `Expression`, sem verbos dplyr. Dataset ausente aborta com `contract.dataset_missing` (`where` é o nome do dataset). O `data_dir` vem do ctx (`--data` ou `data_dir` no `config.yaml`); sem ele, `config.data_dir_missing`. O contrato de cada dataset está em [Dados de entrada](/metodologia/dados-de-entrada).
+Todos são Hive particionados por `area_code=` e `year=`. O leitor abre o dataset com `area_code` como texto e `year` como inteiro, e filtra as partições com `arrow::Scanner` e `Expression`, sem verbos dplyr. Dataset ausente aborta com `contract.dataset_missing` (`where` é o nome do dataset). O `data_dir` vem do ctx (o deck do papel: `--data-train`/`--data-inference` ou a chave correspondente no `config.yaml`); sem ele, `config.data_dir_missing`. O contrato de cada dataset está em [Dados de entrada](/metodologia/dados-de-entrada).
 
 ## O manifest.json: schema v1 fechado
 

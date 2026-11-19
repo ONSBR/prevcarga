@@ -78,7 +78,7 @@ prevcarga_plugin_signatures <- list(
   ingestion = c("panel", "cuts"), feature_engineering = c("frame", "params"),
   training = c("features", "params", "seed"), inference_features = c("frame", "payload"),
   inference = c("payload", "inf_features", "cuts"), forecast = c("payload", "inf_features", "cuts"),
-  freeze = "model", thaw = "payload")
+  freeze = "model", thaw = "payload", data_needs = c("spec", "area"))
 
 ## Layouts nativos de saida aceitos no descriptor (conjunto provisorio, ver discovery do P.0b).
 prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list", "dessem_hourly_24",
@@ -90,7 +90,8 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
 .prevcarga_plugin_fields <- c("model_id", "contract_version", "granularity_supported", "modes_implemented",
   "params_schema", "variant_param", "native_layout", "semihourly_rule", "weather_resample", "delivery_days", "data_lag_days",
   "model_time_offset_min", "reads_day_O", "weather_forecast_in_train", "uses_rng", "history_infer_equals_train",
-  "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages", "weather_cut")
+  "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages", "weather_cut", "variants",
+  "data_needs", "history_window", "key_params")
 .prevcarga_plugin_param_types <- c("integer", "numeric", "logical", "character")
 
 .prevcarga_plugin_cache <- new.env(parent = emptyenv())
@@ -294,6 +295,33 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
   ## "truncate" (default) = o membro entrega ate o ultimo dia coberto; "absent" = horizonte fixo, o membro fica ausente.
   wcut <- pick("weather_cut", "truncate")
   if (!(.prevcarga_plg_chr1(wcut) && wcut %in% c("truncate", "absent"))) bad("weather_cut")
+  ## variants (E5): necessidade por variante, opcional. list nomeada por valor de variant_param; cada entrada so com
+  ## requires (tokens data.<dataset>.<coluna>) e ignores_params (nomes de params_schema). Ausente => list().
+  vars <- pick("variants", list())
+  if (length(vars)) {
+    if (is.na(vp) || !is.list(vars) || is.null(names(vars)) || any(!nzchar(names(vars)))) bad("variants")
+    allowed <- schema[[vp]][["allowed"]]
+    for (k in names(vars)) {
+      v <- vars[[k]]
+      if (!(k %in% allowed) || !is.list(v) || length(setdiff(names(v), c("requires", "ignores_params"))) ||
+          (length(v) && is.null(names(v))))
+        bad(paste0("variants$", k))
+      rq <- v[["requires"]]
+      if (!is.null(rq) && !(.prevcarga_plg_chrs(rq) && all(grepl("^data\\.[^.]+\\..+$", rq))))
+        bad(paste0("variants$", k, "$requires"))
+      ig <- v[["ignores_params"]]
+      if (!is.null(ig) && !(is.character(ig) && !anyNA(ig) && all(ig %in% names(schema))))
+        bad(paste0("variants$", k, "$ignores_params"))
+    }
+  }
+  ## key_params (E5-T4): list nomeada param -> default character(1); o param existe em params_schema. Ausente => list().
+  kp <- pick("key_params", list())
+  if (length(kp)) {
+    if (!is.list(kp) || is.null(names(kp)) || any(!nzchar(names(kp))) || anyDuplicated(names(kp))) bad("key_params")
+    for (k in names(kp))
+      if (!(k %in% names(schema)) || !(is.character(kp[[k]]) && length(kp[[k]]) == 1L && !is.na(kp[[k]])))
+        bad(paste0("key_params$", k))
+  }
   flags <- list(reads_day_O = FALSE, weather_forecast_in_train = FALSE, uses_rng = FALSE,
                 history_infer_equals_train = FALSE)
   for (f in names(flags)) {
@@ -311,6 +339,15 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     if (!is.function(d[[f]])) bad(f)
     .prevcarga_plugin_check_signature(d[[f]], f, model)
   }
+  ## data_needs (E2): necessidade de dados de inferencia por membro, opcional; pura, function(spec, area).
+  dn <- d[["data_needs"]]
+  if (!is.null(dn)) {
+    if (!is.function(dn)) bad("data_needs")
+    .prevcarga_plugin_check_signature(dn, "data_needs", model)
+  }
+  ## history_window (E3-T4; ADR-046): janela do plugin, opcional; pura, function(origin, spec). Ausente => NULL (fachada usa history_days).
+  hw <- d[["history_window"]]
+  if (!is.null(hw) && (!is.function(hw) || !identical(names(formals(hw)), c("origin", "spec")))) bad("history_window")
   stages <- d[["stages"]]
   if (!is.list(stages) || is.null(names(stages))) bad("stages")
   extra <- setdiff(names(stages), c(prevcarga_plugin_stages, "forecast"))
@@ -331,7 +368,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     weather_forecast_in_train = flags$weather_forecast_in_train, uses_rng = flags$uses_rng,
     history_infer_equals_train = flags$history_infer_equals_train, rng_deviation = rd,
     packages = pk, attach = at, engine = eng, freeze = d[["freeze"]], thaw = d[["thaw"]], stages = stages,
-    weather_cut = wcut)
+    data_needs = dn, history_window = hw, weather_cut = wcut, variants = vars, key_params = kp)
   out
 }
 
@@ -349,15 +386,15 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
   TRUE
 }
 
-prevcarga_plugin_check_params <- function(params, schema, model) {
+prevcarga_plugin_check_params <- function(params, schema, model, optional = character()) {
   params <- if (is.null(params)) list() else params
   bad <- function(n) .prevcarga_plugin_abort("plugin.bad_run_yaml", where = model, reason = paste0("params$", n),
                                              details = list(model = model, field = paste0("params$", n)))
   extra <- setdiff(names(params), names(schema))
   if (length(extra)) bad(extra[[1L]])
-  miss <- setdiff(names(schema), names(params))
+  miss <- setdiff(setdiff(names(schema), optional), names(params))
   if (length(miss)) bad(miss[[1L]])
-  for (n in names(schema)) if (!.prevcarga_plugin_param_ok(params[[n]], schema[[n]])) bad(n)
+  for (n in intersect(names(schema), names(params))) if (!.prevcarga_plugin_param_ok(params[[n]], schema[[n]])) bad(n)
   invisible(TRUE)
 }
 
@@ -371,7 +408,7 @@ prevcarga_plugin_check_params <- function(params, schema, model) {
   if (isTRUE(d$history_infer_equals_train) && !identical(spec$history_days$infer, spec$history_days$train))
     .prevcarga_plugin_abort("plugin.history_window", where = model, reason = "history_days.infer",
                             details = list(model = model, field = "history_days.infer"))
-  prevcarga_plugin_check_params(spec$params, d$params_schema, model)
+  prevcarga_plugin_check_params(spec$params, d$params_schema, model, optional = names(d$key_params))
 }
 
 ## --- 7. Registro Tier A atomico --------------------------------------------------------------------
@@ -426,6 +463,12 @@ prevcarga_plugin_check_params <- function(params, schema, model) {
   d <- .prevcarga_plugin_normalize_descriptor(raw, model)
   .prevcarga_plugin_check_packages(c(d$packages, d$attach), model)
   .prevcarga_plugin_imports_env(imports, d$attach)
+  ## regra unica de datas da janela do DESSEM (holiday_islands.R; E3-T1): so os plugins que declaram history_window a enxergam
+  ## (o env do plugin so ve base + attach). Sem o arquivo carregado, o plugin falha so quando history_window e chamada.
+  if (is.function(d$history_window)) {
+    wf <- get0("prevcarga_dessem_window", mode = "function")
+    if (!is.null(wf)) assign("prevcarga_dessem_window", wf, envir = imports)
+  }
   if (!is.null(d$engine)) {
     eng <- .prevcarga_plugin_engine_env(d$engine, root, imports, model)
     parent.env(env) <- eng
@@ -648,12 +691,33 @@ prevcarga_envelope_fields <- c("model_id", "variant", "area", "origin_day", "ava
   }
   over(panel$load, "interval_start", "load")
   over(panel$weather_observed, "valid_time", "weather_observed")
+  over(panel$holiday_annex$load, "interval_start", "holiday_annex.load")
+  over(panel$holiday_annex$weather_observed, "valid_time", "holiday_annex.weather_observed")
   invisible(TRUE)
 }
 
-## Colunas `data.<dataset>.<coluna>` dos `requires` dos estagios dados.
-.prevcarga_plugin_require_data_cols <- function(panel, d, stages) {
-  toks <- unique(unlist(lapply(intersect(stages, names(d$stages)), function(s) d$stages[[s]]$requires)))
+## Necessidade de dado do estagio para a variante (E5): UNICO ponto que traduz variante -> requires. Variante NA/NULL, sem
+## entrada com requires, ou estagio sem token data.* => requires do estagio; senao tokens nao-data do estagio + requires da variante.
+prevcarga_plugin_variant_requires <- function(descriptor, stage, variant = NA_character_) {
+  rq <- as.character(descriptor$stages[[stage]]$requires)
+  is_data <- grepl("^data\\.[^.]+\\..+$", rq)
+  if (is.null(variant) || length(variant) != 1L || is.na(variant) || !any(is_data)) return(rq)
+  v <- descriptor$variants[[as.character(variant)]]
+  if (is.null(v) || is.null(v$requires)) return(rq)
+  c(rq[!is_data], as.character(v$requires))
+}
+
+## Variante efetiva de um spec: spec$params[[variant_param]], NA quando o plugin nao declara variant_param.
+.prevcarga_plugin_spec_variant <- function(d, spec) {
+  vp <- d$variant_param
+  if (!(is.character(vp) && length(vp) == 1L && !is.na(vp)) || is.null(spec$params[[vp]])) return(NA_character_)
+  as.character(spec$params[[vp]])
+}
+
+## Colunas `data.<dataset>.<coluna>` dos `requires` (efetivos para a variante) dos estagios dados.
+.prevcarga_plugin_require_data_cols <- function(panel, d, stages, variant = NA_character_) {
+  toks <- unique(unlist(lapply(intersect(stages, names(d$stages)),
+                               function(s) prevcarga_plugin_variant_requires(d, s, variant))))
   toks <- toks[grepl("^data\\.[^.]+\\..+$", toks)]
   for (tk in toks) {
     ds <- sub("^data\\.([^.]+)\\..+$", "\\1", tk)
@@ -677,13 +741,23 @@ prevcarga_envelope_fields <- c("model_id", "variant", "area", "origin_day", "ava
         reason = sprintf("coluna %s em %s: so o leitor converte rotulo de tempo", raw[[1L]], ds),
         details = list(column = raw[[1L]], dataset = ds))
   }
+  ha <- panel$holiday_annex
+  if (is.list(ha)) for (sub in names(ha)) {
+    x <- ha[[sub]]
+    if (!is.data.frame(x)) next
+    raw <- intersect(.prevcarga_plugin_raw_cols, names(x))
+    if (length(raw))
+      .prevcarga_plugin_abort("plugin.raw_timestamp", where = paste0("holiday_annex.", sub),
+        reason = sprintf("coluna %s em holiday_annex.%s: so o leitor converte rotulo de tempo", raw[[1L]], sub),
+        details = list(column = raw[[1L]], dataset = paste0("holiday_annex.", sub)))
+  }
   invisible(TRUE)
 }
 
 ## --- Conferencia do painel de infer -------------------------------------------------------------------
-.prevcarga_plugin_check_infer_panel <- function(panel, cuts, d) {
+.prevcarga_plugin_check_infer_panel <- function(panel, cuts, d, variant = NA_character_) {
   .prevcarga_plugin_check_raw_cols(panel)
-  .prevcarga_plugin_require_data_cols(panel, d, c("ingestion", "inference_features", "inference"))
+  .prevcarga_plugin_require_data_cols(panel, d, c("ingestion", "inference_features", "inference"), variant)
   au <- cuts$available_until
   ld <- panel$load
   if (NROW(ld)) {
@@ -850,6 +924,9 @@ prevcarga_preserve_rng <- function(expr) {
   if (identical(as.integer(o), 0L)) return(list(panel = panel, cuts = cuts))
   pm <- panel
   for (col in c("interval_start", "interval_end")) pm$load <- to_model_frame(pm$load, o, col)
+  if (!is.null(pm$holiday_annex))
+    for (col in c("interval_start", "interval_end"))
+      pm$holiday_annex$load <- to_model_frame(pm$holiday_annex$load, o, col)
   cm <- cuts
   cm$available_until <- to_model_frame(data.table::data.table(available_until = cuts$available_until), o,
                                        "available_until")$available_until
@@ -881,7 +958,8 @@ prevcarga_plugin_train <- function(plugin, panel, cuts, spec, ctx = list()) {
   .prevcarga_plugin_check_mode(plugin, spec, "train")
   .prevcarga_plugin_check_train_panel(panel, cuts, d)
   .prevcarga_plugin_check_raw_cols(panel)
-  .prevcarga_plugin_require_data_cols(panel, d, c("ingestion", "feature_engineering", "training"))
+  .prevcarga_plugin_require_data_cols(panel, d, c("ingestion", "feature_engineering", "training"),
+                                      .prevcarga_plugin_spec_variant(d, spec))
   m <- .prevcarga_plugin_stage_input(panel, cuts, d, spec, "train")
   st <- d$stages
   payload <- .prevcarga_plugin_guarded(plugin, {
@@ -898,7 +976,8 @@ prevcarga_plugin_train <- function(plugin, panel, cuts, spec, ctx = list()) {
 .prevcarga_plugin_infer_impl <- function(plugin, artifact, panel, cuts, spec) {
   d <- plugin$descriptor
   prevcarga_plugin_check_artifact(artifact, plugin, spec, cuts)
-  .prevcarga_plugin_check_infer_panel(panel, cuts, d)
+  var <- artifact$stamp$variant
+  .prevcarga_plugin_check_infer_panel(panel, cuts, d, if (is.null(var)) NA_character_ else as.character(var))
   m <- .prevcarga_plugin_stage_input(panel, cuts, d, spec, "infer")
   st <- d$stages
   payload <- artifact$payload
@@ -951,7 +1030,8 @@ prevcarga_plugin_infer <- function(plugin, artifact, panel, cuts, ctx = list()) 
 ## forecast: `panel` = painel de INFER (ate available_until). Treino ve so ate last_data_day; infer ve o painel inteiro.
 prevcarga_plugin_forecast <- function(plugin, panel, cuts, spec, ctx = list()) {
   .prevcarga_plugin_check_mode(plugin, spec, "forecast")
-  .prevcarga_plugin_check_infer_panel(panel, cuts, plugin$descriptor)
+  .prevcarga_plugin_check_infer_panel(panel, cuts, plugin$descriptor,
+                                      .prevcarga_plugin_spec_variant(plugin$descriptor, spec))
   art <- prevcarga_plugin_train(plugin, .prevcarga_plugin_train_slice(panel, cuts), cuts, spec, ctx)
   .prevcarga_plugin_infer_impl(plugin, art, panel, cuts, spec)
 }
@@ -980,6 +1060,7 @@ prevcarga_plugin_forecast <- function(plugin, panel, cuts, spec, ctx = list()) {
   paste0(head, paste(out, collapse = "/"))
 }
 
+## raiz de artefatos: --data-artifacts / artifacts_dir; sem isso <state_dir>/artifacts
 prevcarga_registry_root <- function(ctx) {
   if (!is.null(ctx$artifacts_dir)) return(.prevcarga_reg_norm(ctx$artifacts_dir))
   if (!is.character(ctx$state_dir) || length(ctx$state_dir) != 1L || is.na(ctx$state_dir) || !nzchar(ctx$state_dir))
@@ -987,7 +1068,7 @@ prevcarga_registry_root <- function(ctx) {
   .prevcarga_reg_norm(file.path(ctx$state_dir, "artifacts"))
 }
 
-## "apontado" quando a raiz vem de --artifacts-dir/artifacts_dir (so leitura); "registry" = <state_dir>/artifacts.
+## "apontado" quando a raiz vem de --data-artifacts/artifacts_dir (so leitura); "registry" = <state_dir>/artifacts.
 prevcarga_registry_mode <- function(ctx) if (is.null(ctx$artifacts_dir)) "registry" else "apontado"
 
 ## Aborta se o caminho normalizado nao estiver contido na raiz (recusa `..` e links que saiam dela).
@@ -999,12 +1080,47 @@ prevcarga_registry_contain <- function(path, ctx) {
   p
 }
 
+## --- Variante, overrides do ctx e spec efetivo da chave (movidos de training.R, E8-T4) ----------------------------
+## Ficam aqui, e nao em training.R, porque inference/features/validate-deck/forecast os chamam e nao carregam training.R.
+.prevcarga_tr_variant <- function(member) {
+  exo <- member$exogena
+  if (is.null(exo) || length(exo) != 1L || is.na(exo) || !nzchar(exo)) NA_character_ else as.character(exo)
+}
+
+## Overrides do ctx (--horizon, ...) mais a variante do membro na chave que o descriptor declara (`variant_param`).
+.prevcarga_tr_overrides <- function(plugin, member, ctx) {
+  ov <- if (is.null(ctx$spec_overrides)) list() else ctx$spec_overrides
+  vp <- plugin$descriptor$variant_param
+  exo <- .prevcarga_tr_variant(member)
+  if (is.character(vp) && length(vp) == 1L && !is.na(vp) && !is.na(exo)) ov[[paste0("params.", vp)]] <- exo
+  ov
+}
+
+## Spec efetivo para a chave do registry (E5-T4): so quando o descriptor declara key_params (senao NULL => chave de sempre).
+## Mesmos overrides do treino (.prevcarga_tr_overrides), para treino, inferencia e forecast resolverem a mesma celula.
+.prevcarga_tr_key_spec <- function(member, ctx) {
+  plugin <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))
+  if (!length(plugin$descriptor$key_params)) return(NULL)
+  prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
+}
+
 ## Segmento de variante sse `member$exogena` nao for NA/vazia: decisao so pelo membro, nunca pelo nome do modelo.
-prevcarga_registry_key <- function(member, area, ctx) {
+## Com `spec` (E5-T4), cada descriptor$key_params fora do default e nao ignorado pela variante vira o segmento
+## <param>-<valor> entre a variante e a area; spec NULL ou valores default => layout anterior byte a byte.
+prevcarga_registry_key <- function(member, area, ctx, spec = NULL) {
   if (is.null(member$mdir) || is.null(member$exogena))
     prevcarga_abort("contract.variant_required", where = "membro sem mdir/exogena")
   exo <- member$exogena
-  seg <- c(member$mdir, if (!is.na(exo) && nzchar(exo)) exo, area)
+  kp <- character()
+  if (!is.null(spec)) {
+    d <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))$descriptor
+    ign <- if (!is.na(exo) && nzchar(exo)) d$variants[[exo]]$ignores_params else NULL
+    for (p in setdiff(names(d$key_params), ign)) {
+      v <- spec$params[[p]]
+      if (!is.null(v) && !identical(v, d$key_params[[p]])) kp <- c(kp, paste0(p, "-", v))
+    }
+  }
+  seg <- c(member$mdir, if (!is.na(exo) && nzchar(exo)) exo, kp, area)
   prevcarga_registry_contain(do.call(file.path, as.list(c(prevcarga_registry_root(ctx), seg))), ctx)
 }
 
@@ -1261,6 +1377,8 @@ prevcarga_registry_unpin <- function(key, version, ctx = NULL) {
 
 ## model (sigla ou mdir de prevcarga_members, ou nome de pasta do registry como combina/reconcile) -> segmentos
 .prevcarga_reg_model_segs <- function(model, ctx) {
+  ## formato mdir/exogena/<param>-<valor> (segmentos separados por /): ja e o caminho relativo da celula
+  if (grepl("/", model, fixed = TRUE)) return(strsplit(model, "/", fixed = TRUE)[[1L]])
   mem <- tryCatch(prevcarga_members(root = ctx$root), error = function(e) NULL)
   if (!is.null(mem)) {
     i <- which(mem$sigla == model)
@@ -1343,6 +1461,7 @@ prevcarga_registry_cell_key <- function(ctx, model, area) {
   segs <- .prevcarga_reg_model_segs(model, ctx)
   key <- prevcarga_registry_key(list(mdir = segs[[1L]], exogena = if (length(segs) > 1L) segs[[2L]] else NA_character_),
                                 area, ctx)
+  if (length(segs) > 2L) key <- prevcarga_registry_contain(do.call(file.path, as.list(c(dirname(key), segs[-(1:2)], area))), ctx)
   if (!dir.exists(key)) prevcarga_abort("state.cell_missing", where = key)
   key
 }

@@ -99,7 +99,7 @@ cmd_reconcile <- function(ctx, args) {
   fl <- .prevcarga_rc_flags(args)
   topo <- .prevcarga_reconcile_topo(ctx)
   prevcarga_reconcile_check_subsystem(if (identical(fl$subsystem, "all")) NULL else fl$subsystem, topo)
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   ctx$tz <- .prevcarga_eval_tz(ctx)
   res <- if (identical(fl$mode, "train")) .prevcarga_rc_train(ctx, fl, topo) else .prevcarga_rc_apply(ctx, args, fl, topo)
   if (identical(ctx$format, "json")) res else .render_reconcile_text(res)
@@ -117,6 +117,10 @@ prevcarga_verb_reconcile <- list(
     "--khat-version=<v>      v_<hash> do k-hat ajustado EM O (apply; senao o latest)"),
   scoped  = c("--khat-window", "--eval", "--leaves-dir", "--khat-version"),   # so reconcile (cli.R .prevcarga_check_scoped)
   handler = function(ctx, args) cmd_reconcile(ctx, args),
+  deck_roles = function(args) {
+    mode <- args[["--mode"]]
+    if (isTRUE(args[["--eval"]]) || identical(mode, "train")) "train" else c("train", "inference")
+  },
   owner   = "Reconcile",
   exempt  = FALSE,
   modules = c("topology.R", "schema_long.R", "provenance.R", "deck_reader.R", "dates.R", "evaluation.R", "registry.R",

@@ -154,7 +154,7 @@ O pino `--khat-version` só escolhe entre versões ajustadas em O; ele nunca lib
 
 ### Modos do verbo reconcile
 
-O verbo `prevcarga reconcile` tem dois modos e exige o deck (`--data` ou `data_dir` no `config.yaml`). Os detalhes de uso estão na [Referência da CLI](/execucao/referencia-cli).
+O verbo `prevcarga reconcile` tem dois modos e exige o deck (`--data-train` ou `data_train_dir` no `config.yaml`). Os detalhes de uso estão na [Referência da CLI](/execucao/referencia-cli).
 
 | Modo | O que faz | Lê a verdade? |
 |---|---|---|
@@ -162,8 +162,8 @@ O verbo `prevcarga reconcile` tem dois modos e exige o deck (`--data` ou `data_d
 | `--mode=apply` | Lê um parquet LONG por área de `--leaves-dir`, aplica Bottom-Up × k-hat e escreve `subsistemas/<ss>.parquet` e `SIN.parquet` em `--out` (ou em `<state_dir>/scratch/<run_id>/`) | não, salvo com `--eval` |
 
 ```bash
-prevcarga reconcile --mode=train --data=./deck --origin=2026-02-20
-prevcarga reconcile --mode=apply --data=./deck --leaves-dir=./folhas --origin=2026-02-20
+prevcarga reconcile --mode=train --data-train=./deck --origin=2026-02-20
+prevcarga reconcile --mode=apply --data-train=./deck --leaves-dir=./folhas --origin=2026-02-20
 ```
 
 O apply é de uma origem só: entrada com mais de uma `forecast_origin` aborta com `contract.reconcile_input`. Sem `--eval`, a carga verificada não é lida e o `y_true` sai vazio; o `y_pred` nunca depende da verdade. O apply exige, ainda assim, o perfil ajustado na própria O.
