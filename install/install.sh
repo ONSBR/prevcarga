@@ -134,7 +134,7 @@ pc_next_steps() { # proximos passos, depois da linha 'prevcarga: instalado ...' 
     if [ -n "$d" ]; then
       printf '  - deck configurado: data_dir = %s (em %s/config.yaml)\n' "$d" "$ROOT"
     else
-      printf '  - aponte o deck: reinstale com --data <dir> ou ponha data_dir: <dir> em %s/config.yaml\n' "$ROOT"
+      printf '  - aponte o deck: prevcarga set-data-dir <dir> (grava data_dir em %s/config.yaml)\n' "$ROOT"
     fi
   } >&2
 }

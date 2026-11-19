@@ -21,10 +21,9 @@ fontes:
   - scripts/lib/features.R
   - scripts/lib/registry.R
   - scripts/lib/errors/lgbm.tsv
-  - docs/estado/lgbm.md
 adrs: [ADR-0023, ADR-0019, ADR-0021, ADR-0024]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "5c48c00"
 ---
 
 <span className="pc-overline">Metodologia · 1.7</span>
@@ -91,7 +90,7 @@ Além da safra, nenhuma emissão pode passar de `weather_issue_limit`, o limite 
 
 ### Série de clima por área: `heat_area`
 
-Cada área lê a temperatura de uma série de clima fixada em `plugin_constants()$heat_area`. Em geral é a própria área; as exceções são agregados que usam a série de uma área representativa.
+Cada área lê a temperatura de uma série de clima fixada em `plugin_constants()$heat_area`. Em geral é a própria área; as exceções são agregados que usam a série de uma área representativa (herança do oráculo).
 
 | Área | Série de clima |
 |---|---|
@@ -99,9 +98,10 @@ Cada área lê a temperatura de uma série de clima fixada em `plugin_constants(
 | `SECO` | `SP` |
 | `N` | `AM` |
 | `NE` | `CE` |
+| `BASE` | `BASE` |
 | demais áreas da tabela | a própria área |
 
-Área fora da tabela aborta com `lgbm.contract`.
+Área fora da tabela aborta com `lgbm.contract`. A folha `BASE` do NE está na tabela e lê a própria série de clima. As linhas de `S`, `SECO`, `N` e `NE` vêm do oráculo: na CLI só as folhas são previstas (a rodada e o backtest rodam os membros por folha), então essas linhas não valem em produção e valem a identidade para as folhas. Com clima previsto curto, a entrega do LGBM é cortada no último dia coberto (`delivery_days` efetivo vindo do despachante), com `warning.forecast_weather_horizon_cut`.
 
 ### Feriados
 

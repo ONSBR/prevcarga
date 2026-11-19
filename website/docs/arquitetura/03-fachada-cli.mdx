@@ -16,15 +16,9 @@ fontes:
   - scripts/lib/introspect.R
   - install/prevcarga
   - install/prevcarga.cmd
-  - docs/estado/cli.md
-  - docs/estado/introspect.md
-  - docs/estado/banner.md
-  - docs/estado/install.md
-  - docs/estado/m5-purity.md
-  - docs/adr/0022-runtime-guard-dispatch.md
 adrs: [ADR-0040, ADR-0022]
-revisado_em: 2026-11-05
-commit_base: "8eaffc0"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Arquitetura · 2.3</span>
@@ -52,7 +46,7 @@ Antes do shim vem o lançador da instalação. No Linux, `install/prevcarga` (co
 
 `prevcarga_main(argv, verbs, root, runtime, handlers)` é a única função que decide o destino de um comando. Os argumentos `verbs`, `runtime` e `handlers` têm default de produção (`prevcarga_verbs_discover()`, `prevcarga_runtime_enforce`, nenhum) e existem para que se injetem outros verbos e outro runtime sem mudar a função.
 
-<Figura id="FIG-A02" titulo="Do comando ao código de saída" natureza="Fluxo" fontes={['install/prevcarga', 'scripts/prevcarga', 'scripts/lib/cli.R', 'scripts/lib/runtime.R', 'scripts/lib/errors.R', 'docs/estado/cli.md', 'docs/estado/install.md']} adrs={['ADR-0040', 'ADR-0022']}>
+<Figura id="FIG-A02" titulo="Do comando ao código de saída" natureza="Fluxo" fontes={['install/prevcarga', 'scripts/prevcarga', 'scripts/lib/cli.R', 'scripts/lib/runtime.R', 'scripts/lib/errors.R']} adrs={['ADR-0040', 'ADR-0022']}>
 
 ```mermaid
 sequenceDiagram
@@ -99,7 +93,7 @@ Com a tabela, `prevcarga_main` gera o texto de uso (`prevcarga_usage`) e faz o p
 
 Três consequências práticas:
 
-- `prevcarga forecast --help` não mostra uma ajuda do `forecast`: o `--help` leva ao ramo de topo e imprime o usage global, que já lista a linha de cada verbo e todas as flags.
+- `prevcarga <verbo> --help` imprime a ajuda só daquele verbo (`prevcarga_usage_verb`): a usage do verbo, as opções comuns e as opções que a usage cita, em ASCII, com exit 0 e sem rodar o runtime do verbo. O `prevcarga --help` sem verbo segue imprimindo o usage global, com todas as opções.
 - Num verbo guardado, se o runtime não conseguir fixar TZ, locale ou as threads, o comando sai com exit 7 antes de o ctx existir e de o handler correr. Em texto, o stdout fica vazio. Como ainda não há ctx, o formato do erro vem só do `argv` (`--format=json` ou `--format json`), nunca do `config.yaml`. O que o runtime fixa está em [Runtime](/arquitetura/runtime).
 - `doctor` e `status` existem para diagnosticar um ambiente quebrado, inclusive um `config.yaml` inválido. O ctx tolerante usa defaults e flags, sem ler o arquivo, e guarda a falha original em `ctx$config_error` para o `doctor` reportar.
 
@@ -203,14 +197,14 @@ O bloco `Options` do docopt é um só para todos os verbos, então o docopt acei
 |---|---|
 | `backtest` | `--corte`, `--protocol`, `--dplus`, `--report`, `--report-format`, `--resume`, `--keep-going`, `--break-lock` |
 | `plan` | `--corte`, `--protocol`, `--dplus` |
-| `forecast` | `--niveis`, `--incluir-membros`, `--report`, `--report-format` |
-| `export` | `--scratch`, `--niveis`, `--incluir-membros` |
-| `train-models` | `--horizon`, `--exogena` |
+| `forecast` | `--incluir-membros`, `--report`, `--report-format` |
+| `export` | `--scratch`, `--incluir-membros` |
+| `train-models` | `--horizon`, `--exogena`, `--keep-going` |
 | `reconcile` | `--khat-window`, `--eval`, `--leaves-dir`, `--khat-version` |
 | `verificar` | `--saida`, `--referencia`, `--oficial`, `--trilho`, `--alvo`, `--limiares`, `--sem-membros`, `--tol` |
 | `release-pack` | `--what`, `--published`, `--release`, `--bundles`, `--latest` |
 
-Uma flag declarada em dois verbos vale nos dois: `--corte` serve a `backtest` e `plan`; `--niveis` serve a `forecast` e `export`. A referência completa de cada verbo está em [Referência da CLI](/execucao/referencia-cli).
+Uma flag declarada em dois verbos vale nos dois: `--corte` serve a `backtest` e `plan`; `--incluir-membros` serve a `forecast` e `export`. A referência completa de cada verbo está em [Referência da CLI](/execucao/referencia-cli).
 
 ## Saída: texto ASCII ou envelope JSON
 

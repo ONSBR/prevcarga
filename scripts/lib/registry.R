@@ -90,7 +90,7 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
 .prevcarga_plugin_fields <- c("model_id", "contract_version", "granularity_supported", "modes_implemented",
   "params_schema", "variant_param", "native_layout", "semihourly_rule", "weather_resample", "delivery_days", "data_lag_days",
   "model_time_offset_min", "reads_day_O", "weather_forecast_in_train", "uses_rng", "history_infer_equals_train",
-  "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages")
+  "rng_deviation", "packages", "attach", "engine", "freeze", "thaw", "stages", "weather_cut")
 .prevcarga_plugin_param_types <- c("integer", "numeric", "logical", "character")
 
 .prevcarga_plugin_cache <- new.env(parent = emptyenv())
@@ -290,6 +290,10 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
   if (!.prevcarga_plg_int1(lag, 0)) bad("data_lag_days")
   off <- pick("model_time_offset_min", 0L)
   if (!.prevcarga_plg_int1(off, 0)) bad("model_time_offset_min")
+  ## weather_cut (F3.7): o que o despachante faz com clima previsto que cobre menos que delivery_days.
+  ## "truncate" (default) = o membro entrega ate o ultimo dia coberto; "absent" = horizonte fixo, o membro fica ausente.
+  wcut <- pick("weather_cut", "truncate")
+  if (!(.prevcarga_plg_chr1(wcut) && wcut %in% c("truncate", "absent"))) bad("weather_cut")
   flags <- list(reads_day_O = FALSE, weather_forecast_in_train = FALSE, uses_rng = FALSE,
                 history_infer_equals_train = FALSE)
   for (f in names(flags)) {
@@ -326,7 +330,8 @@ prevcarga_native_layouts <- c("lgbm_day_48", "hw_matrix_nx48", "rf_horizon_list"
     model_time_offset_min = as.integer(off), reads_day_O = flags$reads_day_O,
     weather_forecast_in_train = flags$weather_forecast_in_train, uses_rng = flags$uses_rng,
     history_infer_equals_train = flags$history_infer_equals_train, rng_deviation = rd,
-    packages = pk, attach = at, engine = eng, freeze = d[["freeze"]], thaw = d[["thaw"]], stages = stages)
+    packages = pk, attach = at, engine = eng, freeze = d[["freeze"]], thaw = d[["thaw"]], stages = stages,
+    weather_cut = wcut)
   out
 }
 
@@ -779,7 +784,9 @@ prevcarga_envelope_fields <- c("model_id", "variant", "area", "origin_day", "ava
   if (!.prevcarga_plg_chr1(env$area)) bad("area deve ser chr escalar", field = "area")
   if (is.null(env$values)) bad("values ausente", field = "values")
   if (!is.list(env$meta)) bad("meta deve ser lista", field = "meta")
-  .prevcarga_plugin_check_delivery(env$delivery, prevcarga_delivery_grid(cuts, d$delivery_days), m)
+  ## F3.7: o despachante da celula grava cuts$delivery_days (efetivo, <= descriptor) quando o clima previsto corta o horizonte.
+  dd <- if (!is.null(cuts$delivery_days)) cuts$delivery_days else d$delivery_days
+  .prevcarga_plugin_check_delivery(env$delivery, prevcarga_delivery_grid(cuts, dd), m)
   invisible(TRUE)
 }
 
@@ -974,10 +981,14 @@ prevcarga_plugin_forecast <- function(plugin, panel, cuts, spec, ctx = list()) {
 }
 
 prevcarga_registry_root <- function(ctx) {
+  if (!is.null(ctx$artifacts_dir)) return(.prevcarga_reg_norm(ctx$artifacts_dir))
   if (!is.character(ctx$state_dir) || length(ctx$state_dir) != 1L || is.na(ctx$state_dir) || !nzchar(ctx$state_dir))
     prevcarga_abort("contract.path_outside_root", where = "state_dir ausente no ctx")
   .prevcarga_reg_norm(file.path(ctx$state_dir, "artifacts"))
 }
+
+## "apontado" quando a raiz vem de --artifacts-dir/artifacts_dir (so leitura); "registry" = <state_dir>/artifacts.
+prevcarga_registry_mode <- function(ctx) if (is.null(ctx$artifacts_dir)) "registry" else "apontado"
 
 ## Aborta se o caminho normalizado nao estiver contido na raiz (recusa `..` e links que saiam dela).
 prevcarga_registry_contain <- function(path, ctx) {

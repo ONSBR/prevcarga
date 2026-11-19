@@ -5,13 +5,6 @@ sidebar_position: 2
 slug: /metodologia/dados-de-entrada
 description: Quais dados alimentam a previsão, em que grade, quem usa o quê e por que o deck reprova em vez de preencher.
 fontes:
-  - docs/reference/DECK-CANONICO.md
-  - docs/adr/0002-grade-semihoraria-schema-long.md
-  - docs/adr/0004-store-parquet-hive.md
-  - docs/adr/0005-contrato-entrada-fail-por-origem.md
-  - docs/estado/m2-leitor.md
-  - docs/estado/deck_reader.md
-  - docs/estado/validation.md
   - scripts/lib/deck_reader.R
   - scripts/lib/validation.R
   - scripts/lib/registry.R
@@ -40,8 +33,8 @@ fontes:
   - models/dessem-regdin/R/ingestion.R
   - models/_dessem-engine/R/exogena.R
 adrs: [ADR-0002, ADR-0004, ADR-0005, ADR-0023, ADR-0024, ADR-0035, ADR-0037, ADR-0040]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "5c48c00"
 ---
 
 <span className="pc-overline">Metodologia · 1.2</span>
@@ -55,7 +48,7 @@ O deck é um diretório (`data_dir`) com um `manifest.json` na raiz e datasets p
 | Dataset | Caminho | Colunas obrigatórias | Uso |
 |---|---|---|---|
 | Carga realizada | `load/` | `timestamp`, `load_mwh` | alvo e histórico de todos os modelos |
-| Clima previsto | `weather/forecast/` | `issue_time`, `valid_time`, `temperature` | exógena do horizonte; todas as emissões ficam guardadas |
+| Clima previsto | `weather/forecast/` | `issue_time`, `valid_time`, `temperature` | exógena do horizonte; todas as emissões ficam guardadas; cada dia até O+9 exige os 48 instantes (00:00 a 23:30) |
 | Clima observado | `weather/observed/` | `timestamp`, `temperature` | exógena do histórico |
 | Dias especiais | `auxiliary/holidays/` | `date`, `holiday_type_id`, `prevcarga_code`, `simplified_code` | calendário de feriados |
 
@@ -80,7 +73,7 @@ Em resumo: os DESSEM usam o clima observado no histórico e o previsto no horizo
 Os três códigos de feriado são obrigatórios no deck porque modelos diferentes consomem códigos diferentes. Para servir todos, o deck carrega todos.
 
 :::info Nunca entra observado além do corte
-Com uma origem, o leitor corta a carga e o clima observado no `available_until`, derivado do próprio dado de carga. O clima previsto entra só com emissões até o limite de emissão (`available_until` menos o atraso de publicação, na regra padrão). Os feriados são calendário conhecido de antemão e não têm corte. Os três cortes estão na [página dos cortes](/metodologia/tres-cortes).
+Com uma origem, o leitor corta a carga e o clima observado no `available_until`, derivado do próprio dado de carga. O clima previsto entra só com emissões até o limite de emissão (`available_until` menos o atraso de publicação, na regra padrão). Um dia do clima previsto só conta como coberto com os 48 instantes de 30 minutos, de 00:00 a 23:30, sem tolerância para o 23:30, até O+9 23:30. Se faltam instantes, o horizonte dos membros que dependem do clima é cortado no último dia coberto, com o aviso `forecast_weather_horizon_cut`, e o dia incompleto não é entregue. Os feriados são calendário conhecido de antemão e não têm corte. Os três cortes estão na [página dos cortes](/metodologia/tres-cortes).
 :::
 
 ## Grade semi-horária flat-48
@@ -103,7 +96,7 @@ O deck chega com nomes canônicos. A tradução dos nomes de origem do ONS para 
 | `load_mwh` | `val_carga` |
 | `temperature` | `val_tmp` |
 | `valid_time` (clima previsto) | `din_referencia` |
-| `issue_time` (clima previsto) | `din_origemprevisaoutc`, preservado no instante |
+| `issue_time` (clima previsto) | `dat_referencia` 00:00 UTC. Exceção medida: de 2018-12-23 a 2021-03-27 o `din_origemprevisaoutc` está um dia adiantado (824 emissões de SP), por isso a origem é `dat_referencia` |
 | `date` (feriados) | `dat_diaespecial` |
 | `holiday_type_id` | `id_tipodiaespecial` |
 | `prevcarga_code` | `cod_prevcarga` |
@@ -171,7 +164,8 @@ O deck aprovado não é alterado. Os tratamentos de cada modelo moram na ingest�
 
 | Modelo | Tratamento | Onde |
 |---|---|---|
-| `dessem-linear`, `dessem-regdin` | completa o clima previsto curto no horizonte com a persistência do último dia completo anterior, em no máximo 2 dias curtos (`max_tail_fill_days`); lacuna maior reprova no contrato do plugin | ingestão, `fill_forecast_tail` do motor comum |
+| `dessem-linear`, `dessem-regdin` | só rodam com o horizonte inteiro: com clima previsto curto (a emissão vigente sem os 48 instantes de algum dia até O+9) o despachante recusa o membro com `completude.weather_forecast_short` e a rodada o trata como membro ausente, sem completar nem persistir dia entregue | despachante, antes da ingestão |
+| `random-forest` | horizonte fixo: com clima previsto curto o membro também fica ausente; o `lgbm` corta o horizonte no último dia coberto, com `warning.forecast_weather_horizon_cut`, e o `holt-winters` não usa clima | despachante |
 | `dessem-linear`, `dessem-regdin` | monta o deck horário do motor (`CARGAHIST`, `EXOGENAHIST`, `EXOGENAPREV`, 24 horas por dia) e separa a carga do dia O até o corte, insumo do mm | ingestão |
 | `random-forest` | LOCF de `tmax` e `tmin` por dia do horizonte, a partir da origem anterior; origens de treino que seguem sem clima saem do treino | ingestão |
 | `lgbm` | os patamares do dia O depois do corte entram como sintéticos (`is_synthetic`, carga NA) para o BLF completar; com `tipodia_legacy` ligado (no `run.yaml` versionado está `false`), a sazonalidade ganha fallbacks hierárquicos calculados no treino e guardados no artefato (`sazonalidade_fallbacks`) | ingestão e atributos |
@@ -180,5 +174,5 @@ O deck aprovado não é alterado. Os tratamentos de cada modelo moram na ingest�
 Um buraco antes do corte é reprovado pela validação do deck antes de chegar a esses tratamentos. Alguns plugins também conferem de novo o painel e abortam com erro próprio quando um dia de histórico chega incompleto: o `lgbm.completude` cobre os dias do histórico do LGBM, e o `hw.last_day_incomplete` cobre só o dia O−1 do HW. O detalhe de cada tratamento está nas páginas dos modelos, a partir da [visão geral dos modelos](/metodologia/modelos-visao-geral).
 
 <Pendente titulo="Pendente · manifest do store real">
-O store real ainda não tem `manifest.json`, e o leitor aborta com `contract.manifest_missing` até o store ser regravado. O template versionado `config/deck-manifest.store.json` (rótulo `start`, fuso `Etc/GMT+3`, `issue_time` em UTC, atraso de 6 horas) tem valores ainda a confirmar.
+O store real ainda não tem `manifest.json`, e o leitor aborta com `contract.manifest_missing` até o store ser regravado. O template versionado `config/deck-manifest.store.json` declara rótulo `start`, fuso `Etc/GMT+3`, `issue_time` em UTC e atraso de 6 horas. O deck novo gerado pelo conversor já tem manifest, com `load_label: end` (a fonte rotula a carga pelo início do intervalo e o conversor grava o carimbo + 30 min): o rótulo está confirmado. Resta a ressalva do fuso: o store está em relógio de parede BRT com horário de verão até 2019, e `Etc/GMT+3` erra o `issue_time` em 1 hora no verão 2018-19.
 </Pendente>

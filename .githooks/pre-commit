@@ -37,10 +37,8 @@ if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   [ -n "$loose" ] && { echo "⚠️  script novo em scripts/ root — confirme o tier (core? tools/? data-prep/?):"; echo "$loose" | sed 's/^/   /'; warn=1; }
 fi
 
-# WARN (sempre): mexeu em models/ mas não tocou o doc-verdade (write-through?)
-m=$(echo "$all" | grep -E '^models/[^_]' || true)
-e=$(echo "$all" | grep -E '^docs/ESTADO-ATUAL\.md$' || true)
-[ -n "$m" ] && [ -z "$e" ] && { echo "⚠️  models/ mudou sem tocar docs/ESTADO-ATUAL.md — write-through?"; warn=1; }
+# docs/estado e docs/ESTADO-ATUAL.md sao locais (fora do git, repo publico): o write-through
+# continua no disco e nao aparece no commit, entao nao ha aviso aqui.
 
 if [ "$fail" = 1 ]; then echo; echo "Commit bloqueado (use 'git commit --no-verify' se for intencional)."; exit 1; fi
 [ "$warn" = 1 ] && echo "(avisos acima — commit segue)"

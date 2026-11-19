@@ -7,11 +7,11 @@ O estado duravel (decisoes, paridade, ids de erro) mora em `docs/estado/holt_win
 
 | Funcao do plugin (`R/`) | Oraculo (`prevcargadessem3/models/holt-winters/R/`) |
 |---|---|
-| `plugin_ingest` e auxiliares (`ingestion.R`): `CargaTempVer`/`CargaTempMed`/`TempPre`/`CDDPre`, flag HV | `data_adapter.R:138-673` |
+| `plugin_ingest` e auxiliares (`ingestion.R`): `CargaTempVer`/`CargaTempMed`/`horizon_calendar`, flag HV | `data_adapter.R:138-673` |
 | `plugin_build_features` (`feature_engineering.R`): 7 passos de FE | `feature_engineering.R:256-599` |
 | `helpers_aux.R`: `Corrige.Dias.Faltantes`, `Corrige.Dados`, `MO1`, `classifica_kmeans`, `Substitui.Feriados`, `Suaviza.LOESS`/`LOESS1`, `SemiFer` | `funcoes_aux.R:53-717` (unica copia; as de `helpers/` e `preprocessing/` sao shims) |
 | `plugin_train` (`training.R`): 1 `forecast::hw` diario + 48 intervalares | `hw_training.R:304-549` |
-| `plugin_inference_features` (`inference_features.R`): `efeitoTemp`, carga/temperatura do horizonte | `hw_inference_features.R:122-460` |
+| `plugin_inference_features` (`inference_features.R`): calendario do horizonte (`horizon_meta`) e `PrevMedDia` | `hw_inference_features.R:122-460` |
 | `plugin_infer` / `plugin_forecast` (`inference.R`): SemiFer, LOESS 0,13, entrega | `hw_inference.R:226-662` |
 | `plugin_freeze` / `plugin_thaw` (`freeze.R`): artefato de dado puro | `.rds` do oraculo (`hw_training.R`) |
 | corte/janela do treino e da inferencia (despachante + `cuts`) | `jobs/run_job.sh:454-480` |
@@ -43,7 +43,7 @@ O plugin nao faz aritmetica de hora (princ. 7), sem excecoes: o flag historico d
 - O dia O entregue vem do passo `$mean[1]` que o oraculo descarta; o artefato guarda so `$mean` (9 passos), nunca objetos `forecast`.
 - `datafimver` estrito (`last_data_day = O-1`) em vez do `align_first_idx` data-driven do oraculo.
 - FE 1x (o oraculo rodava 2x); `h_fit` fixo em 9.
-- `efeitoTemp` do dia O usa `qdata` proprio (nao contamina O+1).
+- HW univariado (sem TempPre/CDDPre, sem Suaviza.LOESS 0,3 em T, sem efeitoTemp): sem clima, SemiFer sempre em FER 1/2 fora de domingo (`p_alfa` 0,5) e `n_steps = horizon_days` (8 dias, sem encurtar por cobertura de clima).
 - `efeitoFer = efeitoSFer = 0` (como o oraculo, explicito).
 - As 3 copias de `funcoes_aux.R` viram um unico `helpers_aux.R`; `classifica_kmeans` semeia com `params.kmeans_seed` (o oraculo fixava 123).
 - Ramo `perfil_mo = ST` sem gate de paridade (so teste de estrutura).
@@ -67,8 +67,8 @@ descobre os packs de `scripts/tools/gates/*.R` por `applies_to`).
 | gate05 | `higiene_grep` (+ `higiene_env`) | [PLUGINS] |
 | gate06 | `determinismo` (+ `seed_medicao`, `sem_seed_literal`) | [PLUGINS] |
 | gate07 | `ytrue_real` | [DEFERRED M6] |
-| gate08 | `clima_honesto` | [PLUGINS] |
-| gate09 | `clima_fallback` | [PLUGINS] |
+| - | `clima_cego` (o HW nao le clima; substitui gate08/gate09 do oraculo) | [PLUGINS] |
+| - | `ingest_calendario`, `infer_sem_clima` | [PLUGINS] |
 | gate10 | `harness_parity` | [DEFERRED M7] |
 | gate11 | `sem_deslocamento` (tier parity) | [PLUGINS] |
 | - | `fachada` | [DEFERRED M5] |

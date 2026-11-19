@@ -15,7 +15,6 @@ fontes:
   - models/random-forest/R/freeze.R
   - models/random-forest/R/inference_features.R
   - models/random-forest/R/inference.R
-  - docs/estado/random_forest.md
   - scripts/lib/dates.R
   - scripts/lib/deck_reader.R
   - scripts/lib/features.R
@@ -23,8 +22,8 @@ fontes:
   - scripts/lib/errors.R
   - scripts/lib/errors/plugin.tsv
 adrs: [ADR-0023, ADR-0024]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "5c48c00"
 ---
 
 <span className="pc-overline">Metodologia · 1.6</span>
@@ -62,7 +61,7 @@ As constantes intrínsecas vêm de `plugin_constants()` em `register.R` (`horizo
 
 `ntree` e `seed` não têm default no código: sem eles no `run.yaml`, o carregamento do plugin aborta com `plugin.bad_run_yaml`; numa chamada direta sem eles, `plugin_train` aborta com `plugin.contract`.
 
-<Figura id="FIG-M23" titulo="RF: uma linha de origem, 216 florestas" natureza="Estrutura" fontes={['models/random-forest/R/feature_engineering.R', 'models/random-forest/R/training.R', 'models/random-forest/R/inference.R', 'docs/estado/random_forest.md']} adrs={['ADR-0023']}>
+<Figura id="FIG-M23" titulo="RF: uma linha de origem, 216 florestas" natureza="Estrutura" fontes={['models/random-forest/R/feature_engineering.R', 'models/random-forest/R/training.R', 'models/random-forest/R/inference.R']} adrs={['ADR-0023']}>
 
 ```mermaid
 flowchart LR
@@ -90,7 +89,7 @@ flowchart LR
 
 </Figura>
 
-Com T = O, o bloco cobre O+1..O+9 e o dia O+9 é descartado. O dia O vem do bloco T = O−1, no mesmo infer (ver a emenda abaixo).
+Com T = O, o bloco cobre O+1..O+9. O dia O+9 não é entregue, mas a previsão dele entra no spline do último slot entregue de O+8 (ver abaixo). O dia O vem do bloco T = O−1, no mesmo infer (ver a emenda abaixo).
 
 ## Entradas e janelas
 
@@ -204,13 +203,13 @@ O RF não lê a carga do dia O. No mesmo infer e com o mesmo artefato, o plugin 
 | T = O−1 | O−2 | dia O, a partir de `available_until` |
 | T = O | O−1 | O+1..O+8 |
 
-O dia O+9 do bloco O não é entregue. A matriz nativa `values` tem 2 × 216 (linhas O−1 e O).
+O dia O+9 do bloco O não é entregue, mas não é só descartado: o spline roda sobre as 216 âncoras do bloco, e o último slot entregue de O+8 (`interval_end` O+9 00:00) é interpolado entre a âncora das 23h de O+8 e a primeira âncora de O+9. Essa âncora é a lead 193, que usa o clima previsto de O+9. Os slots vizinhos também dependem dela pelas derivadas do `monoH.FC`. Por isso o clima previsto até O+9 chega à entrega do RF. O horizonte do RF é fixo (`weather_cut = "absent"`): com clima previsto que não cobre O+9, o membro fica ausente na rodada, em vez de entregar um horizonte menor. A matriz nativa `values` tem 2 × 216 (linhas O−1 e O).
 
-Cada bloco passa inteiro por `to_semihourly` com a regra `rf_semihourly_rule` e só depois é cortado. A regra recebe as 216 âncoras horárias e devolve 432 valores: uma spline monotônica (`monoH.FC`) na grade de meias horas, com o valor intermediário preso ao intervalo das duas âncoras vizinhas e o último slot por extrapolação linear. `to_semihourly` mantém só os slots com `interval_end` posterior a `available_until` e até o fim do último dia do bloco (O para o bloco O−1, O+8 para o bloco O). A emenda concatena os dois blocos por `interval_end`; nenhuma spline atravessa a fronteira entre eles.
+Cada bloco passa inteiro por `to_semihourly` com a regra `rf_semihourly_rule` e só depois é cortado. A regra recebe as 216 âncoras horárias e devolve 432 valores: uma spline monotônica (`monoH.FC`) na grade de meias horas, com o valor intermediário preso ao intervalo das duas âncoras vizinhas e o último slot por extrapolação linear. A média horária ocupa a primeira meia hora da hora (`interval_end` = âncora − 30 min); a segunda meia hora recebe o valor interpolado em direção à próxima hora. A regra é a do oráculo e não reescala o par: a média das duas meias horas não é igual ao valor horário previsto, diferente da `desagregaModeloSH` dos DESSEM. `to_semihourly` mantém só os slots com `interval_end` posterior a `available_until` e até o fim do último dia do bloco (O para o bloco O−1, O+8 para o bloco O). A emenda concatena os dois blocos por `interval_end`; nenhuma spline atravessa a fronteira entre eles.
 
 A saída tem de coincidir com `prevcarga_delivery_grid(cuts, 9)`, de `available_until` + 30 min até O+9 00:00. Com corte às 09:00, são 414 slots por área. Duplicata ou desalinhamento aborta com `plugin.output_misaligned`.
 
-<Figura id="FIG-M07" titulo="RF: duas origens nativas e a emenda do dia O" natureza="Linha do tempo" fontes={['models/random-forest/README.md', 'models/random-forest/R/inference.R', 'docs/estado/random_forest.md']} adrs={['ADR-0023']}>
+<Figura id="FIG-M07" titulo="RF: duas origens nativas e a emenda do dia O" natureza="Linha do tempo" fontes={['models/random-forest/README.md', 'models/random-forest/R/inference.R']} adrs={['ADR-0023']}>
 
 ```mermaid
 gantt
@@ -223,7 +222,7 @@ gantt
   section Bloco T = O (carga até O−1)
   Spline no bloco inteiro        :done, b2, 2024-10-02 00:00, 2024-10-11 00:00
   Entrega O+1 a O+8              :active, e2, 2024-10-02 00:00, 2024-10-10 00:00
-  O+9 descartado                 :crit, x2, 2024-10-10 00:00, 2024-10-11 00:00
+  O+9 não entregue (só apoia o spline) :crit, x2, 2024-10-10 00:00, 2024-10-11 00:00
   section Corte
   available_until                :milestone, m1, 2024-10-01 09:00, 0d
 ```

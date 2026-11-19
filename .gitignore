@@ -88,3 +88,29 @@ renv/staging/
 .claude/
 # instrucoes locais do Claude Code: fora do repositorio publico
 /CLAUDE.md
+
+# --- Docs internos da migracao e testes: ficam so locais (repo publico OSS) --
+# Os arquivos continuam no disco e seguem o write-through; nao sao versionados.
+/docs/estado/
+/docs/ESTADO-ATUAL.md
+/docs/adr/
+/docs/_archive/
+/docs/reference/
+/tests/
+/install/tests/
+/scripts/lib/tests/
+/models/*/tests/
+/scripts/lib/errors/ab.tsv
+/scripts/tools/gates/
+/scripts/tools/ab_*.R
+/scripts/tools/bench_forecast.R
+/scripts/tools/bundle_gates.R
+/scripts/tools/fixture_store.R
+/scripts/tools/plugin_gates.R
+/scripts/tools/plugin_golden.R
+/scripts/tools/plugin_parity.R
+/scripts/tools/prepare_windows_gate.sh
+/scripts/tools/receipts.R
+/scripts/tools/reconcile_golden.R
+/scripts/tools/reference_driver.R
+/scripts/tools/spike_r453.R

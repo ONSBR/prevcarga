@@ -1,7 +1,7 @@
 # _dessem-engine
 
 Motor DESSEM unico (ADR-0031/0012). Codigo nosso, refactor que preserva a saida: as primitivas
-`pkgfun_*` do oraculo `/opt/ons-source/prevcargadessem3/models/dessem-linear/vendor/` com os nomes
+`pkgfun_*` do oraculo `prevcargadessem3/models/dessem-linear/vendor/` com os nomes
 internos preservados e so o caminho serial de um modelo. Sem `run.yaml`: prefixo `_`, nao e
 descobrivel como modelo. Plugins (`dessem-linear`, `dessem-regdin`) declaram `engine = "_dessem-engine"`
 no descriptor e o loader da fundacao (`prevcarga_plugin_load`, `scripts/lib/registry.R`) monta um env do
@@ -158,7 +158,7 @@ partir da raiz). Tier `fast` = tudo menos as linhas `parity`; o tier `parity` en
 
 | teste | AC do epico | tier |
 |---|---|---|
-| test-engine-golden.R (unidades `engine` e `robustez` do golden isolado; CONTROL offset 0 e sem set.seed) | AC2 | parity (+ fast: units.yaml, golden.lock) |
+| test-engine-parity.R (golden isolado da v0.1.5; unidades `engine` e `robustez` do golden isolado; CONTROL offset 0 e sem set.seed) | AC2 | parity (+ fast: units.yaml, golden.lock) |
 | test-engine-dates.R (pc_grep_code + pc_grep_time_arith sem excecao, HVZ, tz) | AC3 | fast |
 | test-engine-isolation.R (duas instancias, globalenv intacto, CONTROL sem desagregaModeloSH) | AC1 | fast |
 | test-engine-robustez.R (modelo-vazio, clamp de cross, flag-12, cauda curta; kill-switches de ENV sem efeito) | AC16 (parte motor) | fast (+ unidades `robustez` no parity) |
@@ -174,7 +174,7 @@ e versionado. O oraculo roda no R 4.4.3 com a biblioteca que tem WeightSVM/e1071
 de um clone limpo do mesmo commit (o oraculo real tem arquivos nao rastreados que o preflight recusa):
 
 ```
-git clone --no-hardlinks /opt/ons-source/prevcargadessem3 <tmp>/oracle-clone
+git clone --no-hardlinks <repo-prevcargadessem3> <tmp>/oracle-clone
 export PATH=/opt/R/4.5.3/bin:$PATH
 Rscript --vanilla scripts/tools/plugin_golden.R --model _dessem-engine --units engine   --oracle <tmp>/oracle-clone --data data --rscript /opt/R/4.4.3/bin/Rscript
 Rscript --vanilla scripts/tools/plugin_golden.R --model _dessem-engine --units robustez --oracle <tmp>/oracle-clone --data data --rscript /opt/R/4.4.3/bin/Rscript
@@ -201,6 +201,4 @@ paralelismo (`pkgfun_paralelismo.R`, `mclapply`), self-location (`_load_engine.R
 ## Testes
 
 `Rscript --vanilla -e 'testthat::test_dir("models/_dessem-engine/tests/testthat", stop_on_failure=TRUE)'`
-(a partir da raiz do repo; R 4.5.3). `test-engine-golden.R` roda o oraculo em processo filho (R 4.4.3) e
-confere `max|delta Carga| <= 1e-5` MW em `processaModelosDMPerfil` e `desagregaModeloSH`; e pulado se o oraculo
-estiver ausente.
+(a partir da raiz do repo; R 4.5.3). `test-engine-parity.R` (tier parity) confere `max|delta Carga| <= 1e-5` MW em `processaModelosDMPerfil` e `desagregaModeloSH` contra o golden da tag v0.1.5 (ADR-0041); a comparacao direta com o oraculo saiu.

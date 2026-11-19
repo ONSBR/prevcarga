@@ -13,7 +13,6 @@ fontes:
   - scripts/tools/export_error_catalog.R
   - models/*/run.yaml
   - models/_dessem-engine/R/engine.R
-  - docs/estado/m1-fundacao.md
 adrs: [ADR-0010, ADR-0022, ADR-0040]
 revisado_em: 2026-11-05
 commit_base: "fb28da6"
@@ -32,7 +31,7 @@ A carga tem duas fases, sempre nesta ordem.
 
 O cabeçalho da maioria dos arquivos declara numa linha `Requer ...` os módulos que precisam estar carregados antes (`banner.R`, `errors.R` e `features.R` não têm essa linha). Nenhum módulo de domínio faz `source()` de outro. Fora da fachada há só duas cargas. A primeira é `prevcarga_worker_init` de `training.R`: com `--jobs` maior que 1, o treino e o backtest abrem workers PSOCK, e cada worker, um R novo, carrega uma lista fixa de módulos (a do treino ou a da orquestração) e fixa o runtime. A segunda é o loader de plugins de `registry.R`, que carrega o `R/` de cada plugin, e o do motor encadeado quando há, em ambiente isolado.
 
-Há 20 verbos com arquivo em `scripts/lib/cli/`. A lista `prevcarga_verbs_planned` em `cli.R` registra 13 verbos com o dono de cada um; um verbo planejado sem arquivo vira o stub `todo.not_implemented`. Os 13 têm arquivo, então nenhum stub dispara. A mecânica completa está em [Fachada da CLI e ciclo de um comando](/arquitetura/fachada-cli) e em [Barrel por descoberta](/arquitetura/barrel-descoberta).
+Há 21 verbos com arquivo em `scripts/lib/cli/`. A lista `prevcarga_verbs_planned` em `cli.R` registra 13 verbos com o dono de cada um; um verbo planejado sem arquivo vira o stub `todo.not_implemented`. Os 13 têm arquivo, então nenhum stub dispara. A mecânica completa está em [Fachada da CLI e ciclo de um comando](/arquitetura/fachada-cli) e em [Barrel por descoberta](/arquitetura/barrel-descoberta).
 
 ## Módulos da fundação e seus consumidores
 
@@ -46,7 +45,7 @@ A fundação é o contrato que os módulos de domínio herdam: classes de erro e
 | `banner.R` | banner ASCII: nome, curva de carga de um dia com eixo de 0h a 24h, identidade e versão | shim | `cli.R` (ajuda, versão, chamada sem verbo e `doctor`; só com stdout em terminal, nunca com `--format json`) | [Fachada da CLI](/arquitetura/fachada-cli) |
 | `cli.R` + `cli/*.R` | descoberta de verbos, usage docopt gerado, despacho runtime-first, `prevcarga_emit()`; cada verbo é dono do seu arquivo | shim | ponto de entrada de todo comando | [Fachada da CLI](/arquitetura/fachada-cli) |
 | `introspect.R` | construtores e renderizadores de `doctor`, `status`, `models`, `areas` e `describe` | verbos | `cli/doctor.R`, `cli/status.R`, `cli/models.R`, `cli/areas.R`, `cli/describe.R` | [Diagnóstico e introspecção](/execucao/diagnostico) |
-| `topology.R` | `prevcarga_topology()`, `prevcarga_members()`, `prevcarga_model_spec()` sobre `config/topology.yaml` e `models/*/run.yaml` | verbos | 16 dos 20 verbos; `registry.R`, `provenance.R`, `dates.R`, `validation.R`, fachadas, combina, reconcile, orquestração | [Topologia e contrato por modelo](/arquitetura/topologia-run-yaml) |
+| `topology.R` | `prevcarga_topology()`, `prevcarga_members()`, `prevcarga_model_spec()` sobre `config/topology.yaml` e `models/*/run.yaml` | verbos | 16 dos 21 verbos; `registry.R`, `provenance.R`, `dates.R`, `validation.R`, fachadas, combina, reconcile, orquestração | [Topologia e contrato por modelo](/arquitetura/topologia-run-yaml) |
 | `schema_long.R` | `prevcarga_schema_long`: nome, ordem e tipo das 8 colunas; único par `interval_end` e `interval_start` | verbos | `evaluation.R`, `combination.R`, `build_long_output.R`, `reconcile.R`, `exports.R`, `verify_repro.R` | [Schema LONG](/arquitetura/schema-long) |
 | `provenance.R` | `prevcarga_version_hash()` (`v_` mais 16 hex sobre 8 chaves), run-manifest, `prevcarga_freeze()` e `prevcarga_thaw()` | verbos | `training.R`, `combination.R`, `reconcile.R`, `cache.R`, `exports.R`, `forecast.R`, `verify_repro.R`, despachante de plugins | [Proveniência e estado](/arquitetura/proveniencia-estado) |
 | `registry.R` | contrato Tier A, loader e despachantes de plugin, registry local e ciclo de vida | verbos | `training.R`, `inference.R`, `combination.R`, `reconcile.R`, `orchestrate.R`, `backtest.R`, `release_pack.R`, `cli/registry.R` | [Registry de artefatos](/arquitetura/registry) |

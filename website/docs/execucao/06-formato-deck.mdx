@@ -23,13 +23,9 @@ fontes:
   - config/deck-manifest.store.json
   - models/*/run.yaml
   - models/*/R/register.R
-  - docs/reference/DECK-CANONICO.md
-  - docs/estado/deck_reader.md
-  - docs/estado/validate_deck.md
-  - docs/estado/m2-leitor.md
 adrs: [ADR-0002, ADR-0004, ADR-0023, ADR-0024, ADR-0035, ADR-0037, ADR-0040]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "3970d3d"
 ---
 
 <span className="pc-overline">Execução · 3.6</span>
@@ -120,6 +116,8 @@ O manifest segue um schema fechado, versão 1. Uma chave que não está na tabel
 }
 ```
 
+`Etc/GMT+3` é UTC−3 fixo, o fuso declarado do deck. O store histórico, porém, está em relógio de parede BRT com horário de verão até 2019; lido como `Etc/GMT+3`, o `issue_time` do verão 2018-19 erra 1 hora.
+
 | Chave | Valores | Obrigatória quando | Erro se faltar ou estiver errada |
 |---|---|---|---|
 | `schema_version` | `1` | sempre | outro valor ou ausente: `contract.manifest_invalid` |
@@ -143,7 +141,7 @@ Dois pontos de uso:
 `timezone.dst_periods` é aceita só como chave de fuso. O dataset de horário de verão não é lido nem validado (ver [o fim desta página](#o-que-a-validação-não-confere)).
 
 <Pendente titulo="Pendente · valores do template">
-O template versionado `config/deck-manifest.store.json` traz rótulo `start`, fusos `Etc/GMT+3`, `issue_time` em `UTC` e atraso de 6 horas. Esses valores ainda aguardam confirmação. Declare no manifest do seu deck o que vale para o seu dado.
+O template versionado `config/deck-manifest.store.json` traz rótulo `start`, fusos `Etc/GMT+3` (o store histórico está em relógio de parede BRT com horário de verão até 2019, então no verão 2018-19 o `issue_time` lido como `Etc/GMT+3` erra 1 hora), `issue_time` em `UTC` e atraso de 6 horas. Esses valores ainda aguardam confirmação. Declare no manifest do seu deck o que vale para o seu dado.
 </Pendente>
 
 ## Colunas e tipos por dataset
@@ -170,10 +168,12 @@ A sonda lê o schema do primeiro parquet legível de cada dataset. Grave todas a
 
 | Coluna | Tipo | Obrigatória | Nota |
 |---|---|---|---|
-| `issue_time` | `timestamp`, sem fuso | sim | instante de emissão. Guarde o instante real de cada rodada de previsão, não só a data |
+| `issue_time` | `timestamp`, sem fuso | sim | instante de emissão: `dat_referencia` 00:00 UTC do TEMPPREVHIST, e não o `din_origemprevisaoutc`, que de 2018-12-23 a 2021-03-27 está um dia adiantado (824 emissões de SP). Guarde o instante real de cada rodada de previsão, não só a data |
 | `valid_time` | `timestamp`, sem fuso | sim | instante a que a previsão se refere |
 | `temperature` | `double` | sim | °C |
 | `heat_index` | `double` | não | conferida por tipo se existir; nenhum modelo lê |
+
+Cada dia do clima previsto, até O+9, precisa dos 48 instantes de 30 minutos (00:00 a 23:30), sem tolerância para o 23:30. Faltando instantes, o horizonte dos membros que dependem do clima é cortado no último dia coberto, com o aviso classificado `forecast_weather_horizon_cut`, e o dia incompleto não é entregue.
 
 Guarde todas as emissões, uma linha por (`issue_time`, `valid_time`). O leitor escolhe, para cada `valid_time`, a emissão mais recente permitida pelo limite de emissão. RF, LGBM e os dois DESSEM também usam o clima previsto nas origens de treino (`weather_forecast_in_train` no descriptor de cada plugin), então as emissões antigas não podem ser descartadas.
 
@@ -268,7 +268,7 @@ O `climate_after_cut` não reprova: o leitor já descarta a emissão tardia. Ele
 
 ### O que a validação não confere
 
-A validação não confere se o clima previsto tem todas as emissões esperadas, se ele cobre o horizonte inteiro, nem se os feriados cobrem o horizonte. Também não reprova temperatura ou código de feriado nulos. Esses casos chegam aos modelos, e cada um trata ou reprova no próprio contrato (ver [Dados de entrada](/metodologia/dados-de-entrada)). Os modelos também leem esses dados fora do horizonte (ver a matriz por modelo em [Dados de entrada](/metodologia/dados-de-entrada)). Por isso, para cada área com carga, monte:
+A validação não confere se o clima previsto tem todas as emissões esperadas, se ele cobre o horizonte inteiro (os 48 instantes de cada dia até O+9 23:30; o que falta corta o horizonte na previsão, com aviso), nem se os feriados cobrem o horizonte. Também não reprova temperatura ou código de feriado nulos. Esses casos chegam aos modelos, e cada um trata ou reprova no próprio contrato (ver [Dados de entrada](/metodologia/dados-de-entrada)). Os modelos também leem esses dados fora do horizonte (ver a matriz por modelo em [Dados de entrada](/metodologia/dados-de-entrada)). Por isso, para cada área com carga, monte:
 
 - o clima observado e o calendário de feriados em todo o histórico da carga;
 - o clima previsto, com todas as emissões, desde o início do histórico de treino até O+9 dias. Nove dias é o maior `horizon_days` entre os `run.yaml` (RF e DESSEM). RF, LGBM e os dois DESSEM usam as emissões passadas nas origens de treino;

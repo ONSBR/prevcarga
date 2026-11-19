@@ -5,3 +5,4 @@ contract.member_misaligned	contract	membro desalinhado com a grade comum	alinhe 
 contract.combina_artifact_mismatch	contract	artefato de pesos de outro conjunto de membros, load_label ou fuso	re-treine com --mode=train para o conjunto atual ou aponte --artifact-dir para o artefato certo
 state.combina_not_trained	state	nao ha pesos treinados para a area	rode `prevcarga combine --mode=train --area=<a> --root=<dir>` antes de --mode=apply
 config.bad_mode	config	--mode desconhecido	use --mode=train, --mode=apply ou --mode=full
+warning.combina_eqw	completude	sem pesos treinados para a area; combinacao pela media simples dos membros	treine a combina com `prevcarga combine --mode=train --area=<a> --root=<dir>` (retreino mensal); nenhuma acao para esta rodada

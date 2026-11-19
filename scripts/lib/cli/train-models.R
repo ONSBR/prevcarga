@@ -34,7 +34,16 @@
   c(sprintf("train-models origin=%s dry_run=%s cells=%d", res$origin, tolower(as.character(res$dry_run)), length(res$cells)),
     vapply(res$cells, function(r)
       sprintf("%-8s %-14s %-6s %-14s %s %s", r$status, r$model, if (is.null(r$variant)) "-" else r$variant, r$area,
-              r$version, r$path), ""))
+              if (is.null(r$version)) "-" else r$version,
+              if (identical(r$status, "failed")) r$error_id else if (is.null(r$path)) "-" else r$path), ""))
+}
+
+## stderr (ASCII): uma linha por celula falha, como as linhas de falha do backtest.
+.prevcarga_tm_failure_lines <- function(out) {
+  f <- out[out$status == "failed", , drop = FALSE]
+  vapply(seq_len(nrow(f)), function(i)
+    sprintf("falha %s%s %s %s: %s", f$model[[i]], if (is.na(f$variant[[i]])) "" else paste0("/", f$variant[[i]]),
+            f$area[[i]], f$error_id[[i]], gsub("[\r\n]+", " ", f$mensagem[[i]])), "")
 }
 
 cmd_train_models <- function(ctx, args) {
@@ -51,17 +60,31 @@ cmd_train_models <- function(ctx, args) {
   rc <- prevcarga_resolve_cuts(ctx, origin)
   dry <- isTRUE(args[["--dry-run"]])
   out <- if (dry) prevcarga_train_plan(cells, origin, ctx)
-         else prevcarga_train_models(cells, ctx, origin = origin, jobs = jobs, force = isTRUE(args[["--force"]]))
+         else prevcarga_train_models(cells, ctx, origin = origin, jobs = jobs, force = isTRUE(args[["--force"]]),
+                                      keep_going = isTRUE(args[["--keep-going"]]))
   res <- list(schema_version = 1L, dry_run = dry, origin = format(origin, "%Y-%m-%d"),
               available_until = .prevcarga_tm_iso(rc$available_until), load_label = rc$load_label,
               weather_issue_cutoff = ctx$weather_issue_cutoff, cells = .prevcarga_tm_records(out))
+  if (!dry) {
+    st <- out$status
+    res$summary <- list(total = nrow(out), trained = sum(st == "trained"), reused = sum(st == "reused"),
+                        failed = sum(st == "failed"), skipped = sum(st == "skipped"))
+    if (res$summary$failed > 0L) {
+      if (!identical(ctx$format, "json")) {   # o erro nao passa pelo render de texto do resultado: lista as celulas aqui
+        writeLines(iconv(.prevcarga_tm_text(res), "UTF-8", "ASCII", sub = "?"), con = stdout())
+        writeLines(iconv(.prevcarga_tm_failure_lines(out), "UTF-8", "ASCII", sub = "?"), con = stderr())
+      }
+      prevcarga_abort("partial.train_models_delivery",
+                      where = sprintf("failed=%d/%d", res$summary$failed, res$summary$total), result = res)
+    }
+  }
   if (identical(ctx$format, "json")) res else .prevcarga_tm_text(res)
 }
 
 prevcarga_verb_train_models <- list(
   name    = "train-models",
   usage   = paste("prevcarga train-models [--model=<m>] [--area=<a>] [--subsistema=<s>] [--areas=<a,b>]",
-                  "[--origin=<data>] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force]"),
+                  "[--origin=<data>] [--horizon=<h>] [--exogena=<e>] [--dry-run] [--jobs=<n>] [--force] [--keep-going]"),
   ## --model/--area/--origin ja constam no bloco Options global / de validate-deck (duplicata torna o docopt ambiguo)
   options = c(
     "--subsistema=<s>        Treina as folhas-filhas do subsistema (exclusivo com --area/--areas)",
@@ -71,7 +94,7 @@ prevcarga_verb_train_models <- list(
     "--dry-run               Emite a matriz (cortes e versao-alvo) sem gravar nada",
     "--jobs=<n>              Workers PSOCK (padrao 1; sem fork)",
     "--force                 Retreina mesmo se a versao v_<hash> ja existe"),
-  scoped  = c("--horizon", "--exogena"),   # so train-models; nos demais verbos => config.usage (cli.R .prevcarga_check_scoped)
+  scoped  = c("--horizon", "--exogena", "--keep-going"),   # so train-models; nos demais verbos => config.usage (cli.R .prevcarga_check_scoped)
   handler = function(ctx, args) cmd_train_models(ctx, args),
   owner   = "M5",
   exempt  = FALSE,

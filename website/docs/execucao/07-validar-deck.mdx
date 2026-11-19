@@ -20,12 +20,9 @@ fontes:
   - config/topology.yaml
   - config/config.yaml
   - config/deck-manifest.store.json
-  - docs/estado/validate_deck.md
-  - docs/estado/m2-leitor.md
-  - docs/estado/deck_reader.md
 adrs: [ADR-0040, ADR-0023, ADR-0024]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Execução · 3.7</span>
@@ -132,7 +129,7 @@ Cada finding tem uma classe. Os avisos (`level` = `warning`) nunca reprovam. Se 
 
 | Exit | Classe | Exemplos de `what` | O que fazer |
 |---|---|---|---|
-| 0 | `ok` | só avisos (`outlier`, `flatline`, `climate_after_cut`) | Pode rodar. Confira os avisos. |
+| 0 | `ok` | só avisos (`outlier`, `flatline`, `climate_after_cut`, `temperature_jump`, `weather_non_leaf`, `weather_forecast_coverage`) | Pode rodar. Confira os avisos. |
 | 2 | `contract` | `load_nonpositive`, `duplicate_interval`, `grid_off`, `type_mismatch`, `hive_layout`, `manifest_missing`, `load_label_conflict`, `dataset_missing` | O deck viola o contrato de entrada. Corrija o store. |
 | 3 | `completude` | `day_incomplete` | Algum dia do histórico relevante não tem os 48 intervalos. O sistema não preenche buraco. |
 | 4 | `topology` | `area_undeclared`, `scope_undeclared` | Área do deck fora da topologia, ou `--area`/`--model` fora dela. |
@@ -145,9 +142,24 @@ O exit 8 não é um finding. Erros das classes `config` e `runtime` sobem direto
 Um deck pode ter erros de várias classes ao mesmo tempo. O exit mostra só a dominante. Corrigir o erro de `contract` pode revelar um exit 3 ou 5 que já estava na tabela. Leia a tabela inteira, não só o exit. Há um caso em que a tabela não mostra tudo: se o defeito de contrato impede ler a carga (dataset `load` ausente, coluna obrigatória faltando, manifest ou rótulo inválido), as checagens de completude e de janela nem rodam.
 :::
 
+### Avisos que não reprovam
+
+Os avisos entram em `warnings` do envelope (no texto, em stderr) e nunca mudam o exit. Estes são os de sanidade e de cobertura do clima:
+
+| Aviso | Quando |
+|---|---|
+| `warning.outlier` | Intervalo de carga que desvia mais de 30% da mediana dos vizinhos e do mesmo horário em ±7 dias |
+| `warning.flatline` | Carga idêntica por 6 ou mais intervalos seguidos |
+| `warning.temperature_jump` | Temperatura que varia mais de 10 °C entre horas consecutivas, pareadas por diferença de tempo de 1 hora |
+| `warning.weather_non_leaf` | Clima gravado numa área que não é folha da topologia (subsistema ou perda); o clima é lido só nas folhas |
+| `warning.weather_forecast_coverage` | O clima previsto da emissão usada não cobre os 48 instantes de cada dia de O até O+H, onde H é o maior horizonte do escopo (só folhas). O detail diz até que data há clima e qual é o alvo (O+9 para os membros de 9 dias) |
+| `warning.climate_after_cut` | O deck tem emissão de clima do dia O depois do limite de emissão; o leitor já a exclui |
+
+O aviso de cobertura não bloqueia nada: na rodada, o clima curto corta o horizonte dos membros que dependem dele (ver [Rodada diária](/execucao/rodada-diaria)). Rode o `validate-deck` com a origem da rodada para saber antes se o clima chega a O+9.
+
 ### Na rodada diária
 
-`prevcarga forecast` chama a mesma função de validação (`prevcarga_validate_deck`) antes de planejar. Um veredito reprovado encerra a rodada com o primeiro erro da classe dominante, pela mesma regra deste verbo. `--skip-validate` pula só a validação: os cortes (`available_until`, a regra do clima e o fuso) continuam vindo do leitor. Ver [Rodada diária](/execucao/rodada-diaria).
+`prevcarga forecast` chama a mesma função de validação (`prevcarga_validate_deck`) antes de planejar. Um veredito reprovado encerra a rodada com o primeiro erro da classe dominante, pela mesma regra deste verbo. `--skip-validate` pula só a validação: os cortes (`available_until`, a regra do clima e o fuso) continuam vindo do leitor. O gate-0 da rodada reprova só os erros; os avisos acima (inclusive a cobertura do clima até O+9) passam para o envelope do `forecast`. Ver [Rodada diária](/execucao/rodada-diaria).
 
 ## Lendo os findings: um exemplo no store real
 

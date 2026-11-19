@@ -27,11 +27,9 @@ fontes:
   - scripts/lib/errors/deck_reader.tsv
   - install/install.sh
   - install/install.ps1
-  - docs/estado/config.md
-  - docs/estado/deck_reader.md
 adrs: [ADR-0037, ADR-0035, ADR-0024, ADR-0040]
-revisado_em: 2026-11-05
-commit_base: "fb28da6"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Execução · 3.3</span>
@@ -51,6 +49,8 @@ Esta página é a referência prática. O porquê da precedência e o desenho do
 
 O instalador grava o `config.yaml` da instalação. Na primeira instalação ele escreve `schema_version: 1`, `format: text`, `color: auto`, `data_dir` (se `--data` foi passado) e `state_dir` (o `--state`, ou `<R>/state`). Num upgrade, ele preserva as chaves que já existem e só regrava `data_dir` e `state_dir`. Os detalhes estão em [Instalação](/execucao/instalacao).
 
+Depois da instalação, `prevcarga set-data-dir <dir>` grava ou troca o `data_dir` nesse mesmo arquivo (ou no de `--config`). O diretório tem de existir, o caminho vai absoluto e entre aspas simples, e as outras linhas do arquivo ficam como estavam. É o único verbo que escreve no `config.yaml`.
+
 ### Chaves e defaults
 
 O schema é fechado. Estas são as únicas chaves aceitas, e qualquer outra aborta com `config.unknown_key`.
@@ -69,7 +69,7 @@ O schema é fechado. Estas são as únicas chaves aceitas, e qualquer outra abor
 Observações de cada chave:
 
 - **`schema_version`** é obrigatório. Ausente ou diferente de `1` aborta com `config.bad_type`.
-- **`data_dir`** não tem default. Um verbo que lê o deck sem `data_dir` nem `--data` aborta com `config.data_dir_missing`.
+- **`data_dir`** não tem default. Um verbo que lê o deck sem `data_dir` nem `--data` aborta com `config.data_dir_missing`. Para gravá-lo, `prevcarga set-data-dir <dir>`.
 - **`state_dir`** só é resolvido como caminho, nunca criado pela leitura da configuração.
 - **`load_label`** tem uma precedência própria, resolvida pelo leitor do deck: `manifest.json` acima de `--load-label`, acima do `config.yaml`, e `end` por último. Se o manifest declara um valor e a flag diz outro, o leitor aborta com `contract.load_label_conflict` (exit 2). O efeito do rótulo está em [Tempo: rótulo da carga, fusos e ajuste de hora](/metodologia/tempo-rotulo-fusos).
 - **`weather_issue_cutoff`** escolhe a regra do clima previsto (ADR-0024). Com `available_until`, a emissão só entra se `issue_time` for no máximo `available_until` menos o atraso de publicação do manifest. Com `origin_midnight_utc`, o limite é 00:00 UTC do dia O, sem atraso.
@@ -147,6 +147,8 @@ O template do store está versionado em `config/deck-manifest.store.json`:
   "weather_forecast_publication_lag_hours": 6
 }
 ```
+
+O histórico do store é relógio de parede de Brasília, com horário de verão até 2019. Ele é lido como `Etc/GMT+3`, o que está certo fora do verão; no verão 2018-19 o `issue_time` do clima previsto fica 1 hora errado. O `load_label` do template é `start`; um store novo cujo rótulo é o fim do intervalo declara `end` no próprio `manifest.json`, e é o manifest que vale.
 
 <Pendente titulo="Pendente · manifest do store real">O store local ainda não tem um <code>manifest.json</code>. Os valores do template (<code>load_label: start</code>, <code>Etc/GMT+3</code>, <code>issue_time</code> em UTC, atraso de 6 horas) estão marcados como a confirmar e nada foi gravado no store real.</Pendente>
 

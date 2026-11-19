@@ -266,7 +266,8 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   faltam <- topo$leaves[vapply(rows, function(r) is.null(r) || !nrow(r), NA)]
   if (length(faltam))
     return(list(long = NULL, incompleto = data.table::data.table(
-      origem = origem, corte_hm = corte, available_until = available_until, folhas_faltando = list(faltam))))
+      origem = origem, corte_hm = corte, available_until = available_until,
+      error_id = "completude.leaf_missing", folhas_faltando = list(faltam))))
   w <- .bt_window_days(ctx)
   if (is.null(truth_fn))
     truth_fn <- function(areas) prevcarga_read_load(rctx, areas = areas, from = origem - w, to = origem - 1L)
@@ -361,7 +362,7 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
     combined = if (is.null(com)) data.frame() else .bt_scorecard(rctx, com, c("corte_hm", "d_plus", "area"), kinds),
     sin = if (is.null(rec)) data.frame() else .bt_scorecard(rctx, rec, c("corte_hm", "d_plus", "area"), kinds))
   sc$peak_fixed_18_22 <- if (nrow(sc$sin)) data.frame(sc$sin[c("corte_hm", "area", "d_plus")], wmape = sc$sin$peak,
-                                                      bias_signed = sc$sin$bias) else data.frame()
+                                                      mape = sc$sin$peak_mape, bias_signed = sc$sin$bias) else data.frame()
   sin <- if (is.null(rec)) NULL else rec[rec$area == "SIN", ]
   ok <- if (is.null(sin)) logical() else is.finite(sin$y_true) & is.finite(sin$y_pred)
   sub_sum <- if (is.null(rec)) numeric() else {
@@ -370,6 +371,7 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
                 paste(s$forecast_origin, as.numeric(s$target_datetime)))]
   }
   sc$sin_fresh <- list(wmape = if (any(ok)) prevcarga_wmape(sin$y_true[ok], sin$y_pred[ok]) else NA_real_,
+                       mape = if (any(ok)) prevcarga_mape(sin$y_true[ok], sin$y_pred[ok]) else NA_real_,
                        sum_check = if (length(sub_sum)) max(abs(sin$y_pred - sub_sum), 0) else NA_real_)
   sc$awaiting_truth <- .bt_awaiting(plan, origins, rec, com, mem)
   sc$by_available_until <- TRUE
@@ -468,7 +470,8 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
 ## Completa o resumo do MAP: incompleto, fallback_months, falhas de reconcile, cache e o veredito (partial se falha ou incompleto).
 .bt_merge_summary <- function(ctx, s, red) {
   empty_inc <- data.table::data.table(origem = lubridate::ymd(character()), corte_hm = character(),
-                                      available_until = lubridate::ymd_hms(character(), tz = "UTC"), folhas_faltando = list())
+                                      available_until = lubridate::ymd_hms(character(), tz = "UTC"),
+                                      error_id = character(), folhas_faltando = list())
   s$incompleto <- if (is.null(red$incompleto) || !nrow(red$incompleto)) empty_inc else red$incompleto
   s$fallback_months <- if (is.null(red$fallback)) data.table::data.table(folha = character(), corte_hm = character(), mes = character())
                        else red$fallback

@@ -10,13 +10,20 @@
 ## contada ate o `last_data_day` de cada membro (O-1, ou O-3 no LGBM via `data_lag_days`) e janela de
 ## INFERENCIA ate O-1, como findings distintos; historicos vem do `run.yaml` (`history_days`).
 ## Classes (ADR-0040): contract, completude, topology, window; avisos (level warning) nao reprovam.
+## O salto de temperatura (> 10 C entre horas consecutivas, observado por area e previsto por emissao) e so aviso;
+## a faixa fisica (temperature_out_of_range) segue erro contract.
+## O outlier de carga e LOCAL (vizinhos +-2 e mesmo horario em +-7 dias, desvio > 30% nos dois), so aviso.
 ## Requer errors.R, topology.R, config.R, deck_reader.R e dates.R carregados antes. Saida: ASCII puro.
 
 ## --- 1. Vocabulario do veredito -----------------------------------------------------------------------
-prevcarga_temp_range_c <- c(-10, 50)
-prevcarga_iqr_k <- 1.5
-prevcarga_z_max <- 3.0
+prevcarga_temp_range_c <- c(-10, 50)   # faixa fisica: ERRO contract (exit 2)
+prevcarga_temp_jump_c <- 10            # V2: |T(t+1h) - T(t)| > 10 C => aviso temperature_jump
 prevcarga_flatline_min_slots <- 6L
+## V1 outlier local: +-neigh intervalos vizinhos (sem x) e mesmo interval_start em d+-1..k dias
+prevcarga_outlier_neigh_slots <- 2L
+prevcarga_outlier_days_k <- 7L
+prevcarga_outlier_rel <- 0.30
+prevcarga_outlier_min_days <- 3L
 
 .pc_empty_findings <- function() {
   data.table::data.table(area = character(), dataset = character(), what = character(), detail = character(),
@@ -157,14 +164,24 @@ prevcarga_flatline_min_slots <- 6L
   topo <- .prevcarga_capture(prevcarga_topology(path = tp), "scope", acc)
   if (is.null(topo$value)) {
     acc$add(topo$finding)
-    return(list(areas = character(), models = character(), models_cuts = NULL))
+    return(list(areas = character(), models = character(), models_cuts = NULL, leaves = character()))
   }
   subs <- topo$value$subsystems
   declared <- unique(c(topo$value$leaves, names(subs), vapply(subs, function(s) s$loss, "")))
   pa <- .pc_present_areas(probe)
-  present <- if (is.null(pa) || !nrow(pa)) character() else sort(unique(pa$area), method = "radix")
+  present <- if (is.null(pa) || !nrow(pa)) character() else sort(unique(pa$area))
   for (a in setdiff(present, declared)) {
     acc$add(.pc_finding(a, pa$dataset[pa$area == a][[1L]], "area_undeclared", a, "topology", where = a))
+  }
+  leaves <- topo$value$leaves
+  wx <- if (is.null(pa)) pa else pa[pa$dataset %in% c("weather_observed", "weather_forecast") &
+                                    pa$area %in% declared & !pa$area %in% leaves]
+  if (!is.null(wx) && nrow(wx)) {
+    data.table::setorderv(wx, c("area", "dataset"))
+    for (i in seq_len(nrow(wx)))
+      acc$add(.pc_finding(wx$area[i], wx$dataset[i], "weather_non_leaf",
+        sprintf("%s nao e folha (subsistema ou perda)", wx$area[i]), "topology", level = "warning",
+        where = sprintf("%s/area_code=%s", .PREVCARGA_DECK_DATASETS[[wx$dataset[i]]], wx$area[i])))
   }
   areas <- if (is.null(scope$area)) intersect(present, declared) else {
     keep <- character()
@@ -176,7 +193,7 @@ prevcarga_flatline_min_slots <- 6L
     }
     unique(keep)
   }
-  areas <- sort(areas, method = "radix")
+  areas <- sort(areas)
 
   mem <- .prevcarga_capture(prevcarga_members(path = tp, root = ctx$root), "scope", acc)
   acc$add(mem$finding)
@@ -189,7 +206,7 @@ prevcarga_flatline_min_slots <- 6L
     models <- intersect(scope$model, all_m)
     mc <- if (length(models)) models else NULL
   }
-  list(areas = areas, models = models, models_cuts = mc)
+  list(areas = areas, models = models, models_cuts = mc, leaves = leaves)
 }
 
 ## --- 4/7. Intervalo relevante e janelas ---------------------------------------------------------------
@@ -258,6 +275,24 @@ prevcarga_flatline_min_slots <- 6L
   }))
 }
 
+.prevcarga_check_temperature_jump <- function(w, dataset) {
+  if (is.null(w) || !nrow(w) || !"temperature" %in% names(w)) return(NULL)
+  by <- if (dataset == "weather_forecast") c("area_code", "issue_time") else "area_code"
+  a <- w[!is.na(temperature), c(by, "valid_time", "temperature"), with = FALSE]
+  ## pareamento por diferenca de tempo (3600 s), sem deslocar a coluna valid_time (m2_load_shift)
+  a[, t_s := as.numeric(valid_time)]
+  b <- data.table::copy(a)[, t_s := t_s - 3600]
+  p <- a[b, on = c(by, "t_s"), nomatch = NULL][, dT := i.temperature - temperature]
+  bad <- p[abs(dT) > prevcarga_temp_jump_c]
+  data.table::setorderv(bad, c("area_code", "valid_time"))
+  .pc_findings_bind(lapply(unique(bad$area_code), function(ar) {
+    x <- bad[bad$area_code == ar]
+    .pc_finding(ar, dataset, "temperature_jump", sprintf("%d pares; primeiro: %s (%+.1f C)", nrow(x),
+      format(x$valid_time[1L], "%Y-%m-%d %H:%M"), x$dT[1L]), "contract", level = "warning",
+      where = paste0(dataset, ".temperature"))
+  }))
+}
+
 .prevcarga_check_holiday_codes <- function(h) {
   if (is.null(h) || !nrow(h)) return(NULL)
   out <- list()
@@ -275,12 +310,29 @@ prevcarga_flatline_min_slots <- 6L
 }
 
 ## --- 6. Avisos heuristicos --------------------------------------------------------------------------------
-.prevcarga_outlier_flat <- function(x) {
-  q <- stats::quantile(x, c(.25, .75), na.rm = TRUE, names = FALSE); iqr <- q[[2L]] - q[[1L]]
-  z <- (x - mean(x, na.rm = TRUE)) / stats::sd(x, na.rm = TRUE)
-  out <- (x < q[[1L]] - prevcarga_iqr_k * iqr | x > q[[2L]] + prevcarga_iqr_k * iqr) & abs(z) > prevcarga_z_max
+## Outlier LOCAL (so aviso): x desvia mais de `prevcarga_outlier_rel` da mediana dos vizinhos (+-neigh, sem x) E da
+## mediana do mesmo interval_start em d+-1..k dias (lookup por igualdade de instante). So avalia x com >= min_days
+## referencias de dia. Entrada: data.table de UMA area, ordenada, sem NA/duplicata. Saida: posicoes marcadas.
+.prevcarga_outlier_local <- function(s) {
+  x <- s$load_mwh; n <- length(x); k <- prevcarga_outlier_neigh_slots
+  if (n < 2L) return(integer(0))
+  ref_viz <- vapply(seq_len(n), function(i) {
+    j <- setdiff(max(1L, i - k):min(n, i + k), i); stats::median(x[j])
+  }, numeric(1))
+  off <- c(-(prevcarga_outlier_days_k:1L), 1:prevcarga_outlier_days_k)
+  refs <- data.table::rbindlist(lapply(off, function(o)
+    data.table::data.table(i = seq_len(n), t = s$interval_start + lubridate::days(o))))
+  base <- data.table::data.table(t = s$interval_start, ld = x)
+  refs <- base[refs, on = "t", nomatch = NULL][, list(ref = stats::median(ld), nd = .N), by = "i"]
+  ref_dia <- rep(NA_real_, n); nd <- integer(n)
+  ref_dia[refs$i] <- refs$ref; nd[refs$i] <- refs$nd
+  rel <- prevcarga_outlier_rel
+  which(nd >= prevcarga_outlier_min_days & abs(x / ref_viz - 1) > rel & abs(x / ref_dia - 1) > rel)
+}
+
+.prevcarga_flatline <- function(x) {
   r <- rle(x)
-  list(outlier = which(out), flatline = any(r$lengths >= prevcarga_flatline_min_slots, na.rm = TRUE))
+  any(r$lengths >= prevcarga_flatline_min_slots, na.rm = TRUE)
 }
 
 .prevcarga_check_heuristics <- function(load) {
@@ -291,11 +343,11 @@ prevcarga_flatline_min_slots <- 6L
   for (a in unique(v$area_code)) {
     s <- v[v$area_code == a]
     if (nrow(s) < 2L) next
-    r <- .prevcarga_outlier_flat(s$load_mwh)
-    if (length(r$outlier))
-      out[[length(out) + 1L]] <- .pc_finding(a, "load", "outlier", sprintf("%d intervalos; primeiro: %s", length(r$outlier),
-        format(s$interval_start[r$outlier[1L]], "%Y-%m-%d %H:%M")), "contract", level = "warning", where = "load")
-    if (r$flatline)
+    idx <- .prevcarga_outlier_local(s)
+    if (length(idx))
+      out[[length(out) + 1L]] <- .pc_finding(a, "load", "outlier", sprintf("%d intervalos; primeiro: %s", length(idx),
+        format(s$interval_start[idx[1L]], "%Y-%m-%d %H:%M")), "contract", level = "warning", where = "load")
+    if (.prevcarga_flatline(s$load_mwh))
       out[[length(out) + 1L]] <- .pc_finding(a, "load", "flatline", sprintf(">= %d intervalos identicos", prevcarga_flatline_min_slots),
                                              "contract", level = "warning", where = "load")
   }
@@ -337,8 +389,25 @@ prevcarga_flatline_min_slots <- 6L
   .pc_findings_bind(out)
 }
 
+## Cobertura do clima previsto ate O+H (H = maior horizonte do escopo; so folhas). Le com origin = O, como a inferencia
+## (weather_issue_limit + emissao mais fresca), e aplica o predicado unico prevcarga_forecast_coverage_end.
+.prevcarga_check_forecast_coverage <- function(ctx, cv, leaves, cuts, acc) {
+  if (!nrow(cuts) || !length(leaves)) return(NULL)
+  O <- cv$forecast_origin; H <- max(cuts$horizon_days); alvo <- O + H
+  fc <- .pc_read(prevcarga_read_weather(ctx, "forecast", leaves, from = O, to = alvo, origin = O),
+                 "weather_forecast", acc)
+  if (is.null(fc)) return(NULL)
+  ce <- prevcarga_forecast_coverage_end(fc, O, cv$tz)
+  end <- ce$coverage_end[match(leaves, ce$area_code)]
+  .pc_findings_bind(lapply(which(is.na(end) | end < alvo), function(i)
+    .pc_finding(leaves[i], "weather_forecast", "weather_forecast_coverage",
+      if (is.na(end[i])) sprintf("sem clima previsto; alvo %s", format(alvo))
+      else sprintf("clima previsto ate %s; alvo %s", format(end[i]), format(alvo)),
+      "completude", level = "warning", where = "weather_forecast.valid_time")))
+}
+
 ## --- Checagens que leem dados (apos cortes) ---------------------------------------------------------------------
-.prevcarga_check_data <- function(ctx, cv, areas, models, bad, acc) {
+.prevcarga_check_data <- function(ctx, cv, areas, models, bad, acc, leaves = character()) {
   O <- cv$forecast_origin; tz <- cv$tz
   cuts <- cv$cuts[cv$cuts$model %in% models, ]
   from <- if (nrow(cuts)) .prevcarga_relevant_from(cuts, O, ctx$root) else O - 1L
@@ -352,15 +421,19 @@ prevcarga_flatline_min_slots <- 6L
       acc$add(.prevcarga_check_heuristics(load))
     }
   }
-  if (!"weather_observed" %in% bad)
-    acc$add(.prevcarga_check_temperature(.pc_read(prevcarga_read_weather(ctx, "observed", areas, from, O),
-                                                  "weather_observed", acc), "weather_observed"))
+  if (!"weather_observed" %in% bad) {
+    wo <- .pc_read(prevcarga_read_weather(ctx, "observed", areas, from, O), "weather_observed", acc)
+    acc$add(.prevcarga_check_temperature(wo, "weather_observed"))
+    acc$add(.prevcarga_check_temperature_jump(wo, "weather_observed"))
+  }
   if (!"weather_forecast" %in% bad) {
     hmax <- if (nrow(cuts)) max(cuts$horizon_days) else 0L
-    acc$add(.prevcarga_check_temperature(.pc_read(prevcarga_read_weather(ctx, "forecast", areas, O, O + hmax),
-                                                  "weather_forecast", acc), "weather_forecast"))
+    wf <- .pc_read(prevcarga_read_weather(ctx, "forecast", areas, O, O + hmax), "weather_forecast", acc)
+    acc$add(.prevcarga_check_temperature(wf, "weather_forecast"))
+    acc$add(.prevcarga_check_temperature_jump(wf, "weather_forecast"))
     raw <- .pc_read(prevcarga_read_weather(ctx, "forecast", areas, O, O), "weather_forecast", acc)
     acc$add(.prevcarga_check_climate_cut(raw, cv$weather_issue_limit, O, tz))
+    acc$add(.prevcarga_check_forecast_coverage(ctx, cv, intersect(areas, leaves), cuts, acc))
   }
   invisible(NULL)
 }
@@ -396,7 +469,7 @@ prevcarga_validate_deck <- function(ctx, origin = NULL, scope = NULL, data_lag_d
     acc$add(cr$finding)
     cv <- cr$value
   }
-  if (!is.null(cv)) .prevcarga_check_data(ctx, cv, sc$areas, sc$models, ct$bad, acc)
+  if (!is.null(cv)) .prevcarga_check_data(ctx, cv, sc$areas, sc$models, ct$bad, acc, leaves = sc$leaves)
 
   if (!"holidays" %in% ct$bad && length(sc$areas)) {
     h <- .pc_read(prevcarga_read_holiday_codes(ctx, sc$areas), "holidays", acc)
@@ -437,4 +510,26 @@ prevcarga_day_complete <- function(load) {
            by = list(area_code, date = lubridate::as_date(interval_start, tz = tz))]
   out[, complete := n_slots == prevcarga_slots_per_day]
   out[]
+}
+
+## --- Predicado unico de cobertura do clima previsto (consumido pelo validate-deck e pelo corte do forecast) ---------
+## Ultimo dia civil coberto (os 48 instantes de 30 min, sem tolerancia para o 23:30) em sequencia continua a partir
+## de `origin`, por area. `fc`: previsto JA reduzido a emissao usada (prevcarga_read_weather com origin); `tz`: fuso da
+## carga (manifest). Puro: nao le disco, nao le env e nao escolhe emissao. NA = o dia `origin` nao esta coberto.
+## -> data.table(area_code chr, coverage_end Date | NA)
+prevcarga_forecast_coverage_end <- function(fc, origin, tz) {
+  origin <- lubridate::as_date(origin)
+  if (is.null(fc) || !nrow(fc))
+    return(data.table::data.table(area_code = character(), coverage_end = lubridate::as_date(character())))
+  v <- fc[lubridate::minute(valid_time) %in% c(0L, 30L) & lubridate::second(valid_time) == 0]
+  n <- v[, list(n = data.table::uniqueN(valid_time)), by = list(area_code, d = lubridate::as_date(valid_time, tz = tz))]
+  cov <- n[n == prevcarga_slots_per_day]
+  areas <- sort(unique(fc$area_code), method = "radix")
+  ends <- lapply(areas, function(a) {
+    ds <- cov$d[cov$area_code == a]; d <- origin
+    if (!d %in% ds) return(lubridate::as_date(NA))
+    while ((d + 1L) %in% ds) d <- d + 1L
+    d
+  })
+  data.table::data.table(area_code = areas, coverage_end = do.call(c, ends))
 }

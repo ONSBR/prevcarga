@@ -5,23 +5,22 @@ sidebar_position: 20
 slug: /arquitetura/adrs
 description: Índice das 40 ADRs do PrevCarga, com o status em cada fonte, a página do site que trata o tema e a cadeia de emendas e supersessões.
 fontes:
-  - docs/adr/
-  - docs/adr/README.md
-adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0021, ADR-0022, ADR-0023, ADR-0024, ADR-0025, ADR-0026, ADR-0027, ADR-0028, ADR-0029, ADR-0030, ADR-0031, ADR-0032, ADR-0033, ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0038, ADR-0039, ADR-0040]
+  - .gitignore
+adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0021, ADR-0022, ADR-0023, ADR-0024, ADR-0025, ADR-0026, ADR-0027, ADR-0028, ADR-0029, ADR-0030, ADR-0031, ADR-0032, ADR-0033, ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0038, ADR-0039, ADR-0040, ADR-0041]
 revisado_em: 2026-11-03
 commit_base: "7c57514"
 ---
 
 <span className="pc-overline">Arquitetura · 2.21</span>
 
-<p className="pc-lead">As decisões de arquitetura do PrevCarga vivem em duas fontes que ainda não concordam. A pasta <code>docs/adr/</code> do repositório tem 22 ADRs (0001 a 0022), todas marcadas "Aceito". O SpecForge tem 40 ADRs (0001 a 0040), todas "proposed". Esta página indexa as 40, mostra o status em cada fonte sem escolher um, aponta a página do site que explica cada tema e mostra como as decisões se emendam e se superam.</p>
+<p className="pc-lead">As decisões de arquitetura do PrevCarga vivem em duas fontes que ainda não concordam. A pasta <code>docs/adr/</code>, mantida fora do repositório público (está no <code>.gitignore</code>), tem 22 ADRs (0001 a 0022), todas marcadas "Aceito". O SpecForge tem 40 ADRs (0001 a 0040), todas "proposed". Esta página indexa as 40, mostra o status em cada fonte sem escolher um, aponta a página do site que explica cada tema e mostra como as decisões se emendam e se superam.</p>
 
 ## Onde as ADRs vivem
 
 | Fonte | Faixa | Status registrado | Formato |
 |---|---|---|---|
-| `docs/adr/*.md` no repositório | ADR-0001 a ADR-0022 | Todas "Aceito" | Leve: contexto, decisão, consequências, alternativas, evidência |
-| SpecForge, projeto da spec "Modular CLI" | ADR-0001 a ADR-0040 | Todas "proposed" | MADR 4.0 |
+| `docs/adr/*.md`, local e fora do repositório público | ADR-0001 a ADR-0022 | Todas "Aceito" | Leve: contexto, decisão, consequências, alternativas, evidência |
+| SpecForge, projeto da spec "Modular CLI" | ADR-0001 a ADR-0041 | Todas "proposed" | MADR 4.0 |
 
 As ADRs 0023 a 0040 existem só no SpecForge. As 22 primeiras existem nas duas fontes, e em 11 delas o título local difere do título no SpecForge; a tabela abaixo marca a divergência na coluna "Título local".
 
@@ -70,13 +69,14 @@ A coluna "Decisão" resume o título vigente no SpecForge. "Título local" diz s
 | ADR-0031 | `features.R` com transforms de grade e FE-fachada de dispatch; motor DESSEM único | não existe | proposed | não existe | [Fundação de plugins](/arquitetura/fundacao-plugins) |
 | ADR-0032 | Painel LONG e `run.yaml`: conversor de folha, `forecast_origin` texto ISO, `delivery_days`, infer read-only | não existe | proposed | não existe | [Schema LONG](/arquitetura/schema-long) |
 | ADR-0033 | Motor R para PDF admissível no bundle e transporte dos reports | não existe | proposed | não existe | [Distribuição](/arquitetura/distribuicao) |
-| ADR-0034 | Ato de corte da migração a partir do sistema de referência | não existe | proposed | não existe | — |
+| ADR-0034 | Ato de corte da migração a partir do sistema de referência | não existe | superseded (ADR-0041) | não existe | — |
 | ADR-0035 | Rótulo da carga explícito (`load_label`), colunas `interval_start` e `interval_end`, declarado no manifest | não existe | proposed | não existe | [Tempo](/metodologia/tempo-rotulo-fusos) |
 | ADR-0036 | Runtime R 4.5.3 com `renv.lock` novo | não existe | proposed | não existe | [Distribuição](/arquitetura/distribuicao) |
 | ADR-0037 | Fuso declarado no manifest do deck, config em YAML, CLI sem variáveis de ambiente | não existe | proposed | não existe | [Configuração e ctx](/arquitetura/configuracao-ctx) |
 | ADR-0038 | Instalador e bundle nativos em Linux e Windows (PowerShell), sem WSL2 obrigatório | não existe | proposed | não existe | [Instalação](/execucao/instalacao) |
 | ADR-0039 | Bucket S3 de leitura pública por HTTPS, integridade por sha256 e objetos imutáveis | não existe | proposed | não existe | [Sincronizar](/execucao/sync) |
 | ADR-0040 | Contrato de saída de erros: tabela única de exit-codes 0–15, texto ASCII, esquema JSON único | não existe | proposed | não existe | [Erros e exit](/arquitetura/erros-exit) |
+| ADR-0041 | Baseline de paridade e A/B a partir do clean-room v0.1.5, substituindo o oráculo (supera o ADR-0034) | não existe | accepted | não existe | — |
 
 :::note Títulos locais defasados
 Nas ADRs marcadas "difere", o cabeçalho do arquivo de `docs/adr/` traz o título de uma versão anterior da decisão. Exemplos: o título do ADR-0012 local fala em motor DESSEM vendorizado, e o do SpecForge diz que o motor é código nosso; o título do ADR-0016 local descreve a orquestração AWS Batch, e o do SpecForge a trata como referência de um produto local-only. Nesses dois arquivos, a decisão vigente está no corpo, na seção "Decisão (resolvida)". O site segue o código; quando a ADR local diverge, a página do tema explica o comportamento do sistema.
@@ -88,7 +88,7 @@ Algumas ADRs ainda carregam marcadores de decisão aberta, citados nas páginas 
 
 O SpecForge não registra a supersessão num campo estruturado: nenhuma das 40 ADRs traz `supersedesIds` preenchido, porque esse campo só aceita ADRs aceitas e as ADRs superadas estão "proposed". A relação está escrita no texto de cada ADR (título, decisão, opções consideradas ou seção "More Information"). A figura mostra as relações de supersessão, emenda e substituição parcial; a seta vai da decisão mais antiga para a que a altera.
 
-<Figura id="FIG-A20" titulo="Cadeia de emendas e supersessões das ADRs" natureza="Estrutura" fontes={['docs/adr/README.md']} adrs={['ADR-0003', 'ADR-0006', 'ADR-0007', 'ADR-0008', 'ADR-0014', 'ADR-0017', 'ADR-0020', 'ADR-0023', 'ADR-0025', 'ADR-0026', 'ADR-0027', 'ADR-0029', 'ADR-0033', 'ADR-0035', 'ADR-0037', 'ADR-0040']}>
+<Figura id="FIG-A20" titulo="Cadeia de emendas e supersessões das ADRs" natureza="Estrutura" fontes={[]} adrs={['ADR-0003', 'ADR-0006', 'ADR-0007', 'ADR-0008', 'ADR-0014', 'ADR-0017', 'ADR-0020', 'ADR-0023', 'ADR-0025', 'ADR-0026', 'ADR-0027', 'ADR-0029', 'ADR-0033', 'ADR-0035', 'ADR-0037', 'ADR-0040']}>
 
 ```mermaid
 flowchart LR

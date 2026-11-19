@@ -824,10 +824,18 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
 
 ## --- apply: aplica os pesos congelados, nunca re-fita --------------------------------------------------------
 prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL,
-                                    members = prevcarga_members(root = ctx$root), detail = FALSE) {
+                                    members = prevcarga_members(root = ctx$root), detail = FALSE,
+                                    fallback_eqw = FALSE) {
   lp <- file.path(artifact_dir, area, "latest.txt")
-  if (!file.exists(lp))
-    prevcarga_abort("state.combina_not_trained", where = sprintf("%s em %s", area, artifact_dir))
+  if (!file.exists(lp)) {
+    if (!isTRUE(fallback_eqw))                     # so o forecast liga o fallback; combine --mode=apply segue abortando
+      prevcarga_abort("state.combina_not_trained", where = sprintf("%s em %s", area, artifact_dir))
+    rows <- .prevcarga_cmb_select_cut(panel, t_cut)
+    long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_eqw(rows), ctx)
+    prevcarga_warn("warning.combina_eqw", where = area)   # nunca grava pesos: so a ausencia de latest.txt vira EQW
+    if (!detail) return(long)
+    return(list(long = long, weights = NULL, members_by_lead = NULL, version_hash = "EQW", path = NA_character_))
+  }
   vh <- readLines(lp, n = 1L, warn = FALSE)
   if (!length(vh) || !grepl("^v_[0-9a-f]{16}$", vh))
     prevcarga_abort("contract.combina_input", where = paste0("latest.txt invalido: ", lp))

@@ -22,7 +22,7 @@ param(
 
 Set-StrictMode -Version 3
 $ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest fica lento com a barra; a extracao liga a dela localmente
+$ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest fica lento com a barra; a extracao desenha a dela (Write-PcBar)
 
 $script:PcExit = 0
 $script:ShowHelp = $false
@@ -31,6 +31,7 @@ $script:PcTemp = ''
 $script:PcCatalog = Join-Path $PSScriptRoot 'error-catalog.tsv'  # GERADO; no bundle extraido: code\install\
 $script:PcWarnings = New-Object System.Collections.Generic.List[string]
 $script:PcMinFreeBytes = [long]2147483648
+$script:PcBarOpen = $false    # a barra da extracao deixou a linha sem quebra (Write-PcStream quebra antes de escrever)
 $script:PcProgress = $false   # etapas e barra: so em texto com stderr no terminal (Invoke-PcMain decide)
 $script:PcSteps = 6           # N fixo nos dois fluxos (com e sem -Bundle)
 
@@ -59,6 +60,7 @@ function ConvertTo-PcAsciiText([string]$Text) {
 }
 
 function Write-PcStream([string]$Which, [string]$Text) {
+  if ($script:PcBarOpen) { $Text = "`n" + $Text; $script:PcBarOpen = $false }   # linha da barra aberta: a mensagem comeca na linha de baixo
   $bytes = [Text.Encoding]::ASCII.GetBytes($Text + "`n")
   if ($Which -eq 'out') { $s = [Console]::OpenStandardOutput() } else { $s = [Console]::OpenStandardError() }
   $s.Write($bytes, 0, $bytes.Length)
@@ -77,6 +79,23 @@ function Write-PcStep([int]$N, [string]$Text) {  # 'prevcarga: [n/N] ...' em std
 }
 
 # Banner, explicacoes e proximos passos: a MESMA regra das etapas ($script:PcProgress), tudo em stderr.
+# Barra da extracao: desenhada pelo proprio script (ASCII, sem cor, em stderr), no lugar do Write-Progress, cujas cores vem do
+# console (amarelo sobre ciano no Windows PowerShell 5.1). Reescreve a mesma linha com CR; a chamada com -Done fecha a linha.
+function Write-PcBar([int]$I, [int]$Total, [bool]$Done) {
+  if (-not $script:PcProgress) { return }
+  $w = 24
+  $pct = 100
+  if ($Total -gt 0) { $pct = [int][Math]::Floor(100 * $I / $Total) }
+  $n = [int][Math]::Floor($w * $pct / 100)
+  $t = "`r                 [" + ('#' * $n) + ('.' * ($w - $n)) + '] ' + ([string]$pct).PadLeft(3) + '%  ' + $I + ' de ' + $Total + ' arquivos'
+  if ($Done) { $t += "`n" }
+  $bytes = [Text.Encoding]::ASCII.GetBytes($t)
+  $s = [Console]::OpenStandardError()
+  $s.Write($bytes, 0, $bytes.Length)
+  $s.Flush()
+  $script:PcBarOpen = -not $Done
+}
+
 function Write-PcNote([string]$Text) {  # explicacao de uma linha, alinhada sob o texto da etapa
   if (-not $script:PcProgress) { return }
   Write-PcStream 'err' (ConvertTo-PcAsciiText ('                 ' + $Text))
@@ -121,7 +140,7 @@ function Write-PcNextSteps([string]$Bin, [bool]$PathUpdated) {  # depois da linh
   $lines += '  - rode: prevcarga doctor (confere runtime, config e deck)'
   $d = Get-PcConfigValue 'data_dir'
   if ($d) { $lines += ('  - deck configurado: data_dir = ' + $d + ' (em ' + $cfg + ')') }
-  else { $lines += ('  - aponte o deck: reinstale com -Data <dir> ou ponha data_dir: <dir> em ' + $cfg) }
+  else { $lines += ('  - aponte o deck: prevcarga set-data-dir <dir> (grava data_dir em ' + $cfg + ')') }
   Write-PcStream 'err' (ConvertTo-PcAsciiText ($lines -join "`n"))
 }
 
@@ -459,8 +478,6 @@ function Get-PcVerifiedBundle {  # devolve o caminho do zip (fora de <R>) so se 
 }
 
 function Expand-PcZip([string]$Zip, [string]$Dest) {  # ZipFile entrada por entrada (o cmdlet do 5.1 e lento com milhares de arquivos); recusa zip-slip
-  if ($script:PcProgress) { $ProgressPreference = 'Continue' }   # local: o script segue SilentlyContinue
-  $act = 'prevcarga: extraindo o bundle'
   Add-Type -AssemblyName System.IO.Compression
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   $root = [IO.Path]::GetFullPath($Dest).TrimEnd('\', '/') + '\'
@@ -473,6 +490,7 @@ function Expand-PcZip([string]$Zip, [string]$Dest) {  # ZipFile entrada por entr
     Write-PcNote 'no Windows demora: sao milhares de arquivos pequenos e o antivirus examina cada um; a barra mostra o andamento'
     $every = [Math]::Max(1, [int][Math]::Ceiling($total / 100.0))   # barra a cada ~1%, nao a cada arquivo
     $i = 0
+    Write-PcBar 0 $total ($total -eq 0)
     foreach ($e in $za.Entries) {
       $full = [IO.Path]::GetFullPath([IO.Path]::Combine($root, $e.FullName))
       # zip-slip: o caminho final tem de ficar dentro do stage (com separador final, sem caixa)
@@ -485,13 +503,10 @@ function Expand-PcZip([string]$Zip, [string]$Dest) {  # ZipFile entrada por entr
         [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $full, $true)
       }
       $i++
-      if ($script:PcProgress -and ($i % $every -eq 0 -or $i -eq $total)) {
-        Write-Progress -Activity $act -Status ([string]$i + ' de ' + $total + ' arquivos') -PercentComplete ([int][Math]::Floor(100 * $i / $total))
-      }
+      if ($i % $every -eq 0 -or $i -eq $total) { Write-PcBar $i $total ($i -eq $total) }
     }
   } finally {
     if ($za) { $za.Dispose() }
-    if ($script:PcProgress) { Write-Progress -Activity $act -Completed }
   }
 }
 

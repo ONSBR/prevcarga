@@ -17,8 +17,6 @@ fontes:
   - install/prevcarga-sync.sh
   - install/install.ps1
   - install/prevcarga-sync.ps1
-  - docs/ESTADO-ATUAL.md
-  - docs/estado/*.md
   - .gitignore
 adrs: [ADR-0040, ADR-0018]
 revisado_em: 2026-11-05
@@ -67,7 +65,7 @@ Os loaders aparecem em destaque. O único artefato derivado é `install/error-ca
 
 ## Verbos da CLI
 
-Um verbo entra na gramática da CLI quando alguém cria `scripts/lib/cli/<verbo>.R`. Nem o shim `scripts/prevcarga` nem `cli.R` são editados. Hoje a pasta tem 20 arquivos. O registro mais simples é o do verbo `areas`:
+Um verbo entra na gramática da CLI quando alguém cria `scripts/lib/cli/<verbo>.R`. Nem o shim `scripts/prevcarga` nem `cli.R` são editados. Hoje a pasta tem 21 arquivos. O registro mais simples é o do verbo `areas`:
 
 ```r title="scripts/lib/cli/areas.R"
 prevcarga_verb_areas <- list(

@@ -16,9 +16,6 @@ fontes:
   - scripts/lib/cli/score.R
   - scripts/lib/evaluation.R
   - install/prevcarga-sync.sh
-  - docs/estado/verificar.md
-  - docs/estado/check_coherence.md
-  - docs/estado/score.md
 adrs: [ADR-0040, ADR-0036, ADR-0028]
 revisado_em: 2026-11-05
 commit_base: "379344b"
@@ -87,7 +84,7 @@ Em `--format=json`, o `result` do envelope tem `resultado`, `trilho`, `tol`, `or
 
 `prevcarga_verify_repro` executa a sequência abaixo. Cada fase aborta antes da seguinte: se uma fase reprova, nenhum valor é comparado.
 
-<Figura id="FIG-E09" titulo="As quatro fases do verificar" natureza="Fluxo" fontes={['scripts/lib/verify_repro.R', 'scripts/lib/cli/verificar.R', 'docs/estado/verificar.md']} adrs={['ADR-0040']}>
+<Figura id="FIG-E09" titulo="As quatro fases do verificar" natureza="Fluxo" fontes={['scripts/lib/verify_repro.R', 'scripts/lib/cli/verificar.R']} adrs={['ADR-0040']}>
 
 ```mermaid
 flowchart LR

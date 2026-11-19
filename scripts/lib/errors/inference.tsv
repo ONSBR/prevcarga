@@ -3,3 +3,4 @@ contract.infer_spec_divergent	contract	spec passado a inferencia diverge do spec
 contract.variant_mismatch	contract	a variante do artefato carregado diverge da variante do membro	confira --variant e a celula <modelo>/<variante>/<area> do registry; retreine ou sincronize o artefato certo
 io.out_unwritable	bundle	nao foi possivel gravar as previsoes em --out (diretorio ausente, sem permissao ou dentro do registry)	aponte --out para um arquivo em diretorio existente e gravavel, fora de <state_dir>/artifacts
 contract.artifact_spec_missing	contract	artefato sem spec_efetivo ou fit (artefato malformado; SHA256SUMS ja conferiu)	regere a versao com o treino da celula ou sincronize o artefato oficial
+completude.weather_forecast_short	completude	membro de horizonte fixo (ou sem dia coberto) sem clima previsto suficiente para a emissao usada	complete o clima previsto ate o horizonte do membro (details.delivery_days); o membro fica ausente nesta rodada

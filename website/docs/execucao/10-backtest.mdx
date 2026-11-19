@@ -28,13 +28,9 @@ fontes:
   - scripts/lib/provenance.R
   - config/config.yaml
   - models/*/run.yaml
-  - docs/estado/orchestrate.md
-  - docs/estado/backtest.md
-  - docs/estado/m7-orquestracao.md
-  - docs/estado/cache.md
 adrs: [ADR-0023, ADR-0024, ADR-0038]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Execução · 3.10</span>
@@ -124,9 +120,9 @@ O protocolo só decide quando treinar. A compatibilidade com a classe de split d
 7. O REDUCE roda sobre todas as células `done` (inclusive as de execuções anteriores retomadas).
 8. O lock é liberado na saída, também em erro.
 
-O progresso vai para stderr, uma linha `backtest: <feitas>/<total>` por célula recolhida.
+O progresso vai para stderr, uma linha por célula recolhida: `backtest: <feitas>/<total> falhas=<n> eta=<duração|?> ultima=<membro> <folha> <origem> <corte>`. O `eta` é o tempo decorrido por célula desta execução vezes as células que faltam; células já prontas de um `--resume` não entram na conta, e sem nenhuma célula processada ele é `?`. O tempo é só de apresentação: nunca entra no ledger, no `plan.json` nem no `result`.
 
-<Figura id="FIG-E08" titulo="Backtest operacional: lock, ledger e retomada" natureza="Fluxo" fontes={['scripts/lib/orchestrate.R', 'scripts/lib/backtest.R', 'docs/estado/orchestrate.md', 'docs/estado/backtest.md']} adrs={['ADR-0023', 'ADR-0038']}>
+<Figura id="FIG-E08" titulo="Backtest operacional: lock, ledger e retomada" natureza="Fluxo" fontes={['scripts/lib/orchestrate.R', 'scripts/lib/backtest.R']} adrs={['ADR-0023', 'ADR-0038']}>
 
 ```mermaid
 flowchart TB
@@ -189,7 +185,7 @@ Com `--resume`, se o `plan.json` já existente tiver um `run_id` diferente do pe
 | Modo | Comportamento |
 |---|---|
 | Padrão (fail-fast) | Na 1ª falha, nada novo é despachado. No serial, para logo depois da célula que falhou. Com `--jobs`, o lote em andamento termina e nenhum lote novo é enviado. As células não despachadas ficam `skipped`. |
-| `--keep-going` | Todas as células são despachadas; as falhas vão para o ledger e o resto segue. |
+| `--keep-going` | Todas as células são despachadas; as falhas vão para o ledger e o resto segue. Cada falha sai na hora no stderr, como `falha <membro> <folha> <origem> <corte> <error_id>: <mensagem>`, antes da linha de progresso da própria célula. |
 
 Em qualquer modo, o REDUCE roda sobre o que ficou `done`.
 
@@ -241,7 +237,7 @@ Os detalhes de cada passo (máscara da combina, janela do k-hat de 730 dias, ver
 | `partial` | Pelo menos uma célula `done` e alguma célula `failed` ou `skipped`; ou todas `done`, mas alguma origem incompleta ou falha de reconcile | exit 14, <Tag>partial.backtest_delivery</Tag> |
 | `failed` | Nenhuma célula `done` | exit 14, <Tag>partial.backtest_delivery</Tag>; o REDUCE não grava nada |
 
-No <Tag>partial.backtest_delivery</Tag>, o envelope traz o `result` completo (`verdict`, `run_id`, `summary` com `ok`, `total`, `failed`, `skipped`, `incompleto` e `failures`). Em texto, o stderr recebe o resumo e uma linha por célula que falhou, neste formato:
+No <Tag>partial.backtest_delivery</Tag>, o envelope traz o `result` completo (`verdict`, `run_id`, `summary` com `ok`, `total`, `failed`, `skipped`, `incompleto` e `failures`); cada origem incompleta (folha sem linha combinada) leva `error_id` `completude.leaf_missing` e as folhas faltando. Em texto, o stderr recebe o resumo e uma linha por célula que falhou, neste formato:
 
 ```r title="scripts/lib/orchestrate.R"
 sprintf("backtest ok=%d/%d failed=%d skipped=%d", ok, total, failed, skipped)

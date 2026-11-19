@@ -47,14 +47,9 @@ fontes:
   - scripts/lib/backtest.R
   - scripts/lib/orchestrate.R
   - scripts/lib/topology.R
-  - docs/estado/m5-training.md
-  - docs/estado/inference.md
-  - docs/estado/combination.md
-  - docs/estado/plugins_porte_fechamento.md
-  - docs/estado/dessem_regdin.md
 adrs: [ADR-0021, ADR-0023, ADR-0012, ADR-0019, ADR-0032, ADR-0035]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Metodologia · 1.5</span>
@@ -97,7 +92,8 @@ Os atributos vêm de duas fontes. O `run.yaml` de cada diretório traz `split`, 
 |---|---|---|---|---|---|
 | Granularidade interna | horária (216 leads) | semi-horária | semi-horária | horária | horária |
 | Metodologia | 216 `randomForest`, um por lead horário | LightGBM com BLF de duas passadas | `forecast::hw` diário e 48 intervalares | demanda média diária (DM) e perfil horário, ambos por SVM de kernel linear | DM por regressão dinâmica (`ARIMA` do fable) e perfil horário por SVM de kernel radial |
-| Temperatura | prevista: máxima e mínima diárias | prevista, semi-horária (no treino, lead 0) | observada no histórico, prevista no horizonte | observada no histórico, prevista no horizonte | observada no histórico, prevista no horizonte |
+| Temperatura | prevista: máxima e mínima diárias | prevista, semi-horária (no treino, lead 0) | não utiliza | observada no histórico, prevista no horizonte | observada no histórico, prevista no horizonte |
+| Clima previsto curto | membro ausente na rodada | horizonte cortado no último dia coberto | horizonte inteiro (não usa clima) | membro ausente na rodada | membro ausente na rodada |
 | `weather_resample` | `raw` | — | — | `hourly` | `hourly` |
 | Variante | — | — | — | `exogena`: `MED`, `MAX`, `MXMN` | `exogena`: `MED`, `MAX` |
 
@@ -136,7 +132,7 @@ Como ler algumas linhas:
 
 Todo membro começa a entregar no primeiro intervalo depois de `available_until` e termina às 00:00 do dia `O + delivery_days`. A grade é uma só, `prevcarga_delivery_grid` (`scripts/lib/features.R`): os `interval_end` de 30 em 30 min, de `available_until + 30 min` até `O + delivery_days` às 00:00. O início depende do dado de carga; o fim, só do descriptor. A combina lê `delivery_days` do run-manifest, nunca do nome do modelo (ADR-0032).
 
-<Figura id="FIG-M06" titulo="Faixa de entrega por membro (exemplo O = 2024-10-01, corte 09:00)" natureza="Linha do tempo" fontes={['scripts/lib/features.R', 'models/lgbm/R/register.R', 'docs/estado/m5-training.md', 'docs/estado/combination.md']} adrs={['ADR-0032']}>
+<Figura id="FIG-M06" titulo="Faixa de entrega por membro (exemplo O = 2024-10-01, corte 09:00)" natureza="Linha do tempo" fontes={['scripts/lib/features.R', 'models/lgbm/R/register.R']} adrs={['ADR-0032']}>
 
 ```mermaid
 gantt
@@ -165,7 +161,7 @@ As barras cobrem o tempo dos intervalos entregues. Em `interval_end`, o primeiro
 A conta é direta. No corte 09:00 restam 30 meias horas no dia O; somam-se 8 dias inteiros de 48 nos membros de `delivery_days` 9 (30 + 384 = 414) e 1 dia inteiro no LGBM (30 + 48 = 78). No corte 09:30 cada faixa perde o primeiro slot.
 
 - **Comparação entre cortes no DESSEM.** Entre os cortes 09:00 e 09:30, o conjunto comum é de 413 `interval_end`, de 10:00 de O até O+9 00:00. Nesse conjunto as saídas dos dois cortes são iguais, porque a meia hora isolada 09:00–09:30 é descartada pelo `to_hourly` em todas as séries do DESSEM: só hora completa entra na cabeça de nowcast. Ver [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
-- **O+9 não é entregue.** Os DESSEM rodam o motor por `horizon_days + 1` = 10 dias (O..O+9) para que o spline do último dia entregue veja o dia seguinte; o leitor precisa entregar clima previsto até O+9. O RF também calcula O+9 no bloco da origem O e o descarta. A entrega para em O+9 00:00.
+- **O+9 não é entregue.** Os DESSEM rodam o motor por `horizon_days + 1` = 10 dias (O..O+9) para que o spline do último dia entregue veja o dia seguinte; o leitor precisa entregar clima previsto até O+9. O RF também calcula O+9 no bloco da origem O; esse dia não é entregue, mas o clima previsto dele alimenta o spline do último slot de O+8. A entrega para em O+9 00:00.
 - **Faixas diferentes não são desalinhamento.** Depois de O+2 00:00 a combina segue com os 7 membros restantes; o tratamento está em [Combinação convexa](/metodologia/combina).
 
 ## Padrões que se repetem
@@ -188,7 +184,7 @@ A conta é direta. No corte 09:00 restam 30 meias horas no dia O; somam-se 8 dia
 | RF | máxima e mínima diárias da previsão (`tmax`, `tmin` em `helpers_weather.R`) |
 | DESSEM, DM | diária, agregada pela variante: média (`MED`), máxima (`MAX`) ou máxima e mínima (`MXMN`) |
 | DESSEM, perfil | horária |
-| HW | fora do ajuste: o `forecast::hw` é ajustado só sobre a carga; a temperatura entra depois, no efeito de temperatura (`efeitoTemp`) usado pela modulação de feriado (`SemiFer`) |
+| HW | não utiliza: o `forecast::hw` é ajustado só sobre a carga, e a modulação de feriado (`SemiFer`) usa só o calendário do horizonte |
 
 ### Calendário: variável ou filtro de amostra
 

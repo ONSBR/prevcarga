@@ -138,17 +138,22 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   cells[, cut_origin := data.table::fifelse(protocol == "fixed", min(origins), origem)]
   cutrows <- unique(cells[, c("mdir", "cut_origin")])
   ## o limite do clima do TREINO vem do dates.R (mesma linha dos cortes): entra na chave do artefato dos membros que usam previsto no treino
-  cutrows[, c("train_origin", "last_data_day", "train_weather_issue_limit") := {
-    rc <- prevcarga_resolve_cuts(ctx, cut_origin, model = mdir, data_lag_days = stats::setNames(lags[[mdir]], mdir))
-    row <- rc$cuts[rc$cuts$model == mdir, ]
-    list(row$train_origin, row$last_data_day, rc$weather_issue_limit)
-  }, by = seq_len(nrow(cutrows))]
+  ## 1 resolve_cuts (1 prevcarga_read_load) por origem de corte distinta, com todos os mdirs dela
+  cutrows <- data.table::rbindlist(lapply(sort(unique(cutrows$cut_origin)), function(o) {
+    md <- unique(cutrows$mdir[cutrows$cut_origin == o])
+    rc <- prevcarga_resolve_cuts(ctx, o, model = md, data_lag_days = unlist(lags[md]))
+    data.table::data.table(mdir = rc$cuts$model, cut_origin = o, train_origin = rc$cuts$train_origin,
+                           last_data_day = rc$cuts$last_data_day, train_weather_issue_limit = rc$weather_issue_limit)
+  }))
   cells <- cutrows[cells, on = c("mdir", "cut_origin")]
   cells[, cut_origin := NULL]
   cells[, available_until := lubridate::ymd_hm(paste(format(origem, "%Y-%m-%d"), corte_hm), tz = ident$tz)]
   ## limite do clima da celula: o do leitor (prevcarga_weather_issue_limit, deck_reader.R) sobre o corte simulado; o M7 nao filtra emissao
-  cells[, weather_issue_limit := do.call(c, lapply(seq_len(.N), function(i)
+  ## 1x por par (origem, corte_hm) distinto
+  wl <- unique(cells[, c("origem", "corte_hm", "available_until")])
+  wl[, weather_issue_limit := do.call(c, lapply(seq_len(.N), function(i)
     prevcarga_weather_issue_limit(weather, origem[[i]], available_until[[i]], ident$tz, ident$weather_lag)))]
+  cells <- wl[, c("origem", "corte_hm", "weather_issue_limit")][cells, on = c("origem", "corte_hm")]
   cells[, weather_forecast_in_train := vapply(mdir, function(m) fc_train[[m]], NA)]
   cells[, cache_key := vapply(seq_len(.N), function(i) prevcarga_cache_key(
     "member_long", list(mdir = mdir[[i]], exogena = exogena[[i]]), specs[[mdir[[i]]]],
@@ -271,10 +276,35 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   if (length(m) == 2L) m[[2L]] else "generic"
 }
 
-.m7_progress <- function(ctx, done, total) {
-  if (is.function(ctx$progress)) ctx$progress(done, total)
-  else message(sprintf("backtest: %d/%d", done, total))
+## Cronometro so da apresentacao (stderr): segundos decorridos monotonicos (nao e data nem leitura de relogio de parede); nunca entra em
+## chave, ledger, plan.json ou result. Injetavel por ctx$clock (funcao sem argumento que devolve segundos numericos).
+.m7_now <- function(ctx) if (is.function(ctx$clock)) ctx$clock() else proc.time()[["elapsed"]]
+.m7_fmt_dur <- function(s) {
+  s <- as.integer(round(s)); h <- s %/% 3600L; m <- (s %% 3600L) %/% 60L; x <- s %% 60L
+  if (h > 0L) sprintf("%dh%02dm%02ds", h, m, x) else sprintf("%dm%02ds", m, x)
+}
+
+## done: int (inclui done0 do --resume); total: int; failed: int acumulado nesta execucao;
+## processed: int celulas consolidadas NESTA execucao (done0 nao conta); elapsed_s: numeric desde o 1o despacho desta execucao;
+## cell: NULL ou list(membro = chr, folha = chr, origem = Date, corte_hm = chr "HH:MM")
+.m7_progress_line <- function(done, total, failed, processed, elapsed_s, cell = NULL) {
+  eta <- if (processed > 0L) .m7_fmt_dur(elapsed_s / processed * (total - done)) else "?"
+  last <- if (is.null(cell)) "" else sprintf(" ultima=%s %s %s %s", cell$membro, cell$folha,
+                                              format(cell$origem, "%Y-%m-%d"), cell$corte_hm)
+  sprintf("backtest: %d/%d falhas=%d eta=%s%s", done, total, failed, eta, last)
+}
+
+.m7_progress <- function(ctx, acc, total, cell = NULL) {
+  if (is.function(ctx$progress)) ctx$progress(acc$done, total)
+  else message(.m7_progress_line(acc$done, total, acc$failed, acc$processed,
+                                 .m7_now(ctx) - acc$t0, cell))
   invisible(NULL)
+}
+
+.m7_acc <- function(ctx, state, done0) {
+  acc <- new.env(); acc$state <- state; acc$done <- done0; acc$fails <- list(); acc$seen <- integer()
+  acc$t0 <- .m7_now(ctx); acc$processed <- 0L; acc$failed <- 0L
+  acc
 }
 
 ## ordem de despacho: origem mais recente primeiro (o backtest anda para tras), depois membro, folha, corte.
@@ -305,7 +335,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
 }
 
 ## Consolida os envelopes de um lote na ordem de despacho (estado, falhas, progresso); devolve se deve parar.
-.m7_collect <- function(ctx, idx, envs, keep_going, acc, total) {
+.m7_collect <- function(ctx, idx, envs, keep_going, acc, total, cells) {
   acc$seen <- c(acc$seen, idx)
   for (k in seq_along(idx)) {
     i <- idx[[k]]; e <- envs[[k]]
@@ -315,17 +345,23 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
       acc$state[[i]] <- "failed"
       acc$fails[[length(acc$fails) + 1L]] <- list(error_class = e$error_class, error_id = e$error_id,
                                                   mensagem = e$mensagem, i = i)
+      acc$failed <- acc$failed + 1L
+      if (isTRUE(keep_going))
+        message(iconv(sprintf("falha %s %s %s %s %s: %s", cells$membro[[i]], cells$folha[[i]],
+                              format(cells$origem[[i]], "%Y-%m-%d"), cells$corte_hm[[i]], e$error_id, e$mensagem),
+                      "UTF-8", "ASCII", sub = "?"))
     }
-    .m7_progress(ctx, acc$done, total)
+    acc$processed <- acc$processed + 1L
+    .m7_progress(ctx, acc, total, as.list(cells[i, c("membro", "folha", "origem", "corte_hm")]))
   }
   !isTRUE(keep_going) && any(vapply(envs, function(e) !identical(e$state, "done"), NA))
 }
 
 .m7_dispatch_serial <- function(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total) {
-  acc <- new.env(); acc$state <- state; acc$done <- done0; acc$fails <- list(); acc$seen <- integer()
+  acc <- .m7_acc(ctx, state, done0)
   seeds <- if (length(todo)) .m7_cell_seeds(ctx, cells, todo) else integer()
   for (i in todo) {
-    stop_now <- .m7_collect(ctx, i, list(.m7_cell_exec(ctx, run_id, cells[i], run_cell, seeds[[i]])), keep_going, acc, total)
+    stop_now <- .m7_collect(ctx, i, list(.m7_cell_exec(ctx, run_id, cells[i], run_cell, seeds[[i]])), keep_going, acc, total, cells)
     if (stop_now) break
   }
   list(state = .m7_mark_skipped(acc, todo), fails = acc$fails)
@@ -368,7 +404,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
 }
 
 .m7_dispatch_psock <- function(ctx, run_id, cells, todo, run_cell, keep_going, state, done0, total, jobs) {
-  acc <- new.env(); acc$state <- state; acc$done <- done0; acc$fails <- list(); acc$seen <- integer()
+  acc <- .m7_acc(ctx, state, done0)
   if (!length(todo)) return(list(state = state, fails = list()))
   seeds <- .m7_cell_seeds(ctx, cells, todo)
   nw <- min(as.integer(jobs), length(todo))
@@ -376,15 +412,15 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   on.exit(parallel::stopCluster(st$cl), add = TRUE)
   if (!is.null(st$bad)) {
     ## runtime nao fixavel no worker: nenhuma celula roda; todas viram `failed` classificadas (nunca saida silenciosa)
-    .m7_collect(ctx, todo, rep(list(.m7_init_failure_env(st$bad)), length(todo)), TRUE, acc, total)
+    .m7_collect(ctx, todo, rep(list(.m7_init_failure_env(st$bad)), length(todo)), TRUE, acc, total, cells)
     return(list(state = acc$state, fails = acc$fails))
   }
   wctx <- ctx
-  wctx$progress <- NULL                       # closure do pai nao viaja
+  wctx$clock <- NULL; wctx$progress <- NULL                       # closure do pai nao viaja
   for (b in split(todo, ceiling(seq_along(todo) / nw))) {
     tasks <- lapply(b, function(i) list(cell = cells[i], seed = seeds[[i]]))
     envs <- parallel::clusterApplyLB(st$cl, tasks, .m7_worker_task, ctx = wctx, run_id = run_id, run_cell = run_cell)
-    if (.m7_collect(ctx, b, envs, keep_going, acc, total)) break      # fail-fast: nenhum lote novo depois da 1a falha
+    if (.m7_collect(ctx, b, envs, keep_going, acc, total, cells)) break      # fail-fast: nenhum lote novo depois da 1a falha
   }
   list(state = .m7_mark_skipped(acc, todo), fails = acc$fails)
 }
@@ -523,6 +559,7 @@ prevcarga_backtest_run <- function(ctx, args) {
               summary = list(ok = s$ok, total = s$total, failed = s$failed, skipped = s$skipped,
                              incompleto = if (is.null(s$incompleto)) list() else lapply(seq_len(nrow(s$incompleto)), function(i) list(
                                origem = format(s$incompleto$origem[[i]], "%Y-%m-%d"), corte_hm = s$incompleto$corte_hm[[i]],
+                               error_id = s$incompleto$error_id[[i]],
                                folhas_faltando = s$incompleto$folhas_faltando[[i]])),
                              failures = lapply(seq_len(nrow(s$failures)), function(i) list(
                                membro = s$failures$membro[[i]], folha = s$failures$folha[[i]],

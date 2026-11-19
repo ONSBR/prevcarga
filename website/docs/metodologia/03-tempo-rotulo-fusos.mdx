@@ -33,15 +33,9 @@ fontes:
   - models/dessem-regdin/R/register.R
   - models/_dessem-engine/README.md
   - models/_dessem-engine/R/funcoes_apoio.R
-  - docs/estado/deck_reader.md
-  - docs/estado/plugin_dispatch.md
-  - docs/estado/schema_long.md
-  - docs/estado/plugins_porte_fechamento.md
-  - docs/estado/m5-training.md
-  - docs/adr/0019-alinhamento-temp-carga-invariante.md
 adrs: [ADR-0002, ADR-0012, ADR-0019, ADR-0035, ADR-0037]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "5c48c00"
 ---
 
 <span className="pc-overline">Metodologia · 1.3</span>
@@ -125,7 +119,7 @@ O store grava data-hora sem fuso (`timestamp[ns]` ingênuo). O fuso de cada colu
 | `holidays` | `holidays.date` | opcional | `Etc/GMT+3` |
 | `dst_periods` | `dst_periods.date` | opcional | não declarado |
 
-`Etc/GMT+3` segue a convenção POSIX de sinal invertido: é UTC−3, sem horário de verão.
+`Etc/GMT+3` segue a convenção POSIX de sinal invertido: é UTC−3, sem horário de verão. Esse é o fuso declarado para o deck novo. O store histórico, porém, está em relógio de parede BRT com horário de verão até 2019: lido como `Etc/GMT+3`, o `issue_time` do verão 2018-19 erra 1 hora. O `issue_time` do clima previsto vem de `dat_referencia` 00:00 UTC (ver [Dados de entrada](/metodologia/dados-de-entrada)).
 
 Fuso ausente aborta com `contract.tz_missing`; fora de `OlsonNames()`, com `contract.tz_invalid`; parquet que já traz fuso, com `contract.tz_in_parquet`. As três saem com exit 2.
 
@@ -188,7 +182,7 @@ Dentro do motor DESSEM, os lags de atributo são por índice na grade regular (`
 
 O LGBM mantém offset 0. O spike do ADR-0019 mediu o alinhamento temperatura-carga do LGBM e do RF e não indicou correção (`docs/estado/m5-training.md`).
 
-<Figura id="FIG-M03" titulo="Rótulo da carga e deslocamento de modelagem: ida e volta" natureza="Fluxo" fontes={['docs/estado/deck_reader.md', 'docs/estado/plugin_dispatch.md', 'docs/estado/schema_long.md', 'scripts/lib/features.R', 'models/_dessem-engine/README.md', 'docs/adr/0019-alinhamento-temp-carga-invariante.md']} adrs={['ADR-0012', 'ADR-0019', 'ADR-0035']}>
+<Figura id="FIG-M03" titulo="Rótulo da carga e deslocamento de modelagem: ida e volta" natureza="Fluxo" fontes={['scripts/lib/features.R', 'models/_dessem-engine/README.md']} adrs={['ADR-0012', 'ADR-0019', 'ADR-0035']}>
 
 ```mermaid
 sequenceDiagram
@@ -259,13 +253,13 @@ Na rodada, a hora incompleta tem efeito direto. Com `available_until` às 09:30 
 
 Os membros horários produzem 24 valores por dia. A volta para a grade de 48 intervalos acontece depois do modelo, na inferência, por `to_semihourly` (`scripts/lib/features.R`):
 
-1. O plugin entrega a regra (`semihourly_rule`) que transforma cada valor horário em dois valores, na ordem meia hora anterior à âncora e âncora.
+1. O plugin entrega a regra (`semihourly_rule`) que transforma cada valor horário em dois valores, na ordem meia hora anterior à âncora e âncora; qual dos dois leva a média horária depende da regra (ver abaixo).
 2. `to_semihourly` aplica a regra e carimba os dois `interval_end` (âncora − 30 min e âncora). O carimbo de 30 min é central; o plugin não o calcula.
 3. Saem só os intervalos depois de `available_until` e até o fim do último dia.
 
 As regras são desagregações monotônicas com spline `monoH.FC`:
 
-- **RF**: spline na grade de meias horas, com cada meia hora interior presa entre as duas âncoras vizinhas e o último slot por extrapolação linear.
+- **RF**: spline na grade de meias horas, com cada meia hora interior presa entre as duas âncoras vizinhas e o último slot por extrapolação linear. No RF, a média horária ocupa a primeira meia hora (`interval_end` = âncora − 30 min) e a segunda meia hora é interpolada em direção à próxima hora. O `monoH.FC` do RF não preserva a média horária (o par não reproduz o valor previsto).
 - **DESSEM**: `desagregaModeloSH` do motor, média de dois splines e reescala para que o par de meias horas preserve o valor horário. Se falhar, a regra duplica o valor horário nas duas meias horas e emite um aviso (`warning.dessem_linear_desagrega_fallback` ou `warning.regdin_desagrega_fallback`).
 
 A regra só roda sobre a saída horária da inferência. O treino segue em 60 min e não recebe os valores desagregados.

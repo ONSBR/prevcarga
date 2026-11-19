@@ -16,7 +16,6 @@ fontes:
   - scripts/lib/cli/models.R
   - scripts/lib/cli/areas.R
   - scripts/lib/cli/verificar.R
-  - docs/estado/sync.md
   - config/topology.yaml
 adrs: [ADR-0039, ADR-0040, ADR-0030]
 revisado_em: 2026-11-05
@@ -128,7 +127,7 @@ Diferente dos artefatos, aqui o ponteiro da origem é obrigatório: sem `forecas
 
 O sync segue o mesmo protocolo no sh e no ps1. A regra é simples: nada fica visível no estado enquanto houver um objeto não conferido.
 
-<Figura id="FIG-E05" titulo="prevcarga-sync em duas fases" natureza="Fluxo" fontes={['install/prevcarga-sync.sh', 'install/prevcarga-sync.ps1', 'docs/estado/sync.md']} adrs={['ADR-0039', 'ADR-0030']}>
+<Figura id="FIG-E05" titulo="prevcarga-sync em duas fases" natureza="Fluxo" fontes={['install/prevcarga-sync.sh', 'install/prevcarga-sync.ps1']} adrs={['ADR-0039', 'ADR-0030']}>
 
 ```mermaid
 sequenceDiagram

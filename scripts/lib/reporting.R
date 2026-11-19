@@ -331,7 +331,7 @@ prevcarga_report <- function(long, weights, khat, provenance, baselines, format 
 ## Os mesmos blocos (lista de tabelas) alimentam o HTML (.report_table, prevcarga_html_page) e o PDF (.pdf_open, .pdf_page_*).
 
 .rpt_bt_titles <- c(proveniencia = "Proveniencia, cortes e available_until simulado", horizonte = "WMAPE por horizonte (d_plus)",
-                    pico = "Pico 18-22h (janela sobre interval_start) e vies com sinal", skill = "Skill vs persistencia O-1 e sazonal-ingenuo O-7",
+                    pico = "Pico 18:00-22:00 (janela sobre interval_start) e vies com sinal", skill = "Skill vs persistencia O-1 e sazonal-ingenuo O-7",
                     sin = "SIN fresco (SIN = soma dos subsistemas)", fallback = "Meses em fallback n_min da combina",
                     aguardando = "Origens aguardando verdade")
 
@@ -352,10 +352,11 @@ prevcarga_report <- function(long, weights, khat, provenance, baselines, format 
   truth_cols <- c("member", "combined", "sin", "peak_fixed_18_22", "sin_fresh", "fallback_months", "awaiting_truth")
   miss <- setdiff(truth_cols, names(scores))
   if (length(miss)) prevcarga_abort("contract.report_without_truth", where = paste(miss, collapse = ","))
-  for (n in c("member", "combined", "sin"))
-    if (is.data.frame(scores[[n]]) && nrow(scores[[n]]) && !"wmape" %in% names(scores[[n]]))
-      prevcarga_abort("contract.report_without_truth", where = paste0(n, "$wmape"))
-  if (!is.list(scores$sin_fresh) || !all(c("wmape", "sum_check") %in% names(scores$sin_fresh)))
+  for (n in c("member", "combined", "sin", "peak_fixed_18_22"))
+    if (is.data.frame(scores[[n]]) && nrow(scores[[n]]))
+      for (col in if (n == "peak_fixed_18_22") "mape" else c("wmape", "mape"))
+        if (!col %in% names(scores[[n]])) prevcarga_abort("contract.report_without_truth", where = paste0(n, "$", col))
+  if (!is.list(scores$sin_fresh) || !all(c("wmape", "mape", "sum_check") %in% names(scores$sin_fresh)))
     prevcarga_abort("contract.report_without_truth", where = "sin_fresh")
   need <- c("run_id", "origins", "cortes", "weather_issue_cutoff", "members", "load_label", "timezone", "version")
   if (!is.list(run_meta) || !all(need %in% names(run_meta))) bad("run_meta")
@@ -403,18 +404,18 @@ prevcarga_report <- function(long, weights, khat, provenance, baselines, format 
   comb <- .rpt_bt_ord(scores$combined, c("area", "corte_hm", "d_plus"))
   mbr <- .rpt_bt_ord(scores$member, c("member", "area", "corte_hm", "d_plus"))
   sinc <- .rpt_bt_ord(scores$sin, c("area", "corte_hm", "d_plus"))
-  hor_cols <- list(.rpt_bt_str("area"), cut_hm, .rpt_bt_str("d_plus"), .rpt_bt_pct(), function(r) as.character(r$n))
+  hor_cols <- list(.rpt_bt_str("area"), cut_hm, .rpt_bt_str("d_plus"), .rpt_bt_pct(), .rpt_bt_pct("mape"), function(r) as.character(r$n))
   chart <- if (nrow(sinc)) lapply(split(sinc, as.character(sinc$area)), function(g) g[order(g$d_plus), c("d_plus", "wmape")]) else NULL
-  hor <- .rpt_bt_block("horizonte", c("area", "corte_hm", "d_plus", "wmape %", "n"),
+  hor <- .rpt_bt_block("horizonte", c("area", "corte_hm", "d_plus", "wmape %", "mape %", "n"),
                        c(.rpt_bt_rows(comb, hor_cols), .rpt_bt_rows(sinc, hor_cols)),
                        note = "combinado por folha seguido do reconciliado (subsistemas e SIN)", chart = chart)
-  hor_m <- .rpt_bt_block("horizonte-membros", c("membro", "area", "corte_hm", "d_plus", "wmape %", "n"),
+  hor_m <- .rpt_bt_block("horizonte-membros", c("membro", "area", "corte_hm", "d_plus", "wmape %", "mape %", "n"),
                          .rpt_bt_rows(mbr, c(list(.rpt_bt_str("member")), hor_cols)))
   pk <- .rpt_bt_ord(scores$peak_fixed_18_22, c("area", "corte_hm", "d_plus"))
-  peak <- .rpt_bt_block("pico", c("area", "corte_hm", "d_plus", "wmape pico %", "vies com sinal"),
+  peak <- .rpt_bt_block("pico", c("area", "corte_hm", "d_plus", "wmape pico %", "mape pico %", "vies com sinal"),
                         .rpt_bt_rows(pk, list(.rpt_bt_str("area"), cut_hm, .rpt_bt_str("d_plus"), .rpt_bt_pct(),
-                                              function(r) .rpt_bt_value(r$bias_signed, 2L, sign = TRUE))),
-                        note = "janela 18h-22h sobre interval_start; vies = previsto - realizado (positivo = superestima)")
+                                              .rpt_bt_pct("mape"), function(r) .rpt_bt_value(r$bias_signed, 2L, sign = TRUE))),
+                        note = "janela 18:00-22:00 sobre interval_start; vies = previsto - realizado (positivo = superestima)")
   sk_cols <- list(.rpt_bt_str("area"), cut_hm, .rpt_bt_str("d_plus"), .rpt_bt_skill("skill_persistencia_O1"), .rpt_bt_skill("skill_sazonal_O7"))
   skill <- .rpt_bt_block("skill", c("area", "corte_hm", "d_plus", "skill O-1", "skill O-7"),
                          c(.rpt_bt_rows(comb, sk_cols), .rpt_bt_rows(sinc, sk_cols)),
@@ -425,6 +426,7 @@ prevcarga_report <- function(long, weights, khat, provenance, baselines, format 
   chk <- if (is.finite(sf$sum_check)) { if (sf$sum_check <= 1e-5) "ok" else "FALHOU" } else .rpt_bt_txt_wait
   sin <- .rpt_bt_block("sin", c("campo", "valor"),
                        list(c("SIN fresco wmape %", .rpt_bt_value(sf$wmape, 2L)),
+                            c("SIN fresco mape %", .rpt_bt_value(sf$mape, 2L)),
                             c("sum_check (max |SIN - soma dos subsistemas|)", .rpt_bt_value(sf$sum_check, 8L)),
                             c("sum_check <= 1e-5", chk)),
                        note = "SIN = soma dos subsistemas; a verdade do SIN e a soma dos subsistemas realizados (tol 1e-5)")

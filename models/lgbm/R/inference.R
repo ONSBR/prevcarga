@@ -81,7 +81,8 @@ lgbm_delivery <- function(cuts, dt_D, dt_D1, completed_D, d1) {
 .lgbm_delivery_grid <- function(cuts) {
   f <- .lgbm_foundation("prevcarga_delivery_grid")
   if (is.null(f)) lgbm_abort("lgbm.contract", "prevcarga_delivery_grid indisponivel (fundacao)")
-  f(cuts, plugin_descriptor()$delivery_days)
+  ## F3.7: dias entregues efetivos (clima previsto curto) vem do despachante em cuts$delivery_days; sem ele, o do descriptor.
+  f(cuts, if (!is.null(cuts$delivery_days)) cuts$delivery_days else plugin_descriptor()$delivery_days)
 }
 
 ## Estagio despachado: (payload, inf_feat, cuts). `cuts` ja no frame do modelo (offset 0 no LGBM).

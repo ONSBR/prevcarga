@@ -67,7 +67,7 @@
 .prevcarga_sc_line <- function(r, lead, skill) {
   c(lead, as.character(r$n), .prevcarga_sc_num(r$wmape), .prevcarga_sc_num(r$mape), .prevcarga_sc_num(r$mae, 1L),
     .prevcarga_sc_num(r$rmse, 1L), .prevcarga_sc_num(r$bias, 1L), .prevcarga_sc_num(r$bias_pct), .prevcarga_sc_num(r$peak),
-    if (skill) .prevcarga_sc_num(r$skill, 3L))
+    .prevcarga_sc_num(r$peak_mape), if (skill) .prevcarga_sc_num(r$skill, 3L))
 }
 
 .render_score_text <- function(res) {
@@ -77,7 +77,7 @@
                   if (is.null(res$available_until)) "-" else res$available_until, hash,
                   if (is.null(res$baseline)) "-" else res$baseline$kind)
   skill <- !is.null(res$baseline)
-  cols <- c("OBS", "WMAPE", "MAPE", "MAE", "RMSE", "BIAS", "BIAS%", "PEAK", if (skill) "SKILL")
+  cols <- c("OBS", "WMAPE", "MAPE", "MAE", "RMSE", "BIAS", "BIAS%", "PEAK", "PEAK_MAPE", if (skill) "SKILL")
   hl <- .prevcarga_sc_table(c("AREA", cols), lapply(res$headline$rows, function(r) .prevcarga_sc_line(r, r$area, skill)))
   sc <- .prevcarga_sc_table(c("AREA", "D_PLUS", cols), lapply(res$scorecard, function(r) {
     ln <- .prevcarga_sc_line(r, r$area, skill)

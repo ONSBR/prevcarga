@@ -23,9 +23,6 @@ fontes:
   - scripts/lib/errors/registry_core.tsv
   - models/*/R/register.R
   - models/*/run.yaml
-  - docs/estado/plugin_dispatch.md
-  - docs/estado/training.md
-  - docs/estado/inference.md
 adrs: [ADR-0023, ADR-0012, ADR-0019, ADR-0035, ADR-0040]
 revisado_em: 2026-11-03
 commit_base: "7c57514"
@@ -99,7 +96,7 @@ Os descriptors declaram:
 
 O rótulo da carga (−30 min quando o deck declara `load_label: end`) não é do despachante: é aplicado uma vez pelo leitor do deck. O despachante é o único lugar do repositório que chama `to_hourly`, `to_model_frame` e `to_display_frame` sobre o painel de um plugin; nem as fachadas nem os plugins reamostram ou fazem aritmética de hora.
 
-<Figura id="FIG-A07" titulo="Despachante de plugin (train e infer)" natureza="Fluxo" fontes={['scripts/lib/registry.R', 'scripts/lib/features.R', 'docs/estado/plugin_dispatch.md']} adrs={['ADR-0023', 'ADR-0012', 'ADR-0019']}>
+<Figura id="FIG-A07" titulo="Despachante de plugin (train e infer)" natureza="Fluxo" fontes={['scripts/lib/registry.R', 'scripts/lib/features.R']} adrs={['ADR-0023', 'ADR-0012', 'ADR-0019']}>
 
 ```mermaid
 flowchart TD

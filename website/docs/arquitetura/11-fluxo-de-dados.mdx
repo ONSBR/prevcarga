@@ -28,16 +28,9 @@ fontes:
   - install/prevcarga-sync.sh
   - install/prevcarga-sync.ps1
   - scripts/tools/upload
-  - docs/estado/forecast.md
-  - docs/estado/m6-forecast.md
-  - docs/estado/deck_reader.md
-  - docs/estado/export.md
-  - docs/estado/sync.md
-  - docs/adr/README.md
-  - docs/adr/0016-orquestracao-io-nuvem.md
 adrs: [ADR-0016, ADR-0023, ADR-0032, ADR-0035, ADR-0039, ADR-0040]
-revisado_em: 2026-11-05
-commit_base: "fb28da6"
+revisado_em: 2026-11-13
+commit_base: "f2d1734"
 ---
 
 <span className="pc-overline">Arquitetura · 2.11</span>
@@ -48,7 +41,7 @@ Esta página é a âncora da arquitetura. Ela mostra quem faz o quê e em que or
 
 ## O pipeline
 
-<Figura id="FIG-A08" titulo="Pipeline de dados ponta a ponta" natureza="Fluxo" fontes={['scripts/lib/forecast.R', 'scripts/lib/deck_reader.R', 'scripts/lib/validation.R', 'scripts/lib/dates.R', 'scripts/lib/topology.R', 'scripts/lib/training.R', 'scripts/lib/inference.R', 'scripts/lib/registry.R', 'scripts/lib/build_long_output.R', 'scripts/lib/combination.R', 'scripts/lib/reconcile.R', 'scripts/lib/exports.R', 'scripts/lib/reporting.R', 'docs/estado/forecast.md', 'docs/estado/m6-forecast.md', 'docs/estado/deck_reader.md', 'docs/estado/export.md']} adrs={['ADR-0023', 'ADR-0032', 'ADR-0035']}>
+<Figura id="FIG-A08" titulo="Pipeline de dados ponta a ponta" natureza="Fluxo" fontes={['scripts/lib/forecast.R', 'scripts/lib/deck_reader.R', 'scripts/lib/validation.R', 'scripts/lib/dates.R', 'scripts/lib/topology.R', 'scripts/lib/training.R', 'scripts/lib/inference.R', 'scripts/lib/registry.R', 'scripts/lib/build_long_output.R', 'scripts/lib/combination.R', 'scripts/lib/reconcile.R', 'scripts/lib/exports.R', 'scripts/lib/reporting.R']} adrs={['ADR-0023', 'ADR-0032', 'ADR-0035']}>
 
 ```mermaid
 flowchart LR
@@ -138,7 +131,7 @@ A `versao` é um hash de 12 hex sobre: versão do pacote, versão do artefato e 
 O scratch `<state_dir>/scratch/<run_id>/` é recriado sempre. Recebe os parquets de subsistema e SIN (pelo escritor do reconcile), as folhas e os membros pedidos, o `run.json` com a lista `arquivos[]` e o `run_manifest.json` com a identidade da rodada. O `prevcarga_export` copia os bytes do scratch para a chave, por staging `.tmp-<run_id>` e `file.rename`. Mesma chave com os mesmos bytes é no-op; qualquer diferença é conflito. O relatório roda depois do commit da entrega, grava em `<state_dir>/reports/` e nunca altera `forecasts/`. Os detalhes estão em [Entrega e export imutável](/arquitetura/entrega-export).
 
 <Pendente titulo="Pendente · chave e conjunto de arquivos">
-A `versao` não inclui `--niveis` nem `--incluir-membros`. Rodar de novo a mesma chave com outro conjunto de arquivos dá `export.key_conflict`. A solução (incluir esses flags na versão ou aceitar superconjunto no export) não foi decidida.
+A `versao` não inclui `--incluir-membros`. Rodar de novo a mesma chave com outro conjunto de arquivos dá `export.key_conflict`. A solução (incluir a flag na versão ou aceitar superconjunto no export) não foi decidida.
 </Pendente>
 
 ## forecast.R só compõe
@@ -149,7 +142,7 @@ O tempo de cada passo existe só para o requisito de 30 minutos. O relógio é i
 
 ### A ordem invariante
 
-1. Conferir `niveis` (`sin`, `subsistemas` ou `tudo`), antes de qualquer trabalho.
+1. Resolver o escopo (`area`, `subsistema` ou `sin`) e validar as flags (`--jobs`, `--report-format`), antes de qualquer trabalho.
 2. Validação do deck e cortes. Dia O completo é recusado aqui.
 3. Plano de topologia.
 4. Inferência por membro × folha, com treino só para `origin_scoped` sem artefato de O.

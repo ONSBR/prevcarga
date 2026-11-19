@@ -27,17 +27,25 @@
 
 ## --- Painel e cortes da celula ------------------------------------------------------------------------------
 ## Devolve plugin, spec efetivo, cuts (formato do despachante) e o painel de TREINO ja cortado em last_data_day.
-prevcarga_train_inputs <- function(member, area, origin, ctx) {
+## `rc`, `read_panel`, `plugin` e `spec` (todos opcionais) vem do prevcarga_train_plan, que os memoiza por chamada; sem eles
+## o comportamento e o de sempre (prevcarga_train e o treino real nao mudam). `read_panel(area, span, horizon_days,
+## weather_forecast_in_train)` devolve o painel NAO cortado; o corte por janela segue por celula, aqui.
+prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_panel = NULL, plugin = NULL, spec = NULL) {
   origin <- lubridate::as_date(origin)
   if (is.null(ctx$weather_issue_cutoff)) ctx$weather_issue_cutoff <- "available_until"
-  plugin <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))
-  prevcarga_plugin_check_signature(plugin)
+  if (is.null(plugin)) {
+    plugin <- prevcarga_plugin_load(member$mdir, prevcarga_models_root(ctx$root))
+    prevcarga_plugin_check_signature(plugin)
+  }
   d <- plugin$descriptor
-  spec <- prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
-  prevcarga_plugin_check_params(spec$params, d$params_schema, member$mdir)
+  if (is.null(spec)) {
+    spec <- prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
+    prevcarga_plugin_check_params(spec$params, d$params_schema, member$mdir)
+  }
 
-  rc <- prevcarga_resolve_cuts(ctx, origin, model = member$mdir,
-                               data_lag_days = stats::setNames(d$data_lag_days, member$mdir))
+  if (is.null(rc))
+    rc <- prevcarga_resolve_cuts(ctx, origin, model = member$mdir,
+                                 data_lag_days = stats::setNames(d$data_lag_days, member$mdir))
   row <- rc$cuts[rc$cuts$model == member$mdir, ]
   if (nrow(row) != 1L || !identical(as.integer(row$data_lag_days), as.integer(d$data_lag_days)))
     prevcarga_abort("contract.cut_mismatch", where = member$mdir,
@@ -58,10 +66,14 @@ prevcarga_train_inputs <- function(member, area, origin, ctx) {
     cuts$last_data_day - hist + 1L
   need <- as.integer(cuts$last_data_day - first_day) + 1L
   span <- as.integer(origin - first_day) + 1L
-  p <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
-  if (isTRUE(d$weather_forecast_in_train))
-    p$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
-                                                           cuts$weather_issue_limit)
+  fc_in_train <- isTRUE(d$weather_forecast_in_train)
+  p <- if (!is.null(read_panel)) read_panel(area, span, spec$horizon_days, fc_in_train) else {
+    pp <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
+    if (fc_in_train)
+      pp$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
+                                                              cuts$weather_issue_limit)
+    pp
+  }
   day_of <- function(x) lubridate::as_date(x, tz = cuts$tz)
   in_window <- function(x) day_of(x) <= cuts$last_data_day & day_of(x) >= first_day
   panel <- p
@@ -267,11 +279,46 @@ prevcarga_train_matrix <- function(args, ctx) {
   df
 }
 
-## --dry-run: cortes e versao-alvo por celula, sem gravar nada (status = "planned"). A leitura do deck e a mesma do treino.
+## Memo do painel do dry-run: vive so na closure criada por chamada de prevcarga_train_plan (nada global, nada entre
+## execucoes). Chave exata (area, span, horizon_days, weather_forecast_in_train); o valor e o painel NAO cortado.
+.prevcarga_tr_panel_memo <- function(ctx, origin, rc) {
+  memo <- new.env(parent = emptyenv())
+  function(area, span, horizon_days, fc_in_train) {
+    k <- paste(area, span, horizon_days, isTRUE(fc_in_train), sep = "|")
+    if (!is.null(memo[[k]])) return(memo[[k]])
+    p <- prevcarga_read_panel(ctx, origin, area, horizon_days, span)
+    if (isTRUE(fc_in_train))
+      p$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + horizon_days,
+                                                             rc$weather_issue_limit)
+    assign(k, p, envir = memo); p
+  }
+}
+
+## --dry-run: cortes e versao-alvo por celula, sem gravar nada (status = "planned"). Mesma leitura e mesmos cortes do
+## treino, mas plugin, cortes (1 resolve_cuts com todos os mdirs) e painel sao lidos 1x por chave, nao por celula.
 prevcarga_train_plan <- function(cells, origin, ctx) {
+  origin <- lubridate::as_date(origin)
+  if (is.null(ctx$weather_issue_cutoff)) ctx$weather_issue_cutoff <- "available_until"
+  mdirs <- unique(cells$model)
+  plugins <- list(); lags <- integer(0)
+  for (m in mdirs) {
+    plugins[[m]] <- prevcarga_plugin_load(m, prevcarga_models_root(ctx$root))
+    prevcarga_plugin_check_signature(plugins[[m]])
+    lags[[m]] <- as.integer(plugins[[m]]$descriptor$data_lag_days)
+  }
+  rc <- if (length(mdirs)) prevcarga_resolve_cuts(ctx, origin, model = mdirs, data_lag_days = lags)
+  read_panel <- .prevcarga_tr_panel_memo(ctx, origin, rc)
+  specs <- list()    # por membro (mdir + variante): o spec efetivo depende da variante
   rows <- lapply(seq_len(nrow(cells)), function(i) {
     m <- .prevcarga_tr_member(cells, i)
-    inp <- prevcarga_train_inputs(m, cells$area[[i]], origin, ctx)
+    sk <- paste(m$mdir, m$exogena, sep = "|")
+    if (is.null(specs[[sk]])) {
+      sp <- prevcarga_model_spec(m$mdir, ctx$root, .prevcarga_tr_overrides(plugins[[m$mdir]], m, ctx))
+      prevcarga_plugin_check_params(sp$params, plugins[[m$mdir]]$descriptor$params_schema, m$mdir)
+      specs[[sk]] <<- sp
+    }
+    inp <- prevcarga_train_inputs(m, cells$area[[i]], origin, ctx, rc = rc, read_panel = read_panel,
+                                  plugin = plugins[[m$mdir]], spec = specs[[sk]])
     id <- prevcarga_train_fingerprint(m, inp$spec, inp$cuts, inp$panel, ctx)
     key <- prevcarga_registry_key(m, cells$area[[i]], ctx)
     prevcarga_cell_row(m, cells$area[[i]], inp$cuts, id$version, "planned", file.path(key, id$version))
@@ -279,17 +326,29 @@ prevcarga_train_plan <- function(cells, origin, ctx) {
   .prevcarga_tr_sort(do.call(rbind, rows))
 }
 
+## Rotulo da celula: "<model>[/<variant>]:<area>" (aparece no where do fail-fast e nas linhas de falha).
+.prevcarga_tr_cell_label <- function(cells, i) {
+  v <- cells$variant[[i]]
+  paste0(cells$model[[i]], if (is.na(v)) "" else paste0("/", v), ":", cells$area[[i]])
+}
+
 ## Uma celula sem propagar a condicao (o worker devolve dado serializavel; o pai re-levanta com a classe original).
-.prevcarga_tr_cell_error <- function(e) {
-  structure(list(error_id = if (!is.null(e$id)) e$id else "generic.unexpected",
-                 where = e$where, details = if (!is.null(e$id)) e$details else list(message = conditionMessage(e)),
-                 message = conditionMessage(e)),
+## error_class: e$class_name, ou o prefixo [prevcarga/<classe>] da mensagem, ou "generic".
+.prevcarga_tr_cell_error <- function(e, label = NA_character_) {
+  msg <- conditionMessage(e)
+  cls <- if (!is.null(e$class_name)) as.character(e$class_name)
+         else if (grepl("^\\[prevcarga/[a-z_]+\\]", msg)) sub("^\\[prevcarga/([a-z_]+)\\].*$", "\\1", msg)
+         else "generic"
+  structure(list(error_id = if (!is.null(e$id)) e$id else "generic.unexpected", error_class = cls, label = label,
+                 where = e$where, details = if (!is.null(e$id)) e$details else list(message = msg),
+                 message = msg),
             class = "prevcarga_cell_error")
 }
 
 prevcarga_train_cell_safe <- function(cells, i, ctx, origin, force = FALSE) {
+  label <- .prevcarga_tr_cell_label(cells, i)
   tryCatch(prevcarga_train(.prevcarga_tr_member(cells, i), cells$area[[i]], origin, ctx, force = force),
-           error = .prevcarga_tr_cell_error)
+           error = function(e) .prevcarga_tr_cell_error(e, label))
 }
 
 ## Roda no worker (R novo): carrega a lib, executa hooks de teste (so ctx$worker_hooks) e fixa o runtime in-process.
@@ -313,19 +372,39 @@ prevcarga_worker_init <- function(lib, modules, hooks = list()) {
   prevcarga_abort(bad$error_id, where = bad$where, details = bad$details)
 }
 
-prevcarga_train_models <- function(cells, ctx, origin = NULL, jobs = 1L, force = FALSE) {
+.prevcarga_tr_empty <- function()
+  data.frame(model = character(), variant = character(), area = character(), split = character(),
+             train_origin = lubridate::as_date(character()), last_data_day = lubridate::as_date(character()),
+             version = character(), status = character(), path = character(), error_id = character(),
+             error_class = character(), mensagem = character(), stringsAsFactors = FALSE)
+
+## Uma linha por celula: status trained|reused|failed|skipped (skipped = nao rodou por fail-fast).
+.prevcarga_tr_consolidate <- function(cells, res) {
+  rows <- lapply(seq_len(nrow(cells)), function(i) {
+    r <- if (i <= length(res)) res[[i]] else NULL
+    if (is.data.frame(r)) {
+      r$error_id <- NA_character_; r$error_class <- NA_character_; r$mensagem <- NA_character_
+      return(r)
+    }
+    d <- .prevcarga_tr_empty()[NA_integer_, , drop = FALSE]
+    d$model <- cells$model[[i]]; d$variant <- cells$variant[[i]]; d$area <- cells$area[[i]]
+    d$status <- if (is.null(r)) "skipped" else "failed"
+    if (!is.null(r)) { d$error_id <- r$error_id; d$error_class <- r$error_class; d$mensagem <- r$message }
+    d
+  })
+  do.call(rbind, rows)
+}
+
+prevcarga_train_models <- function(cells, ctx, origin = NULL, jobs = 1L, force = FALSE, keep_going = FALSE) {
   if (is.null(origin)) origin <- prevcarga_resolve_origin(ctx)$origin
   jobs <- as.integer(jobs)
   idx <- seq_len(nrow(cells))
-  if (!length(idx))
-    return(data.frame(model = character(), variant = character(), area = character(), split = character(),
-                      train_origin = lubridate::as_date(character()), last_data_day = lubridate::as_date(character()),
-                      version = character(), status = character(), path = character(), stringsAsFactors = FALSE))
-  res <- list()
+  if (!length(idx)) return(.prevcarga_tr_empty())
+  res <- vector("list", length(idx))
   if (jobs <= 1L) {
     for (i in idx) {
       res[[i]] <- prevcarga_train_cell_safe(cells, i, ctx, origin, force)
-      if (inherits(res[[i]], "prevcarga_cell_error")) break
+      if (inherits(res[[i]], "prevcarga_cell_error") && !isTRUE(keep_going)) break
     }
   } else {
     lib <- if (!is.null(ctx$lib_dir)) ctx$lib_dir else getOption("prevcarga.lib")
@@ -338,7 +417,10 @@ prevcarga_train_models <- function(cells, ctx, origin = NULL, jobs = 1L, force =
     res <- parallel::parLapplyLB(cl, idx, function(i, cells, ctx, origin, force)
       prevcarga_train_cell_safe(cells, i, ctx, origin, force), cells = cells, ctx = ctx, origin = origin, force = force)
   }
+  ## 1a falha na ordem (model, variant, area) -- a matriz ja vem ordenada
   bad <- Find(function(r) inherits(r, "prevcarga_cell_error"), res)
-  if (!is.null(bad)) prevcarga_abort(bad$error_id, where = bad$where, details = bad$details)
-  .prevcarga_tr_sort(do.call(rbind, res))
+  if (!is.null(bad) && !isTRUE(keep_going))
+    prevcarga_abort(bad$error_id, where = bad$label,
+                    details = list(cause_where = bad$where, message = bad$message, cause = bad$details))
+  .prevcarga_tr_sort(.prevcarga_tr_consolidate(cells, res))
 }

@@ -18,12 +18,9 @@ fontes:
   - scripts/lib/schema_long.R
   - scripts/lib/dates.R
   - config/topology.yaml
-  - docs/estado/reconcile.md
-  - docs/estado/topology.md
-  - docs/adr/0015-reconciliacao-bottomup-khat.md
 adrs: [ADR-0015, ADR-0028]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-13
+commit_base: "5c48c00"
 ---
 
 <span className="pc-overline">Metodologia · 1.12</span>
@@ -106,7 +103,7 @@ A regra do módulo é **soma por `interval_end`, bucket por `interval_start`**. 
 
 Bucket sem observação na janela usa o `glob`, com o aviso `reconcile.khat_fallback` e a contagem em `n_fallback`. Não há clamp: o k aplicado é o ajustado, mesmo fora da faixa de coerência.
 
-<Figura id="FIG-M17" titulo="Reconciliação Bottom-Up × k-hat: ramo de treino e ramo de apply" natureza="Fluxo" fontes={['scripts/lib/reconcile.R', 'scripts/lib/forecast.R', 'scripts/lib/evaluation.R', 'config/topology.yaml', 'docs/estado/reconcile.md']} adrs={['ADR-0015', 'ADR-0028']}>
+<Figura id="FIG-M17" titulo="Reconciliação Bottom-Up × k-hat: ramo de treino e ramo de apply" natureza="Fluxo" fontes={['scripts/lib/reconcile.R', 'scripts/lib/forecast.R', 'scripts/lib/evaluation.R', 'config/topology.yaml']} adrs={['ADR-0015', 'ADR-0028']}>
 
 ```mermaid
 flowchart LR
@@ -138,6 +135,8 @@ O SIN não tem previsão nem k-hat próprio. `prevcarga_reconcile_sin` soma o `y
 
 O SIN só é produzido quando todos os subsistemas da topologia foram reconciliados na chamada. Na rodada diária isso significa que todas as 24 áreas fecharam os seus subsistemas.
 
+Um subsistema incompleto é recusado: se falta a previsão de qualquer folha do subsistema, o `prevcarga_reconcile_bottomup` e o `reconcile --mode=apply` abortam com `completude.leaf_missing` (exit 3, `where` lista as folhas ausentes), sem devolver nem gravar nada. O backtest aplica a mesma recusa por origem: registra a origem em `incompleto` e não escreve subsistema nem SIN para ela.
+
 ## Política de uso do perfil e modos de execução
 
 ### khat_origin == O sempre
@@ -152,10 +151,6 @@ O perfil é reajustado em toda origem e só serve à origem em que foi ajustado.
 | Rótulo da carga ou fuso diferente da convenção atual | `contract.khat_convention`, `where` = `load_label` ou `timezone` | 2 |
 
 O pino `--khat-version` só escolhe entre versões ajustadas em O; ele nunca libera o reuso de perfil de outra origem.
-
-:::note Nota defasada no estado do módulo
-Uma nota de `docs/estado/reconcile.md` fala em perfil reutilizado em O ≥ `khat_origin` no apply de produção. Ela contradiz a política registrada no mesmo arquivo e o código, que recusa qualquer perfil com `khat_origin` diferente de O. Vale o código.
-:::
 
 ### Modos do verbo reconcile
 

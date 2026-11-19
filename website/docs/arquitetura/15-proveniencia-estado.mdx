@@ -36,18 +36,6 @@ fontes:
   - scripts/lib/cli/validate-deck.R
   - scripts/lib/cli/export.R
   - install/prevcarga-sync.sh
-  - docs/estado/provenance.md
-  - docs/estado/validate_deck.md
-  - docs/estado/verificar.md
-  - docs/estado/export.md
-  - docs/estado/orchestrate.md
-  - docs/estado/cache.md
-  - docs/estado/registry_core.md
-  - docs/estado/m6-forecast.md
-  - docs/estado/m7-orquestracao.md
-  - docs/estado/backtest.md
-  - docs/estado/sync.md
-  - docs/adr/0011-ciclo-artefato-registry.md
 adrs: [ADR-0011, ADR-0021, ADR-0023, ADR-0030, ADR-0039]
 revisado_em: 2026-11-05
 commit_base: "fb28da6"
@@ -109,7 +97,7 @@ O campo `cutoff` não é a origem da rodada. Ele leva os cortes de treino que a 
 
 Se a pasta da versão já existe no registry, `prevcarga_train` devolve a célula com status `reused` e não treina de novo, salvo com `train-models --force`. Mesmos insumos, mesma versão.
 
-<Figura id="FIG-A11" titulo="Linhagem de identidade: do deck à entrega" natureza="Fluxo" fontes={['scripts/lib/provenance.R', 'scripts/lib/training.R', 'scripts/lib/exports.R', 'scripts/lib/forecast.R', 'scripts/lib/verify_repro.R', 'docs/estado/provenance.md', 'docs/estado/validate_deck.md', 'docs/estado/export.md', 'docs/estado/verificar.md']} adrs={['ADR-0023', 'ADR-0011']}>
+<Figura id="FIG-A11" titulo="Linhagem de identidade: do deck à entrega" natureza="Fluxo" fontes={['scripts/lib/provenance.R', 'scripts/lib/training.R', 'scripts/lib/exports.R', 'scripts/lib/forecast.R', 'scripts/lib/verify_repro.R']} adrs={['ADR-0023', 'ADR-0011']}>
 
 ```mermaid
 flowchart LR
@@ -190,7 +178,7 @@ O manifesto da entrega não leva relógio. Duas rodadas com os mesmos insumos pr
 
 No registry há uma segunda camada. `prevcarga_registry_publish` congela `artifact.rds`, grava o `run_manifest.json` e depois o `SHA256SUMS` da pasta inteira, que cobre também o sidecar. `prevcarga_load_artifact` confere cada linha do `SHA256SUMS` antes do thaw; divergência dá `integrity.artifact_hash` (exit 9). O ciclo do registry está em [Registry de artefatos](/arquitetura/registry).
 
-<Figura id="FIG-A15" titulo="freeze/thaw com conferência de integridade" natureza="Fluxo" fontes={['scripts/lib/provenance.R', 'scripts/lib/registry.R', 'docs/estado/provenance.md']} adrs={['ADR-0011']}>
+<Figura id="FIG-A15" titulo="freeze/thaw com conferência de integridade" natureza="Fluxo" fontes={['scripts/lib/provenance.R', 'scripts/lib/registry.R']} adrs={['ADR-0011']}>
 
 ```mermaid
 sequenceDiagram
@@ -304,7 +292,7 @@ O `state_dir` vem de `--state`, depois de `state_dir` no `config.yaml`, depois d
   reports/        <AAAA-MM-DD>/<AAAAMMDDTHHMM>/<versao>/ relatório da rodada
 ```
 
-<Figura id="FIG-A12" titulo="state_dir: verbo escritor, ramo e verbo leitor" natureza="Estrutura" fontes={['scripts/lib/config.R', 'scripts/lib/forecast.R', 'scripts/lib/exports.R', 'scripts/lib/orchestrate.R', 'scripts/lib/cache.R', 'scripts/lib/registry.R', 'docs/estado/m7-orquestracao.md', 'docs/estado/m6-forecast.md', 'docs/estado/cache.md', 'docs/estado/registry_core.md']} adrs={['ADR-0039', 'ADR-0030']}>
+<Figura id="FIG-A12" titulo="state_dir: verbo escritor, ramo e verbo leitor" natureza="Estrutura" fontes={['scripts/lib/config.R', 'scripts/lib/forecast.R', 'scripts/lib/exports.R', 'scripts/lib/orchestrate.R', 'scripts/lib/cache.R', 'scripts/lib/registry.R']} adrs={['ADR-0039', 'ADR-0030']}>
 
 ```mermaid
 flowchart LR

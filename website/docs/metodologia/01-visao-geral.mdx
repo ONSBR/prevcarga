@@ -6,15 +6,6 @@ slug: /metodologia/visao-geral
 description: O que o PrevCarga prevê, por que foi desenhado assim, com que granularidade e horizonte, e como membros, combina e reconciliação levam a previsão das áreas até o SIN.
 fontes:
   - config/topology.yaml
-  - docs/adr/0001-topologia-sin-map-reduce.md
-  - docs/adr/0002-grade-semihoraria-schema-long.md
-  - docs/adr/0009-arquitetura-modular-modelo.md
-  - docs/adr/0013-combina-convexa-metodo.md
-  - docs/adr/0015-reconciliacao-bottomup-khat.md
-  - docs/estado/topology.md
-  - docs/estado/m6-forecast.md
-  - docs/estado/combination.md
-  - docs/estado/reconcile.md
   - models/_dessem-engine/README.md
   - models/_dessem-engine/model_parameters.json
   - models/_dessem-engine/R/modelos_demanda_media.R
@@ -120,7 +111,7 @@ A topologia tem uma fonte única: <Tag>config/topology.yaml</Tag>, carregada e v
 
 A perda não é prevista nem somada como série. O ADR-0015 a trata como resíduo contábil, `L_true = SS_true − BU_true`, e o k-hat aprende a razão entre a carga verificada do subsistema e a soma das folhas. Área nova se cria só no YAML; nenhum código muda.
 
-<Figura id="FIG-M01" titulo="Agregação folha → subsistema → SIN" natureza="Estrutura" fontes={['config/topology.yaml', 'docs/adr/0015-reconciliacao-bottomup-khat.md']} adrs={['ADR-0001', 'ADR-0015']}>
+<Figura id="FIG-M01" titulo="Agregação folha → subsistema → SIN" natureza="Estrutura" fontes={['config/topology.yaml']} adrs={['ADR-0001', 'ADR-0015']}>
 
 ```mermaid
 flowchart BT
@@ -188,7 +179,7 @@ Os passos exatos e o ponto em que cada falha encerra a rodada estão em [Rodada 
 
 O backtest reusa o mesmo código. O harness só trunca o tempo: o corte vira `truncate_at` para o leitor único, que deriva o `available_until` como na produção. O treino e a inferência de cada célula usam as fachadas de produção, e o REDUCE refaz a combina honesta por mês e o k-hat em cada origem (ver [Backtest](/metodologia/backtest)).
 
-<Figura id="FIG-M02" titulo="Da folha ao SIN: MAP e REDUCE" natureza="Fluxo" fontes={['scripts/lib/forecast.R', 'scripts/lib/dates.R', 'scripts/lib/backtest.R', 'config/topology.yaml', 'docs/estado/m6-forecast.md', 'docs/estado/combination.md', 'docs/estado/reconcile.md', 'docs/adr/0001-topologia-sin-map-reduce.md', 'docs/adr/0009-arquitetura-modular-modelo.md']} adrs={['ADR-0001', 'ADR-0009', 'ADR-0013', 'ADR-0015']}>
+<Figura id="FIG-M02" titulo="Da folha ao SIN: MAP e REDUCE" natureza="Fluxo" fontes={['scripts/lib/forecast.R', 'scripts/lib/dates.R', 'scripts/lib/backtest.R', 'config/topology.yaml']} adrs={['ADR-0001', 'ADR-0009', 'ADR-0013', 'ADR-0015']}>
 
 ```mermaid
 flowchart LR
