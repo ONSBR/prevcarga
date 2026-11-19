@@ -1,12 +1,13 @@
 id	class	message	hint
 plugin.regdin_bad_exogena	contract	params$exogena invalido para o dessem-regdin	use MED ou MAX conforme o membro RGD_*; MXMN e recusado (o oraculo caia para MED com aviso)
+plugin.regdin_bad_clima_hist	contract	params$clima_hist invalido para o dessem-regdin	use observado ou previsto_lead0 em params.clima_hist (ausente = observado)
 plugin.regdin_train_panel_has_origin	contract	painel de treino do dessem-regdin contem carga do dia O ou posterior alem de available_until	confira cuts$last_data_day (O-1) e available_until vindos de prevcarga_resolve_cuts
 plugin.regdin_panel_contract	contract	painel do dessem-regdin viola o contrato (coluna ausente, emissao de clima apos weather_issue_limit ou exogena sem cobertura)	veja details e a mensagem; o plugin confere e nunca corta nem preenche
 plugin.regdin_series_gap	completude	dia historico do dessem-regdin com menos de 24 horas de carga	complete a carga do dia nomeado no leitor; buraco nunca vira 0
 plugin.regdin_history_short	window	historico do painel menor que history_days.train do dessem-regdin	amplie a janela do painel ou reduza history_days.train no run.yaml
-plugin.regdin_window_mismatch	window	janela de infer do dessem-regdin difere da janela de treino do artefato	use history_days.infer == history_days.train e o mesmo painel do treino
+plugin.regdin_window_mismatch	window	deck de inferencia do dessem-regdin nao termina em train_window$end do artefato (ultimo dia historico)	use um deck que termine em O-1 (o mesmo ultimo dia historico do treino); o deck pode ter so 15 dias (history_days.infer)
 plugin.regdin_arima_drift	contract	ARIMA refeito no infer diverge do ARIMA congelado no treino do dessem-regdin	confira a janela e a origem; o infer deve re-fitar sobre a mesma serie do treino
-plugin.regdin_artifact_mismatch	contract	artefato do dessem-regdin nao cobre os dias-alvo do deck, e de outra variante ou tem forma incoerente com o painel de infer	use o artefato treinado para esta origem e variante (train-models); o infer nunca adapta o artefato
+plugin.regdin_artifact_mismatch	contract	artefato do dessem-regdin nao cobre os dias-alvo do deck, e de outra variante, anterior ao estado derivado (v0.1.5: sem serie_dm, hol_profile ou columns) ou tem forma incoerente com o painel de infer	use o artefato treinado para esta origem e variante (train-models); artefato v0.1.5 => retreinar; o infer nunca adapta o artefato
 warning.regdin_desagrega_fallback	contract	desagregaModeloSH falhou; usada a duplicacao :00/:30 do oraculo (aviso)	nenhuma acao: aviso registrado no envelope
-plugin.regdin_artifact_tampered	integrity	artefato congelado do dessem-regdin com forma incoerente (campo ausente ou SVMs fora de 24 por dia normal)	regenere o artefato com train-models; nao edite o artefato congelado
+plugin.regdin_artifact_tampered	integrity	artefato congelado do dessem-regdin com forma incoerente (campo ausente, SVMs fora de 24 por dia normal ou serie_dm adulterada: fora de train_window ou digest diferente do dm_digest)	regenere o artefato com train-models; nao edite o artefato congelado
 warning.regdin_rng_deviation	repro	plano B de RNG ativo: set.seed re-fixado antes do perfil (aviso)	listado para o A/B do M8; nenhuma acao

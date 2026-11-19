@@ -2,7 +2,7 @@ name: random-forest
 split: origin_agnostic
 granularity_min: 60
 horizon_days: 9
-history_days: {train: 365, infer: 45}
+history_days: {train: 365, infer: 9}   # lags O-8..O-1 (max_lag_days 7 + O-1) e LOCF do clima em [O-9, O]
 seed: 123
 modes: [train, infer]
 backtest: {protocol_default: daily}

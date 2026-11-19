@@ -220,7 +220,7 @@ O `verificar` compara duas entregas entre si. Dois outros verbos olham um LONG s
 prevcarga check-coherence --long=<f>
 ```
 
-O verbo lê o LONG pelo leitor único no fuso do contexto ou, sem ele, no fuso da carga declarado no manifest do deck (por isso precisa achar o deck, com `--data` ou pela configuração). Depois chama `prevcarga_check_coherence` com a topologia como dado. Todos os achados são acumulados. A ordem de cálculo é:
+O verbo lê o LONG pelo leitor único no fuso do contexto ou, sem ele, no fuso da carga declarado no manifest do deck (por isso precisa achar o deck, com `--data-train` ou pela configuração). Depois chama `prevcarga_check_coherence` com a topologia como dado. Todos os achados são acumulados. A ordem de cálculo é:
 
 | Verificação | Erro | Classe | Exit |
 |---|---|---|---|
@@ -253,8 +253,8 @@ O `score` pontua um LONG publicado de 8 colunas contra a carga realizada lida fr
 `--baseline` aceita `persistence` ou `seasonal_naive` e acrescenta o skill contra esse baseline. Outro valor dá `contract.baseline_kind` (exit 2). Se nenhum intervalo do LONG tiver carga realizada no deck, o verbo sai com exit 0 e o aviso `warning.nothing_to_score`. As métricas e os baselines estão descritos como método em [Avaliação](/metodologia/avaliacao).
 
 <Terminal title="prevcarga — bash" lines={[
-  {type:'cmd', text:'prevcarga check-coherence --long=./previsao.parquet --data=./deck'},
-  {type:'cmd', text:'prevcarga score --long=./previsao.parquet --data=./deck --baseline=seasonal_naive'}
+  {type:'cmd', text:'prevcarga check-coherence --long=./previsao.parquet --data-train=./deck'},
+  {type:'cmd', text:'prevcarga score --long=./previsao.parquet --data-train=./deck --baseline=seasonal_naive'}
 ]} />
 
 :::note Um parquet da entrega sozinho

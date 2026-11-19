@@ -15,11 +15,13 @@ SVMhorario <- function(dataPrev,hora,serie,param_entrada){
                                addHourFac = F)
    formulaSVM <- getFormula(names(dadosEntrada[,-param_entrada$colunaRemoverPerfil,with = F]))
    dadosTreinamento <- dadosEntrada[!is.na(Carga)]
-   modeloSVM <- tune_wsvm(formulaSVM,iter.max=500,
+   modeloSVM <- .engine_with_cell(
+      sprintf("data=%s hora=%s tipo_dia_especial=%s", format(dataPrev), hora, paste(cfg$diaEsp, collapse = ",")),
+      tune_wsvm(formulaSVM,iter.max=500,
                           weight=getSVMWeights(param_entrada$alfa,nrow(dadosTreinamento)),
                           data=dadosTreinamento,
                           ranges = param_entrada$ranges,
-                          kernel = param_entrada$kernel)
+                          kernel = param_entrada$kernel))
    return(list(modeloTreinado = modeloSVM,dadosEntrada = dadosEntrada, parametros = param_entrada))
 }
 

@@ -28,8 +28,8 @@ fontes:
   - scripts/lib/errors/dessem_linear.tsv
   - scripts/lib/errors/dessem_regdin.tsv
 adrs: [ADR-0023, ADR-0012, ADR-0019, ADR-0036, ADR-0040]
-revisado_em: 2026-11-13
-commit_base: "f2d1734"
+revisado_em: 2026-11-16
+commit_base: "b6d99da"
 ---
 
 <span className="pc-overline">Metodologia · 1.10</span>
@@ -94,8 +94,8 @@ No infer, `plugin_infer` faz um único ajuste:
 1. `dl_thaw` descongela o artefato.
 2. `set.seed(artifact$seed)` (semente 42, do `run.yaml`) fixa a posição inicial do gerador.
 3. `dl_dm_o_fit` ajusta a DM(O) com uma chamada de `tune_wsvm`:
-   - modo `nowcast`: `dl_dm_head`, com a entrada `obterEntradaFormulaDM` do motor mais a coluna `mm` e `+ mm` na fórmula (`dl_dm_head_input`), pesos `getSVMWeights` e `iter.max = 500`, os mesmos argumentos de `SVM_DemandaMedia`;
-   - modo `no_day_o`: o `SVM_DemandaMedia` puro do motor, com a fórmula do motor e sem `mm`.
+   - modo `nowcast`: o ajuste roda sobre `dm_o_sample`, a amostra de treino da DM(O) gravada no artefato, com a coluna `mm` da hora de corte (normalizada) e `+ mm` na fórmula gravada, pesos `getSVMWeights` e `iter.max = 500`, os mesmos argumentos de `SVM_DemandaMedia`;
+   - modo `no_day_o`: a mesma amostra, com a fórmula do motor gravada (`dm_o_formula`) e sem `mm`, os mesmos argumentos do `SVM_DemandaMedia`.
 4. `.dl_predict_pass` percorre os dias O..O+9: a DM de O vem do ajuste acima, a de O+1..O+9 dos SVMs congelados. Cada DM prevista é escrita de volta em `serieDM` (write-back), de modo que o `LAG_1` de O+1 recebe a média de O prevista. Os 24 perfis de cada dia usam `CargaMed` = DM do dia.
 5. `.dl_envelope` aplica a regra semi-horária uma vez sobre os 10 dias e entrega a matriz 9 × 48 e a grade de entrega da fundação.
 
@@ -122,13 +122,13 @@ No regdin a DM é uma regressão dinâmica (`fable::ARIMA`) e o ARIMA não é co
 
 ## Invariante de janela no regdin
 
-O ARIMA é re-fitado no infer, então o infer só é honesto se vir exatamente a série do treino. O invariante `history_days.infer == train` tem três camadas:
+O ARIMA é re-fitado no infer, então o infer só é honesto se vir exatamente a série do treino. Desde o estado derivado no artefato, a série histórica vem do artefato (`serie_dm`), não do deck: o deck de inferência pode ter só 15 dias e precisa apenas terminar no último dia histórico do treino. O invariante tem três camadas:
 
 | Camada | Onde | Falha |
 |---|---|---|
-| 1. Declaração | `constraints: {infer_history_equals_train: true}` no `run.yaml` (os dois `history_days` valem 1.825) e `history_infer_equals_train = TRUE` no descriptor | `history_days.infer` diferente de `train` é recusado pela restrição do `run.yaml` (`contract.constraint_violated`) e pelo loader de plugins (`plugin.history_window`) |
-| 2. Guarda de painel | `.rd_check_window`: o painel do infer cobre exatamente o `train_window` do artefato, antes de qualquer ajuste | `plugin.regdin_window_mismatch` (classe `window`, exit 5) |
-| 3. Fingerprint do ARIMA | `.rd_check_fingerprint`: refaz o ARIMA base sobre uma cópia da série até O−1, sem cabeça, e compara com o `arima_fingerprint` do artefato | `plugin.regdin_arima_drift` (classe `contract`, exit 2) |
+| 1. Declaração | `history_infer_equals_train = FALSE` no descriptor e `history_days: {train: 1095, infer: 15}` no `run.yaml` (o deck longo continua aceito) | – |
+| 2. Guarda do artefato e do deck | `.rd_check_window`: o intervalo e o digest de `serie_dm` batem com o `train_window` e o `dm_digest` do artefato, antes do ARIMA; o deck termina em `train_window$end` | `plugin.regdin_artifact_tampered` (classe `integrity`, exit 9) e `plugin.regdin_window_mismatch` (classe `window`, exit 5) |
+| 3. Fingerprint do ARIMA | `.rd_check_fingerprint`: refaz o ARIMA base sobre a série composta (`serie_dm` mais O..O+9 do deck) e compara com o `arima_fingerprint` do artefato | `plugin.regdin_arima_drift` (classe `contract`, exit 2) |
 
 O artefato não guarda o modelo ARIMA (sem `mable`). Guarda só o fingerprint, montado por `.rd_arima_fingerprint`: a ordem `(p,d,q)(P,D,Q)`, os coeficientes nomeados e `dm_digest`, o sha256 da série DM histórica (`Data`, `Carga` e as colunas `Exo*`). A conferência exige ordem idêntica, o mesmo `dm_digest`, o mesmo conjunto de coeficientes e cada coeficiente igual com tolerância 0. A mensagem nomeia o campo que divergiu. Um refit que devolva o modelo nulo do `fable`, o que acontece quando a janela não cobre os 12 níveis do fator `Mes` ou os regressores são colineares, também aborta com `plugin.regdin_arima_drift`, campo `null_model`.
 
@@ -136,9 +136,9 @@ O artefato não guarda o modelo ARIMA (sem `mable`). Guarda só o fingerprint, m
 
 ```mermaid
 flowchart TB
-  T["plugin_thaw do artefato"]:::plugin --> W[".rd_check_window: painel = train_window?"]:::plugin
-  W -->|não| WE["plugin.regdin_window_mismatch (exit 5)"]:::erro
-  W -->|sim| FP[".rd_check_fingerprint: refit do ARIMA base até O−1"]:::plugin
+  T["plugin_thaw do artefato"]:::plugin --> W[".rd_check_window: serie_dm do artefato íntegra e deck termina em train_window$end?"]:::plugin
+  W -->|não| WE["plugin.regdin_artifact_tampered (exit 9) ou plugin.regdin_window_mismatch (exit 5)"]:::erro
+  W -->|sim| FP[".rd_check_fingerprint: refit do ARIMA base sobre serie_dm + O..O+9"]:::plugin
   FP -->|"refit falha, modelo nulo, ordem, coeficientes ou dm_digest divergem"| FE["plugin.regdin_arima_drift (exit 2)"]:::erro
   FP -->|confere| S["set.seed(artifact$seed)"]:::plugin
   S --> M{"mm não vazio?"}
@@ -217,7 +217,7 @@ Na rodada das 00h o clima previsto da última emissão publicada chega com o atr
 | `plugin.dessem_linear_train_sees_day_o` | `contract` | 2 | o painel de treino do linear contém o dia O ou posterior |
 | `plugin.regdin_train_panel_has_origin` | `contract` | 2 | o painel de treino do regdin contém o dia O ou posterior |
 | `contract.constraint_violated` | `contract` | 2 | `history_days.infer` diferente de `train` com a restrição do `run.yaml` ligada |
-| `plugin.history_window` | `contract` | 2 | o descriptor exige `infer == train` e o `run.yaml` diverge |
+| `plugin.history_window` | `contract` | 2 | o descriptor declara `history_infer_equals_train = TRUE` e o `run.yaml` diverge (nenhum plugin atual declara) |
 | `plugin.regdin_window_mismatch` | `window` | 5 | o painel do infer não cobre exatamente o `train_window` |
 | `plugin.regdin_arima_drift` | `contract` | 2 | o ARIMA refeito diverge do fingerprint, ou o refit devolve modelo nulo |
 | `warning.dessem_linear_rng_deviation`, `warning.regdin_rng_deviation` | `repro` | aviso | plano B ativo |

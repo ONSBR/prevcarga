@@ -38,6 +38,8 @@ entradaPerfil <- function(serie,
 }
 
 entradaPerfilDefault <- function(seriehist,lagsmodelo,diaSemana = 1:7,hora = 0:23,diaAno = 1:366,hv = 0:1,diaEsp = FALSE,diaEspLag = FALSE){
+   ## perfil de dia comum so ve a janela comum + horizonte (Bloco 0); sem a coluna, caminho inalterado
+   if("Bloco" %in% names(seriehist)) seriehist <- seriehist[Bloco == 0L]
    seriehist_lags <- obtemLagsHora(seriehist,lagsmodelo,diaSemana,hora,diaAno,hv,diaEsp,diaEspLag)
    return(seriehist_lags)
 }
@@ -45,14 +47,24 @@ entradaPerfilDefault <- function(seriehist,lagsmodelo,diaSemana = 1:7,hora = 0:2
 
 
 inclui_CargaMediaRef <- function(seriehist,normConfig){
-   const <- getNormalizaCarga(normConfig,seriehist[Prev == F])
+   ## constantes de normalizacao so no Bloco 0 (decisao L2); sem a coluna, todas as linhas historicas
+   const <- if("Bloco" %in% names(seriehist)) getNormalizaCarga(normConfig,seriehist[Prev == F & Bloco == 0L])
+            else getNormalizaCarga(normConfig,seriehist[Prev == F])
    seriehist[,CargaMed := mean(Carga,na.rm = T)/const,.(Data)]
    seriehist[is.nan(CargaMed),CargaMed := NA_real_]
 }
 
 entradaPerfilFeriadoReg <- function(seriehist,dslag = c(1,7),hrlag = NULL,hora = 0:23,diaAno = 1:366,hv = 0:1,tpFer = 1:12,addHourFac = TRUE){
    if(!is.null(hrlag)){
+      ## obtemLagsHora remove Bloco; religa por DataHora (unica na serie) para que os lags de dia da semana
+      ## tambem fiquem dentro do bloco
+      mapaBloco <- if("Bloco" %in% names(seriehist)) unique(seriehist[,.(DataHora,Bloco)])
       seriehist <- obtemLagsHora(seriehist,lags = hrlag,hora = hora,diaAno = diaAno,diaEsp = T)
+      if(!is.null(mapaBloco)){
+         nomes <- names(seriehist)
+         seriehist <- mapaBloco[seriehist,on = "DataHora"]
+         data.table::setcolorder(seriehist,c(nomes,"Bloco"))
+      }
    }
    seriehist_lags <- obtemLagsDiaSemana(seriehist,dslag,diaAno,hv,tpFer,hora)
    if(addHourFac){

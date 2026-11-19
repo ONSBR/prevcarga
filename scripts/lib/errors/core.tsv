@@ -11,7 +11,7 @@ config.bad_load_label	config	load_label invalido	use load_label: start ou end
 config.bad_weather_cutoff	config	weather_cutoff invalido	use um horario HH:MM valido
 config.bad_color	config	valor de color invalido	use color: auto, always ou never
 config.bad_format	config	valor de --format invalido	use --format=text ou --format=json
-config.data_dir_missing	config	diretorio de dados nao encontrado	aponte data_dir no config.yaml para o store de dados
+config.data_dir_missing	config	diretorio de dados nao encontrado	aponte --data-train / --data-inference (ou data_train_dir / data_inference_dir no config.yaml) para o deck
 config.unknown_model	config	modelo desconhecido	rode prevcarga models para listar os modelos
 contract.topology_file_missing	contract	arquivo de topologia nao encontrado	restaure o arquivo de topologia do repositorio
 contract.topology_unknown_key	contract	chave desconhecida na topologia	remova a chave desconhecida da topologia
@@ -60,4 +60,5 @@ repro.unclassified	repro	falha de reprodutibilidade	reveja o determinismo da exe
 partial.unclassified	partial	execucao parcial	reveja as falhas parciais reportadas
 honesty.unclassified	honesty	violacao de honestidade	reveja o gate de honestidade do modulo
 config.write_failed	config	falha ao gravar o config.yaml	confira permissoes e espaco em disco do diretorio do config.yaml
-config.artifacts_dir_missing	config	diretorio de artefatos apontado nao existe	aponte --artifacts-dir (ou artifacts_dir no config.yaml) para um diretorio que exista
+config.artifacts_dir_missing	config	diretorio de artefatos apontado nao existe	aponte --data-artifacts (ou artifacts_dir no config.yaml) para um diretorio que exista
+contract.set_data_dir_noninteractive	contract	set-data-dir sem chave exige terminal interativo	passe --train / --inference / --artifacts ou rode em um terminal

@@ -10,20 +10,7 @@
 ## `code_commit`, `renv_lock_hash` (injetados; ausentes => calculados), `trained_at`, `run_id`, `version` (laterais).
 ## Requer errors.R, topology.R, provenance.R, deck_reader.R, dates.R, features.R e registry.R carregados antes.
 
-## --- Variante e overrides -------------------------------------------------------------------------------
-.prevcarga_tr_variant <- function(member) {
-  exo <- member$exogena
-  if (is.null(exo) || length(exo) != 1L || is.na(exo) || !nzchar(exo)) NA_character_ else as.character(exo)
-}
-
-## Overrides do ctx (--horizon, ...) mais a variante do membro na chave que o descriptor declara (`variant_param`).
-.prevcarga_tr_overrides <- function(plugin, member, ctx) {
-  ov <- if (is.null(ctx$spec_overrides)) list() else ctx$spec_overrides
-  vp <- plugin$descriptor$variant_param
-  exo <- .prevcarga_tr_variant(member)
-  if (is.character(vp) && length(vp) == 1L && !is.na(vp) && !is.na(exo)) ov[[paste0("params.", vp)]] <- exo
-  ov
-}
+## --- Variante, overrides e spec da chave: movidos para registry.R (todos os verbos carregam registry.R; E8-T4) ---
 
 ## --- Painel e cortes da celula ------------------------------------------------------------------------------
 ## Devolve plugin, spec efetivo, cuts (formato do despachante) e o painel de TREINO ja cortado em last_data_day.
@@ -40,7 +27,7 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
   d <- plugin$descriptor
   if (is.null(spec)) {
     spec <- prevcarga_model_spec(member$mdir, ctx$root, .prevcarga_tr_overrides(plugin, member, ctx))
-    prevcarga_plugin_check_params(spec$params, d$params_schema, member$mdir)
+    prevcarga_plugin_check_params(spec$params, d$params_schema, member$mdir, optional = names(d$key_params))
   }
 
   if (is.null(rc))
@@ -61,17 +48,29 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
 
   ## Janela de treino = a que o plugin confere: origin_agnostic [train_origin - history_days.train, last_data_day]
   ## (history_days.train + H + 1 - data_lag_days dias); origin_scoped history_days.train dias ate last_data_day.
+  ## Com descriptor$history_window (E3-T2) a janela comum e a do plugin e o anexo de feriados vai ao leitor; sem o campo, igual a antes.
   hist <- spec$history_days$train
-  first_day <- if (identical(spec$split, "origin_agnostic")) cuts$train_origin - hist else
-    cuts$last_data_day - hist + 1L
+  w <- if (is.function(d$history_window)) d$history_window(origin, spec) else NULL
+  first_day <- if (!is.null(w)) w$common_from else if (identical(spec$split, "origin_agnostic"))
+    cuts$train_origin - hist else cuts$last_data_day - hist + 1L
   need <- as.integer(cuts$last_data_day - first_day) + 1L
   span <- as.integer(origin - first_day) + 1L
   fc_in_train <- isTRUE(d$weather_forecast_in_train)
-  p <- if (!is.null(read_panel)) read_panel(area, span, spec$horizon_days, fc_in_train) else {
-    pp <- prevcarga_read_panel(ctx, origin, area, spec$horizon_days, span)
+  ## Regra de leitura do previsto do treino (E2-T2): so quando o plugin declara data_needs$train_weather_forecast; sem regra
+  ## (plugin-brinquedo) segue com TODAS as emissoes <= limite (prevcarga_read_forecast_vintages).
+  rule <- if (fc_in_train) prevcarga_inference_needs_train_rule(plugin, spec, area, span) else NULL
+  ## holiday_window so vai ao leitor injetado quando ha janela (assinaturas sem o argumento seguem validas).
+  hw_arg <- if (is.null(w)) list() else list(holiday_window = w)
+  p <- if (!is.null(read_panel)) {
+    if (is.null(rule)) do.call(read_panel, c(list(area, span, spec$horizon_days, fc_in_train), hw_arg))
+    else do.call(read_panel, c(list(area, span, spec$horizon_days, fc_in_train, rule), hw_arg))
+  } else {
+    pp <- do.call(prevcarga_read_panel, c(list(ctx, origin, area, spec$horizon_days, span), hw_arg))
     if (fc_in_train)
-      pp$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
-                                                              cuts$weather_issue_limit)
+      pp$weather_forecast <- if (!is.null(rule))
+        prevcarga_read_forecast_by_rule(ctx, rule$area, origin, rule$segments, cuts$weather_issue_limit)
+      else prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + spec$horizon_days,
+                                            cuts$weather_issue_limit)
     pp
   }
   day_of <- function(x) lubridate::as_date(x, tz = cuts$tz)
@@ -79,6 +78,13 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
   panel <- p
   panel$load <- p$load[in_window(p$load$interval_start)]
   panel$weather_observed <- p$weather_observed[in_window(p$weather_observed$valid_time)]
+  if (!is.null(p$holiday_annex)) {                 # anexo: so day <= last_data_day (fica antes de first_day por construcao)
+    le <- function(x) day_of(x) <= cuts$last_data_day
+    ha <- p$holiday_annex
+    ha$load <- ha$load[le(ha$load$interval_start)]
+    ha$weather_observed <- ha$weather_observed[le(ha$weather_observed$valid_time)]
+    panel$holiday_annex <- ha
+  }
   have <- length(unique(day_of(panel$load$interval_start)))
   if (have < need)
     prevcarga_abort("window.history_short", where = member$mdir,
@@ -104,6 +110,15 @@ prevcarga_train_inputs <- function(member, area, origin, ctx, rc = NULL, read_pa
 .prevcarga_tr_panel_hash <- function(panel) {
   ds <- c("load", "weather_observed", "weather_forecast", "holidays")
   txt <- vapply(ds, function(n) .prevcarga_tr_table_text(panel[[n]]), "")
+  ## O anexo entra no hash so quando existe: membros sem anexo mantem o hash byte a byte.
+  if (!is.null(panel$holiday_annex)) {
+    ha <- panel$holiday_annex
+    isl <- as.data.frame(ha$islands)
+    isl$holiday_dates <- vapply(isl$holiday_dates, function(v) paste(as.integer(v), collapse = ","), "")
+    ds <- c(ds, "holiday_annex.islands", "holiday_annex.load", "holiday_annex.weather_observed")
+    txt <- c(txt, .prevcarga_tr_table_text(isl), .prevcarga_tr_table_text(ha$load),
+             .prevcarga_tr_table_text(ha$weather_observed))
+  }
   digest::digest(paste(ds, txt, sep = "\n", collapse = "\n"), algo = "sha256", serialize = FALSE)
 }
 
@@ -138,6 +153,14 @@ prevcarga_artifact_build <- function(member, area, inp, fit) {
             weather_issue_cutoff = inp$cuts$weather_issue_cutoff,
             fit = fit,
             contract = lapply(d$stages, function(s) list(requires = s$requires, provides = s$provides)))
+  ## E2: necessidade de dados de inferencia (fora do stamp, do check_artifact e do fingerprint); aborta antes de gravar.
+  ## E4-T2 (ADR-045): o plugin cujo artefato carrega o estado de inferencia fornece os needs pelo PROPRIO payload
+  ## (`fit$payload$inference_needs`, normalizado aqui); sem esse campo vale o data_needs do descriptor (que monta o deck de
+  ## treino) ou o default generico. Nenhum nome de modelo.
+  pl <- fit$payload
+  a$inference_needs <- if (is.list(pl) && is.list(pl$inference_needs))
+    prevcarga_inference_needs_normalize(pl$inference_needs, where = d$model_id)
+  else prevcarga_inference_needs_of(inp$plugin, inp$spec, area)
   if (identical(inp$spec$split, "origin_scoped")) a$origin <- inp$cuts$origin
   prevcarga_plugin_scan_pure(a)
   structure(a, class = "prevcarga_train_artifact")
@@ -172,7 +195,8 @@ prevcarga_cell_row <- function(member, area, cuts, version, status, path) {
 prevcarga_train <- function(member, area, origin, ctx, force = FALSE) {
   inp <- prevcarga_train_inputs(member, area, origin, ctx)
   id <- prevcarga_train_fingerprint(member, inp$spec, inp$cuts, inp$panel, ctx)
-  key <- prevcarga_registry_key(member, area, ctx)
+  key <- prevcarga_registry_key(member, area, ctx,
+                                spec = if (length(inp$plugin$descriptor$key_params)) inp$spec)
   dest <- file.path(key, id$version)
   if (dir.exists(dest) && !isTRUE(force))
     return(prevcarga_cell_row(member, area, inp$cuts, id$version, "reused", dest))
@@ -196,7 +220,7 @@ prevcarga_train <- function(member, area, origin, ctx, force = FALSE) {
 ## dentro do worker. Resultado reordenado pela chave (model, variant, area): independe de --jobs e da ordem de chegada.
 
 .prevcarga_tr_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R",
-                                  "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "training.R")
+                                  "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "training.R")
 
 .prevcarga_tr_topo <- function(ctx) {
   if (!is.null(ctx$topology_path)) prevcarga_topology(path = ctx$topology_path, root = ctx$root)
@@ -280,16 +304,19 @@ prevcarga_train_matrix <- function(args, ctx) {
 }
 
 ## Memo do painel do dry-run: vive so na closure criada por chamada de prevcarga_train_plan (nada global, nada entre
-## execucoes). Chave exata (area, span, horizon_days, weather_forecast_in_train); o valor e o painel NAO cortado.
+## execucoes). Chave exata (area, span, horizon_days, weather_forecast_in_train, assinatura da regra de previsto); o valor e o painel NAO cortado.
 .prevcarga_tr_panel_memo <- function(ctx, origin, rc) {
   memo <- new.env(parent = emptyenv())
-  function(area, span, horizon_days, fc_in_train) {
-    k <- paste(area, span, horizon_days, isTRUE(fc_in_train), sep = "|")
+  function(area, span, horizon_days, fc_in_train, rule = NULL) {
+    sig <- if (is.null(rule)) "all" else paste(rule$area, vapply(rule$segments, function(z)
+      paste(z$kind, z$from, z$to, z$lead, sep = ","), ""), sep = ":", collapse = ";")
+    k <- paste(area, span, horizon_days, isTRUE(fc_in_train), sig, sep = "|")
     if (!is.null(memo[[k]])) return(memo[[k]])
     p <- prevcarga_read_panel(ctx, origin, area, horizon_days, span)
     if (isTRUE(fc_in_train))
-      p$weather_forecast <- prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + horizon_days,
-                                                             rc$weather_issue_limit)
+      p$weather_forecast <- if (!is.null(rule))
+        prevcarga_read_forecast_by_rule(ctx, rule$area, origin, rule$segments, rc$weather_issue_limit)
+      else prevcarga_read_forecast_vintages(ctx, area, origin - span, origin + horizon_days, rc$weather_issue_limit)
     assign(k, p, envir = memo); p
   }
 }
@@ -314,13 +341,15 @@ prevcarga_train_plan <- function(cells, origin, ctx) {
     sk <- paste(m$mdir, m$exogena, sep = "|")
     if (is.null(specs[[sk]])) {
       sp <- prevcarga_model_spec(m$mdir, ctx$root, .prevcarga_tr_overrides(plugins[[m$mdir]], m, ctx))
-      prevcarga_plugin_check_params(sp$params, plugins[[m$mdir]]$descriptor$params_schema, m$mdir)
+      prevcarga_plugin_check_params(sp$params, plugins[[m$mdir]]$descriptor$params_schema, m$mdir,
+                                    optional = names(plugins[[m$mdir]]$descriptor$key_params))
       specs[[sk]] <<- sp
     }
     inp <- prevcarga_train_inputs(m, cells$area[[i]], origin, ctx, rc = rc, read_panel = read_panel,
                                   plugin = plugins[[m$mdir]], spec = specs[[sk]])
     id <- prevcarga_train_fingerprint(m, inp$spec, inp$cuts, inp$panel, ctx)
-    key <- prevcarga_registry_key(m, cells$area[[i]], ctx)
+    key <- prevcarga_registry_key(m, cells$area[[i]], ctx,
+                                  spec = if (length(plugins[[m$mdir]]$descriptor$key_params)) inp$spec)
     prevcarga_cell_row(m, cells$area[[i]], inp$cuts, id$version, "planned", file.path(key, id$version))
   })
   .prevcarga_tr_sort(do.call(rbind, rows))

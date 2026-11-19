@@ -48,7 +48,7 @@ A mesma função serve a três chamadores. Nenhum deles tem lista própria de cl
 
 ### O princípio
 
-Cada checagem devolve findings para um coletor que preserva a ordem de inserção. Os aborts classificados que o leitor do deck e o `dates.R` levantam são capturados por `.prevcarga_capture` e viram findings da sua própria classe. Um erro não classificado durante a leitura dos datasets (por exemplo, do arrow) vira `contract.parquet_unreadable`. Entre os aborts classificados, só duas classes escapam do coletor e sobem direto: `config` e `runtime`, que são erro de uso ou de ambiente, não defeito do deck. Por isso, sem diretório de dados (nem `--data` nem `data_dir` no `config.yaml`), a validação sai com `config.data_dir_missing` (exit 8) antes de olhar qualquer arquivo.
+Cada checagem devolve findings para um coletor que preserva a ordem de inserção. Os aborts classificados que o leitor do deck e o `dates.R` levantam são capturados por `.prevcarga_capture` e viram findings da sua própria classe. Um erro não classificado durante a leitura dos datasets (por exemplo, do arrow) vira `contract.parquet_unreadable`. Entre os aborts classificados, só duas classes escapam do coletor e sobem direto: `config` e `runtime`, que são erro de uso ou de ambiente, não defeito do deck. Por isso, sem diretório de dados (nem `--data-inference`/`--data-train` nem a chave correspondente no `config.yaml`), a validação sai com `config.data_dir_missing` (exit 8) antes de olhar qualquer arquivo.
 
 Um dataset reprovado no contrato sai das checagens seguintes. Isso evita cascata: uma carga com coluna faltando gera um finding de schema, não centenas de dias incompletos.
 
@@ -196,7 +196,7 @@ O catálogo é distribuído, sem lista central (barrel por descoberta). `scripts
 
 O verbo é fino: `prevcarga_build_validate_deck` chama a validação e monta o `result` do envelope, e `cmd_validate_deck` decide entre texto e JSON.
 
-<Terminal title="prevcarga — bash" lines={[{type:'cmd',text:'prevcarga validate-deck --data ./deck --origin 2026-10-01'},{type:'cmd',text:'prevcarga validate-deck --data ./deck --area=SECO --format json'}]} />
+<Terminal title="prevcarga — bash" lines={[{type:'cmd',text:'prevcarga validate-deck --data-inference ./deck --origin 2026-10-01'},{type:'cmd',text:'prevcarga validate-deck --data-inference ./deck --area=SECO --format json'}]} />
 
 | Formato | Saída limpa | Saída reprovada |
 |---|---|---|

@@ -70,7 +70,7 @@ cmd_forecast <- function(ctx, args) {
   if (length(area) && !is.null(ss))
     prevcarga_abort("config.usage", where = "--area/--subsistema", details = list(hint = "--area e --subsistema sao exclusivos"))
   jobs <- if (is.null(.prevcarga_fc_opt(args, "--jobs"))) 1L else .prevcarga_fc_jobs(args[["--jobs"]])
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   sc <- .prevcarga_fc_resolve_areas(area, ss, .prevcarga_fc_topology(ctx))
   ctx$generated_at <- .prevcarga_fc_generated_at(ctx$run_id)
   ctx$step_clock <- function() proc.time()[["elapsed"]]           # relogio injetado: so o result do envelope leva o tempo (M8.10), nunca a entrega
@@ -90,14 +90,15 @@ cmd_forecast <- function(ctx, args) {
 prevcarga_verb_forecast <- list(
   name    = "forecast",
   usage   = paste("prevcarga forecast [--area=<a>... | --subsistema=<s>] [--incluir-membros] [--report]",
-                  "[--report-format=<f>] [--skip-validate] [--jobs=<n>] [--artifacts-dir=<dir>]"),
+                  "[--report-format=<f>] [--skip-validate] [--jobs=<n>] [--data-artifacts=<dir>]"),
   options = c(
     "--incluir-membros       Inclui membros/<m>/<a>.parquet na entrega"),
   scoped  = c("--incluir-membros", "--report", "--report-format"),   # cli.R .prevcarga_check_scoped
   handler = function(ctx, args) cmd_forecast(ctx, args),
+  deck_roles = c("train", "inference"),
   owner   = "M6",
   exempt  = FALSE,
-  modules = c("topology.R", "provenance.R", "schema_long.R", "evaluation.R", "deck_reader.R", "dates.R", "validation.R",
-              "features.R", "registry.R", "training.R", "inference.R", "combination.R", "build_long_output.R", "reconcile.R",
+  modules = c("topology.R", "provenance.R", "schema_long.R", "evaluation.R", "holiday_islands.R", "deck_reader.R", "dates.R", "validation.R",
+              "features.R", "registry.R", "inference_needs.R", "training.R", "inference.R", "combination.R", "build_long_output.R", "reconcile.R",
               "exports.R", "reporting.R", "forecast.R")
 )

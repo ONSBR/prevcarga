@@ -3,8 +3,8 @@
 # Espelha install/install.sh (M8.3): mesmo layout <R>\current + <R>\versions\<v>, mesma semantica, mesmos error.id.
 #
 # Uso:
-#   install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-Data <dir>]
-#               [-State <dir>] [-SkipPlatformCheck] [-Format text|json]
+#   install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>]
+#               [-DataTrain <dir>] [-DataInference <dir>] [-DataArtifacts <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]
 #   install.ps1 -Rollback [-Root <dir>] [-Format json]
 #   install.ps1 -Uninstall -Yes [-Purge] [-Root <dir>] [-Format json]
 # A grafia dos docs (--bundle, --sha256, --root ...) tambem e aceita.
@@ -14,7 +14,7 @@
 
 param(
   [string]$Version, [string]$ReleaseBase, [string]$Bundle, [string]$Sha256,
-  [string]$Root, [string]$Data, [string]$State,
+  [string]$Root, [string]$DataTrain, [string]$DataInference, [string]$DataArtifacts, [string]$State,
   [switch]$SkipPlatformCheck, [switch]$Rollback, [switch]$Uninstall, [switch]$Yes, [switch]$Purge,
   [string]$Format = 'text',
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
@@ -138,9 +138,9 @@ function Write-PcNextSteps([string]$Bin, [bool]$PathUpdated) {  # depois da linh
   if ($PathUpdated) { $lines += ('  - abra um terminal novo para o PATH valer (' + $Bin + ' entrou no PATH do usuario)') }
   else { $lines += ('  - ' + $Bin + ' ja esta no PATH do usuario (num terminal aberto antes da instalacao, abra um novo)') }
   $lines += '  - rode: prevcarga doctor (confere runtime, config e deck)'
-  $d = Get-PcConfigValue 'data_dir'
-  if ($d) { $lines += ('  - deck configurado: data_dir = ' + $d + ' (em ' + $cfg + ')') }
-  else { $lines += ('  - aponte o deck: prevcarga set-data-dir <dir> (grava data_dir em ' + $cfg + ')') }
+  $d = Get-PcConfigValue 'data_train_dir'
+  if ($d) { $lines += ('  - deck configurado: data_train_dir = ' + $d + ' (em ' + $cfg + ')') }
+  else { $lines += ('  - aponte o deck: prevcarga set-data-dir (grava data_train_dir em ' + $cfg + ')') }
   Write-PcStream 'err' (ConvertTo-PcAsciiText ($lines -join "`n"))
 }
 
@@ -237,7 +237,7 @@ function Resolve-PcRest([string[]]$Tokens) {
     } else {
       $bad = @($tok, 'argumento desconhecido'); break
     }
-    if ($name -in 'version', 'releasebase', 'release-base', 'bundle', 'sha256', 'root', 'data', 'state', 'format') {
+    if ($name -in 'version', 'releasebase', 'release-base', 'bundle', 'sha256', 'root', 'data-train', 'datatrain', 'data-inference', 'datainference', 'data-artifacts', 'dataartifacts', 'state', 'format') {
       if ($null -eq $val) {
         if ($i + 1 -ge $Tokens.Count) { $bad = @($tok, 'falta o valor'); break }
         $i++; $val = $Tokens[$i]
@@ -248,7 +248,9 @@ function Resolve-PcRest([string[]]$Tokens) {
       elseif ($name -eq 'bundle') { $script:Bundle = $val }
       elseif ($name -eq 'sha256') { $script:Sha256 = $val }
       elseif ($name -eq 'root') { $script:Root = $val }
-      elseif ($name -eq 'data') { $script:Data = $val }
+      elseif ($name -eq 'data-train' -or $name -eq 'datatrain') { $script:DataTrain = $val }
+      elseif ($name -eq 'data-inference' -or $name -eq 'datainference') { $script:DataInference = $val }
+      elseif ($name -eq 'data-artifacts' -or $name -eq 'dataartifacts') { $script:DataArtifacts = $val }
       elseif ($name -eq 'state') { $script:State = $val }
       else { $script:Format = $val }
     }
@@ -334,8 +336,17 @@ function ConvertTo-PcYamlQuoted([string]$Text) { return "'" + $Text.Replace("'",
 
 function Write-PcConfig {  # config.yaml da instalacao (schema v1 do M1.4a); preserva chaves existentes num upgrade
   $cfg = Join-Path $script:Root 'config.yaml'
-  $d = $script:Data
+  $d = $script:DataTrain
+  if (-not $d) { $d = Get-PcConfigValue 'data_train_dir' }
   if (-not $d) { $d = Get-PcConfigValue 'data_dir' }
+  # data_dir (legado, ADR-044) nao e mais chave valida: o upgrade a converte e avisa UMA vez
+  if ((Test-Path -LiteralPath $cfg) -and (@([IO.File]::ReadAllLines($cfg) | Where-Object { $_.StartsWith('data_dir:') }).Count -gt 0)) {
+    Add-PcWarning 'a chave data_dir do config.yaml foi convertida para data_train_dir (data_dir nao existe mais)'
+  }
+  $di = $script:DataInference
+  if (-not $di) { $di = Get-PcConfigValue 'data_inference_dir' }
+  $da = $script:DataArtifacts
+  if (-not $da) { $da = Get-PcConfigValue 'artifacts_dir' }
   $s = $script:State
   if (-not $s) { $s = Get-PcConfigValue 'state_dir' }
   if (-not $s) { $s = Join-Path $script:Root 'state' }
@@ -343,7 +354,7 @@ function Write-PcConfig {  # config.yaml da instalacao (schema v1 do M1.4a); pre
   if (Test-Path -LiteralPath $cfg) {
     $has = $false
     foreach ($line in [IO.File]::ReadAllLines($cfg)) {
-      if ($line.StartsWith('data_dir:') -or $line.StartsWith('state_dir:')) { continue }
+      if ($line.StartsWith('data_dir:') -or $line.StartsWith('data_train_dir:') -or $line.StartsWith('data_inference_dir:') -or $line.StartsWith('artifacts_dir:') -or $line.StartsWith('state_dir:')) { continue }
       if ($line.StartsWith('schema_version:')) { $has = $true }
       $lines.Add($line)
     }
@@ -352,7 +363,9 @@ function Write-PcConfig {  # config.yaml da instalacao (schema v1 do M1.4a); pre
     $lines.Add('# config.yaml da instalacao (gerado por install.ps1; schema v1). Precedencia: flag da CLI > este arquivo > default.')
     $lines.Add('schema_version: 1'); $lines.Add('format: text'); $lines.Add('color: auto')
   }
-  if ($d) { $lines.Add('data_dir: ' + (ConvertTo-PcYamlQuoted (ConvertTo-PcSlash $d))) }
+  if ($d) { $lines.Add('data_train_dir: ' + (ConvertTo-PcYamlQuoted (ConvertTo-PcSlash $d))) }
+  if ($di) { $lines.Add('data_inference_dir: ' + (ConvertTo-PcYamlQuoted (ConvertTo-PcSlash $di))) }
+  if ($da) { $lines.Add('artifacts_dir: ' + (ConvertTo-PcYamlQuoted (ConvertTo-PcSlash $da))) }
   $lines.Add('state_dir: ' + (ConvertTo-PcYamlQuoted (ConvertTo-PcSlash $s)))
   $text = ($lines -join "`n") + "`n"
   $tmp = Join-Path $script:Root ('.config.' + [guid]::NewGuid().ToString('N'))
@@ -683,7 +696,7 @@ function Invoke-PcInstall {
 function Invoke-PcMain {
   $bad = Resolve-PcRest $Rest
   if ($script:ShowHelp) {
-    Write-PcStream 'out' "uso: install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-Data <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]`n     install.ps1 -Rollback [-Root <dir>]`n     install.ps1 -Uninstall -Yes [-Purge] [-Root <dir>]"
+    Write-PcStream 'out' "uso: install.ps1 [-Version <v>|latest] [-ReleaseBase <url>] [-Bundle <zip> [-Sha256 <h>]] [-Root <dir>] [-DataTrain <dir>] [-DataInference <dir>] [-DataArtifacts <dir>] [-State <dir>] [-SkipPlatformCheck] [-Format text|json]`n     install.ps1 -Rollback [-Root <dir>]`n     install.ps1 -Uninstall -Yes [-Purge] [-Root <dir>]"
     return
   }
   if ($script:Format -ne 'json' -and $script:Format -ne 'text') { Write-PcError 'install.usage' '-Format' 'use text ou json' }
@@ -703,7 +716,9 @@ function Invoke-PcMain {
   $script:Root = (Get-PcAbsPath $script:Root).TrimEnd('\', '/')
   if (-not $script:Root -or $script:Root -match '^[A-Za-z]:$') { Write-PcError 'install.usage' '-Root' 'raiz nao pode ser a raiz do disco' }
   if ($script:State) { $script:State = Get-PcAbsPath $script:State }
-  if ($script:Data) { $script:Data = Get-PcAbsPath $script:Data }
+  if ($script:DataTrain) { $script:DataTrain = Get-PcAbsPath $script:DataTrain }
+  if ($script:DataInference) { $script:DataInference = Get-PcAbsPath $script:DataInference }
+  if ($script:DataArtifacts) { $script:DataArtifacts = Get-PcAbsPath $script:DataArtifacts }
   if ($script:Bundle) { $script:Bundle = Get-PcAbsPath $script:Bundle }
   if ($script:State -and (Test-PcInside $script:State (Join-Path $script:Root 'versions'))) { Write-PcError 'install.state_inside_versions' $script:State }
   $script:StateEffective = ''

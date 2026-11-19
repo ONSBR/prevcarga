@@ -1,0 +1,6 @@
+id	class	message	hint
+contract.deck_kind_mismatch	contract	kind do manifest.json do deck difere do papel pedido pela opcao	use --data-train para deck kind train e --data-inference para deck kind inference
+contract.deck_origin_mismatch	contract	origem do deck de inferencia difere de --origin	gere o deck de inferencia da origem pedida ou ajuste --origin
+contract.deck_role_refused	contract	verbo nao aceita deck de inferencia	passe --data-train=<dir> com o deck de treino
+runtime.tzdata_missing	runtime	base de fusos (tzdata) ausente no sistema	instale o pacote tzdata do sistema e rode prevcarga doctor
+state.inference_artifact_missing	state	artefato do membro ausente na raiz para rodar com deck de inferencia (sem treino implicito)	treine o membro com prevcarga train-models --data-train=<deck> --data-artifacts=<raiz> --origin <O> ou sincronize os artefatos oficiais

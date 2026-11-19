@@ -109,9 +109,9 @@ Se o histórico do deck tem menos dias que a janela exige, o treino aborta com `
 Para conferir os cortes de um deck real sem treinar nada, três verbos mostram os cortes por membro:
 
 <Terminal lines={[
-  {type: 'cmd', text: 'prevcarga validate-deck --origin=2026-10-01 --data=./deck'},
-  {type: 'cmd', text: 'prevcarga describe --origin=2026-10-01 --data=./deck'},
-  {type: 'cmd', text: 'prevcarga train-models --origin=2026-10-01 --data=./deck --dry-run --format=json'},
+  {type: 'cmd', text: 'prevcarga validate-deck --origin=2026-10-01 --data-inference=./deck'},
+  {type: 'cmd', text: 'prevcarga describe --origin=2026-10-01 --data-train=./deck'},
+  {type: 'cmd', text: 'prevcarga train-models --origin=2026-10-01 --data-train=./deck --dry-run --format=json'},
 ]} />
 
 O `validate-deck` mostra, por modelo, `TRAIN_ORIGIN`, `LAST_DATA_DAY`, `INPUT_CUT` e `FIRST_DELIVERY`. O `describe` mostra `train_origin`, `last_data_day` e a origem do `data_lag_days` (`descriptor` ou `default`). O `train-models --dry-run` traz `train_origin` e `last_data_day` por célula só no JSON (`--format=json`); o texto lista estado, membro, variante, área, versão e caminho. Sem deck legível, o `describe` ainda calcula o corte de treino, que não depende do dado, e deixa `available_until` indisponível.
@@ -175,7 +175,7 @@ O backtest simula cortes num store que já tem o dia O inteiro. Para isso ele n�
 O mesmo `truncate_at` vai aos três leitores do painel (carga, clima observado e clima previsto), e o `available_until` e o `weather_issue_limit` da célula são os que o painel devolve (`prevcarga_infer_read_panel`, `inference.R`). O corte de treino não muda com o `truncate_at`, porque ele depende só de O.
 
 <Terminal lines={[
-  {type: 'cmd', text: 'prevcarga backtest --origin=2024-10-01..2024-10-31 --data=./deck --corte=00:00,08:00'},
+  {type: 'cmd', text: 'prevcarga backtest --origin=2024-10-01..2024-10-31 --data-train=./deck --corte=00:00,08:00'},
 ]} />
 
 Os cortes do `--corte` seguem a grade de 30 minutos (`HH:00` ou `HH:30`); fora dela, `config.bad_corte` (exit 8). O padrão vem de `backtest.corte_default` no `config.yaml` (08:00). Detalhes em [Backtest](/metodologia/backtest).

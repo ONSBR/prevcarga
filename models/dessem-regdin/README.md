@@ -15,7 +15,8 @@ So ASCII. O plugin nao le variavel de ambiente, nao faz aritmetica de hora e nao
 | `helpers_nowcast.R` `rd_morning_means` / `.rd_mm_core` (`mm` so com horas completas) | `R/ingestion/data_adapter.R:165-188` (`.load_morning_means_rd`) |
 | `ingestion.R` `plugin_ingest`, `.rd_exo`, `.rd_map_holidays`, `.rd_assert_panel` | `R/ingestion/data_adapter.R:36-59` (`available_until`), `:60-164` (`.load_cargahist_rd`, `.load_exogenahist_rd`, `.load_exogenaprev_rd`), `:189-216` (`.load_feriados_rd`), `:217-363` (`load_model_input`, `.validate_dessem_deck_rd`) |
 | `inference.R` `.rd_predict_pass`, `plugin_infer`, `.rd_envelope` | `R/inference/dessem_regdin_predict.R:50-114` (`.rd_predict_pass`), `:115-` (`predict_dessem_regdin`) |
-| `inference.R` `.rd_check_window`, `.rd_check_fingerprint` (invariante de janela) | sem equivalente no oraculo (guarda nova do clean-room) |
+| `inference.R` `.rd_check_window`, `.rd_check_fingerprint` (guarda do artefato e fim do deck; refit do ARIMA sobre a serie composta) | sem equivalente no oraculo (guarda nova do clean-room) |
+| `helpers_state.R` `.rd_serie_dm_payload`, `.rd_hol_profile`, `rd_profile_holiday`, `rd_columns_of`, `rd_align_row`, `.rd_compose_serieDM`, `.rd_compose_mm`, `rd_inference_needs` (estado derivado, sem equivalente: o oraculo recalcula tudo no infer) | `R/inference/dessem_regdin_predict.R:50-114` (o que a inferencia recalculava sobre o historico longo) e `modelos_perfil.R:26-50` (`RL_perfilFeriado`) |
 | `freeze.R` `rd_freeze` / `rd_thaw` (sem mable, sha256 do artefato) | `R/training/dessem_regdin_fit.R:207-` (`.rd_save_dessem_artifact`) |
 | `register.R` `plugin_descriptor`, `plugin_constants`, `rd_semihourly_rule` | `R/registry/plugin_registry.R`, `R/config.R` |
 | despachante da fundacao (nao e do plugin) | `R/orchestrator/orchestrator.R` |
@@ -24,11 +25,11 @@ So ASCII. O plugin nao le variavel de ambiente, nao faz aritmetica de hora e nao
 
 `plugin_descriptor()` + `run.yaml` (loader P.0b, Tier A nos 5 estagios):
 
-- `split: origin_scoped`, `granularity_min: 60`, `horizon_days: 9`, `history_days {train 1825, infer 1825}`, `seed: 42`,
+- `split: origin_scoped`, `granularity_min: 60`, `horizon_days: 9`, `history_days {train 1095, infer 15}`, `seed: 42`,
   `modes: [train, infer, forecast]`, `params: {exogena: MED}` (variante `MED`|`MAX`; `MXMN` e recusado, ver desvios).
 - `delivery_days: 9` (entrega O..O+8), `data_lag_days: 0`, `model_time_offset_min: 60` (a UNICA declaracao do deslocamento de hora,
   aplicada pelo despachante), `weather_resample: hourly`, `engine: _dessem-engine`, `uses_rng: TRUE`, `rng_deviation: NULL`,
-  `history_infer_equals_train: TRUE`, `weather_forecast_in_train: TRUE`.
+  `history_infer_equals_train: FALSE` (E4-T3), `weather_forecast_in_train: TRUE`.
 - Deck exigido: `data.load.load_mwh`, `data.weather_forecast.temperature`, `data.holidays.prevcarga_code`. Erros: ids `plugin.regdin_*` em
   `scripts/lib/errors/dessem_regdin.tsv` (mensagens ASCII).
 - `run.yaml` `backtest.protocol_default: retrain_harness` e protocolo de backtest; a propriedade do modelo e o split `origin_scoped`.
@@ -46,14 +47,37 @@ A entrega e O (apos o corte) ate O+8. O motor roda `horizon_days + 1` = 10 dias 
 e o spline `monoH.FC` de `desagregaModeloSH` do ultimo dia entregue ve o dia seguinte. O+9 alimenta o spline e NAO e entregue (`fora_da_faixa`
 no A/B). O leitor tem de entregar clima previsto ate O+9.
 
-## Invariante de janela (`history_days.infer == train`, tres camadas)
+## Invariante de janela e estado derivado (E4-T3, ADR-045 fase C)
 
-1. Declaracao: `constraints.infer_history_equals_train: true` no `run.yaml` e `history_infer_equals_train = TRUE` no descriptor
-   (os dois `history_days` do `run.yaml` valem 1825).
-2. Guarda de painel: `.rd_check_window` confere que o painel de infer cobre exatamente `train_window` do artefato; senao
-   `plugin.regdin_window_mismatch` (window, exit 5), antes de qualquer ajuste.
-3. Fingerprint do ARIMA: `.rd_check_fingerprint` refaz o ARIMA base sobre a serie <= O-1 e confere ordem, coeficientes (tolerancia 0) e
-   `dm_digest`; deriva => `plugin.regdin_arima_drift` (contract, exit 2).
+A inferencia nao exige mais `deck == train_window`. O deck de inferencia pode ter so 15 dias (`history_days.infer: 15`: `lagsPerfil`
+de 336 h + 1 dia) e entrega `values` e `delivery` `identical()` aos do deck longo. O que o deck longo trazia o artefato guarda:
+
+- `serie_dm`: `serieDM[Prev == FALSE]` do treino (normalizada, a que o ARIMA ve), data.frame puro com `Data` Date e `mm_h00..mm_h23` (mm cru
+  de cada dia por hora de corte). A inferencia compoe a serie do ARIMA como `serie_dm` + linhas `Prev == TRUE` (O..O+9) do deck curto,
+  normalizadas com `payload$norm`; o `mm` historico da cabeca de nowcast vem de `serie_dm$mm_hHH` na hora de corte, e o `mm[O]` do deck.
+- `hol_profile`: por dia especial do horizonte, o que `RL_perfilFeriado` calcularia sobre o historico: `sd_hist` (`obtemSD`), `sample`
+  (linhas historicas de `entradaPerfilFeriadoReg` com `Carga` nao-NA, cronologicas, sem `DataHora`), `coef`, `xlevels`, `contrasts`,
+  `formula` (texto), `diaAno`, `HV`, `dslag`, `diaEsp`. `rd_profile_holiday` preve com o `coef` congelado (a conta do `predict.lm`) e
+  so re-ajusta o `lm` sobre `rbind(sample, linhas elegiveis do horizonte)` quando um feriado anterior do MESMO codigo foi escrito de
+  volta (feriados consecutivos). Nunca chama `obtemSD`.
+- `columns`: preditores e niveis de fator da linha do perfil normal por dia e hora; `rd_align_row` alinha a linha do deck curto (so
+  `LAG_FER_k` como indicador e `DiaEspecial` com os niveis gravados; qualquer outra divergencia e `artifact_mismatch`, exit 2).
+- `inference_needs`: 15 dias de carga e observado antes de O, previsto O..O+9, calendario O-15..O+9, `holiday_annex = FALSE`. E a
+  UNICA fonte dos needs do deck de inferencia (decisao do Gabriel, ADR-045); o `data_needs` do descriptor segue com o anexo (ano_civil)
+  porque monta o deck de TREINO. O regdin nao precisa do historico de feriados na inferencia: o ARIMA e re-fitado sobre `serie_dm`
+  (do artefato) e o perfil de feriado vem de `hol_profile`.
+
+Tres camadas na inferencia:
+
+1. Declaracao: `history_infer_equals_train = FALSE` no descriptor e `history_days: {train: 1095, infer: 15}`, `constraints: {}` no `run.yaml`.
+2. Guarda do artefato e do fim do deck (`.rd_check_window`): `range(serie_dm$Data) == train_window` e o digest de `serie_dm[, c(Data, Carga,
+   Exo*)]` igual a `arima_fingerprint$dm_digest`, senao `plugin.regdin_artifact_tampered` (integrity, exit 9), antes do ARIMA; o ultimo dia
+   historico do deck tem de ser `train_window$end`, senao `plugin.regdin_window_mismatch` (window, exit 5) nomeando os dois dias.
+3. Fingerprint do ARIMA: `.rd_check_fingerprint` refaz o ARIMA base sobre a serie composta e confere ordem, coeficientes (tolerancia 0)
+   e `dm_digest`; deriva => `plugin.regdin_arima_drift` (contract, exit 2).
+
+Artefato v0.1.5 (sem `serie_dm`, `hol_profile` ou `columns`) e recusado com `plugin.regdin_artifact_mismatch` (exit 2) nomeando o primeiro
+campo ausente: e preciso retreinar o membro. `svm_perfil`, `norm` e `arima_fingerprint` ficam byte a byte iguais aos da v0.1.5.
 
 ## RNG preservado e plano B
 
@@ -74,6 +98,7 @@ Cada teste de `tests/testthat` leva `[PLUGINS] <gate>:` ou `[DEFERRED Mx] <gate>
 | `descritor`, `ingestao`, `nowcast_mm`, `treino_freeze`, `inferencia` | [PLUGINS] | `test-rd1-plugin.R`, `test-rd2-*.R`, `test-rd3-infer.R` |
 | `contrato`, `params_schema`, `exogena_variante` | [PLUGINS] | `test-contract.R` |
 | `janela_infer_igual_treino`, `arima_drift` | [PLUGINS] | `test-window-invariant.R` |
+| `inferencia` (estado derivado), `artefato_puro` | [PLUGINS] | `test-rd-state.R` |
 | `treino_ate_o_menos_1` | [PLUGINS] | `test-train-honesty.R` |
 | `mm_head_rng`, `mm_head_corte` (`mm_head_oracle` em parity) | [PLUGINS] | `test-mm-head.R` |
 | `nowcast_so_no_infer`, `corte_horario`, `split_vs_acoplado` | [PLUGINS] | `test-nowcast.R`, `test-cut.R`, `test-split.R` |

@@ -2,7 +2,7 @@ name: holt-winters
 split: origin_scoped          # 1 treino por origem O, serie ate O-1 (ADR-0023)
 granularity_min: 30
 horizon_days: 8
-history_days: {train: 730, infer: 45}
+history_days: {train: 730, infer: 2}   # infer minimo: lags de 1-2 dias (sem clima); carga 2 dias antes de O
 seed: 1234                    # set.seed antes do MO1 (posicao do oraculo)
 modes: [train, infer, forecast]
 backtest: {protocol_default: retrain_harness}

@@ -7,7 +7,7 @@
 ## Requer errors.R, config.R, topology.R, provenance.R, deck_reader.R, dates.R, registry.R, training.R, inference.R, build_long_output.R, evaluation.R, combination.R, reconcile.R, cache.R, orchestrate.R, backtest.R (M7.3 MAP, M7.7 REDUCE).
 
 cmd_backtest <- function(ctx, args) {
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   if (isTRUE(args[["--dry-run"]])) {
     res <- prevcarga_plan_result(prevcarga_plan_request(ctx, args))
     return(if (identical(ctx$format, "json")) res else .m7_plan_text(res))
@@ -37,7 +37,7 @@ prevcarga_verb_backtest <- list(
   handler = function(ctx, args) cmd_backtest(ctx, args),
   owner   = "M7",
   exempt  = FALSE,
-  modules = c("topology.R", "schema_long.R", "provenance.R", "deck_reader.R", "dates.R", "validation.R",
-              "features.R", "registry.R", "training.R", "inference.R", "build_long_output.R", "evaluation.R", "combination.R",
+  modules = c("topology.R", "schema_long.R", "provenance.R", "holiday_islands.R", "deck_reader.R", "dates.R", "validation.R",
+              "features.R", "registry.R", "inference_needs.R", "training.R", "inference.R", "build_long_output.R", "evaluation.R", "combination.R",
               "reconcile.R", "cache.R", "reporting.R", "orchestrate.R", "backtest.R")
 )

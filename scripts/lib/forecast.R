@@ -100,7 +100,7 @@
 ## Versao do artefato da origem O de um membro origin_scoped (proprio ou oficial sincronizado: mesmo layout do registry), pelo
 ## `origin` do run_manifest de cada versao; o `latest` se for dele, senao a ultima em ordem radix. NULL = nao ha artefato de O.
 .forecast_scoped_version <- function(ctx, member, area, origin) {
-  key <- prevcarga_registry_key(member, area, ctx)
+  key <- prevcarga_registry_key(member, area, ctx, spec = .prevcarga_tr_key_spec(member, ctx))
   if (!dir.exists(key)) return(NULL)
   vs <- list.files(key, pattern = "^v_[0-9a-f]{16}$")
   vs <- vs[order(vs, method = "radix")]
@@ -113,7 +113,42 @@
 }
 
 ## Classes que abortam a rodada (nunca viram membro ausente): erro de uso/config, de topologia, de honestidade e de runtime.
-.FORECAST_FATAL <- "^(config|topology|honesty|runtime)\\."
+.FORECAST_FATAL <- "^(config|topology|honesty|runtime)\\.|^state\\.inference_artifact_missing$"
+
+## Preflight do deck de inferencia (E1-T4): so leitura (nenhuma escrita na raiz). Cada membro x folha precisa ter o artefato na raiz
+## resolvida: origin_scoped = versao da origem O; origin_agnostic = latest. A primeira falta (ordem radix de folha/sigla) aborta
+## state.inference_artifact_missing (exit 13, fatal): com deck de inferencia nada treina (o deck curto nao tem historico de treino).
+.forecast_inference_preflight <- function(ctx, plan, mem, origin) {
+  for (a in sort(plan$leaves, method = "radix")) for (i in order(as.character(mem$sigla), method = "radix")) {
+    m <- mem[i, ]
+    split <- prevcarga_model_spec(m$mdir, ctx$root)$split
+    ok <- if (identical(split, "origin_scoped")) !is.null(.forecast_scoped_version(ctx, m, a, origin)) else {
+      key <- prevcarga_registry_key(m, a, ctx, spec = .prevcarga_tr_key_spec(m, ctx))
+      dir.exists(key) && !is.na(tryCatch(prevcarga_resolve_version(key, "latest"), prevcarga_error = function(e) NA_character_))
+    }
+    if (!ok) prevcarga_abort("state.inference_artifact_missing", where = paste0(m$sigla, "/", a),
+                             details = list(membro = as.character(m$sigla), area = a, origem = format(origin, "%Y-%m-%d"),
+                                            split = split, raiz = prevcarga_registry_root(ctx)))
+  }
+  invisible(TRUE)
+}
+
+## Preflight de NECESSIDADE (E2-T5), deck kind inference: resolve a necessidade de cada membro x folha pelos artefatos (artefato sem
+## inference_needs => contract.inference_needs_missing, exit 2, member/area/origin) e confere o deck contra a necessidade AGREGADA
+## (.prevcarga_check_inference_needs). Falta => completude.need_gap (exit 3) com dataset, area, dias e origin. Parte do preflight, nao da
+## validacao opcional: roda tambem com --skip-validate, antes de qualquer estagio de plugin. Deck train: nao e chamado.
+.forecast_inference_needs_gate <- function(ctx, plan, g) {
+  rows <- prevcarga_inference_needs_resolve(ctx, g$origin, sort(plan$leaves, method = "radix"), source = "artifacts")
+  chk <- .prevcarga_check_inference_needs(ctx, g$origin, g$cuts, prevcarga_inference_needs_aggregate(rows), g$cuts$tz,
+                                          prevcarga_deck_manifest(ctx$data_dir))
+  f <- chk$findings[chk$findings$level == "error", ]
+  if (nrow(f))
+    prevcarga_abort("completude.need_gap", where = f$area[[1L]],
+                    details = list(dataset = f$dataset[[1L]], area = f$area[[1L]],
+                                   dias = if (nzchar(f$detail[[1L]])) strsplit(f$detail[[1L]], ",", fixed = TRUE)[[1L]] else character(),
+                                   origin = format(g$origin, "%Y-%m-%d")))
+  invisible(chk)
+}
 
 ## Uma celula (membro x folha): origin_agnostic so le o artefato (ausente => state.artifact_missing, exit 13: nunca treina);
 ## origin_scoped treina UMA vez, pela fachada de treino (que deriva os cortes de dates.R), so se nao ha artefato da origem O.
@@ -127,6 +162,10 @@
     ver <- NULL
     if (identical(split, "origin_scoped")) {
       ver <- .forecast_scoped_version(ctx, m, a, g$origin)
+      if (is.null(ver) && identical(ctx$data_role, "inference"))   # defesa em profundidade: a versao sumiu depois do preflight
+        prevcarga_abort("state.inference_artifact_missing", where = paste0(sigla, "/", a),
+                        details = list(membro = sigla, area = a, origem = format(g$origin, "%Y-%m-%d"), split = split,
+                                       raiz = prevcarga_registry_root(ctx)))
       if (is.null(ver) && identical(prevcarga_registry_mode(ctx), "apontado"))
         prevcarga_abort("state.artifact_missing", where = paste0(sigla, "/", a),
                         details = list(reason = "sem versao da origem na raiz apontada (somente leitura)"))
@@ -160,7 +199,7 @@
 ## --- despacho por celula (--jobs, F3.5) -----------------------------------------------------------------------
 ## Modulos que cada worker PSOCK (R novo) carrega, em ordem fixa, do MESMO lib do pai (ctx$lib_dir / options prevcarga.lib).
 .forecast_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R", "deck_reader.R",
-                              "dates.R", "validation.R", "features.R", "registry.R", "training.R", "inference.R", "combination.R",
+                              "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "training.R", "inference.R", "combination.R",
                               "build_long_output.R", "forecast.R")
 
 ## Cluster PSOCK (ADR-0038: sem fork). A falha do init de qualquer worker fecha o cluster e sobe como o pai (training.R).
@@ -296,20 +335,22 @@
 ## Devolve LONG combinado por folha, LONG por membro x folha e a versao dos pesos por folha.
 .forecast_leaves <- function(ctx, members, g, plan, mem) {
   art_dir <- file.path(prevcarga_registry_root(ctx), "combina")
-  long <- list(); mlong <- list(); wver <- list(); wtab <- list()
+  long <- list(); mlong <- list(); wver <- list(); wtab <- list(); cells <- list(); eqwr <- list()
   for (a in plan$leaves) {
     lp <- .forecast_leaf_panel(ctx, members[[a]], a, g, mem)
     ap <- prevcarga_combina_apply(a, art_dir, lp$panel, ctx, members = mem, detail = TRUE,
-                                fallback_eqw = TRUE)
+                                fallback_eqw = TRUE, stale_ok = TRUE)   # so a rodada tolera celula stale (E6-T2)
     long[[a]] <- ap$long
+    if (!is.null(ap$cell_months)) cells[[a]] <- ap$cell_months
     wver[[a]] <- ap$version_hash
+    eqwr[[a]] <- ap$eqw_reason                  # E6-T3: not_trained | member_set | NA
     if (!is.null(ap$weights)) wtab[[a]] <- ap$weights     # EQW: sem pesos para a folha (relatorio sem pesos dela)
     for (d in lp$members_long) {
       sg <- d$member[[1L]]
       mlong[[sg]][[a]] <- d[, names(prevcarga_schema_long), with = FALSE]
     }
   }
-  list(long = long, members = mlong, weights_version = wver, weights = wtab)
+  list(long = long, members = mlong, weights_version = wver, weights = wtab, cells = cells, eqw_reason = eqwr)
 }
 
 ## --- 5. reconcile ----------------------------------------------------------------------------------------------
@@ -380,6 +421,29 @@
   stats::setNames(lapply(seq_len(nrow(b)), function(i) .forecast_iso_min(b$until[[i]], cuts$tz)), as.character(b$area_code))
 }
 
+## E6-T3: motivo do EQW por folha (not_trained | member_set); folha com pesos fica fora. Lista nomeada vazia sem EQW.
+.forecast_combina_motivo <- function(lv) {
+  mot <- structure(list(), names = character())
+  for (a in names(lv$eqw_reason)) {
+    r <- lv$eqw_reason[[a]]
+    if (length(r) == 1L && !is.na(r)) mot[[a]] <- as.character(r)
+  }
+  mot
+}
+
+## E6-T2: bloco por folha com pesos {mes_pedido, mes_usado, stale} (texto/logico simples; folha EQW fica fora).
+.forecast_combina_celula <- function(lv) {
+  cel <- structure(list(), names = character())
+  for (a in names(lv$cells)) {
+    cm <- lv$cells[[a]]
+    if (is.null(cm) || !nrow(cm)) next
+    cel[[a]] <- list(mes_pedido = paste(sort(unique(cm$mes_pedido), method = "radix"), collapse = ","),
+                     mes_usado  = paste(sort(unique(cm$mes_usado), method = "radix"), collapse = ","),
+                     stale      = any(cm$stale))
+  }
+  cel
+}
+
 .forecast_write_run_json <- function(ctx, scratch, g, plan, lv, rec, versao, sc, incluir_membros, ausentes = list(), cover = list()) {
   mem_areas <- structure(list(), names = character())
   if (isTRUE(incluir_membros))
@@ -391,7 +455,8 @@
               khat = .forecast_khat_rows(rec$khat), escopo = plan$escopo, subsistema = plan$subsistema,
               covered = as.list(plan$covered), stray = as.list(plan$stray),
               closed = as.list(plan$closed), sin_closed = plan$sin_closed, members = mem_areas,
-              combina_pesos = lv$weights_version,
+              combina_pesos = lv$weights_version, combina_celula = .forecast_combina_celula(lv),
+              combina_motivo = .forecast_combina_motivo(lv),
               membros_ausentes = unname(ausentes), dropped = as.list(plan$dropped),
               clima_previsto_ate = cover$clima_previsto_ate, delivery_days_efetivo = cover$delivery_days_efetivo,
               arquivos = sc$arquivos, versao = versao, version = if (is.null(ctx$version)) "unknown" else ctx$version,
@@ -430,6 +495,8 @@
     members = mem, versao = key$versao)
   m$split <- stats::setNames(lapply(spec, function(s) s$split), sg)
   for (a in eqw) m$model_versions[[paste0("combina/", a)]] <- "EQW"
+  m$combina_celula <- .forecast_combina_celula(lv)   # E6-T2: sobreposto depois do construtor, como split e combina/<folha> = EQW
+  m$combina_motivo <- .forecast_combina_motivo(lv)    # E6-T3: sobreposto depois do construtor
   if (!is.null(ctx$code_commit)) m$code_commit <- ctx$code_commit
   if (!is.null(ctx$renv_lock_hash)) m$renv_lock_hash <- ctx$renv_lock_hash
   m
@@ -528,6 +595,10 @@ prevcarga_forecast <- function(ctx, origin = NULL, escopo = "sin", areas = NULL,
   g <- .forecast_gate0(ctx, origin, skip_validate, mem, sink)
   tk$lap("validate-deck")
   plan <- .forecast_plan(ctx, escopo, areas, subsistema)
+  if (identical(ctx$data_role, "inference")) {
+    .forecast_inference_preflight(ctx, plan, mem, g$origin)
+    .forecast_inference_needs_gate(ctx, plan, g)
+  }
   rctx <- ctx                                    # convencao da rodada para o que vem depois do infer (build_long, combina, reconcile)
   rctx$tz <- g$cuts$tz
   rctx$load_label <- g$cuts$load_label

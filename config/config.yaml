@@ -3,9 +3,10 @@
 # Todas as chaves abaixo sao as unicas aceitas; chave desconhecida aborta (exit 8).
 
 schema_version: 1                       # int, obrigatorio, deve ser 1
-# data_dir: /caminho/do/deck            # chr; sem default (verbo que precisa => config.data_dir_missing)
+# data_train_dir: /caminho/deck-treino   # chr; deck de treino (kind train); flag --data-train; sem default (verbo que precisa => config.data_dir_missing)
+# data_inference_dir: /caminho/deck-inf  # chr; deck de inferencia (kind inference); flag --data-inference; sem default
 # state_dir: null                       # chr; default <raiz>/.state (so resolve, nao cria)
-# artifacts_dir: null                    # chr; raiz de artefatos so leitura (membros, combina, k-hat); flag --artifacts-dir; default <state_dir>/artifacts
+# artifacts_dir: null                    # chr; raiz de artefatos so leitura (membros, combina, k-hat); flag --data-artifacts; default <state_dir>/artifacts
 # load_label: null                      # end|start; sem default no M1 (aplicado pelo leitor do M2)
 weather_issue_cutoff: available_until   # available_until|origin_midnight_utc (ADR-0024); default available_until
 color: auto                             # auto|always|never; default auto

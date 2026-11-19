@@ -8,5 +8,5 @@ prevcarga_verb_doctor <- list(
   handler = function(ctx, args) prevcarga_doctor_extend(cmd_doctor(ctx, args), ctx),
   owner   = "M1",
   exempt  = TRUE,
-  modules = "introspect.R"
+  modules = c("deck_reader.R", "introspect.R")
 )

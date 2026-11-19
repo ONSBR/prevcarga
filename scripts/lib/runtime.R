@@ -300,9 +300,8 @@ prevcarga_bundle_require <- function(pkgs) {
   data.frame(check = check, status = status, found = found, effective = effective, class = class, stringsAsFactors = FALSE)
 }
 
-## latest.txt sob <state_dir>/artifacts: v_<hash> ausente => "ausente"; SHA256SUMS ('<sha>  <arquivo>') divergente => "sha_divergente".
-.prevcarga_artifact_scan <- function(state_dir) {
-  base <- file.path(state_dir, "artifacts")
+## latest.txt sob a raiz de artefatos resolvida (--data-artifacts ou <state_dir>/artifacts): v_<hash> ausente => "ausente"; SHA256SUMS ('<sha>  <arquivo>') divergente => "sha_divergente".
+.prevcarga_artifact_scan <- function(base) {
   lat <- if (dir.exists(base)) list.files(base, pattern = "^latest\\.txt$", recursive = TRUE, all.files = TRUE) else character()
   lat <- sort(lat, method = "radix")
   rows <- lapply(lat, function(rel) {
@@ -375,7 +374,7 @@ prevcarga_platform_check <- function(ctx, host = .prevcarga_host_platform(), gli
              cv <- trimws(readLines(curf, n = 1L, warn = FALSE))
              .prevcarga_pc_row("bundle.current", if (identical(cv, as.character(rt$version))) "PASS" else "WARN", cv, as.character(rt$version))
            }
-  art <- .prevcarga_artifact_scan(ctx$state_dir)
+  art <- .prevcarga_artifact_scan(if (is.null(ctx$artifacts_dir)) file.path(ctx$state_dir, "artifacts") else ctx$artifacts_dir)
   campos$artefatos <- art
   miss <- Filter(function(a) identical(a$status, "ausente"), art)
   bad <- Filter(function(a) identical(a$status, "sha_divergente"), art)
