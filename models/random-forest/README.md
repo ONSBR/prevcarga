@@ -27,7 +27,7 @@ Caminhos relativos a `prevcargadessem3/models/random-forest/`.
   `randomForest`/`data.table`/`lubridate`. Cinco estagios na assinatura canonica da fundacao (ingestion, feature_engineering, training,
   inference_features, inference).
 - **`run.yaml`**: `split origin_agnostic` (1 treino serve a todas as origens; `train_origin = O-1-H`, ADR-0023), 60 min, `horizon_days 9`,
-  `history_days {train 365, infer 45}`, `seed 123`, `modes [train, infer]`, `params {ntree: 100}`. `ntree` e `seed` nao tem default no codigo.
+  `history_days {train 365, infer 9}`, `seed 123`, `modes [train, infer]`, `params {ntree: 100}`. `ntree` e `seed` nao tem default no codigo.
 - **Cortes**: o plugin le `cuts$train_origin`, `cuts$last_data_day` e `cuts$weather_issue_limit` de `dates.R`; nunca calcula corte proprio.
   Confere o painel (`plugin.train_beyond_cut`, `plugin.infer_beyond_cut`, `plugin.weather_beyond_limit`, `plugin.raw_timestamp`) e nunca filtra.
 - **Hora**: nenhuma aritmetica de hora no plugin (principio 7, sem excecoes). A carga horaria e de `to_hourly`, o carimbo de 30 min de `to_semihourly`.
@@ -83,7 +83,7 @@ A safra de clima de cada origem nativa T e a emissao mais fresca em `(limit(T) -
 | gate09 / gate10 | `weather`, `weather_limit` (canal de clima do honesty_gate, 2 regras) | [PLUGINS] | fast |
 | gate05 | `freeze` | [PLUGINS] | fast |
 | gate06 / gate07 | `no_env`, `determinismo` | [PLUGINS] | fast |
-| - | `completude`, `completude_infer`, `holidays`, `corte_horario`, `sentinela`, `spline_rule`, `units_yaml`, `aditividade`, `higiene`, `readme`, `runner_controle` | [PLUGINS] | fast |
+| - | `completude`, `completude_infer`, `infer_lag_window`, `holidays`, `corte_horario`, `sentinela`, `spline_rule`, `units_yaml`, `aditividade`, `higiene`, `readme`, `runner_controle` | [PLUGINS] | fast |
 | gate03 | `paridade`, `paridade_control` | [PLUGINS] | parity |
 | gate04 | `gate04` (schema LONG) | [DEFERRED M6] | - |
 | gate08 | `gate08` (y_true real / combina) | [DEFERRED M6] | - |

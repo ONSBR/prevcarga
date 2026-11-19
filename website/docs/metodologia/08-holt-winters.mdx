@@ -40,7 +40,7 @@ name: holt-winters
 split: origin_scoped          # 1 treino por origem O, serie ate O-1 (ADR-0023)
 granularity_min: 30
 horizon_days: 8
-history_days: {train: 730, infer: 45}
+history_days: {train: 730, infer: 2}
 seed: 1234                    # set.seed antes do MO1
 modes: [train, infer, forecast]
 backtest: {protocol_default: retrain_harness}
@@ -64,7 +64,7 @@ O descriptor (`R/register.R`) completa o contrato:
 | `delivery_days` | 9 | entrega de O a O+8 |
 | `reads_day_O` | FALSE | a carga do dia O não entra no cálculo |
 | `uses_rng` | TRUE | o k-means do passo 4 usa gerador aleatório; o despachante restaura o estado do RNG do chamador |
-| `history_infer_equals_train` | FALSE | a janela do infer (45 dias) é diferente da do treino (730 dias) |
+| `history_infer_equals_train` | FALSE | a janela do infer (2 dias) é diferente da do treino (730 dias) |
 | `data_lag_days` | não declarado | vale 0; `last_data_day` = O−1 |
 
 Os cortes vêm de `scripts/lib/dates.R`: `train_origin` = O e `last_data_day` = O−1 (ver [os três cortes de data](/metodologia/tres-cortes)). O plugin confere esses cortes e nunca corta nem preenche. A ingestão (`plugin_ingest`) aborta quando:

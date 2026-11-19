@@ -10,12 +10,18 @@ rd_muffle <- function(patterns, expr) {
 }
 
 ## `spec` = list(params = ...); a variante e validada ANTES de qualquer chamada ao motor.
-plugin_build_features <- function(deck, spec) {
+plugin_build_features <- function(deck, spec, norm = NULL) {
   key <- .rd_variant_key(spec$params)
   eng <- rd_engine()
   config_mdl <- eng$getConfigModel(key)
+  if (!is.null(norm)) .rd_check_norm(norm, config_mdl)   # antes de TransformaDeck e de getNormaliza*
   eng_deck <- list(CARGAHIST = data.table::copy(deck$CARGAHIST), EXOGENAHIST = data.table::copy(deck$EXOGENAHIST),
                    EXOGENAPREV = data.table::copy(deck$EXOGENAPREV), FERIADOS = data.table::copy(deck$FERIADOS))
+  ## anexo de feriados (ADR-046): so entra no deck do motor quando existe (sem anexo o deck e o de antes)
+  if (!is.null(deck$CARGAFER)) {
+    eng_deck$CARGAFER <- data.table::copy(deck$CARGAFER)
+    eng_deck$EXOGENAFER <- data.table::copy(deck$EXOGENAFER)
+  }
   proc <- rd_muffle(c("Exogena prevista nao disponivel", "Ajustanto horizonte"),
     eng$TransformaDeck(deck = eng_deck, dataInicioPrev = deck$dataPrev, horizonteprevisao = "10DIAS", tz = deck$tz))
   n <- deck$horizon
@@ -24,11 +30,12 @@ plugin_build_features <- function(deck, spec) {
     proc$NDIASPREV <- n
   }
   n_leak <- .rd_enforce_real_history(proc$SERIECOMP)
-  s <- .rd_build_series(proc$SERIECOMP, config_mdl)
+  s <- .rd_build_series(proc$SERIECOMP, config_mdl, norm)
   dias <- format(proc$DIASPREV)
   frame <- deck
   frame$model_key <- key
   frame$variant <- spec$params$exogena
   list(processado = proc, config_mdl = config_mdl, series = s, dias = dias,
-       day_types = .rd_day_types(s$seriePF, dias), n_leak = n_leak, deck = frame)
+       day_types = .rd_day_types(s$seriePF, dias), n_leak = n_leak, deck = frame,
+       norm = if (is.null(norm)) .rd_norm_constants(proc$SERIECOMP, config_mdl) else norm)
 }

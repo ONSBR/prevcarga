@@ -3,7 +3,7 @@ title: Combinação convexa (combina) e a máscara de treino
 sidebar_label: Combinação convexa
 sidebar_position: 11
 slug: /metodologia/combina
-description: Como a combina mistura os 8 membros por célula (lead, corte, mês de origem) e como a máscara de treino impede que os pesos usem informação do horizonte.
+description: Como a combina mistura os 9 membros por célula (lead, corte, mês de origem) e como a máscara de treino impede que os pesos usem informação do horizonte.
 fontes:
   - scripts/lib/combination.R
   - scripts/lib/cli/combine.R
@@ -22,7 +22,7 @@ commit_base: "f2d1734"
 
 <span className="pc-overline">Metodologia · 1.11</span>
 
-<p className="pc-lead">A combina transforma as previsões dos 8 membros de uma área numa única previsão por área. É uma média convexa com intercepto livre: pesos não negativos que somam 1, ajustados por célula (lead, corte, mês de origem). Os pesos de um mês m só aprendem com alvos anteriores ao início de m, para não usar informação do horizonte.</p>
+<p className="pc-lead">A combina transforma as previsões dos 9 membros de uma área numa única previsão por área. É uma média convexa com intercepto livre: pesos não negativos que somam 1, ajustados por célula (lead, corte, mês de origem). Os pesos de um mês m só aprendem com alvos anteriores ao início de m, para não usar informação do horizonte.</p>
 
 Todo o método mora num só módulo, `scripts/lib/combination.R`. O verbo `combine` (`scripts/lib/cli/combine.R`) e a rodada (`forecast.R`) só o chamam.
 
@@ -57,7 +57,7 @@ O painel de uma área tem uma linha por (origem, lead, corte). O lead é o índi
 
 `prevcarga_combina_fit` ajusta uma célula por **(lead, corte, mês de origem)**. O mês de origem (`ym`) são os 7 primeiros caracteres de `forecast_origin`. Dentro de cada par (lead, corte), os meses são percorridos em ordem, e o ajuste do mês m usa todas as linhas do par com alvo anterior ao início de m (ver [A máscara de treino](#a-máscara-de-treino)). A janela cresce a cada mês. O ajuste de m parte dos pesos do último mês ajustado do mesmo par quando o conjunto de membros presentes é o mesmo (*warm start*).
 
-A célula cai no **fallback EQW** (pesos 1/k sobre os k membros presentes e a = 0) em três casos, gravados na coluna `fallback`:
+A célula cai no **fallback EQW** (pesos 1/k sobre os k membros presentes e a = 0) em três casos, gravados na coluna `fallback`. Com os 9 membros da topologia presentes, cada peso da EQW é 1/9:
 
 | `fallback` | Quando |
 |---|---|
@@ -65,11 +65,13 @@ A célula cai no **fallback EQW** (pesos 1/k sobre os k membros presentes e a = 
 | `no_member` | Nenhum membro tem previsão naquela célula. |
 | `n_min` | Menos de `n_min = 24` linhas de treino completas (alvo com verdade e todos os membros presentes sem NA). |
 
+No `train`, cada par (lead, corte) congela também a **célula do mês seguinte**, m_next = último mês do painel + 1 mês. Ela usa os membros presentes do último mês do painel, a mesma máscara de treino (aplicada a m_next), o mesmo `n_min` e a mesma taxonomia de fallback (`no_member`, `n_min`), com o ajuste do último mês como ponto de partida. Por isso a primeira origem do mês seguinte encontra pesos e não aborta. O `full` e o backtest não geram essa célula.
+
 <Figura id="FIG-M15" titulo="Ajuste por célula da combina" natureza="Fluxo" fontes={['scripts/lib/combination.R']} adrs={['ADR-0013', 'ADR-0032']}>
 
 ```mermaid
 flowchart TB
-  A["8 membros declarados na topologia"]:::fundacao --> B["assert_members_aligned"]:::fundacao
+  A["9 membros declarados na topologia"]:::fundacao --> B["assert_members_aligned"]:::fundacao
   B -->|desalinhado| X["contract.member_misaligned · exit 2"]:::erro
   B --> C["build_panel · f_sigla = NA fora da faixa"]:::fundacao
   C --> D["join_fresh_truth · y_true do leitor"]:::fundacao
@@ -171,7 +173,7 @@ O corte faz parte da célula, então cada corte intradiário (o HHMM de `availab
 
 ### Entrada
 
-O painel é largo, uma linha por (área, origem, lead, corte), com uma coluna `f_<sigla>` por membro na ordem da topologia (`config/topology.yaml`: RF, LGBM, HW, RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN). O `y_true` que vem no LONG de cada membro é descartado. A verdade entra por `prevcarga_join_fresh_truth`, que lê a carga pelo leitor único (`prevcarga_read_actual`) e casa por igualdade exata `target_datetime == interval_end`. Na rodada, o painel não tem verdade: a combina só aplica.
+O painel é largo, uma linha por (área, origem, lead, corte), com uma coluna `f_<sigla>` por membro na ordem da topologia (`config/topology.yaml`: RF, LGBM, HW, RGD_MED, RGD_MAX, LIN_MED, LIN_MAX, LIN_MXMN, LIN_UNI). O `y_true` que vem no LONG de cada membro é descartado. A verdade entra por `prevcarga_join_fresh_truth`, que lê a carga pelo leitor único (`prevcarga_read_actual`) e casa por igualdade exata `target_datetime == interval_end`. Na rodada, o painel não tem verdade: a combina só aplica.
 
 O caminho de montagem é um só, `prevcarga_combina_load`: descoberta dos runs, alinhamento, painel e verdade fresca. A rodada e o backtest montam o mesmo painel por `prevcarga_assert_members_aligned` e `prevcarga_build_panel`.
 
@@ -189,7 +191,9 @@ A saída é o LONG de 8 colunas por área (`area`, `forecast_origin`, `target_da
 
 Os pesos ficam em `<artifact_dir>/<área>/v_<hash>/weights.rds`, com o manifesto `weights.rds.manifest.json` ao lado, e `<área>/latest.txt` (uma linha com a versão, sem symlink, escrito por último). O hash é o `prevcarga_version_hash` do conteúdo do painel, da configuração (`n_min`, `iters`, `grad_tol`, cortes, conjunto de membros, `delivery_days`), do código, do `renv.lock` e da convenção de carga (rótulo e fuso). Reajustar com os mesmos insumos reaponta o `latest.txt` para a mesma versão, sem reescrever. O diretório padrão do verbo é `<state_dir>/artifacts/combina`.
 
-Na aplicação do verbo `combine --mode apply`, sem `latest.txt` a área dá `state.combina_not_trained` (exit 13). Na rodada diária (`forecast`) esse erro não existe: sem `latest.txt` a folha usa a média simples dos membros presentes (EQW), emite `warning.combina_eqw` e registra `pesos=EQW` na proveniência (`run.json` e `result`), sem gravar pesos. Os pesos são retreinados uma vez por mês com `combine --mode train`, o que tira a folha do EQW. Um `weights.rds` alterado falha na conferência de integridade (exit 9); pesos de outro conjunto de membros, rótulo ou fuso dão `contract.combina_artifact_mismatch` (exit 2).
+Na aplicação do verbo `combine --mode apply`, sem `latest.txt` a área dá `state.combina_not_trained` (exit 13). Na rodada diária (`forecast`) esse erro não existe: sem `latest.txt` a folha usa a média simples dos membros presentes (EQW), emite `warning.combina_eqw` e registra `pesos=EQW` na proveniência (`run.json` e `result`), sem gravar pesos. Os pesos são retreinados uma vez por mês com `combine --mode train`, o que tira a folha do EQW. Um `weights.rds` alterado falha na conferência de integridade (exit 9); pesos de outro conjunto de membros, rótulo ou fuso dão `contract.combina_artifact_mismatch` (exit 2) no `combine --mode apply`. Na rodada, só rótulo ou fuso divergente segue como erro: a troca do conjunto de membros (um membro novo entrou antes do retreino mensal, ou um saiu) vira média simples dos presentes (EQW), com `warning.combina_member_set` e `combina_motivo = member_set` no `run_manifest.json` e no `run.json`. Pesos de outra convenção nunca são trocados por média.
+
+**Célula stale na rodada.** O retreino é mensal e a combinação guarda uma célula por (lead, corte, mês), com a do mês seguinte ao último treinado. Se o retreino atrasa e o mês da rodada não tem célula, a rodada diária usa a célula de maior mês anterior do mesmo (lead, corte), re-chaveada para o mês pedido, e emite `warning.combina_stale` (um por folha e mês pedido). Não há limite de idade. Mês pedido anterior a toda célula continua abortando `contract.combina_input`: nunca há EQW silencioso. O `combine --mode apply` segue estrito e aborta `contract.combina_input` quando falta a célula do mês.
 
 `apply` sobre o resultado de `train` dá saída idêntica, bit a bit, à de `full` no mesmo painel.
 

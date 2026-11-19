@@ -389,6 +389,119 @@ prevcarga_outlier_min_days <- 3L
   .pc_findings_bind(out)
 }
 
+## --- 7b. Necessidade AGREGADA dos artefatos (deck kind inference; substitui .prevcarga_check_window) ----------------
+## `agg` = prevcarga_inference_needs_aggregate(rows) (inference_needs.R): por dataset e area, os dias exigidos relativos a O.
+## load: 48 intervalos em cada dia de [O - days_before, O - 1]; weather_observed: >= 1 leitura em cada dia da janela;
+## weather_forecast: por segmento, freshest/min_lead exigem uma emissao valida (issue_time <= weather_issue_limit, lead
+## satisfeito) por dia valido em [O+from, O+to] (a regra do proprio leitor, prevcarga_read_forecast_by_rule); per_origin so a
+## emissao da origem T = O; holidays: janela inference.windows.holidays do manifest cobre [O+from, O+to]; holiday_annex pedido =>
+## anexo presente no manifest e no disco. Falta => finding erro completude.need_gap, detail = dias YYYY-MM-DD em ordem separados
+## por virgula. Devolve list(findings, windows) com windows = data.table(dataset, area, from, to, source = "artifacts").
+## Nenhum nome de modelo; so leitura.
+.prevcarga_need_days <- function(from, to) if (to < from) lubridate::as_date(character()) else seq(from, to, by = "day")
+
+.prevcarga_need_read <- function(expr) tryCatch(expr, prevcarga_error = function(e) {
+  if (e$class_name %in% c("config", "runtime")) stop(e)
+  NULL
+})
+
+.prevcarga_check_inference_needs <- function(ctx, O, cuts, agg, tz, manifest = NULL) {
+  O <- lubridate::as_date(O)
+  fnd <- list(); win <- list()
+  gap <- function(a, ds, miss)
+    if (length(miss)) fnd[[length(fnd) + 1L]] <<- .pc_finding(a, ds, "need_gap",
+      paste(format(sort(unique(miss)), "%Y-%m-%d"), collapse = ","), "completude", where = ds)
+  window <- function(a, ds, from, to) win[[length(win) + 1L]] <<- data.table::data.table(
+    dataset = ds, area = a, from = from, to = to, source = "artifacts")
+  have_days <- function(x, col, a) {
+    x <- x[x$area_code == a]
+    lubridate::as_date(x[[col]], tz = tz)
+  }
+
+  ld <- agg$load
+  if (!is.null(ld) && nrow(ld)) {
+    nb <- max(ld$days_before)
+    if (nb > 0L) {
+      raw <- .prevcarga_need_read(prevcarga_read_load(ctx, ld$area_code, from = O - nb, to = O - 1L))
+      dc <- if (!is.null(raw) && nrow(raw)) prevcarga_day_complete(raw) else NULL
+      for (i in seq_len(nrow(ld))) {
+        a <- ld$area_code[i]; b <- ld$days_before[i]
+        if (b < 1L) next
+        want <- .prevcarga_need_days(O - b, O - 1L)
+        window(a, "load", O - b, O - 1L)
+        ok <- if (is.null(dc)) want[0L] else dc$date[dc$area_code == a & dc$complete]
+        gap(a, "load", want[!want %in% ok])
+      }
+    }
+  }
+
+  wo <- agg$weather_observed
+  if (!is.null(wo) && nrow(wo)) {
+    nb <- max(wo$days_before)
+    if (nb > 0L) {
+      raw <- .prevcarga_need_read(prevcarga_read_weather(ctx, "observed", wo$area_code, O - nb, O - 1L))
+      for (i in seq_len(nrow(wo))) {
+        a <- wo$area_code[i]; b <- wo$days_before[i]
+        if (b < 1L) next
+        want <- .prevcarga_need_days(O - b, O - 1L)
+        window(a, "weather_observed", O - b, O - 1L)
+        have <- if (is.null(raw) || !nrow(raw)) want[0L] else have_days(raw, "valid_time", a)
+        gap(a, "weather_observed", want[!want %in% have])
+      }
+    }
+  }
+
+  wf <- agg$weather_forecast
+  if (!is.null(wf) && nrow(wf)) {
+    lim <- cuts$weather_issue_limit
+    for (a in sort(unique(wf$area_code), method = "radix")) {
+      s <- wf[wf$area_code == a]
+      miss <- lubridate::as_date(character())
+      for (i in seq_len(nrow(s))) {
+        per <- identical(s$kind[i], "per_origin")
+        seg <- list(kind = s$kind[i], from = if (per) 0L else s$from[i], to = if (per) 0L else s$to[i],
+                    lead = s$lead[i])
+        want <- .prevcarga_need_days(O + seg$from, O + seg$to)
+        fc <- .prevcarga_need_read(prevcarga_read_forecast_by_rule(ctx, a, O, list(seg), lim))
+        have <- if (is.null(fc) || !nrow(fc)) want[0L] else
+          if (per) O else lubridate::as_date(fc$valid_time, tz = lubridate::tz(fc$valid_time))
+        miss <- c(miss, want[!want %in% have])
+      }
+      window(a, "weather_forecast", O + min(wf$from[wf$area_code == a]), O + max(wf$to[wf$area_code == a]))
+      gap(a, "weather_forecast", miss)
+    }
+  }
+
+  ho <- agg$holidays
+  inf_win <- if (!is.null(manifest)) manifest$inference$windows$holidays else NULL
+  if (!is.null(ho) && nrow(ho)) for (i in seq_len(nrow(ho))) {
+    a <- ho$area_code[i]
+    want <- .prevcarga_need_days(O + ho$from[i], O + ho$to[i])
+    window(a, "holidays", O + ho$from[i], O + ho$to[i])
+    if (!is.null(manifest) && identical(manifest$kind, "inference")) {
+      have <- if (is.null(inf_win)) want[0L] else want[want >= inf_win$from & want <= inf_win$to]
+      gap(a, "holidays", want[!want %in% have])
+    }
+  }
+
+  if (isTRUE(agg$holiday_annex)) {
+    ann <- if (is.null(manifest)) NULL else {
+      p <- manifest[["holiday_annex"]]
+      if (is.null(p)) p <- manifest$inference[["holiday_annex"]]
+      p
+    }
+    ok <- is.character(ann) && length(ann) == 1L && nzchar(ann) && dir.exists(file.path(ctx$data_dir, ann))
+    if (!ok) fnd[[length(fnd) + 1L]] <- .pc_finding("*", "holiday_annex", "need_gap", "", "completude",
+                                                    where = "holiday_annex")
+  }
+
+  w <- if (length(win)) data.table::rbindlist(win) else
+    data.table::data.table(dataset = character(), area = character(), from = lubridate::as_date(character()),
+                           to = lubridate::as_date(character()), source = character())
+  if (nrow(w)) w <- w[order(w$dataset, w$area, method = "radix")]
+  list(findings = .pc_findings_bind(fnd), windows = w)
+}
+
 ## Cobertura do clima previsto ate O+H (H = maior horizonte do escopo; so folhas). Le com origin = O, como a inferencia
 ## (weather_issue_limit + emissao mais fresca), e aplica o predicado unico prevcarga_forecast_coverage_end.
 .prevcarga_check_forecast_coverage <- function(ctx, cv, leaves, cuts, acc) {
@@ -407,7 +520,7 @@ prevcarga_outlier_min_days <- 3L
 }
 
 ## --- Checagens que leem dados (apos cortes) ---------------------------------------------------------------------
-.prevcarga_check_data <- function(ctx, cv, areas, models, bad, acc, leaves = character()) {
+.prevcarga_check_data <- function(ctx, cv, areas, models, bad, acc, leaves = character(), inference = FALSE) {
   O <- cv$forecast_origin; tz <- cv$tz
   cuts <- cv$cuts[cv$cuts$model %in% models, ]
   from <- if (nrow(cuts)) .prevcarga_relevant_from(cuts, O, ctx$root) else O - 1L
@@ -417,7 +530,7 @@ prevcarga_outlier_min_days <- 3L
     if (!is.null(load)) {
       acc$add(.prevcarga_check_completeness(load, from, O, areas, tz))
       acc$add(.prevcarga_check_load_sanity(load))
-      if (nrow(cuts)) acc$add(.prevcarga_check_window(load, cuts, O, areas, ctx$root, tz))
+      if (nrow(cuts) && !isTRUE(inference)) acc$add(.prevcarga_check_window(load, cuts, O, areas, ctx$root, tz))   # deck inference: check de needs
       acc$add(.prevcarga_check_heuristics(load))
     }
   }
@@ -441,7 +554,12 @@ prevcarga_outlier_min_days <- 3L
 ## --- 9. Orquestrador publico ---------------------------------------------------------------------------------------
 ## scope = list(model = NULL, area = NULL); origin: Date ou NULL (cai em ctx$origin e, depois, no ultimo dia de carga).
 prevcarga_validate_deck <- function(ctx, origin = NULL, scope = NULL, data_lag_days = NULL) {
-  prevcarga_require_data_dir(ctx)
+  ## so kind/origem do deck (contract.deck_kind_mismatch / deck_origin_mismatch) e as classes config/runtime abortam aqui; qualquer outro
+  ## abort classificado do manifest (unknown_key, tz_missing, tz_invalid, weather_lag_missing...) vira finding do gate-0 (como em .prevcarga_capture)
+  tryCatch(prevcarga_require_deck(ctx),
+           prevcarga_error = function(e) {
+             if (e$class_name %in% c("config", "runtime") || e$id %in% c("contract.deck_kind_mismatch", "contract.deck_origin_mismatch")) stop(e)
+           })
   acc <- .pc_acc()
   scope <- list(model = scope$model, area = scope$area)
   if (is.character(origin)) origin <- prevcarga_parse_origin(origin)
@@ -469,7 +587,23 @@ prevcarga_validate_deck <- function(ctx, origin = NULL, scope = NULL, data_lag_d
     acc$add(cr$finding)
     cv <- cr$value
   }
-  if (!is.null(cv)) .prevcarga_check_data(ctx, cv, sc$areas, sc$models, ct$bad, acc, leaves = sc$leaves)
+  inference <- !is.null(man$value) && identical(man$value$kind, "inference")
+
+  ## deck kind inference: a necessidade AGREGADA dos artefatos substitui o check de janela por history_days; roda ANTES das
+  ## checagens de dado para o need_gap (a causa) vir antes do day_incomplete do mesmo buraco no primeiro erro da classe
+  inf_windows <- NULL
+  nl <- intersect(sc$areas, sc$leaves)
+  if (inference && !is.null(cv) && length(nl)) {
+    rows <- tryCatch(prevcarga_inference_needs_resolve(ctx, cv$forecast_origin, nl, source = "artifacts"),
+                     prevcarga_error = function(e) if (grepl("^state\\.", e$id)) NULL else stop(e))   # state.*: o preflight do forecast e dono
+    if (!is.null(rows)) {
+      chk <- .prevcarga_check_inference_needs(ctx, cv$forecast_origin, cv, prevcarga_inference_needs_aggregate(rows),
+                                              cv$tz, man$value)
+      acc$add(chk$findings)
+      inf_windows <- chk$windows
+    }
+  }
+  if (!is.null(cv)) .prevcarga_check_data(ctx, cv, sc$areas, sc$models, ct$bad, acc, leaves = sc$leaves, inference = inference)
 
   if (!"holidays" %in% ct$bad && length(sc$areas)) {
     h <- .pc_read(prevcarga_read_holiday_codes(ctx, sc$areas), "holidays", acc)
@@ -488,6 +622,7 @@ prevcarga_validate_deck <- function(ctx, origin = NULL, scope = NULL, data_lag_d
          weather_issue_limit = if (!is.null(cv)) cv$weather_issue_limit else NULL,
          timezone = if (!is.null(man$value)) man$value$timezone else NULL,
          cuts = if (!is.null(cv)) cv$cuts else NULL,
+         inference_windows = inf_windows,
          scope = list(areas = sc$areas, models = sc$models),
          findings = findings))
 }

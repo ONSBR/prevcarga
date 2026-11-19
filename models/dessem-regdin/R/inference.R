@@ -25,16 +25,25 @@
     })
 }
 
-## Guarda de janela: o painel do infer cobre EXATAMENTE a janela do treino (origin_scoped, history_infer_equals_train).
+## Guarda de janela (E4-T3, ADR-045 fase C): confere o ARTEFATO e o fim do deck, nao mais o deck inteiro contra a janela do treino.
+## A serie diaria historica vem do artefato (serie_dm): seu intervalo tem de ser o train_window e o digest de (Data, Carga, Exo_*)
+## o dm_digest do fingerprint, senao plugin.regdin_artifact_tampered (integrity, exit 9) ANTES do ARIMA. O deck (curto ou longo)
+## tem de terminar em train_window$end (o ultimo dia historico), senao plugin.regdin_window_mismatch nomeando os dois dias.
 ## `.bypass_window_guard` existe so para o CONTROL do teste (ausente do descriptor e do despachante).
 .rd_check_window <- function(inf_feat, artifact, .bypass_window_guard = FALSE) {
   if (isTRUE(.bypass_window_guard)) return(invisible(FALSE))
-  got <- inf_feat$panel_window; exp <- artifact$train_window
-  if (!identical(as.numeric(got$start), as.numeric(exp$start)) || !identical(as.numeric(got$end), as.numeric(exp$end)))
+  sd <- data.table::as.data.table(artifact$serie_dm); tw <- artifact$train_window
+  tamper <- function(why) rd_abort("plugin.regdin_artifact_tampered", where = "dessem-regdin/infer", reason = why,
+                                   details = list(reason = why))
+  hd <- sd[Prev == FALSE]$Data
+  if (!length(hd) || !identical(as.numeric(range(hd)), as.numeric(c(tw$start, tw$end))))
+    tamper("serie_dm fora de train_window")
+  if (!identical(.rd_dm_hist_digest(sd), artifact$arima_fingerprint$dm_digest)) tamper("digest de serie_dm != dm_digest")
+  end <- inf_feat$panel_window$end
+  if (!identical(as.numeric(end), as.numeric(tw$end)))
     rd_abort("plugin.regdin_window_mismatch", where = "dessem-regdin/infer",
-             reason = sprintf("painel %s..%s; treino %s..%s", format(got$start), format(got$end), format(exp$start),
-                              format(exp$end)),
-             details = list(expected = format(c(exp$start, exp$end)), got = format(c(got$start, got$end))))
+             reason = sprintf("deck termina em %s; train_window$end = %s", format(end), format(tw$end)),
+             details = list(expected_end = format(tw$end), deck_end = format(end)))
   invisible(TRUE)
 }
 
@@ -95,8 +104,10 @@
   addValuesDMRef(seriePF, inferDM, "CargaMed")
   for (dp in f$dias) {
     dt <- f$day_types[[dp]]
-    if (!is.na(dt) && dt != 0L) {                                      # especial: lm recomputado (nao ha SVM)
-      .rd_guarded(acc, RL_perfilFeriado(dp, seriePF, cfg, artifact$norm$pf_cargadm), quiet = TRUE)
+    if (!is.na(dt) && dt != 0L) {                                      # especial: lm congelado/re-ajustado (nao ha SVM)
+      hp <- artifact$hol_profile[[dp]]
+      if (is.null(hp)) rd_artifact_mismatch("hol_profile", names(artifact$hol_profile), dp, where = "dessem-regdin/inference")
+      .rd_guarded(acc, rd_profile_holiday(dp, seriePF, cfg, artifact$norm$pf_cargadm, hp, O), quiet = TRUE)
       next
     }
     svm <- artifact$svm_perfil[[dp]]
@@ -104,12 +115,11 @@
       rd_artifact_mismatch("svm_perfil", paste0("sem SVM no dia normal ", dp), "24 SVMs", where = "dessem-regdin/inference")
     cmed <- inferDM[Data == lubridate::as_date(dp)]$Carga.infer[1L]
     for (h in 0:23) {
-      cp <- obterDiaEspPerfilConfig(dp, seriePF, cfg)
-      dEnt <- entradaPerfil(serie = seriePF, tipoEntrada = cp$tpEntrada, diaSemana = cp$ds, hora = h, diaAno = cp$diasAno,
-                            lagsmodelo = cp$hrlag, hv = seriePF[Data == dp]$HV[1L], lagsdsFer = cp$lagds, tpFer = cp$diaEsp,
-                            addHourFac = FALSE)
-      x <- dEnt[Data == dp][, CargaMed := cmed]
-      y <- .rd_guarded(acc, .rd_predict_row(.rd_best(svm[[h + 1L]]), x, sprintf("perfil %s h%02d", dp, h)))
+      x <- .rd_profile_row(seriePF, cfg, dp, h)
+      what <- sprintf("perfil %s h%02d", dp, h)
+      x <- rd_align_row(x, artifact$columns[[dp]][[as.character(h)]], seriePF, dp, what)   # colunas do treino (deck curto)
+      x[, CargaMed := cmed]
+      y <- .rd_guarded(acc, .rd_predict_row(.rd_best(svm[[h + 1L]]), x, what))
       seriePF[Data == dp & lubridate::hour(DataHora) == h, `:=`(CargaMed = cmed, Carga = y[1L])]
     }
   }

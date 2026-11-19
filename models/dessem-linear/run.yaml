@@ -2,9 +2,10 @@ name: dessem-linear
 split: origin_scoped
 granularity_min: 60
 horizon_days: 9
-history_days: {train: 1825, infer: 1825}
+history_days: {train: 1095, infer: 15}   # inferencia so precisa de lagsPerfil (336 h) + 1 dia; o deck longo continua aceito
 seed: 42
 modes: [train, infer, forecast]
 backtest: {protocol_default: retrain_harness}
 constraints: {}
-params: {exogena: MED}
+params: {exogena: MED, janela_dessem: ano_civil}
+# clima_hist: observado (default implicito) | previsto_lead0

@@ -88,6 +88,16 @@ to_hourly <- function(panel, weather = TRUE) {
     out$weather_forecast <- .prevcarga_hourly_weather(panel$weather_forecast, c("area_code", "issue_time"))
   }
   out$holidays <- panel$holidays
+  if (!is.null(panel$holiday_annex)) {            # anexo de feriados (E3-T2): reamostrado como carga/clima; ilhas intactas
+    ha <- panel$holiday_annex
+    .prevcarga_feat_check_time(ha$load, "interval_start", "to_hourly", tz)
+    .prevcarga_feat_check_time(ha$load, "interval_end", "to_hourly", tz)
+    out$holiday_annex$load <- .prevcarga_hourly_load(ha$load)
+    if (isTRUE(weather)) {
+      .prevcarga_feat_check_time(ha$weather_observed, "valid_time", "to_hourly", tz)
+      out$holiday_annex$weather_observed <- .prevcarga_hourly_weather(ha$weather_observed, "area_code")
+    }
+  }
   attr(out, "granularity_min") <- 60L
   out
 }

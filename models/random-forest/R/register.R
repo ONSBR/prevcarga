@@ -24,6 +24,9 @@ plugin_constants <- function() list(
   ## horas do dia local (0..23) das marcas de pico do oraculo; `day_daily_peak` usa 9:17 (estatistica por dia)
   daily_peak_hours = 9:18, evening_peak_hours = 18:23, minimum_hours = 0:8, daily_peak_stat_hours = 9:17,
   importance = TRUE, no_holiday_days = 365,
+  ## maior lag de carga usado por .rf_block_recent [T-7, T-1] e .rf_block_prev nas origens mantidas c(O-1, O): na fase infer a
+  ## carga e exigida de min(keep) - max_lag_days (O-8) a O-1
+  max_lag_days = 7L,
   ## janelas de Natal (12-23..12-29) e de Ano-Novo (12-30..12-31 e 01-01..01-04) como (mes, dia) inicial e final
   christmas_window = list(start = c(12L, 23L), end = c(12L, 29L)),
   newyear_windows = list(list(start = c(12L, 30L), end = c(12L, 31L)), list(start = c(1L, 1L), end = c(1L, 4L))),
@@ -59,6 +62,19 @@ rf_stage_ingest <- function(panel, cuts) {
   plugin_ingest(panel, cuts, spec)
 }
 
+## data_needs (E2-T2): so dado. RF escolhe, por origem nativa T em [O - n, O], a emissao mais fresca em
+## (limit(T) - 1 dia, limit(T)] (per_origin; treino desde o inicio da janela: from = NA); feriados cobrem no_holiday_days + 1
+## dias antes de O ate O + H. n = history_days.infer, nunca literal.
+rf_data_needs <- function(spec, area) {
+  n <- as.integer(spec$history_days$infer); H <- as.integer(spec$horizon_days)
+  nh <- as.integer(plugin_constants()$no_holiday_days)
+  seg <- function(from) list(kind = "per_origin", from = from, to = 0L, lead = NA_integer_)
+  list(infer = list(schema_version = 1L, load = list(days_before = n), weather_observed = list(days_before = n),
+                    weather_forecast = list(area = area, segments = list(seg(-n))),
+                    holidays = list(from = -(nh + 1L), to = H), holiday_annex = FALSE),
+       train_weather_forecast = list(area = area, segments = list(seg(NA_integer_))))
+}
+
 plugin_descriptor <- function() list(
   model_id = "random-forest", contract_version = 1L,
   granularity_supported = 60L, modes_implemented = c("train", "infer"),
@@ -71,6 +87,7 @@ plugin_descriptor <- function() list(
   weather_cut = "absent",                   # horizonte fixo: tmax/tmin sobre 9 dias (inference.R); clima < O+9 => membro ausente (F3.7)
   uses_rng = TRUE, history_infer_equals_train = FALSE,
   packages = c("randomForest", "data.table", "lubridate"),
+  data_needs = rf_data_needs,
   freeze = rf_freeze, thaw = rf_thaw,
   stages = list(
     ingestion = list(fn = rf_stage_ingest, requires = rf_deck_tokens(), provides = "rf_frame"),

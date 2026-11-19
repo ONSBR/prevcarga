@@ -27,6 +27,8 @@ fontes:
   - models/dessem-linear/R/inference.R
   - models/dessem-linear/R/inference_features.R
   - models/dessem-linear/R/helpers_nowcast.R
+  - models/dessem-linear/R/helpers_state.R
+  - models/dessem-linear/R/freeze.R
   - models/dessem-regdin/README.md
   - models/dessem-regdin/run.yaml
   - models/dessem-regdin/R/register.R
@@ -36,6 +38,8 @@ fontes:
   - models/dessem-regdin/R/training.R
   - models/dessem-regdin/R/inference.R
   - models/dessem-regdin/R/helpers_nowcast.R
+  - models/dessem-regdin/R/helpers_state.R
+  - models/dessem-regdin/R/freeze.R
   - config/topology.yaml
   - scripts/lib/registry.R
   - scripts/lib/training.R
@@ -46,13 +50,13 @@ fontes:
   - scripts/lib/errors/dessem_linear.tsv
   - scripts/lib/errors/dessem_regdin.tsv
 adrs: [ADR-0031, ADR-0023, ADR-0012, ADR-0019]
-revisado_em: 2026-11-13
-commit_base: "f2d1734"
+revisado_em: 2026-11-16
+commit_base: "b6d99da"
 ---
 
 <span className="pc-overline">Metodologia · 1.9</span>
 
-<p className="pc-lead">Os dois plugins DESSEM, dessem-linear e dessem-regdin, preveem a carga em duas peças: a demanda média do dia (DM) e o perfil horário, a forma da carga de cada hora dividida pela média do dia. A carga prevista é a forma vezes a DM desnormalizada. As duas famílias rodam sobre um motor comum, <code>models/_dessem-engine</code>, que só tem primitivas. O dessem-linear tira a DM de um SVM de kernel linear e o perfil de SVMs lineares; o dessem-regdin tira a DM de uma regressão dinâmica (ARIMA com regressores) e o perfil de SVMs radiais (no dia especial, de uma regressão linear). Os dois treinam com 1.825 dias até O−1, rodam O..O+9 e entregam O..O+8.</p>
+<p className="pc-lead">Os dois plugins DESSEM, dessem-linear e dessem-regdin, preveem a carga em duas peças: a demanda média do dia (DM) e o perfil horário, a forma da carga de cada hora dividida pela média do dia. A carga prevista é a forma vezes a DM desnormalizada. As duas famílias rodam sobre um motor comum, <code>models/_dessem-engine</code>, que só tem primitivas. O dessem-linear tira a DM de um SVM de kernel linear e o perfil de SVMs lineares; o dessem-regdin tira a DM de uma regressão dinâmica (ARIMA com regressores) e o perfil de SVMs radiais (no dia especial, de uma regressão linear). Os dois treinam com 1.095 dias comuns até O−1 (mais o anexo de feriados), rodam O..O+9 e entregam O..O+8.</p>
 
 Esta página trata da estrutura. O que só existe no dia O (a cabeça de nowcast, a posição do gerador aleatório e as guardas do infer) está em [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng). O lugar da família entre os membros está em [Os modelos](/metodologia/modelos-visao-geral).
 
@@ -65,7 +69,7 @@ O motor não é um modelo: não tem `run.yaml` e o prefixo `_` o tira da descobe
 | Peça | Onde mora | O que tem |
 |---|---|---|
 | Motor | `models/_dessem-engine/R/` | Primitivas do motor (`TransformaDeck`, `SVM_DemandaMedia`, `RD_DemandaMediaHyndman`, `SVMhorario`, `RL_perfilFeriado`, `desagregaModeloSH`), guardas de robustez, serializador de SVM e `model_parameters.json` |
-| dessem-linear | `models/dessem-linear/R/` | Ingestão, séries, passe de treino, cabeça de nowcast e passe de predição; membros `LIN_MED`, `LIN_MAX`, `LIN_MXMN` |
+| dessem-linear | `models/dessem-linear/R/` | Ingestão, séries, passe de treino, cabeça de nowcast e passe de predição; membros `LIN_MED`, `LIN_MAX`, `LIN_MXMN`, `LIN_UNI` |
 | dessem-regdin | `models/dessem-regdin/R/` | Os mesmos estágios, com o ARIMA da DM e as guardas de janela; membros `RGD_MED`, `RGD_MAX` |
 
 A cabeça de nowcast é do plugin (`helpers_nowcast.R` de cada um), não do motor. O motor não guarda estado e não faz aritmética de hora.
@@ -117,10 +121,26 @@ A variante é o parâmetro `exogena` do plugin (`variant_param = "exogena"` no d
 | `LIN_MED` | dessem-linear | MED | `Linear.TmpMedia` | média das horas |
 | `LIN_MAX` | dessem-linear | MAX | `Linear.TmpMaxima` | máxima das horas |
 | `LIN_MXMN` | dessem-linear | MXMN | `Linear.TmpMaxMin` | máxima e mínima (duas colunas) |
+| `LIN_UNI` | dessem-linear | UNI | `Linear.Univariado` | nenhuma (`exogenaOper` SEM; sem clima) |
 | `RGD_MED` | dessem-regdin | MED | `RegDin.Radial.TmpMed` | média das horas |
 | `RGD_MAX` | dessem-regdin | MAX | `RegDin.Radial.TmpMax` | máxima das horas |
 
-O dessem-regdin aceita só MED e MAX. Qualquer outro valor, MXMN incluído, aborta com `plugin.regdin_bad_exogena` antes de qualquer treino. No dessem-linear, valor fora de MED, MAX e MXMN aborta com `plugin.dessem_linear_bad_exogena`.
+O dessem-regdin aceita só MED e MAX. Qualquer outro valor, MXMN incluído, aborta com `plugin.regdin_bad_exogena` antes de qualquer treino. No dessem-linear, valor fora de MED, MAX, MXMN e UNI aborta com `plugin.dessem_linear_bad_exogena`.
+
+A variante UNI não usa clima. O descriptor declara `variants = list(UNI = list(requires = c("data.load.load_mwh", "data.holidays.prevcarga_code")))`, então o despachante não exige `weather_observed` nem `weather_forecast` dela. A decisão de "sem clima" vem do motor (`exogenaOper` igual a SEM em `getConfigModel`), nunca do nome da variante. A ingestão monta `EXOGENAHIST` e `EXOGENAPREV` com temperatura 0 só para o `TransformaDeck`, e a construção de séries remove toda coluna `Exo_*` logo depois, no treino e na inferência. Sem golden do oráculo, o aceite da UNI é por invariância ao clima: somar graus ao clima não muda o artefato nem a previsão.
+
+### O clima do histórico: `clima_hist`
+
+O parâmetro `params.clima_hist` escolhe de onde vem a temperatura do histórico (`EXOGENAHIST`) no treino e nos lags da inferência. Os dois plugins aceitam dois modos, e a ausência do parâmetro vale `observado`.
+
+| Modo | `EXOGENAHIST` |
+|---|---|
+| `observado` (padrão implícito) | temperatura observada do store |
+| `previsto_lead0` | previsto com lead 0: para cada hora, a emissão mais fresca cujo dia de emissão não é posterior ao dia válido |
+
+O modo `previsto_lead0` usa a regra única do motor (`exo_hist_lead0`). O completamento é por dia inteiro: um dia sem as 24 horas pelo lead 0 sai inteiro do observado, nunca misturado hora a hora, e conta em `dias_completados`. Dia sem 24 horas nem no lead 0 nem no observado aborta como completude. O `EXOGENAPREV` (O a O+9) não muda em nenhum modo. Valor fora dos dois modos aborta com `plugin.dessem_linear_bad_clima_hist` ou `plugin.regdin_bad_clima_hist` (exit 2) antes de qualquer treino.
+
+O artefato registra `clima_hist = list(modo, dias_completados, primeiro_dia_lead0)` só quando o modo foi informado; artefato sem o bloco é lido como `observado`. A inferência recusa um deck cujo modo efetivo difere do payload (`artifact_mismatch`, `field = clima_hist`). No `previsto_lead0` o `inference_needs` do artefato acrescenta o previsto de lead 0 dos dias anteriores a O. A variante UNI não usa clima: ela ignora o parâmetro, registra o modo `nao_se_aplica` e fica na mesma chave do registry. Como o modo entra no `spec$params`, o `v_<hash>` de um treino com a chave informada difere do treino sem ela; o treino sem a chave mantém o hash e o caminho da versão anterior.
 
 Dentro de uma família, as entradas de `model_parameters.json` diferem só em `exogenaOper`, a agregação da temperatura (e no rótulo `nomModelo`). Entre as famílias, os campos que mudam o método são estes:
 
@@ -133,28 +153,30 @@ Dentro de uma família, as entradas de `model_parameters.json` diferem só em `e
 | Pipeline (`funcProcessamento`) | `processaModelosDMPerfil` | `processaModelosDMTSPerfil` |
 | Defasagens da temperatura na DM | lags de 1, 2 e 7 dias como colunas | `lagsExogenaDia` 1, 2 e 7 na fórmula do ARIMA |
 
-## Janela de treino e o invariante infer == train
+## Janelas de treino e de inferência
 
-Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `history_days: {train: 1825, infer: 1825}`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
+Os dois `run.yaml` declaram `split: origin_scoped`, `horizon_days: 9` e `params.janela_dessem: ano_civil`. Os dois declaram `history_days: {train: 1095, infer: 15}`. O descriptor declara `data_lag_days = 0`, então o último dia de dado do treino é O−1 (ver [Os três cortes de data](/metodologia/tres-cortes)). O treino de `origin_scoped` é refeito a cada origem.
 
 | Fase | Janela no caminho da fundação |
 |---|---|
-| Treino (`scripts/lib/training.R`) | 1.825 dias, de O−1825 a O−1 |
-| Infer (`scripts/lib/inference.R`) | a mesma história, a partir de O−1825, mais a carga do dia O até o corte intradiário |
+| Treino (`scripts/lib/training.R`) | 1.095 dias de dias comuns, de O−1095 a O−1, mais o anexo de feriados |
+| Infer (`scripts/lib/inference.R`) | 15 dias de carga e de temperatura observada antes de O (a história longa fica no artefato) e a carga do dia O até o corte intradiário, sem o anexo de feriados |
 
-Os dois descriptors declaram `history_infer_equals_train = TRUE`. O loader confere a declaração: com ela, `history_days.infer` diferente de `history_days.train` aborta com `plugin.history_window`. O `run.yaml` do dessem-regdin também declara `constraints: {infer_history_equals_train: true}`; o do dessem-linear tem `constraints: {}`.
+A janela é regra do plugin: o descriptor declara `history_window`, que delega a uma regra única de datas. Em `ano_civil` (padrão) os dias comuns cobrem três anos (O−1095 a O−1) e o histórico de feriados começa em 1º de janeiro do ano de O menos cinco. Cada feriado do histórico traz uma ilha de dias, de sete dias antes do feriado até o próprio feriado (`[d−7, d]`), cortada em O−1 e no primeiro dia disponível do store; ilhas que se encostam viram uma só. Os dias das ilhas entram como anexo (carga e temperatura observada) e a ingestão exige 24 horas em cada dia de ilha. A demanda média e a normalização usam só os dias comuns; o perfil de feriado enxerga os dias comuns e o anexo. O modo `referencia` (`params.janela_dessem: referencia`) mantém a janela anterior de 1.825 dias, sem anexo, e serve à paridade com a versão de referência.
 
-Quando recebe o spec, o `plugin_ingest` do dessem-linear lê um dia de aquecimento antes da janela (1.826 dias de CARGAHIST): a janela de `history_days.train` dias termina em `last_data_day` e começa um dia antes. O despachante chama a ingestão sem spec, e a janela é a do painel que a fundação já recortou.
+Os dois plugins declaram `history_infer_equals_train = FALSE` e `history_days.infer = 15`: a inferência usa o estado que o treino grava no artefato (ver [Estado derivado no artefato](#estado-derivado-no-artefato) e, para o regdin, [Estado derivado no regdin](#estado-derivado-no-regdin)), então só precisa dos 14 dias de lag do perfil (336 h) mais um dia de aquecimento. O deck longo continua aceito. Com a declaração `TRUE`, o loader recusaria `history_days.infer` diferente de `history_days.train` com `plugin.history_window`. Os dois `run.yaml` têm `constraints: {}`.
+
+Quando recebe o spec, o `plugin_ingest` do dessem-linear lê um dia de aquecimento antes da janela comum: a janela começa em `common_from`, termina em `last_data_day`, e o dia anterior serve de aquecimento. O despachante chama a ingestão sem spec, e a janela é a do painel que a fundação já recortou.
 
 A ingestão confere a completude e não preenche lacunas, nem da história nem da temperatura prevista: o que está incompleto reprova. Antes dela, o despachante só deixa o DESSEM rodar com o horizonte inteiro (ver Faixa do motor e faixa de entrega abaixo):
 
 | Conferência | dessem-linear | dessem-regdin |
 |---|---|---|
-| Carga e temperatura observada com 24 horas por dia, sem NA | `plugin.dessem_linear_series_gap` | `plugin.regdin_series_gap` (carga) e `plugin.regdin_panel_contract` (temperatura) |
+| Carga e temperatura observada com 24 horas por dia, sem NA (dias comuns e dias de ilha do anexo) | `plugin.dessem_linear_series_gap` | `plugin.regdin_series_gap` (carga, e carga e temperatura dos dias de ilha) e `plugin.regdin_panel_contract` (temperatura dos dias comuns) |
 | História menor que `history_days.train` (com spec) | `plugin.dessem_linear_window_short` | `plugin.regdin_history_short` |
 | Temperatura prevista com 24 horas em O..O+9 | `plugin.dessem_linear_series_gap` | `plugin.regdin_panel_contract` |
 
-As guardas extras do dessem-regdin no infer (janela do painel contra a do artefato e fingerprint do ARIMA) estão em [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
+As guardas extras do dessem-regdin no infer (serie diária do artefato e fim do deck contra a janela do treino, e fingerprint do ARIMA) estão em [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
 
 ## Faixa do motor e faixa de entrega
 
@@ -176,7 +198,7 @@ O motor tem três guardas de robustez, sempre ligadas e sem chave por variável 
 | Clamp de cross | `.wsvm_clamp_cross` (`robustez.R`) | `tune_wsvm` falha por amostra menor que o número de dobras | Reduz `cross` ao número de linhas com peso; abaixo de 2, propaga o erro original |
 | Código de dia especial | `normalize_special_day_codes` (`feriados.R`) | Código fora dos modelados: 0 (normal) e 1 a 11, os tipos que têm janela em `janelaDadosFer` | O código vira 0 (dia normal) em todas as datas |
 
-O `tune_wsvm` do motor chama o `WeightSVM::tune_wsvm` real primeiro. No caminho feliz, o resultado é o do pacote, sem alteração. As duas guardas do SVM sinalizam a condição classificada `dessem_engine_guard`, uma subclasse de `message`, com os códigos `warning.engine_empty_model_guard` e `warning.engine_cross_clamped`. No infer, o plugin coleta essas condições com `withCallingHandlers` e grava os códigos em `meta$warnings` do envelope.
+O `tune_wsvm` do motor chama o `WeightSVM::tune_wsvm` real primeiro. No caminho feliz, o resultado é o do pacote, sem alteração. As guardas do SVM sinalizam a condição classificada `dessem_engine_guard`, uma subclasse de `message`, com os códigos `warning.engine_empty_model_guard`, `warning.engine_cross_clamped` e `warning.engine_tune_fallback`. O último é o fallback sem tune: quando o `tune_wsvm` devolve modelo vazio ou dobra constante e a guarda encadeada não resolve, o perfil treina sem tune, com os padrões do `wsvm` (`cost = 1`, `epsilon = 0.1`), em vez de abortar com `engine.dessem_tune_small_sample`. Onde o tune funciona, o resultado não muda. No infer, o plugin coleta essas condições com `withCallingHandlers` e grava os códigos em `meta$warnings` do envelope.
 
 No dessem-regdin, antes do normalizador de códigos, `.rd_map_holidays` aplica o mapeamento de códigos do plugin: código acima de 11 vira 1 e `simplified_code` 0 vira 0.
 
@@ -189,11 +211,11 @@ flowchart TB
   A["Deck: CARGAHIST, EXOGENAHIST, EXOGENAPREV, FERIADOS"]:::plugin --> B["variante do membro: Linear.TmpMedia, TmpMaxima ou TmpMaxMin"]:::plugin
   B --> C["séries do motor: serieDM diária e seriePF horária"]:::plugin
   C --> D["treino até O−1: svm_dm de O+1 a O+9 e 24 svm_perfil por dia"]:::plugin
-  D --> E["artefato congelado"]:::plugin
+  D --> E["artefato congelado, com o estado derivado: dm_o_sample, dm_o_formula, columns, inference_needs"]:::plugin
   E --> F["infer: dl_morning_means até o corte"]:::corte
   F --> G{"mm tem a linha de O?"}
-  G -->|sim| H["dl_dm_head: DM(O) reajustada com mm"]:::plugin
-  G -->|não| I["no_day_o: SVM_DemandaMedia puro"]:::plugin
+  G -->|sim| H["dl_dm_o_fit: DM(O) reajustada sobre dm_o_sample com mm"]:::plugin
+  G -->|não| I["no_day_o: fórmula do motor sobre dm_o_sample, sem mm"]:::plugin
   H --> J[".dl_predict_pass: DM × perfil com write-back"]:::plugin
   I --> J
   J --> K["desagregaModeloSH em O..O+9"]:::plugin
@@ -235,6 +257,22 @@ No dia especial o perfil continua sendo SVM linear. O horário de verão é a fl
 
 As constantes são calculadas nas linhas `Prev == FALSE`. A temperatura horária do perfil do dessem-linear fica sem normalização: `dl_build_series` lê a chave `normalizacao$exogena`, que o `model_parameters.json` não tem, como o `processaModelosDMPerfil` do motor.
 
+### Estado derivado no artefato
+
+O treino do dessem-linear grava no artefato, além dos SVMs e das constantes de normalização, o que a inferência recalcularia sobre o histórico longo do deck. Com isso a inferência roda com um deck de 15 dias e entrega os mesmos valores que daria com o deck longo.
+
+| Campo do artefato | O que guarda | Quem usa na inferência |
+|---|---|---|
+| `norm` | As quatro constantes de normalização do treino | As séries do deck curto saem normalizadas pelo artefato, sem recalcular as constantes |
+| `dm_o_sample` | As linhas de treino da DM de O (as mesmas que o ajuste do treino vê) e, para cada dia histórico, o `mm` cru de cada hora de corte (`mm_h00` a `mm_h23`) | A DM de O é reajustada sobre essa amostra; no nowcast entra a coluna `mm` da hora de corte |
+| `dm_o_formula` | A fórmula do motor para a DM de O, sem `mm` | Fórmula do ajuste; no nowcast recebe `+ mm` |
+| `columns` | Preditores e níveis de fator de cada linha de predição: a DM de cada dia e o perfil de cada dia e hora | Cada linha do deck curto é alinhada a essas colunas antes de predizer |
+| `inference_needs` | O que o deck de inferência precisa: 15 dias de carga e de temperatura observada antes de O, previsto de O a O+9 e calendário de O−15 a O+9 | Declaração para quem monta o deck |
+
+O alinhamento faz só três recomposições: um `LAG_FER_k` ausente vira o indicador 0/1 de que o dia `d−k` era especial (o mesmo que o motor calcula); um `DiaEspecial` que o deck curto derrubou (por restar um único código) volta como fator com os níveis gravados; e as dummies de tipo de dia, dia da semana e mês da DM de dia especial são derivadas da data da linha e do calendário do deck. Qualquer outra coluna ausente ou sobrando aborta com `plugin.dessem_linear_artifact_mismatch` (exit 2), com o campo `columns`. Um preditor sem dado continua virando `plugin.dessem_linear_series_gap` (exit 3).
+
+Artefato treinado antes dessa mudança (sem os campos novos) é recusado com `plugin.dessem_linear_artifact_mismatch` (exit 2), nomeando o primeiro campo ausente: é preciso retreinar o membro. Um artefato congelado com forma incoerente, como a amostra sem uma coluna `mm_h`, aborta com `plugin.dessem_linear_artifact_tampered` (integridade, exit 9).
+
 ## dessem-regdin
 
 O fluxo de inferência do dessem-regdin, com as guardas de janela e de fingerprint, é a FIG-M13 em [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
@@ -256,7 +294,7 @@ A cabeça de nowcast da DM(O) usa `Carga_l1` e `Carga_l7` e está em [DESSEM: ca
 | Dia-alvo | Modelo | Quando é ajustado |
 |---|---|---|
 | Normal | 24 wSVMs radiais (`SVMhorario`, entrada `DEFAULT`, as mesmas variáveis e filtros do dessem-linear) | No treino; congelados no artefato |
-| Especial | `RL_perfilFeriado`: padroniza a carga de cada dia, ajusta `lm` com a carga da mesma hora em dias da semana de referência, a temperatura e um fator de hora, e reconstrói a curva com o desvio padrão histórico do tipo de dia e a DM prevista; a forma e a `CargaMed` do dia saem dessa curva | Recalculado no infer; o treino não guarda SVM para esse dia |
+| Especial | `RL_perfilFeriado`: padroniza a carga de cada dia, ajusta `lm` com a carga da mesma hora em dias da semana de referência, a temperatura e um fator de hora, e reconstrói a curva com o desvio padrão histórico do tipo de dia e a DM prevista; a forma e a `CargaMed` do dia saem dessa curva | O treino grava o desvio padrão, a amostra e o `lm` do dia (sem SVM); o infer reconstrói a curva a partir deles |
 
 No perfil do regdin, a temperatura horária é normalizada pelo máximo do histórico horário × 1,25 (`normalizacao$perfil$exogena`, lida por `.rd_build_series`).
 
@@ -264,3 +302,19 @@ No perfil do regdin, a temperatura horária é normalizada pelo máximo do hist�
 
 A ingestão do dessem-regdin confere o painel e não corta nem preenche a história nem a temperatura prevista. Cada dia histórico tem de ter 24 horas de carga, sem NA; senão aborta com `plugin.regdin_series_gap`, nomeando o dia. A temperatura observada e a prevista seguem a mesma regra e abortam com `plugin.regdin_panel_contract`. Carga posterior ao dia O, ou do dia O além do que o corte intradiário libera, aborta com `plugin.regdin_train_panel_has_origin`.
 
+
+
+### Estado derivado no regdin
+
+Como no dessem-linear, o treino do dessem-regdin grava no artefato o que a inferência recalcularia sobre o histórico longo, e a inferência roda com um deck de 15 dias entregando os mesmos valores do deck longo. O anexo de feriados não entra na inferência: o `inference_needs` do artefato declara `holiday_annex = FALSE`, e é a única fonte das necessidades do deck de inferência. O deck de treino continua recebendo o anexo (o `data_needs` do descriptor segue com `holiday_annex = TRUE` em `ano_civil`).
+
+| Campo do artefato | O que guarda | Quem usa na inferência |
+|---|---|---|
+| `serie_dm` | A série diária histórica do treino (a que o ARIMA vê, já normalizada) e, para cada dia, o `mm` cru de cada hora de corte (`mm_h00` a `mm_h23`) | O ARIMA é refeito sobre `serie_dm` mais as linhas de O a O+9 do deck curto; a cabeça de nowcast lê o `mm` histórico da hora de corte |
+| `hol_profile` | Para cada dia especial do horizonte: desvio padrão histórico do tipo de dia, a amostra do `lm` (linhas históricas), os coeficientes, os níveis de fator, a fórmula e os parâmetros do dia | O perfil do dia especial usa os coeficientes congelados |
+| `columns` | Preditores e níveis de fator da linha do perfil de cada dia normal e hora | Cada linha do deck curto é alinhada a essas colunas antes de predizer |
+| `inference_needs` | 15 dias de carga e de temperatura observada antes de O, previsto de O a O+9, calendário de O−15 a O+9, sem anexo | Declaração para quem monta o deck |
+
+Nos feriados consecutivos do mesmo código, o `lm` do segundo é reajustado sobre a amostra gravada mais o feriado anterior, que o passe de predição já escreveu de volta na série, o que o deck longo também faria. Sem feriado anterior do mesmo código, a previsão usa os coeficientes congelados. Dias especiais consecutivos de códigos diferentes não se alimentam.
+
+A guarda de janela passou a conferir o artefato e o fim do deck: o intervalo de `serie_dm` tem de ser o `train_window` e o digest dela, o `dm_digest` do fingerprint, senão `plugin.regdin_artifact_tampered` (integridade, exit 9) antes do ARIMA; o último dia histórico do deck tem de ser o fim do `train_window`, senão `plugin.regdin_window_mismatch` (exit 5), nomeando os dois dias. Artefato treinado antes dessa mudança (sem `serie_dm`, `hol_profile` e `columns`) é recusado com `plugin.regdin_artifact_mismatch` (exit 2), nomeando o primeiro campo ausente: é preciso retreinar o membro.

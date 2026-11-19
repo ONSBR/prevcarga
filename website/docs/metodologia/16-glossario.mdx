@@ -162,7 +162,7 @@ A notação do código vem primeiro (O, `d_plus`) e a nomenclatura DESSEM entre 
 
 **MED, MAX e MXMN.** As variantes de temperatura dos membros DESSEM: média, máxima ou máxima e mínima do dia. O `dessem-linear` aceita as três; o `dessem-regdin` só `MED` e `MAX`. Ver [Família DESSEM](/metodologia/dessem-estrutura).
 
-**Membro.** Uma entrada da lista `members:` de `config/topology.yaml`, com `sigla`, diretório do modelo (`mdir`) e, quando há variante, `exogena`. São 8 membros: `RF`, `LGBM`, `HW`, `RGD_MED`, `RGD_MAX`, `LIN_MED`, `LIN_MAX` e `LIN_MXMN`. Ver [Os modelos](/metodologia/modelos-visao-geral).
+**Membro.** Uma entrada da lista `members:` de `config/topology.yaml`, com `sigla`, diretório do modelo (`mdir`) e, quando há variante, `exogena`. São 9 membros: `RF`, `LGBM`, `HW`, `RGD_MED`, `RGD_MAX`, `LIN_MED`, `LIN_MAX`, `LIN_MXMN` e `LIN_UNI`. Ver [Os modelos](/metodologia/modelos-visao-geral).
 
 **mm.** Nos plugins DESSEM, a média da carga horária de cada dia nas horas cheias completas até `floor_hour(available_until)`. Com a linha de O presente, alimenta a cabeça de nowcast da DM(O); sem ela, como na rodada das 00h, não há cabeça. Ver [DESSEM: cabeça de nowcast, RNG e invariantes](/metodologia/dessem-nowcast-rng).
 

@@ -74,11 +74,11 @@ prevcarga_build_combine <- function(ctx, opts) {
     if (is.null(out)) prevcarga_abort("config.usage", where = "--out")
     if (!dir.exists(dirname(out))) prevcarga_abort("config.usage", where = paste0("--out=", out))
   }
-  prevcarga_require_data_dir(ctx)
+  prevcarga_require_deck(ctx)
   root <- .prevcarga_cb_opt(opts, "--root")
   if (is.null(root)) prevcarga_abort("config.usage", where = "--root")
   artifact_dir <- .prevcarga_cb_opt(opts, "--artifact-dir")
-  if (is.null(artifact_dir)) artifact_dir <- file.path(ctx$state_dir, "artifacts", "combina")
+  if (is.null(artifact_dir)) artifact_dir <- file.path(prevcarga_registry_root(ctx), "combina")
   t_cut <- .prevcarga_cb_opt(opts, "--cut")
   ctx$tz <- .prevcarga_eval_tz(ctx)
   members <- prevcarga_members(root = ctx$root)
@@ -138,10 +138,14 @@ prevcarga_verb_combine <- list(
   options = c(
     "--mode=<mode>          train | apply | full (validado pelo handler; sem default)",
     "--root=<dir>           root dos runs de membro (_infer_c<HHMM>)",
-    "--artifact-dir=<dir>   pesos content-addressed (padrao <state_dir>/artifacts/combina, resolvido no handler)",
+    "--artifact-dir=<dir>   pesos content-addressed (padrao <raiz de artefatos>/combina (--data-artifacts ou <state_dir>/artifacts), resolvido no handler)",
     "--cut=<HHMM>           corte HH:MM do available_until a combinar",
     "--out=<path>           LONG de saida (parquet) em apply/full"),
   handler = function(ctx, args) cmd_combine(ctx, args),
+  deck_roles = function(args) {
+    mode <- args[["--mode"]]
+    if (identical(mode, "train") || identical(mode, "full")) "train" else c("train", "inference")
+  },
   owner   = "M4",
   exempt  = FALSE,
   modules = c("topology.R", "schema_long.R", "provenance.R", "deck_reader.R", "dates.R",

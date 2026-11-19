@@ -1,11 +1,13 @@
 SVM_DemandaMedia <- function(dataPrev,serie,param_entrada){
    input <- obterEntradaFormulaDM(dataPrev,serie,param_entrada)
    dadosTreinamento <- filtraDadosTreinamento(input$dadosEntrada)
-   modeloSVM <- tune_wsvm(input$formulaMDL,iter.max=500,
+   modeloSVM <- .engine_with_cell(
+      sprintf("data=%s demanda_media", format(dataPrev)),
+      tune_wsvm(input$formulaMDL,iter.max=500,
                           weight=getSVMWeights(param_entrada$alfa,nrow(dadosTreinamento)),
                           data=dadosTreinamento,
                           ranges = param_entrada$ranges,
-                          kernel = param_entrada$kernel)
+                          kernel = param_entrada$kernel))
    return(list(modeloTreinado = modeloSVM$best.model,dadosEntrada = input$dadosEntrada, parametros = param_entrada))
 }
 

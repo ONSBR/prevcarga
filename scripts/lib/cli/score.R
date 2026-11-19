@@ -94,6 +94,7 @@ cmd_score <- function(ctx, args) {
   prevcarga_require_data_dir(ctx)
   if (!is.null(area)) .prevcarga_score_areas(NULL, area, .prevcarga_score_topo(ctx))   # topology.area_undeclared antes de ler o deck
   if (!isTRUE(args[["--skip-validate"]])) .prevcarga_sc_gate0(ctx, list(model = model, area = area))
+  prevcarga_require_deck(ctx)   # DEPOIS do gate-0: manifest invalido segue sendo reprovado pelo gate-0 (details$gate = "validate-deck"); kind/origem do deck aqui
   ctx$tz <- .prevcarga_eval_tz(ctx)
   long <- prevcarga_read_long(.prevcarga_sc_opt(args, "--long"), ctx)
   r <- prevcarga_score(long, ctx, area = area, baseline_kind = .prevcarga_sc_opt(args, "--baseline"), origin = ctx$origin)

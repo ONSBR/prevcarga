@@ -103,6 +103,7 @@ O loader aceita só as chaves `name`, `split`, `granularity_min`, `horizon_days`
 | `freeze` | sim | — | função com assinatura `freeze(model)` |
 | `thaw` | sim | — | função com assinatura `thaw(payload)` |
 | `stages` | sim | — | os 5 estágios obrigatórios, mais `forecast` se e só se `forecast` está em `modes_implemented` |
+| `variants` | não | lista vazia | lista nomeada pelos valores de `variant_param` (cada chave em `params_schema[[variant_param]]$allowed`), exige `variant_param`; cada entrada só com `requires` (tokens `data.<dataset>.<coluna>`) e `ignores_params` (nomes de `params_schema`); qualquer violação aborta `plugin.bad_descriptor` nomeando `variants$<chave>$<subcampo>` |
 
 `weather_resample` tem erro próprio, `registry.weather_resample`. Ele diz à fundação se, num plugin horário, o clima também é agregado por hora (`hourly`) ou chega cru em 30 min (`raw`). A carga de um plugin horário é sempre agregada por `to_hourly`.
 
@@ -179,6 +180,10 @@ A cadeia do `dessem-linear` mostra a forma:
 | `forecast` | `artifact.svm`, `inf.feat` | `forecast.f` |
 
 O `dessem-regdin` tem a mesma cadeia com `artifact.regdin` no lugar de `artifact.svm`.
+
+#### Necessidade por variante
+
+Quando o plugin declara `variants`, o `requires` da variante substitui os tokens `data.*` dos estágios que os declaram; os tokens que não são `data.*` ficam. Só o helper `prevcarga_plugin_variant_requires(descriptor, stage, variant)` faz essa tradução: variante `NA`, sem entrada em `variants` ou estágio sem token `data.*` devolve o `requires` do estágio, sem mudança. A checagem de colunas no treino e no painel de infer e o corte de horizonte pelo clima previsto usam esse requires efetivo, de modo que uma variante sem `data.weather_forecast.*` não é cortada pelo clima curto e não exige colunas de clima. A fachada não tem nome de modelo nem de variante.
 
 ## Loader e contrato Tier A em wire-time
 

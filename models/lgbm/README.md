@@ -27,7 +27,7 @@ So ASCII. O plugin nao le variavel de ambiente, nao faz aritmetica de hora e nao
 
 `plugin_descriptor()` + `run.yaml` (loader P.0b, Tier A nos 5 estagios):
 
-- `split: origin_agnostic`, `granularity_min: 30`, `horizon_days: 1`, `history_days {train 730, infer 45}`, `seed: 123`, `modes: [train, infer]`.
+- `split: origin_agnostic`, `granularity_min: 30`, `horizon_days: 1`, `history_days {train 730, infer 5}`, `seed: 123`, `modes: [train, infer]`.
 - `data_lag_days: 2` => `last_data_day = O-3` (o LGBM le carga so ate O-3; o horizonte H = 1 faz `train_origin = O-2`).
 - `delivery_days: 2` (entrega de `available_until` ate a meia-noite de O+2) e `native_layout: lgbm_day_48`.
 - Deck exigido: `data.load.load_mwh`, `data.weather_forecast.temperature`, `data.holidays.prevcarga_code`.
@@ -97,6 +97,7 @@ Todo gate [PLUGINS] do tier tem de passar (exit 0); [DEFERRED Mx] aparece como S
 | Gate (`gate_table`) | Gate do oraculo | Teste | Dono |
 |---|---|---|---|
 | `contrato` | - | `test-contract.R` | [PLUGINS] |
+| `infer_min` | - | `test-infer-window-min.R` | [PLUGINS] |
 | `ingest_cortes` | - | `test-ingestion.R` | [PLUGINS] |
 | `ingest_safra` | - | `test-ingestion.R` | [PLUGINS] |
 | `ingest_contrato` | - | `test-ingestion.R` | [PLUGINS] |

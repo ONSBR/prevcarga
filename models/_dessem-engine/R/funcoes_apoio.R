@@ -106,21 +106,25 @@ obtemLags <- function(lags,seriediaria,dia = 1:7,diaAno = 1:366,diaEsp = T,diaEs
 }
 
 obtemLagsHora <- function(seriehist,lags,dia = 1:7,hora = 0:23,diaAno = 1:366,hv = 0:1,diaEsp = F,diaEspLag = F){
-   dados <- do.call("rbind", lapply(lags,obtemLagHora,seriehist,dia,hora,diaAno,hv,diaEsp,diaEspLag))
+   dados <- .engine_by_block(seriehist, function(s)
+      do.call("rbind", lapply(lags,obtemLagHora,s,dia,hora,diaAno,hv,diaEsp,diaEspLag)))
+   .engine_drop_block(dados)
    dados <- dcast(dados,as.formula(paste0(paste(names(dados[,-c("LAG","VALLAG")]),collapse = "+"),"~LAG")), value.var = "VALLAG")
    dados <- dados[Prev == T | complete.cases(dados)]
    return(dados)
 }
 
 obtemLagsDiaSemana <- function(seriehist,dsLags,diaAno,hv,tpFer,hora = 0:23){
-   dados <- do.call("rbind", lapply(dsLags,obtemLagDiaSemana,seriehist,diaAno,hv,tpFer,hora))
+   dados <- .engine_by_block(seriehist, function(s)
+      do.call("rbind", lapply(dsLags,obtemLagDiaSemana,s,diaAno,hv,tpFer,hora)))
+   .engine_drop_block(dados)
    dados <- dcast(dados,as.formula(paste0(paste(names(dados[,-c("LAG","VALLAG")]),collapse = "+"),"~LAG")), value.var = "VALLAG")
    dados <- dados[Prev == T | complete.cases(dados)]
    return(dados)
 }
 
 obtemLagDiaSemana <- function(lag,seriehist,diaAno,hv,tpFer,hora){
-   seriehistD <- seriehist[8:nrow(seriehist)]
+   seriehistD <- seriehist[seq_len(nrow(seriehist)) >= 8L]
    seriehistD <- seriehistD[DiaEspecial %in% tpFer & yday(Data) %in% diaAno & hour(DataHora) %in% hora]
    seriehistD[,LAG := paste0("LAGDS_",lag)]
    seriehistD[lag < wday(Data),DataLag := paste(Data - (wday(Data)-lag),hour(DataHora))]
@@ -147,7 +151,7 @@ aggregaSerie <- function(serieHist,tipotemp,normaliza,constnorm,constnormtemp){
       constnormtemp <- 1
    }
    exo_cols <- grep('Exo_.*',names(serieHist),value = T)
-   key_cols <- names(serieHist)[which(!names(serieHist) %in% c("DataHora","Carga",exo_cols))]
+   key_cols <- names(serieHist)[which(!names(serieHist) %in% c("DataHora","Carga",exo_cols,"Bloco"))]
    if(tipotemp == "MED"){
       serieHistD <- serieHist[,lapply(.SD,mean),by = key_cols,.SDcols = c("Carga",exo_cols)]
       serieHistD <- serieHistD[,lapply(.SD,dividepor,constnormtemp),by = c(key_cols,"Carga"),.SDcols = exo_cols]
