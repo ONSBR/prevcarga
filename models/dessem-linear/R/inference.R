@@ -1,5 +1,5 @@
 ## inference.R -- dessem-linear (DL.7). So definicoes. Estagios `inference` e `forecast` + forma do ticket.
-## Mapa para o oraculo (/opt/ons-source/prevcargadessem3/models/dessem-linear/R/inference):
+## Mapa para o oraculo (prevcargadessem3/models/dessem-linear/R/inference):
 ##   predict_dessem_linear  -> plugin_infer (TransformaDeck + mm em dl_inference_features)
 ##   .dl_predict_pass       -> .dl_predict_pass (recursao de INPUT: o LAG_1 de O+1 recebe a media de O PREVISTA)
 ##   dessem_linear_infer    -> .dl_envelope (desagregaModeloSH, fatiamento por Passo, matriz 9x48)

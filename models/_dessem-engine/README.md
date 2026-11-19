@@ -1,7 +1,7 @@
 # _dessem-engine
 
 Motor DESSEM unico (ADR-0031/0012). Codigo nosso, refactor que preserva a saida: as primitivas
-`pkgfun_*` do oraculo `/opt/ons-source/prevcargadessem3/models/dessem-linear/vendor/` com os nomes
+`pkgfun_*` do oraculo `prevcargadessem3/models/dessem-linear/vendor/` com os nomes
 internos preservados e so o caminho serial de um modelo. Sem `run.yaml`: prefixo `_`, nao e
 descobrivel como modelo. Plugins (`dessem-linear`, `dessem-regdin`) declaram `engine = "_dessem-engine"`
 no descriptor e o loader da fundacao (`prevcarga_plugin_load`, `scripts/lib/registry.R`) monta um env do
@@ -174,7 +174,7 @@ e versionado. O oraculo roda no R 4.4.3 com a biblioteca que tem WeightSVM/e1071
 de um clone limpo do mesmo commit (o oraculo real tem arquivos nao rastreados que o preflight recusa):
 
 ```
-git clone --no-hardlinks /opt/ons-source/prevcargadessem3 <tmp>/oracle-clone
+git clone --no-hardlinks <repo-prevcargadessem3> <tmp>/oracle-clone
 export PATH=/opt/R/4.5.3/bin:$PATH
 Rscript --vanilla scripts/tools/plugin_golden.R --model _dessem-engine --units engine   --oracle <tmp>/oracle-clone --data data --rscript /opt/R/4.4.3/bin/Rscript
 Rscript --vanilla scripts/tools/plugin_golden.R --model _dessem-engine --units robustez --oracle <tmp>/oracle-clone --data data --rscript /opt/R/4.4.3/bin/Rscript

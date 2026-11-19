@@ -38,7 +38,7 @@ plugin.impure_artifact	contract	Artefato contem caminho, ambiente ou relogio	Con
 plugin.artifact_corrupt	integrity	Artefato ilegivel ou com sha256 divergente	Regenere o artefato; confira o manifest do bundle
 tools.bad_units	contract	Unidades incompativeis na ferramenta	Confira MW x MWh e a granularidade de entrada
 tools.bad_args	contract	Argumentos invalidos para a ferramenta	Veja o uso no cabecalho do script
-tools.out_inside_oracle	contract	--out dentro do repositorio do oraculo	Use um --out fora de /opt/ons-source/prevcargadessem3
+tools.out_inside_oracle	contract	--out dentro do repositorio do oraculo	Use um --out fora do repositorio do oraculo (prevcargadessem3)
 tools.oracle_dirty	contract	Repositorio do oraculo com alteracoes locais	Limpe o oraculo antes de rodar (git status limpo)
 tools.oracle_touched	contract	A rodada modificou o repositorio do oraculo	O oraculo e so leitura; confira o runner
 tools.reference_dirty	contract	Arvore de referencia com alteracoes locais	Limpe a arvore da referencia (git status limpo) antes do golden
