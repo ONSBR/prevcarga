@@ -10,3 +10,5 @@ config.cache_import_from	config	--from do cache import ausente ou nao e um diret
 state.cache_import_empty	state	nenhum artefato v_<hash> com meta.json encontrado no --from	confira se o zip foi extraido e se --from aponta para a raiz dele
 integrity.cache_import_invalid	integrity	artefato invalido no --from (meta, key, kind, formato ou sha256); os validos foram importados	veja result.artifacts (status invalid e reason); regenere ou rebaixe os invalidos e rode o import de novo
 integrity.cache_import_conflict	integrity	o cache ja tem a mesma chave com sha256 diferente; nada foi sobrescrito	compare os dois meta.json; apague a entrada do cache so se souber qual e a correta
+state.cache_miss	state	artefato ausente do cache com --cache-only (nenhum treino foi feito)	importe os artefatos com `prevcarga cache import --from=<dir>` (mesmo codigo e renv.lock) ou rode sem --cache-only para treinar
+config.cache_only_coupled	config	--cache-only nao vale com protocolo retrain_harness (o forecast acoplado treina dentro da celula)	use --protocol=daily ou fixed, ou rode sem --cache-only

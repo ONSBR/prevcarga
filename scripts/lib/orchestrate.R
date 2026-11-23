@@ -533,8 +533,19 @@ prevcarga_plan_result <- function(plan) {
       format(ft$origem[[i]], "%Y-%m-%d"), format(ft$available_until[[i]], "%H:%M"), ft$classe[[i]], ft$mensagem[[i]]), ""))
 }
 
+## --cache-only (v0.1.8): o forecast acoplado (retrain_harness) treina dentro da celula; recusa ANTES do MAP (nada escrito).
+.m7_cache_only_guard <- function(ctx, plan) {
+  if (!isTRUE(ctx$cache_only)) return(invisible(NULL))
+  bad <- unique(plan$cells$membro[plan$cells$protocol == "retrain_harness"])
+  if (length(bad)) prevcarga_abort("config.cache_only_coupled", where = "--cache-only",
+                                   details = list(membros = as.list(bad)))
+  invisible(NULL)
+}
+
 prevcarga_backtest_run <- function(ctx, args) {
+  ctx$cache_only <- isTRUE(args[["--cache-only"]])
   plan <- prevcarga_plan_request(ctx, args)
+  .m7_cache_only_guard(ctx, plan)
   jobs <- .prevcarga_tr_arg(args, "--jobs")
   jobs <- if (is.null(jobs)) 1L else suppressWarnings(as.integer(jobs))
   out <- prevcarga_orchestrate(ctx, plan, .m7_run_cell_for(ctx, plan), jobs = jobs,

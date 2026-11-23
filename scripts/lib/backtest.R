@@ -33,11 +33,13 @@
 ## `dplus` e `baseline` alimentam o REDUCE (M7.7); `report`/`report_format` ligam o relatorio do backtest (M7.4, secao 9).
 prevcarga_backtest <- function(ctx, origins, models = NULL, areas = NULL, cortes = NULL, protocol = NULL, dplus = NULL,
                                baseline = "todos", resume = FALSE, keep_going = FALSE, break_lock = FALSE, jobs = 1L,
-                               report = FALSE, report_format = "html") {
+                               report = FALSE, report_format = "html", cache_only = FALSE) {
+  ctx$cache_only <- isTRUE(cache_only)
   default <- if (is.null(ctx$backtest$corte_default)) "08:00" else ctx$backtest$corte_default
   cortes <- .m7_parse_cortes(cortes, default)
   ## o plano valida a matriz classe x protocolo: incompativel aborta AQUI, antes de qualquer celula ou arquivo
   plan <- prevcarga_plan(ctx, origins, cortes, protocol = protocol, filters = list(model = models, area = areas))
+  .m7_cache_only_guard(ctx, plan)
   map <- prevcarga_orchestrate(ctx, plan, .bt_make_run_cell(ctx, plan), jobs = jobs, keep_going = keep_going,
                                resume = resume, break_lock = break_lock)
   map$summary$weather_issue_cutoff <- plan$weather_issue_cutoff     # regra efetiva (flag > config.yaml > default), so registrada
@@ -108,12 +110,23 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   .bt_lateral_memo[[k]]
 }
 
+## --cache-only (v0.1.8): MISS nao treina. A chave esperada vai na MENSAGEM (o ledger/failures.jsonl guarda so a mensagem).
+.bt_cache_miss <- function(cell, key) {
+  cond <- prevcarga_condition("state.cache_miss", where = key,
+                              details = list(kind = "artifact", membro = cell$membro, folha = cell$folha,
+                                             train_origin = format(cell$train_origin, "%Y-%m-%d")))
+  cond$message <- sprintf("%s: chave %s (artifact, %s %s train_origin=%s)", cond$message, key, cell$membro, cell$folha,
+                          format(cell$train_origin, "%Y-%m-%d"))
+  stop(cond)
+}
+
 .bt_artifact <- function(ctx, plan, cell) {
   spec <- .bt_spec(ctx, cell)
   args <- .bt_key_args(ctx, plan, cell, spec)
   key <- do.call(prevcarga_cache_key, args)
   art <- prevcarga_cache_get(ctx, key, "artifact")
   if (!is.null(art)) return(art)
+  if (isTRUE(ctx$cache_only)) .bt_cache_miss(cell, key)
   member <- .bt_member(cell)
   inp <- prevcarga_train_inputs(member, cell$folha, .bt_train_origin(plan, cell), ctx)
   ## o treino deriva os mesmos cortes do dates.R que o plano: qualquer divergencia e bug, nunca um recalculo
