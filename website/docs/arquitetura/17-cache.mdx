@@ -14,9 +14,10 @@ fontes:
   - scripts/lib/backtest.R
   - scripts/lib/orchestrate.R
   - scripts/lib/cli/backtest.R
+  - scripts/lib/cli/cache.R
 adrs: [ADR-0023, ADR-0024, ADR-0040]
-revisado_em: 2026-11-03
-commit_base: "7c57514"
+revisado_em: 2026-11-23
+commit_base: "518a85e"
 ---
 
 <span className="pc-overline">Arquitetura · 2.17</span>
@@ -67,6 +68,10 @@ No código de produção, o consumidor do store é o backtest (`scripts/lib/back
 :::note Kinds sem chamador
 `features` e `khat` existem no contrato de chave, mas não há chamador de `prevcarga_cache_get` ou `prevcarga_cache_put` nesses kinds no código de produção. A coleta de lixo do cache fica fora do pacote.
 :::
+
+Desde a 0.1.8 há um segundo escritor, o `cache import` (`prevcarga_cache_import`, verbo em `scripts/lib/cli/cache.R`). Ele traz artefatos prontos de um diretório qualquer (por exemplo, um zip de um gerador externo) e publica cada um em `<kind>/<hh>/<key>/` com o mesmo rename atômico de `prevcarga_cache_put`, copiando o `meta.json` sem alterar. Ele não recalcula a chave com o código corrente: confere que a `key` é o nome do diretório e o hash da `identity` do próprio `meta.json`, que o `kind` bate com o da `identity` e que o sha256 do objeto bate. A varredura não segue symlink. O destino é validado pela mesma regra do `prevcarga_cache_get`: válido com o mesmo sha256 é pulado, válido com outro sha256 é conflito (<Tag>integrity.cache_import_conflict</Tag>), inválido vai para a quarentena e é reimportado. O import avisa quando `code_commit` ou `renv_lock_hash` diferem do corrente e, com deck de treino no contexto, também `data_fingerprint`, `load_label` e `load_tz`, porque nesse caso o backtest calcula outra chave e não acha o artefato. A spec do modelo e a regra de clima não são conferidas.
+
+A flag `--cache-only` do backtest troca o MISS do kind `artifact` por falha da célula: em vez de treinar, a célula sai `failed` com <Tag>state.cache_miss</Tag> e a chave esperada na mensagem, e o processo termina com <Tag>partial.backtest_delivery</Tag> (exit 14). Com `retrain_harness`, que não passa pelo cache, a flag é recusada antes de qualquer célula (<Tag>config.cache_only_coupled</Tag>). A receita está em [Rodada só de inferência](/execucao/backtest#rodada-só-de-inferência-com-artefatos-prontos).
 
 O ciclo de vida dos artefatos de produção não passa por aqui. Ele é do registry, em `<state_dir>/artifacts/`. O backtest grava só em `cache/` e `backtest/` e nunca abre o registry. Ver [Registry de artefatos](/arquitetura/registry) e [Backtest](/metodologia/backtest).
 

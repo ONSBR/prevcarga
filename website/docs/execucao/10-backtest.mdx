@@ -209,7 +209,7 @@ Em qualquer modo, o REDUCE roda sobre o que ficou `done`.
 | `--report` | Gera o relatório depois do REDUCE. |
 | `--report-format` | `html` (padrão) ou `pdf`. Outro valor: <Tag>config.usage</Tag> (exit 8). |
 | `--dplus` | Registra `dplus = TRUE` em `scores`. Os scorecards já saem por `d_plus` com ou sem a flag. |
-| `--cache-only` | Não treina. Célula cujo artefato não está no cache falha com <Tag>state.cache_miss</Tag>, e a mensagem traz a chave esperada. Não vale com `retrain_harness`: sai <Tag>config.cache_only_coupled</Tag> (exit 8) antes de qualquer célula. Veja [Rodada só de inferência](#rodada-só-de-inferência-com-artefatos-prontos). |
+| `--cache-only` | Não treina. Célula cujo artefato não está no cache fica `failed` com <Tag>state.cache_miss</Tag>, a mensagem traz a chave esperada e a falha vai para o ledger (`failures.jsonl`). O processo sai com <Tag>partial.backtest_delivery</Tag> (exit 14), mesmo com 0 células `ok`, e não com o exit 13 do id da célula. Não vale com `retrain_harness`: sai <Tag>config.cache_only_coupled</Tag> (exit 8) antes de qualquer célula, também com `--dry-run`. Veja [Rodada só de inferência](#rodada-só-de-inferência-com-artefatos-prontos). |
 | `--weather-cutoff` (global) | Regra de clima previsto (ADR-0024). Entra no `run_id` e nas chaves; mudar a regra gera outro diretório de execução. |
 
 ## Saídas do REDUCE e veredito
@@ -268,18 +268,18 @@ prevcarga cache import --from=<dir-extraido> --state=<state>
 prevcarga backtest --origin=<O> --protocol=daily --cache-only --jobs=<N> --state=<state> --data-train=<deck>
 ```
 
-1. `cache import` varre `--from` recursivamente atrás de diretórios `v_<16 hex>` com `meta.json` e `object.rds` ou `object.parquet`, em qualquer layout (por exemplo `artefatos/<SIGLA>/<AREA>/<DATA>/<hh>/v_<key>/`). Cada um é conferido (a `key` do `meta.json` igual ao nome do diretório, `kind` conhecido, sha256 do objeto igual ao do `meta.json`) e copiado, sem symlink, para `<state>/cache/<kind>/<hh>/<key>/`, com publicação atômica. Rodar de novo é seguro: o que já está no cache com o mesmo sha256 é pulado.
+1. `cache import` varre `--from` recursivamente atrás de diretórios `v_<16 hex>` com `meta.json` e `object.rds` ou `object.parquet`, em qualquer layout (por exemplo `artefatos/<SIGLA>/<AREA>/<DATA>/<hh>/v_<key>/`). Symlinks não são seguidos: um `v_<hash>` que é symlink sai inválido (`symlink`) e os demais symlinks de diretório são ignorados e listados. Cada artefato é conferido (a `key` do `meta.json` igual ao nome do diretório e igual ao hash recalculado da `identity`, `kind` conhecido e igual ao da `identity`, sha256 do objeto igual ao do `meta.json`) e copiado, sem symlink, para `<state>/cache/<kind>/<hh>/<key>/`, com publicação atômica. Um `meta.json` editado à mão não passa. Rodar de novo é seguro: o que já está no cache, válido e com o mesmo sha256, é pulado. Uma entrada do destino inválida (objeto corrompido ou ausente, resto de execução interrompida) vai para `cache/_quarantine/` e é reimportada (`reparados` no resumo).
 2. `backtest --cache-only` sem `--area` usa os artefatos importados. Sem `--area`, o plano cobre todas as folhas e o REDUCE grava a saída reconciliada em `<state>/backtest/<run_id>/reconciled/<AAAA-MM-DD>/<HHMM>/` (`SIN.parquet` e `subsistemas/<SS>.parquet`). Com `--area`, o reconcile não roda.
 
 :::warning A chave inclui o código
-A chave do artefato inclui `code_commit` e `renv_lock_hash`. Um artefato gerado por outro código (outro commit, outro `renv.lock`, ou `code_commit` `unknown`) é importado, mas o backtest calcula outra chave e não o encontra. O `cache import` emite um aviso por artefato nesse caso e conta os `compativeis` no resumo. Sem `--cache-only`, o backtest treina de novo sem avisar, o que pode levar horas. Com `--cache-only`, a célula falha com <Tag>state.cache_miss</Tag> em poucos segundos. Gere os artefatos com o mesmo bundle que vai inferir.
+A chave do artefato inclui `code_commit`, `renv_lock_hash`, o deck (`data_fingerprint`), `load_label`, `load_tz`, a spec do modelo no `run.yaml` e a regra de clima. Um artefato gerado por outro código (outro commit, outro `renv.lock`, ou `code_commit` `unknown`) ou com outro deck é importado, mas o backtest calcula outra chave e não o encontra. O `cache import` confere `code_commit` e `renv_lock_hash` sempre e, com deck de treino (`--data-train` ou `data_train_dir` no `config.yaml`), também `data_fingerprint`, `load_label` e `load_tz`. Emite um aviso por artefato que diverge e conta `confere` e `diverge` no resumo; a linha `conferido:` diz o que foi e o que não foi conferido. A spec do modelo e a regra de clima nunca são conferidas, então `confere` não garante que o backtest ache o artefato. Sem `--cache-only`, o backtest treina de novo sem avisar, o que pode levar horas. Com `--cache-only`, a célula falha com <Tag>state.cache_miss</Tag> em poucos segundos e o processo sai com <Tag>partial.backtest_delivery</Tag> (exit 14). Gere os artefatos com o mesmo bundle e o mesmo deck que vão inferir.
 :::
 
 | Situação no `cache import` | Saída |
 |---|---|
-| Tudo válido (compatível ou não) | exit 0; resumo `encontrados`, `importados` (`a_importar` com `--dry-run`), `pulados`, `invalidos`, `conflitos`, `compativeis`, `incompativeis` |
-| Algum inválido (meta ilegível, `key` ou `kind` errados, objeto ausente, sha256 divergente) | Os válidos entram, o relatório sai e depois <Tag>integrity.cache_import_invalid</Tag> (exit 9) |
-| A chave já está no cache com outro sha256 | Nada é sobrescrito; <Tag>integrity.cache_import_conflict</Tag> (exit 9) |
+| Tudo válido (confere ou não) | exit 0; resumo `encontrados`, `importados` (`a_importar` com `--dry-run`), `pulados`, `reparados`, `invalidos`, `conflitos`, `confere`, `diverge` |
+| Algum inválido (meta ilegível, `key` ou `kind` errados, `key` que não bate com a `identity`, objeto ausente, sha256 divergente, `v_<hash>` symlink) | Os válidos entram, o relatório sai e depois <Tag>integrity.cache_import_invalid</Tag> (exit 9) |
+| A chave já está no cache, válida, com outro sha256 | Nada é sobrescrito; <Tag>integrity.cache_import_conflict</Tag> (exit 9) |
 | `--from` ausente ou não é diretório | <Tag>config.cache_import_from</Tag> (exit 8) |
 | Nenhum `v_<hash>/meta.json` em `--from` | <Tag>state.cache_import_empty</Tag> (exit 13) |
 
