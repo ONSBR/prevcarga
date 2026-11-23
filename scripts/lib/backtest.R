@@ -95,6 +95,19 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   prevcarga_model_spec(cell$mdir, ctx$root, .prevcarga_tr_overrides(plugin, .bt_member(cell), ctx))
 }
 
+## Laterais do artefato no meta.json do cache (fora da identidade/chave): bundle_id (runtime.R) e a plataforma do bundle
+## (RUNTIME.json) ou do host. Memo por raiz no processo: no bundle o bundle_id le e canoniza o RUNTIME.json inteiro.
+.bt_lateral_memo <- new.env(parent = emptyenv())
+.bt_lateral <- function(ctx) {
+  k <- normalizePath(ctx$root, winslash = "/", mustWork = FALSE)
+  if (is.null(.bt_lateral_memo[[k]])) {
+    b <- prevcarga_bundle_runtime(ctx$root)
+    plat <- if (!is.null(b) && length(b$platform) == 1L && nzchar(b$platform)) b$platform else .prevcarga_host_platform()
+    .bt_lateral_memo[[k]] <- list(bundle_id = prevcarga_bundle_id(ctx$root), platform = plat)
+  }
+  .bt_lateral_memo[[k]]
+}
+
 .bt_artifact <- function(ctx, plan, cell) {
   spec <- .bt_spec(ctx, cell)
   args <- .bt_key_args(ctx, plan, cell, spec)
@@ -112,7 +125,7 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   pctx <- list(load_label = inp$cuts$load_label, timezone = inp$cuts$tz, weather_issue_cutoff = inp$cuts$weather_issue_cutoff)
   fit <- prevcarga_plugin_train(inp$plugin, inp$panel, inp$cuts, inp$spec, pctx)
   art <- prevcarga_artifact_build(member, cell$folha, inp, fit)
-  prevcarga_cache_put(ctx, key, "artifact", art, identity = do.call(prevcarga_cache_identity, args))
+  prevcarga_cache_put(ctx, key, "artifact", art, identity = do.call(prevcarga_cache_identity, args), lateral = .bt_lateral(ctx))
   art
 }
 

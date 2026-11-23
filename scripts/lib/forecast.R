@@ -198,7 +198,7 @@
 
 ## --- despacho por celula (--jobs, F3.5) -----------------------------------------------------------------------
 ## Modulos que cada worker PSOCK (R novo) carrega, em ordem fixa, do MESMO lib do pai (ctx$lib_dir / options prevcarga.lib).
-.forecast_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R", "deck_reader.R",
+.forecast_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R", "holiday_islands.R", "deck_reader.R",
                               "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "training.R", "inference.R", "combination.R",
                               "build_long_output.R", "forecast.R")
 

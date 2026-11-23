@@ -12,8 +12,9 @@
 ##   - freeze: saveRDS v3 BINARIO (IEEE-754) atomico (tmp no mesmo dir + file.rename) + `<p>.manifest.json` com sha256.
 ##     thaw confere o sha256 ANTES de desserializar. Integridade != autenticidade (nao ha assinatura).
 ##
-## Sem variaveis de ambiente: raiz sempre por argumento. Excecao dev documentada: `code_commit` usa `git`
-## (system2) so quando ha repositorio; senao 'unknown'. Requer errors.R (e topology.R/runtime.R no run-manifest).
+## Sem variaveis de ambiente: raiz sempre por argumento. `code_commit` vem do RUNTIME.json do bundle (root ou um
+## nivel acima); sem ele, git (system2) quando ha repositorio; senao 'unknown'. Requer errors.R (e
+## topology.R/runtime.R no run-manifest).
 
 .prevcarga_fingerprint_keys <- c("model_id", "data_fingerprint", "cutoff", "feature_config",
   "code_commit", "renv_lock_hash", "load_label", "load_tz")
@@ -54,7 +55,21 @@ prevcarga_version_hash <- function(fingerprint) {
 }
 
 ## --- Insumos de proveniencia (por argumento, sem env) -------------------------------------------------
+## Commit do codigo que roda. Bundle instalado (RUNTIME.json em `root` ou um nivel acima, a mesma busca de prevcarga_bundle_id)
+## => o code_commit (40 hex) gravado no build, sem git (o bundle nao tem .git e pode morar dentro de outro repositorio);
+## arvore de dev => git rev-parse HEAD (+ "-dirty"); nenhum dos dois => "unknown".
+.prevcarga_bundle_code_commit <- function(root) {
+  cand <- c(root, dirname(root))
+  f <- file.path(cand, "RUNTIME.json")
+  f <- f[file.exists(f)][1L]
+  if (is.na(f)) return(NULL)
+  cc <- tryCatch(jsonlite::read_json(f, simplifyVector = FALSE)$code_commit, error = function(e) NULL)
+  if (is.character(cc) && length(cc) == 1L && grepl("^[0-9a-f]{40}$", cc)) cc else NULL
+}
+
 prevcarga_code_commit <- function(root) {
+  bc <- .prevcarga_bundle_code_commit(root)
+  if (!is.null(bc)) return(bc)
   git <- function(args) tryCatch(suppressWarnings(
     system2("git", c("-C", shQuote(root), args), stdout = TRUE, stderr = FALSE)),
     error = function(e) NULL)
