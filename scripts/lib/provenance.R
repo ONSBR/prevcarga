@@ -54,7 +54,21 @@ prevcarga_version_hash <- function(fingerprint) {
 }
 
 ## --- Insumos de proveniencia (por argumento, sem env) -------------------------------------------------
+## Commit do codigo que roda. Bundle instalado (RUNTIME.json em `root` ou um nivel acima, a mesma busca de prevcarga_bundle_id)
+## => o code_commit (40 hex) gravado no build, sem git (o bundle nao tem .git e pode morar dentro de outro repositorio);
+## arvore de dev => git rev-parse HEAD (+ "-dirty"); nenhum dos dois => "unknown".
+.prevcarga_bundle_code_commit <- function(root) {
+  cand <- c(root, dirname(root))
+  f <- file.path(cand, "RUNTIME.json")
+  f <- f[file.exists(f)][1L]
+  if (is.na(f)) return(NULL)
+  cc <- tryCatch(jsonlite::read_json(f, simplifyVector = FALSE)$code_commit, error = function(e) NULL)
+  if (is.character(cc) && length(cc) == 1L && grepl("^[0-9a-f]{40}$", cc)) cc else NULL
+}
+
 prevcarga_code_commit <- function(root) {
+  bc <- .prevcarga_bundle_code_commit(root)
+  if (!is.null(bc)) return(bc)
   git <- function(args) tryCatch(suppressWarnings(
     system2("git", c("-C", shQuote(root), args), stdout = TRUE, stderr = FALSE)),
     error = function(e) NULL)

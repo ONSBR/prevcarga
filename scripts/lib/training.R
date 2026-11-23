@@ -176,7 +176,7 @@ prevcarga_train_manifest <- function(id, member, inp, ctx) {
     weather_issue_cutoff = inp$cuts$weather_issue_cutoff, split = inp$spec$split,
     delivery_days = inp$plugin$descriptor$delivery_days,
     model_versions = stats::setNames(list(id$version), label),
-    seeds = stats::setNames(list(inp$spec$seed), label), root = ctx$root,
+    seeds = stats::setNames(list(inp$spec$seed), label), root = ctx$root, bundle_id = prevcarga_bundle_id(ctx$root),
     trained_at = ctx$trained_at, package_version = ctx$version, run_id = ctx$run_id,
     members = data.frame(sigla = sigla, mdir = member$mdir, exogena = exo, stringsAsFactors = FALSE),
     fingerprint = id$fingerprint)
