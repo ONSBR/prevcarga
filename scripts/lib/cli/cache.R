@@ -5,24 +5,34 @@
 ## Verbo proprio e nao subcomando de `registry`: o registry e o ciclo de vida de producao (<state>/artifacts/, latest/pin),
 ## e o cache e content-addressed e so do backtest (cache.R); misturar os dois faria o backtest ler `latest` (proibido, M7.3).
 ## Fachada fina: a logica (varredura, validacao, copia atomica, compatibilidade) mora em cache.R. Texto devolve linhas ASCII,
-## JSON devolve o `result`. Invalido/conflito => o relatorio sai e depois o erro classificado (exit 9); nada vazio => exit 13.
+## JSON devolve o `result`. Com deck de treino (--data-train ou config.yaml) confere tambem data_fingerprint, load_label
+## e load_tz; a spec do modelo nunca (o resumo diz `confere`, nao `compativel`). Invalido/conflito => o relatorio sai e
+## depois o erro classificado (exit 9); nada vazio => exit 13.
 ## `--dry-run` ja consta no bloco Options de train-models (duplicata torna o docopt ambiguo).
-## Requer errors.R, config.R, provenance.R, cache.R.
+## Requer errors.R, config.R, provenance.R, deck_reader.R, cache.R.
 
 .prevcarga_cache_text <- function(res) {
   st <- vapply(res$artifacts, function(a) a$status, "")
+  unch <- setdiff(as.character(res$unchecked), c("model_spec", "weather"))
   head <- c(sprintf("cache import%s: de=%s cache=%s", if (res$dry_run) " (dry-run, nada gravado)" else "", res$from, res$cache_dir),
-            sprintf("encontrados=%d %s=%d pulados=%d invalidos=%d conflitos=%d compativeis=%d incompativeis=%d",
-                    res$found, if (res$dry_run) "a_importar" else "importados", res$imported, res$skipped, res$invalid,
-                    res$conflict, res$compatible, res$incompatible),
-            sprintf("codigo corrente: code_commit=%s renv_lock_hash=%s", res$code_commit, res$renv_lock_hash))
+            sprintf("encontrados=%d %s=%d pulados=%d reparados=%d invalidos=%d conflitos=%d confere=%d diverge=%d",
+                    res$found, if (res$dry_run) "a_importar" else "importados", res$imported, res$skipped, res$repaired,
+                    res$invalid, res$conflict, res$compatible, res$incompatible),
+            sprintf("corrente: %s", paste(vapply(as.character(res$checked), function(n)
+              sprintf("%s=%s", n, res$current[[n]]), ""), collapse = " ")),
+            sprintf("conferido: %s; nao conferido: %sspec do modelo (run.yaml) e regra de clima (confere nao garante que o backtest ache)",
+                    paste(as.character(res$checked), collapse = ","),
+                    if (length(unch)) sprintf("%s (sem --data-train), ", paste(unch, collapse = ",")) else ""))
   bad <- vapply(res$artifacts[st %in% c("invalid", "conflict")], function(a)
     sprintf("%s %s %s %s", a$status, a$key, a$reason, a$source), "")
+  rep <- vapply(Filter(function(a) identical(a$reason, "destino_invalido_em_quarentena"), res$artifacts), function(a)
+    sprintf("reparado: %s destino invalido %s cache/_quarantine", a$key, if (res$dry_run) "iria para" else "movido para"), "")
+  lnk <- if (length(res$ignored_symlinks)) sprintf("ignorado (symlink de diretorio nao seguido): %s", as.character(res$ignored_symlinks)) else character()
   warn <- vapply(Filter(function(a) a$status %in% c("imported", "skipped") && identical(a$compatible, FALSE), res$artifacts),
                  function(a) sprintf("aviso: %s (%s) %s: o backtest nao vai acha-lo (chave diferente)", a$key, a$kind,
                                      paste(vapply(as.character(a$divergent), function(d)
-                                       sprintf("%s=%s corrente=%s", d, a[[d]], res[[d]]), ""), collapse = " ")), "")
-  c(head, bad, warn)
+                                       sprintf("%s=%s corrente=%s", d, a[[d]], res$current[[d]]), ""), collapse = " ")), "")
+  c(head, bad, rep, lnk, warn)
 }
 
 cmd_cache <- function(ctx, args) {
@@ -50,5 +60,5 @@ prevcarga_verb_cache <- list(
   owner   = "v0.1.8",
   exempt  = FALSE,
   deck_roles = c("train", "inference"),
-  modules = c("provenance.R", "cache.R")
+  modules = c("provenance.R", "deck_reader.R", "cache.R")
 )

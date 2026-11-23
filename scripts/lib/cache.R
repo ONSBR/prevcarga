@@ -221,25 +221,51 @@ prevcarga_cache_get <- function(ctx, key, kind) {
 
 ## --- import (v0.1.8) -------------------------------------------------------------------------------------------
 ## Importa artefatos prontos (ex.: zip de um gerador externo, layout livre) para `<state>/cache/<kind>/<hh>/<key>/`.
-## Varre `from` atras de diretorios `v_<16 hex>`; cada um precisa de meta.json + o objeto que ele declara. Valida:
-## meta.key == nome do diretorio; kind conhecido; formato object.rds|object.parquet; sha256 do objeto == meta.sha256.
-## Copia (nunca symlink) para um tmp irmao e publica por rename atomico, como prevcarga_cache_put; o meta.json vai
-## verbatim. Idempotente: destino com o mesmo sha => pulado; sha diferente => conflito (integrity). Nao recalcula chave:
-## a identidade (code_commit, renv_lock_hash) e so comparada com a do codigo corrente para AVISAR que o backtest nao
-## vai acha-lo (a chave do backtest leva o codigo corrente). Devolve o relatorio; quem aborta e a fachada (cli/cache.R).
+## Varre `from` atras de diretorios `v_<16 hex>` SEM seguir symlink (um `v_<hash>` que e symlink sai invalid "symlink";
+## os demais symlinks de diretorio sao ignorados e listados). Cada entrada precisa de meta.json + o objeto declarado.
+## Valida: meta.key == nome do diretorio; kind conhecido; key == prevcarga_version_hash(meta.identity) e
+## identity.feature_config.kind == meta.kind (meta editado a mao nao passa); formato object.rds|object.parquet; sha256
+## do objeto == meta.sha256. Copia (nunca symlink) para um tmp irmao e publica por rename atomico, como
+## prevcarga_cache_put; o meta.json vai verbatim. Idempotente: destino VALIDO (meta legivel, objeto presente, sha ==
+## meta.sha256, a mesma regra de prevcarga_cache_get) com o mesmo sha => pulado; com sha diferente => conflito
+## (integrity); destino invalido (resto de execucao interrompida, objeto corrompido) => quarentena e reimporta.
+## Nao recalcula chave com o codigo corrente: so compara os campos da identidade que da para conferir aqui
+## (code_commit, renv_lock_hash; com deck de treino no ctx tambem data_fingerprint, load_label, load_tz) para AVISAR
+## que o backtest nao vai acha-lo. A spec do modelo (run.yaml) e a regra de clima nunca sao conferidas: `confere` nao
+## garante hit. Devolve o relatorio; quem aborta e a fachada (cli/cache.R).
 .pc_cache_formats <- c("object.rds", "object.parquet")
+.pc_cache_deck_fields <- c("data_fingerprint", "load_label", "load_tz")
 
+## Varredura em largura por nivel, sem seguir symlink: list.dirs(recursive=TRUE) segue link de diretorio (loop => o
+## mesmo artefato achado ate o limite do caminho). `_quarantine` nunca volta.
 .pc_cache_import_dirs <- function(from) {
-  d <- list.dirs(from, recursive = TRUE, full.names = TRUE)
-  d <- d[grepl(.pc_cache_key_re, basename(d)) & !grepl("/_quarantine/", d, fixed = TRUE)]   # quarentena nunca volta
-  d[order(d, method = "radix")]
+  found <- character(); links <- character(); queue <- from
+  while (length(queue)) {
+    cur <- queue[[1L]]; queue <- queue[-1L]
+    ent <- list.files(cur, full.names = TRUE, include.dirs = TRUE, no.. = TRUE)
+    ent <- ent[dir.exists(ent)]
+    is_link <- nzchar(Sys.readlink(ent))
+    is_key <- grepl(.pc_cache_key_re, basename(ent))
+    found <- c(found, ent[is_key & !is_link])
+    links <- c(links, ent[is_link])
+    queue <- c(queue, ent[!is_link & basename(ent) != "_quarantine"])
+  }
+  list(dirs = found[order(found, method = "radix")], links = links[order(links, method = "radix")])
 }
 
-## Identidade do codigo corrente, na mesma precedencia de .m7_identity_inputs (ctx injeta; senao provenance.R).
+## Identidade conferivel do codigo corrente, na mesma precedencia de .m7_identity_inputs (ctx injeta; senao
+## provenance.R/deck_reader.R). Campos do deck so com deck de TREINO (o do backtest); sem ele ficam em `unchecked`.
 .pc_cache_current_code <- function(ctx) {
   code <- if (is.null(ctx$code_commit)) prevcarga_code_commit(ctx$root) else ctx$code_commit
   lock <- if (is.null(ctx$renv_lock_hash)) prevcarga_renv_lock_hash(ctx$root) else ctx$renv_lock_hash
-  list(code_commit = code, renv_lock_hash = if (is.null(lock)) "no-renv-lock" else lock)
+  cur <- list(code_commit = code, renv_lock_hash = if (is.null(lock)) "no-renv-lock" else lock)
+  if (!is.null(ctx$data_dir) && !identical(ctx$data_role, "inference")) {
+    man <- prevcarga_deck_manifest(ctx$data_dir)
+    lab <- prevcarga_resolve_load_label(ctx, man)$value
+    fp <- if (is.null(ctx$data_hash)) prevcarga_data_hash(ctx$data_dir, man, lab) else ctx$data_hash
+    cur <- c(cur, list(data_fingerprint = fp, load_label = lab, load_tz = man$timezone$load))
+  }
+  cur
 }
 
 ## Uma entrada da origem -> linha do relatorio (sem efeito colateral).
@@ -250,11 +276,13 @@ prevcarga_cache_get <- function(ctx, key, kind) {
   bad <- function(reason) { row$reason <- reason; row }
   mf <- file.path(dir, "meta.json")
   if (!file.exists(mf)) return(bad("meta_ausente"))
-  m <- tryCatch(jsonlite::read_json(mf), error = function(e) NULL)
+  m <- tryCatch(suppressWarnings(jsonlite::read_json(mf)), error = function(e) NULL)
   if (!is.list(m)) return(bad("meta_ilegivel"))
   if (!identical(m$key, key)) return(bad("key_divergente"))
   if (!(is.character(m$kind) && length(m$kind) == 1L && m$kind %in% .pc_cache_kinds)) return(bad("kind_desconhecido"))
   row$kind <- m$kind
+  h <- tryCatch(prevcarga_version_hash(m$identity), error = function(e) NA_character_)
+  if (!identical(h, key) || !identical(m$identity$feature_config$kind, m$kind)) return(bad("key_nao_bate_identity"))
   if (!(is.character(m$format) && length(m$format) == 1L && m$format %in% .pc_cache_formats)) return(bad("formato_desconhecido"))
   of <- file.path(dir, m$format)
   if (!file.exists(of)) return(bad("objeto_ausente"))
@@ -266,24 +294,36 @@ prevcarga_cache_get <- function(ctx, key, kind) {
   row
 }
 
-## Copia para tmp irmao, confere o sha da copia e publica por rename. Corrida com outro import => decide pelo sha.
+## Estado do destino pela regra de prevcarga_cache_get: absent | invalid | valid (+ sha).
+.pc_cache_dest_state <- function(dest) {
+  if (!dir.exists(dest)) return(list(state = "absent"))
+  m <- suppressWarnings(.pc_cache_meta(dest))
+  f <- if (is.null(m)) NA_character_ else file.path(dest, m$format)
+  if (is.null(m) || !file.exists(f) || !identical(.pc_cache_sha(f), m$sha256)) return(list(state = "invalid"))
+  list(state = "valid", sha = m$sha256)
+}
+
+## Copia para tmp irmao, confere o sha da copia e publica por rename. Corrida com outro import => decide pelo destino.
 .pc_cache_import_copy <- function(row, dest) {
   tmp <- paste0(dest, ".tmp-", Sys.getpid())
   unlink(tmp, recursive = TRUE)
   dir.create(tmp, recursive = TRUE, showWarnings = FALSE)
   on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
-  ok <- file.copy(file.path(row$source, row$format), tmp) && file.copy(file.path(row$source, "meta.json"), tmp)
+  ok <- suppressWarnings(file.copy(file.path(row$source, row$format), tmp) &&
+                           file.copy(file.path(row$source, "meta.json"), tmp))
   if (!ok || !identical(.pc_cache_sha(file.path(tmp, row$format)), row$sha256)) return("copy_failed")
-  if (file.rename(tmp, dest)) return("imported")
-  old <- .pc_cache_meta(dest)
-  if (!is.null(old) && identical(old$sha256, row$sha256)) "skipped" else "conflict"
+  dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
+  if (suppressWarnings(file.rename(tmp, dest))) return("imported")
+  d <- .pc_cache_dest_state(dest)
+  if (identical(d$state, "valid") && identical(d$sha, row$sha256)) "skipped" else "conflict"
 }
 
 .pc_cache_import_compat <- function(identity, cur) {
-  got <- list(code_commit = identity$code_commit, renv_lock_hash = identity$renv_lock_hash)
-  div <- names(cur)[!vapply(names(cur), function(n) identical(as.character(got[[n]]), cur[[n]]), NA)]
-  list(compatible = !length(div), divergent = div,
-       got = lapply(got, function(v) if (is.null(v)) NA_character_ else as.character(v)[[1L]]))
+  got <- lapply(stats::setNames(names(cur), names(cur)), function(n) {
+    v <- identity[[n]]; if (is.null(v)) NA_character_ else as.character(v)[[1L]]
+  })
+  div <- names(cur)[!vapply(names(cur), function(n) identical(got[[n]], cur[[n]]), NA)]
+  list(compatible = !length(div), divergent = div, got = got)
 }
 
 prevcarga_cache_import <- function(ctx, from, dry_run = FALSE) {
@@ -291,34 +331,49 @@ prevcarga_cache_import <- function(ctx, from, dry_run = FALSE) {
     prevcarga_abort("config.cache_import_from", where = paste(from, collapse = ","))
   from <- normalizePath(from, winslash = "/", mustWork = TRUE)
   cur <- .pc_cache_current_code(ctx)
+  rel <- function(p) substring(p, nchar(from) + 2L)
+  scan <- .pc_cache_import_dirs(from)
   seen <- list()
-  rows <- lapply(.pc_cache_import_dirs(from), function(dir) {
+  rows <- lapply(scan$dirs, function(dir) {
     row <- .pc_cache_import_check(dir)
-    rel <- substring(dir, nchar(from) + 2L)
-    if (!identical(row$status, "ok")) { row$source <- rel; return(row) }
+    row$repaired <- FALSE
+    if (!identical(row$status, "ok")) { row$source <- rel(dir); return(row) }
     dest <- .pc_cache_dir(ctx, row$kind, row$key)
-    prev <- if (dir.exists(dest)) .pc_cache_meta(dest)$sha256 else seen[[row$key]]
+    d <- .pc_cache_dest_state(dest)
+    prev <- if (identical(d$state, "valid")) d$sha else seen[[row$key]]
+    if (is.null(prev) && identical(d$state, "invalid")) {
+      row$repaired <- TRUE
+      if (!isTRUE(dry_run)) .pc_cache_quarantine(ctx, row$kind, row$key, dest)
+    }
     row$status <- if (!is.null(prev)) { if (identical(prev, row$sha256)) "skipped" else "conflict" }
                   else if (isTRUE(dry_run)) "imported"
                   else .pc_cache_import_copy(row, dest)
-    row$source <- rel
+    row$source <- rel(dir)
     if (identical(row$status, "conflict")) row$reason <- "sha_diferente_no_destino"
     if (identical(row$status, "copy_failed")) { row$status <- "invalid"; row$reason <- "copia_falhou" }
     if (identical(row$status, "imported")) seen[[row$key]] <<- row$sha256
+    if (isTRUE(row$repaired) && identical(row$status, "imported")) row$reason <- "destino_invalido_em_quarentena"
     cp <- .pc_cache_import_compat(row$identity, cur)
     row$compatible <- cp$compatible; row$divergent <- cp$divergent; row$got <- cp$got
     row
   })
+  ## v_<hash> que e symlink: invalido, nunca seguido (pode apontar para fora do --from)
+  links <- scan$links[grepl(.pc_cache_key_re, basename(scan$links))]
+  rows <- c(rows, lapply(links, function(l) list(key = basename(l), kind = NA_character_, source = rel(l),
+                                                 status = "invalid", reason = "symlink", repaired = FALSE)))
   st <- vapply(rows, function(r) r$status, "")
   valid <- st %in% c("imported", "skipped")
   comp <- vapply(rows, function(r) isTRUE(r$compatible), NA)
   list(schema_version = 1L, from = from, cache_dir = .pc_cache_root(ctx), dry_run = isTRUE(dry_run),
-       code_commit = cur$code_commit, renv_lock_hash = cur$renv_lock_hash,
+       code_commit = cur$code_commit, renv_lock_hash = cur$renv_lock_hash, current = cur,
+       checked = I(names(cur)), unchecked = I(c(setdiff(.pc_cache_deck_fields, names(cur)), "model_spec", "weather")),
        found = length(rows), imported = sum(st == "imported"), skipped = sum(st == "skipped"),
        invalid = sum(st == "invalid"), conflict = sum(st == "conflict"),
+       repaired = sum(vapply(rows, function(r) isTRUE(r$repaired), NA) & st == "imported"),
        compatible = sum(valid & comp), incompatible = sum(valid & !comp),
-       artifacts = lapply(rows, function(r) list(
+       ignored_symlinks = I(rel(setdiff(scan$links, links))),
+       artifacts = lapply(rows, function(r) c(list(
          key = r$key, kind = r$kind, source = r$source, status = r$status, reason = r$reason,
          compatible = if (is.null(r$compatible)) NA else r$compatible,
-         divergent = I(as.character(r$divergent)), code_commit = r$got$code_commit, renv_lock_hash = r$got$renv_lock_hash)))
+         divergent = I(as.character(r$divergent))), r$got)))
 }
