@@ -369,7 +369,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
 
 ## --- 6b. Despacho PSOCK (M7.6; ADR-0038: so PSOCK, igual em Linux e Windows nativo) --------------------------
 ## Modulos que cada worker (R novo) carrega, em ordem fixa, do MESMO lib do pai (options prevcarga.lib / ctx$lib_dir).
-.m7_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R", "deck_reader.R",
+.m7_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R", "holiday_islands.R", "deck_reader.R",
                         "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "training.R", "inference.R",
                         "build_long_output.R", "cache.R", "orchestrate.R", "backtest.R")
 

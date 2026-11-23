@@ -220,7 +220,7 @@ prevcarga_train <- function(member, area, origin, ctx, force = FALSE) {
 ## dentro do worker. Resultado reordenado pela chave (model, variant, area): independe de --jobs e da ordem de chegada.
 
 .prevcarga_tr_worker_modules <- c("errors.R", "runtime.R", "config.R", "topology.R", "schema_long.R", "provenance.R",
-                                  "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "training.R")
+                                  "holiday_islands.R", "deck_reader.R", "dates.R", "validation.R", "features.R", "registry.R", "inference_needs.R", "training.R")
 
 .prevcarga_tr_topo <- function(ctx) {
   if (!is.null(ctx$topology_path)) prevcarga_topology(path = ctx$topology_path, root = ctx$root)
