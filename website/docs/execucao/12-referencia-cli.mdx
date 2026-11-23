@@ -23,13 +23,13 @@ fontes:
   - install/prevcarga-sync.sh
   - install/prevcarga-sync.ps1
 adrs: [ADR-0016, ADR-0018, ADR-0022, ADR-0038, ADR-0039, ADR-0040]
-revisado_em: 2026-11-16
+revisado_em: 2026-11-23
 commit_base: "b6d99da"
 ---
 
 <span className="pc-overline">Execução · 3.12</span>
 
-<p className="pc-lead">A CLI <code>prevcarga</code> tem 21 verbos, cada um registrado num arquivo próprio em <code>scripts/lib/cli/&lt;verbo&gt;.R</code>. A gramática, a ajuda e a validação das flags são geradas desses registros, então <code>prevcarga --help</code> é sempre a referência exata da versão instalada. Esta página agrupa por uso os verbos de operação, dá a sintaxe como está no código, as flags principais e os códigos de saída mais comuns de cada um. No fim estão o instalador e o <code>prevcarga-sync</code>, que não são verbos da CLI R.</p>
+<p className="pc-lead">A CLI <code>prevcarga</code> tem 23 verbos, cada um registrado num arquivo próprio em <code>scripts/lib/cli/&lt;verbo&gt;.R</code>. A gramática, a ajuda e a validação das flags são geradas desses registros, então <code>prevcarga --help</code> é sempre a referência exata da versão instalada. Esta página agrupa por uso os verbos de operação, dá a sintaxe como está no código, as flags principais e os códigos de saída mais comuns de cada um. No fim estão o instalador e o <code>prevcarga-sync</code>, que não são verbos da CLI R.</p>
 
 ## Como ler a sintaxe e a saída
 
@@ -83,7 +83,8 @@ Algumas flags são de escopo: só valem nos verbos que as declaram no campo `sco
 | `train-models` | `--horizon`, `--exogena`, `--keep-going` |
 | `reconcile` | `--khat-window`, `--eval`, `--leaves-dir`, `--khat-version` |
 | `plan` | `--corte`, `--protocol`, `--dplus` |
-| `backtest` | `--corte`, `--protocol`, `--dplus`, `--report`, `--report-format`, `--resume`, `--keep-going`, `--break-lock` |
+| `backtest` | `--corte`, `--protocol`, `--dplus`, `--report`, `--report-format`, `--resume`, `--keep-going`, `--break-lock`, `--cache-only` |
+| `cache` | `--from` |
 | `verificar` | `--saida`, `--referencia`, `--oficial`, `--trilho`, `--alvo`, `--limiares`, `--sem-membros`, `--tol` |
 
 Uma flag de escopo de dois verbos, como `--incluir-membros` em `forecast` e `export`, vale nos dois.
@@ -227,13 +228,17 @@ Varrem várias origens em sequência, cada uma com treino e inferência próprio
 prevcarga plan --origin=<data> [--model=<m>] [--area=<a>] [--corte=<HH:MM,...>] [--protocol=<p>] [--dplus]
 prevcarga backtest --origin=<data> [--model=<m>] [--area=<a>] [--corte=<HH:MM,...>] [--protocol=<p>] [--dplus]
                    [--baseline=<b>] [--report] [--report-format=<f>] [--resume] [--keep-going] [--break-lock]
-                   [--jobs=<n>] [--dry-run]
+                   [--cache-only] [--jobs=<n>] [--dry-run]
+prevcarga cache import --from=<dir> [--dry-run]
 ```
 
 | Verbo | O que faz | Flags principais | Saídas características |
 |---|---|---|---|
 | `plan` | Emite a matriz membro × folha × origem × corte, sem treinar, inferir nem criar artefato. | `--origin` (aceita `A..B`), `--corte` (`HH:00` ou `HH:30`, separados por vírgula), `--protocol` (`fixed`, `daily`, `retrain_harness`), `--dplus` | 0; 8 com corte, protocolo ou origem inválidos; 2 com protocolo incompatível com o modelo |
-| `backtest` | Executa a matriz do plano origem a origem, sob `run.lock/`, com ledger local. `--dry-run` é idêntico a `plan`. | as do `plan`, mais `--baseline`, `--report`, `--report-format` (`html`, `pdf`), `--resume`, `--keep-going` (default: fail-fast), `--break-lock`, `--jobs` (cluster PSOCK) | 0; 13 com lock ocupado (`--break-lock` retoma); 14 com entrega parcial |
+| `backtest` | Executa a matriz do plano origem a origem, sob `run.lock/`, com ledger local. `--dry-run` é idêntico a `plan`. | as do `plan`, mais `--baseline`, `--report`, `--report-format` (`html`, `pdf`), `--resume`, `--keep-going` (default: fail-fast), `--break-lock`, `--jobs` (cluster PSOCK), `--cache-only` (não treina: artefato fora do cache faz a célula falhar com `state.cache_miss`, com a chave esperada na mensagem) | 0; 8 com `--cache-only` e `retrain_harness` (`config.cache_only_coupled`); 13 com lock ocupado (`--break-lock` retoma); 14 com entrega parcial |
+| `cache import` | Importa artefatos prontos (qualquer layout com `v_<hash>/meta.json` e `object.rds` ou `object.parquet`) para `<state>/cache/<kind>/<hh>/<key>/`. Confere `key`, `kind` e sha256, copia sem symlink e é idempotente. Avisa por artefato cujo `code_commit` ou `renv_lock_hash` difere do código corrente, porque o backtest não vai achá-lo. | `--from` (obrigatória), `--state`, `--dry-run` (só lista), `--format=json` | 0; 8 sem `--from` válido; 9 com artefato inválido ou conflito de sha256; 13 sem nenhum artefato |
+
+A receita da rodada só de inferência (`cache import`, depois `backtest --protocol=daily --cache-only --jobs=N` sem `--area`, saída em `<state>/backtest/<run_id>/reconciled/<O>/<HHMM>/`) está em [Backtest e plano](/execucao/backtest#rodada-só-de-inferência-com-artefatos-prontos).
 
 Os defaults de `--corte` e `--protocol` vêm do `config.yaml` (`backtest.corte_default`) e do `run.yaml` do modelo (`backtest.protocol_default`).
 
