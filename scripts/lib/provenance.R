@@ -12,8 +12,9 @@
 ##   - freeze: saveRDS v3 BINARIO (IEEE-754) atomico (tmp no mesmo dir + file.rename) + `<p>.manifest.json` com sha256.
 ##     thaw confere o sha256 ANTES de desserializar. Integridade != autenticidade (nao ha assinatura).
 ##
-## Sem variaveis de ambiente: raiz sempre por argumento. Excecao dev documentada: `code_commit` usa `git`
-## (system2) so quando ha repositorio; senao 'unknown'. Requer errors.R (e topology.R/runtime.R no run-manifest).
+## Sem variaveis de ambiente: raiz sempre por argumento. `code_commit` vem do RUNTIME.json do bundle (root ou um
+## nivel acima); sem ele, git (system2) quando ha repositorio; senao 'unknown'. Requer errors.R (e
+## topology.R/runtime.R no run-manifest).
 
 .prevcarga_fingerprint_keys <- c("model_id", "data_fingerprint", "cutoff", "feature_config",
   "code_commit", "renv_lock_hash", "load_label", "load_tz")
