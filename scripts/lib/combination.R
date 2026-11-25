@@ -16,7 +16,7 @@
 ## sigla literal de membro. Erros por prevcarga_abort (errors.R; ids em errors/combination.tsv).
 ## Saida de terminal/mensagens: ASCII puro, sem acento.
 
-prevcarga_combina_defaults <- list(n_min = 24L, iters = 500L, grad_tol = 1e-6)
+prevcarga_combina_defaults <- list(n_min = 24L, iters = 500L, grad_tol = 1e-6, window_months = 24L)
 
 ## --- validacoes internas -------------------------------------------------------------------------
 .prevcarga_cmb_need <- function(panel, cols, fn) {
@@ -140,14 +140,27 @@ prevcarga_combina_month_start <- function(ym, tz) {
 ## O horizonte por membro so decide quais colunas f_* sao nao-NA; o corte de treino dos MEMBROS (M2)
 ## nao se aplica ao peso. Corte pelo `interval_start` do painel (anexado pela borda do LONG, ADR-0035): o
 ## intervalo cujo fim e inicio(m) entra, o do dia da 1a origem de m nao. Releitura do ADR-0026 [TBD: ADR-0026].
-prevcarga_combina_train_mask <- function(panel, m) {
+## Janela movel (0.1.8): so entram alvos com interval_start >= inicio(m) - window_months meses, ou seja, os
+## window_months meses-calendario anteriores a m. window_months = 0 desliga a janela (historico expansivel, como ate 0.1.7).
+.prevcarga_cmb_window <- function(window_months, fn) {
+  ok <- is.numeric(window_months) && length(window_months) == 1L && !is.na(window_months) &&
+    window_months >= 0 && window_months == floor(window_months)
+  if (!ok) prevcarga_abort("contract.combina_input", where = paste0(fn, ":window_months"))
+  as.integer(window_months)
+}
+
+prevcarga_combina_train_mask <- function(panel, m, window_months = prevcarga_combina_defaults$window_months) {
   .prevcarga_cmb_need(panel, c("target_datetime", "interval_start", "y_true"), "train_mask")
+  wm <- .prevcarga_cmb_window(window_months, "train_mask")
   if (!inherits(panel$target_datetime, "POSIXct"))
     prevcarga_abort("contract.combina_input", where = "train_mask:target_datetime sem POSIXct")
   tz <- attr(panel$target_datetime, "tzone")
   if (is.null(tz) || !nzchar(tz[1L]))
     prevcarga_abort("contract.combina_input", where = "train_mask:target_datetime sem tzone")
-  panel$interval_start < prevcarga_combina_month_start(m, tz[1L]) & !is.na(panel$y_true)
+  ms <- prevcarga_combina_month_start(m, tz[1L])
+  keep <- panel$interval_start < ms & !is.na(panel$y_true)
+  if (wm > 0L) keep <- keep & panel$interval_start >= (ms - lubridate::period(wm, "month"))
+  keep
 }
 
 ## --- fit expansivel por celula (lead, cut, ym) ---------------------------------------------------
@@ -165,8 +178,10 @@ prevcarga_combina_train_mask <- function(panel, m) {
 
 ## next_month = TRUE (so o train): cada (lead, cut) ganha a celula m_next = max(ym) + 1 mes, com os presentes do ultimo mes,
 ## a mesma mascara train_mask(grp, m_next), o mesmo n_min/taxonomia e o warm start do ultimo mes. Default = delta 0.
-prevcarga_combina_fit <- function(panel, n_min = 24L, iters = 500L, grad_tol = 1e-6, next_month = FALSE) {
+prevcarga_combina_fit <- function(panel, n_min = 24L, iters = 500L, grad_tol = 1e-6, next_month = FALSE,
+                                  window_months = prevcarga_combina_defaults$window_months) {
   .prevcarga_cmb_need(panel, c("lead", "cut", "ym", "target_datetime", "y_true"), "combina_fit")
+  window_months <- .prevcarga_cmb_window(window_months, "combina_fit")
   fcols <- .prevcarga_cmb_fcols(panel, "combina_fit")
   dt <- data.table::as.data.table(panel)
   keys <- unique(dt[, c("lead", "cut"), with = FALSE])
@@ -189,7 +204,7 @@ prevcarga_combina_fit <- function(panel, n_min = 24L, iters = 500L, grad_tol = 1
       fb <- if (!is_next && m == months[1L]) "first_month" else if (!length(present)) "no_member" else NA_character_
       n <- 0L
       if (is.na(fb)) {
-        ok <- prevcarga_combina_train_mask(grp, m) &
+        ok <- prevcarga_combina_train_mask(grp, m, window_months) &
           stats::complete.cases(Fm[, present, drop = FALSE])
         n <- sum(ok)
         if (n < n_min) fb <- "n_min"
@@ -728,9 +743,10 @@ prevcarga_combina_members_by_lead <- function(weights) {
 ## --- full: fit + produce num passo, sem artefato ------------------------------------------------------------
 ## Consome `panel$y_true` como recebido (nao junta verdade fresca, nao le disco): o honesty-gate perturba y_true.
 prevcarga_combina_full <- function(panel, ctx, t_cut = NULL, n_min = 24L, iters = 500L, grad_tol = 1e-6,
-                                   detail = FALSE) {
+                                   detail = FALSE, window_months = prevcarga_combina_defaults$window_months) {
   rows    <- .prevcarga_cmb_select_cut(panel, t_cut)
-  weights <- prevcarga_combina_fit(rows, n_min = n_min, iters = iters, grad_tol = grad_tol)
+  weights <- prevcarga_combina_fit(rows, n_min = n_min, iters = iters, grad_tol = grad_tol,
+                                   window_months = window_months)
   y       <- prevcarga_produce_combined(rows, weights)
   long    <- .prevcarga_cmb_to_long(rows, y, ctx)
   if (!detail) return(long)
@@ -767,6 +783,7 @@ prevcarga_combina_full <- function(panel, ctx, t_cut = NULL, n_min = 24L, iters 
     data_fingerprint = prevcarga_combina_panel_hash(panel),
     cutoff           = paste0(last_m, "-01"),
     feature_config   = list(area = area, n_min = cfg$n_min, iters = cfg$iters, grad_tol = cfg$grad_tol,
+                            window_months = cfg$window_months,
                             cuts = sort(unique(as.character(panel$cut)), method = "radix"),
                             member_set_hash = prevcarga_member_set_hash(members),
                             delivery_days = as.list(stats::setNames(as.integer(dd$delivery_days),
@@ -791,14 +808,17 @@ prevcarga_combina_full <- function(panel, ctx, t_cut = NULL, n_min = 24L, iters 
 
 ## --- train: fit de todos os cortes e leads + freeze content-addressed -------------------------------------------
 prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = prevcarga_members(root = root),
-                                    n_min = 24L, iters = 500L, grad_tol = 1e-6, trained_at = NULL) {
+                                    n_min = 24L, iters = 500L, grad_tol = 1e-6, trained_at = NULL,
+                                    window_months = prevcarga_combina_defaults$window_months) {
   if (!is.character(area) || length(area) != 1L || is.na(area) || !nzchar(area))
     prevcarga_abort("contract.combina_input", where = "train:area")
   if (!is.character(artifact_dir) || length(artifact_dir) != 1L || is.na(artifact_dir) || !nzchar(artifact_dir))
     prevcarga_abort("contract.combina_input", where = "train:artifact_dir")
   .prevcarga_cmb_need(panel, c("area", "forecast_origin", "cut"), "train")
-  weights <- prevcarga_combina_fit(panel, n_min = n_min, iters = iters, grad_tol = grad_tol, next_month = TRUE)
-  cfg <- list(n_min = as.integer(n_min), iters = as.integer(iters), grad_tol = grad_tol)
+  window_months <- .prevcarga_cmb_window(window_months, "train")
+  weights <- prevcarga_combina_fit(panel, n_min = n_min, iters = iters, grad_tol = grad_tol, next_month = TRUE,
+                                   window_months = window_months)
+  cfg <- list(n_min = as.integer(n_min), iters = as.integer(iters), grad_tol = grad_tol, window_months = window_months)
   last_ym <- if (nrow(panel)) max(panel$ym) else NA_character_
   next_ym <- if (nrow(panel)) .prevcarga_cmb_next_ym(last_ym, attr(panel$target_datetime, "tzone")[1L]) else NULL
   vh  <- prevcarga_version_hash(.prevcarga_cmb_fingerprint(area, panel, weights, cfg, members, root, next_ym = next_ym))
@@ -824,6 +844,7 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
   meta$model_versions <- structure(list(), names = character())    # provisorio (decisao do Gabriel): lista nomeada vazia
   meta$panel_last_ym <- last_ym                                    # E6: ultimo ym com origem no painel de train
   meta$next_ym <- next_ym                                          # E6: celula extra por (lead, cut) = cutoff do fingerprint
+  meta$window_months <- window_months                              # 0.1.8: janela movel do treino (0 = expansivel)
   obj <- list(meta = meta, weights = .prevcarga_cmb_plain_table(weights))
   pure <- list(meta = meta[setdiff(names(meta), "trained_at")], weights = obj$weights)
   prevcarga_plugin_scan_pure(pure)                                 # pureza (P.0d); trained_at e lateral declarada
@@ -938,7 +959,7 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
 ## Metrica so por prevcarga_scorecard (evaluation.R, M3.1): nenhuma conta de WMAPE aqui.
 
 ## simplex em toda celula fitada; norma do gradiente projetado BRUTO nas fitadas-e-convergidas (treino reconstruido)
-.prevcarga_cmb_property <- function(rows, weights) {
+.prevcarga_cmb_property <- function(rows, weights, window_months = prevcarga_combina_defaults$window_months) {
   .prevcarga_cmb_need(weights, c("lead", "cut", "ym", "a", "w", "fallback", "nonstationary"), "combina_gate")
   fitted <- is.na(weights$fallback)
   conv <- fitted & !(weights$nonstationary %in% TRUE)
@@ -949,7 +970,7 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
     w   <- weights$w[[i]]
     grp <- dt[dt$lead == weights$lead[i] & as.character(dt$cut) == weights$cut[i]]
     X   <- as.matrix(as.data.frame(grp)[, names(w), drop = FALSE])
-    ok  <- prevcarga_combina_train_mask(grp, weights$ym[i]) & stats::complete.cases(X)
+    ok  <- prevcarga_combina_train_mask(grp, weights$ym[i], window_months) & stats::complete.cases(X)
     if (!any(ok)) next
     norms <- c(norms, prevcarga_proj_grad_norm(X[ok, , drop = FALSE], grp$y_true[ok], w, weights$a[i]))
   }
@@ -1009,10 +1030,12 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
   out[]
 }
 
-prevcarga_combina_gate <- function(panel, ctx = NULL, t_cut = NULL, n_min = 24L, weights = NULL) {
+prevcarga_combina_gate <- function(panel, ctx = NULL, t_cut = NULL, n_min = 24L, weights = NULL,
+                                   window_months = prevcarga_combina_defaults$window_months) {
   rows <- .prevcarga_cmb_select_cut(panel, t_cut)
-  if (is.null(weights)) weights <- suppressWarnings(prevcarga_combina_fit(rows, n_min = n_min))
-  prop <- .prevcarga_cmb_property(rows, weights)
+  if (is.null(weights))
+    weights <- suppressWarnings(prevcarga_combina_fit(rows, n_min = n_min, window_months = window_months))
+  prop <- .prevcarga_cmb_property(rows, weights, window_months)
   qual <- .prevcarga_cmb_quality_report(rows, weights)
   list(property = prop, quality = qual, pass = prop$simplex_ok && prop$max_grad_norm < 1e-6)
 }

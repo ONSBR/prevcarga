@@ -48,9 +48,10 @@
 
 ## dispatch train/apply/full; `warns` acumula os avisos de nao-estacionariedade (muffled aqui, emitidos 1x)
 .prevcarga_cb_dispatch <- function(mode, area, panel, ctx, artifact_dir, t_cut, members) {
+  wm <- if (is.null(ctx$combina$window_months)) prevcarga_combina_defaults$window_months else ctx$combina$window_months
   switch(mode,
     train = {
-      r <- prevcarga_combina_train(area, panel, artifact_dir, root = ctx$root, members = members)
+      r <- prevcarga_combina_train(area, panel, artifact_dir, root = ctx$root, members = members, window_months = wm)
       list(weights = r$cells, version_hash = r$version_hash, artifact_path = file.path(r$path, "weights.rds"), long = NULL)
     },
     apply = {
@@ -58,7 +59,7 @@
       list(weights = r$weights, version_hash = r$version_hash, artifact_path = r$path, long = r$long)
     },
     full = {
-      r <- prevcarga_combina_full(panel, ctx, t_cut = t_cut, detail = TRUE)
+      r <- prevcarga_combina_full(panel, ctx, t_cut = t_cut, detail = TRUE, window_months = wm)
       list(weights = r$weights, version_hash = NULL, artifact_path = NULL, long = r$long)
     })
 }

@@ -257,7 +257,8 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
 .bt_combine <- function(ctx, panel, folha, corte, paths) {
   rctx <- ctx
   n_min <- if (is.null(ctx$combina$n_min)) 24L else as.integer(ctx$combina$n_min)
-  d <- prevcarga_combina_full(panel, rctx, n_min = n_min, detail = TRUE)
+  wm <- if (is.null(ctx$combina$window_months)) prevcarga_combina_defaults$window_months else ctx$combina$window_months
+  d <- prevcarga_combina_full(panel, rctx, n_min = n_min, detail = TRUE, window_months = wm)
   tag <- .bt_hhmm(corte)
   .m7_write_atomic(file.path(paths$combined, folha, tag, "combined.parquet"),
                    function(tmp) arrow::write_parquet(as.data.frame(d$long), tmp))
