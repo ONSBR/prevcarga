@@ -91,7 +91,7 @@ prevcarga_verb_train_models <- list(
     "--areas=<a,b>           Lista de areas separadas por virgula (exclusivo com --area/--subsistema)",
     "--horizon=<h>           Override de horizon_days do run.yaml (inteiro >= 1)",
     "--exogena=<e>           So membros com esta variante exogena",
-    "--dry-run               Emite a matriz (cortes e versao-alvo) sem gravar nada",
+    "--dry-run               Nao grava nada: train-models/backtest emitem a matriz; cache import lista o que entraria",
     "--jobs=<n>              Workers PSOCK (padrao 1; sem fork)",
     "--force                 Retreina mesmo se a versao v_<hash> ja existe"),
   scoped  = c("--horizon", "--exogena", "--keep-going"),   # so train-models; nos demais verbos => config.usage (cli.R .prevcarga_check_scoped)

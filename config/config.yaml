@@ -13,3 +13,5 @@ color: auto                             # auto|always|never; default auto
 format: text                            # text|json; default text
 backtest:
   corte_default: "08:00"                # HH:00 ou HH:30 (default 08:00); corte intradiario do backtest/plan (M7.1)
+combina:
+  window_months: 24                     # int >= 0 (default 24); janela movel do treino de pesos: meses antes do mes-de-origem; 0 = sem janela

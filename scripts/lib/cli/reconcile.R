@@ -53,7 +53,13 @@
 .prevcarga_rc_apply <- function(ctx, args, fl, topo) {
   from <- .prevcarga_rc_opt(args, "--leaves-dir")
   if (is.null(from)) prevcarga_abort("config.usage", where = "--leaves-dir")
+  t0 <- prevcarga_t0()
+  prevcarga_say(ctx, "reconcile apply: lendo folhas de %s", from)
   rd <- prevcarga_reconcile_read_from(from, ctx, topo)
+  got <- vapply(rd$leaves, function(l) l$area[[1L]], "")
+  miss <- setdiff(topo$leaves, got)
+  prevcarga_say(ctx, "reconcile apply: %d arquivos lidos em %s (%s)%s", length(got), prevcarga_since(t0),
+                paste(sort(got), collapse = ","), if (length(miss)) paste0("; faltam: ", paste(miss, collapse = ",")) else "")
   origins <- unique(unlist(lapply(rd$leaves, function(l) l$forecast_origin)))
   if (length(origins) == 1L && !is.null(ctx$origin) && !identical(origins, .prevcarga_rc_fmt(ctx$origin)))
     prevcarga_abort("contract.reconcile_input", where = "--origin",
@@ -80,6 +86,7 @@
     out <- file.path(scratch, run_id)
   }
   files <- prevcarga_reconcile_write(ap, out, run_id)
+  prevcarga_say(ctx, "reconcile apply: %d arquivos gravados em %s", length(files), out)
   res <- list(mode = "apply", origem = origins, subsistemas = as.list(sss), sin = !is.null(ap$long$SIN),
               window_days = fl$window_days, khat = khat, cobertura_descartada = ap$cobertura_descartada,
               out = out, arquivos = files, wmape = ap$wmape)

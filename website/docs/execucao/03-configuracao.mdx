@@ -66,6 +66,7 @@ O schema é fechado. Estas são as únicas chaves aceitas, e qualquer outra abor
 | `color` | enum | `auto`, `always`, `never` | `auto` | `--color` |
 | `format` | enum | `text`, `json` | `text` | `--format` |
 | `backtest.corte_default` | texto | `HH:00` ou `HH:30` | `"08:00"` | `--corte` (só em `backtest` e `plan`) |
+| `combina.window_months` | inteiro | `0` ou mais (meses) | `24` | nenhuma |
 
 Observações de cada chave:
 
@@ -78,6 +79,7 @@ Observações de cada chave:
 - **`weather_issue_cutoff`** escolhe a regra do clima previsto (ADR-0024). Com `available_until`, a emissão só entra se `issue_time` for no máximo `available_until` menos o atraso de publicação do manifest. Com `origin_midnight_utc`, o limite é 00:00 UTC do dia O, sem atraso.
 - **`color`** com `auto` só colore se a saída for um terminal e o sistema não for Windows.
 - **`backtest`** é um mapa com uma única chave, `corte_default`. Outra chave dentro dele aborta com `config.unknown_key` (`where` = `backtest.<chave>`). Um valor fora da grade de 30 minutos, como `"08:15"`, aborta com `config.bad_type`.
+- **`combina`** é um mapa com uma única chave, `window_months`: a janela móvel, em meses, do treino de pesos da combina (`combine --mode=train` e `full` e a combina do backtest). Os pesos do mês m usam só alvos dos `window_months` meses anteriores a m. `0` desliga a janela e usa todo o histórico. Um valor negativo ou fracionário aborta com `config.bad_type` (`where` = `combina.window_months`), e outra chave dentro do mapa, com `config.unknown_key`. A janela entra na identidade do artefato da combina: trocá-la gera uma versão nova dos pesos. O método está em [Combinação convexa](/metodologia/combina).
 
 ### Exemplo
 
@@ -90,6 +92,8 @@ color: auto
 format: text
 backtest:
   corte_default: "08:00"
+combina:
+  window_months: 24
 ```
 
 Os caminhos acima são ilustrativos. O `load_label` foi omitido de propósito: com um manifest que o declara, o valor do `config.yaml` nunca é usado.

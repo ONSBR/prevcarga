@@ -346,7 +346,7 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
       acc$fails[[length(acc$fails) + 1L]] <- list(error_class = e$error_class, error_id = e$error_id,
                                                   mensagem = e$mensagem, i = i)
       acc$failed <- acc$failed + 1L
-      if (isTRUE(keep_going))
+      if (isTRUE(keep_going) || isTRUE(ctx$say))      # 0.1.8: a falha sempre aparece no log (antes so com --keep-going)
         message(iconv(sprintf("falha %s %s %s %s %s: %s", cells$membro[[i]], cells$folha[[i]],
                               format(cells$origem[[i]], "%Y-%m-%d"), cells$corte_hm[[i]], e$error_id, e$mensagem),
                       "UTF-8", "ASCII", sub = "?"))
@@ -361,6 +361,9 @@ prevcarga_plan <- function(ctx, origins, cortes, members = NULL, folhas = NULL, 
   acc <- .m7_acc(ctx, state, done0)
   seeds <- if (length(todo)) .m7_cell_seeds(ctx, cells, todo) else integer()
   for (i in todo) {
+    prevcarga_say(ctx, "backtest: celula %d/%d inicio %s %s %s %s (%s)", match(i, todo) + done0, total, cells$membro[[i]],
+                  cells$folha[[i]], format(cells$origem[[i]], "%Y-%m-%d"), cells$corte_hm[[i]],
+                  paste(cells$split[[i]], cells$protocol[[i]], sep = "/"))
     stop_now <- .m7_collect(ctx, i, list(.m7_cell_exec(ctx, run_id, cells[i], run_cell, seeds[[i]])), keep_going, acc, total, cells)
     if (stop_now) break
   }
@@ -447,6 +450,8 @@ prevcarga_orchestrate <- function(ctx, plan, run_cell, jobs = 1L, keep_going = F
   }, "")
   done0 <- sum(state == "done")
   todo <- .m7_dispatch_order(which(state != "done"), cells)
+  prevcarga_say(ctx, "backtest: run %s: %d celulas, %d ja feitas, %d a rodar, jobs=%d", run_id, total, done0, length(todo),
+                as.integer(jobs))
   r <- .m7_dispatch(ctx, run_id, cells, todo, run_cell, as.integer(jobs), keep_going, state, done0, total)
   state <- r$state
 
@@ -533,8 +538,19 @@ prevcarga_plan_result <- function(plan) {
       format(ft$origem[[i]], "%Y-%m-%d"), format(ft$available_until[[i]], "%H:%M"), ft$classe[[i]], ft$mensagem[[i]]), ""))
 }
 
+## --cache-only (v0.1.8): o forecast acoplado (retrain_harness) treina dentro da celula; recusa ANTES do MAP (nada escrito).
+.m7_cache_only_guard <- function(ctx, plan) {
+  if (!isTRUE(ctx$cache_only)) return(invisible(NULL))
+  bad <- unique(plan$cells$membro[plan$cells$protocol == "retrain_harness"])
+  if (length(bad)) prevcarga_abort("config.cache_only_coupled", where = "--cache-only",
+                                   details = list(membros = as.list(bad)))
+  invisible(NULL)
+}
+
 prevcarga_backtest_run <- function(ctx, args) {
+  ctx$cache_only <- isTRUE(args[["--cache-only"]])
   plan <- prevcarga_plan_request(ctx, args)
+  .m7_cache_only_guard(ctx, plan)
   jobs <- .prevcarga_tr_arg(args, "--jobs")
   jobs <- if (is.null(jobs)) 1L else suppressWarnings(as.integer(jobs))
   out <- prevcarga_orchestrate(ctx, plan, .m7_run_cell_for(ctx, plan), jobs = jobs,

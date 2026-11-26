@@ -288,6 +288,8 @@ prevcarga_emit <- function(out, ctx, verb, warnings = list(), exit_code = 0L) {
     tryCatch(prevcarga_ctx(args, root, verb),
              prevcarga_error = function(e) .prevcarga_ctx_tolerant(args, root, verb, error = e))
   } else prevcarga_ctx(args, root, verb)
+  ctx$say <- TRUE                                           # progresso no stderr (prevcarga_say, 0.1.8)
+  ctx$say_clock <- prevcarga_wall_hms                       # HH:MM:SSZ do prefixo (config.R)
   st$ctx <- ctx
   if (!isTRUE(row$exempt)) {                                # papel do deck: antes de modules e do handler
     dr <- row$deck_roles[[1L]]

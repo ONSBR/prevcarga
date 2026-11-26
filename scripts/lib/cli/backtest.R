@@ -3,13 +3,18 @@
 ## Roda a matriz do plano origem a origem (uma treina+infere por origem; nada fitado numa origem e reusado noutra),
 ## serial (--jobs 1) ou cluster PSOCK (--jobs N, M7.6), sob run.lock/, com ledger local (--resume), fail-fast ou --keep-going.
 ## Entrega parcial => exit 14 partial.backtest_delivery; lock ocupado => exit 13 state.lock_held (--break-lock retoma).
-## `--dry-run` e identico a `plan` (mesmo handler). Flags --origin/--model/--area/--baseline/--dry-run/--jobs: ver plan.R.
+## `--cache-only` (v0.1.8): rodada so de inferencia; artefato ausente do cache => celula falha com state.cache_miss, sem treinar.
+## `--dry-run` e identico a `plan` (mesmo handler), mais a recusa de --cache-only com retrain_harness (exit 8, como a rodada).
+## Flags --origin/--model/--area/--baseline/--dry-run/--jobs: ver plan.R.
 ## Requer errors.R, config.R, topology.R, provenance.R, deck_reader.R, dates.R, registry.R, training.R, inference.R, build_long_output.R, evaluation.R, combination.R, reconcile.R, cache.R, orchestrate.R, backtest.R (M7.3 MAP, M7.7 REDUCE).
 
 cmd_backtest <- function(ctx, args) {
   prevcarga_require_deck(ctx)
   if (isTRUE(args[["--dry-run"]])) {
-    res <- prevcarga_plan_result(prevcarga_plan_request(ctx, args))
+    ctx$cache_only <- isTRUE(args[["--cache-only"]])
+    plan <- prevcarga_plan_request(ctx, args)
+    .m7_cache_only_guard(ctx, plan)                        # antecipa a recusa da rodada real (exit 8)
+    res <- prevcarga_plan_result(plan)
     return(if (identical(ctx$format, "json")) res else .m7_plan_text(res))
   }
   rf <- .prevcarga_tr_arg(args, "--report-format")
@@ -23,7 +28,7 @@ prevcarga_verb_backtest <- list(
   name    = "backtest",
   usage   = paste("prevcarga backtest --origin=<data> [--model=<m>] [--area=<a>] [--corte=<HH:MM,...>]",
                   "[--protocol=<p>] [--dplus] [--baseline=<b>] [--report] [--report-format=<f>] [--resume]",
-                  "[--keep-going] [--break-lock] [--jobs=<n>] [--dry-run]"),
+                  "[--keep-going] [--break-lock] [--cache-only] [--jobs=<n>] [--dry-run]"),
   options = c(
     "--corte=<c>             Cortes intradiarios HH:00 ou HH:30, separados por virgula (padrao backtest.corte_default)",
     "--protocol=<p>          fixed, daily ou retrain_harness (padrao backtest.protocol_default do run.yaml)",
@@ -32,8 +37,9 @@ prevcarga_verb_backtest <- list(
     "--report-format=<f>     Formato do relatorio: html ou pdf",
     "--resume                Pula as celulas ja concluidas (ledger por presenca)",
     "--keep-going            Continua apos a 1a falha (padrao: fail-fast)",
-    "--break-lock            Retoma um run.lock/ deixado por outra execucao"),
-  scoped  = c("--corte", "--protocol", "--dplus", "--report", "--report-format", "--resume", "--keep-going", "--break-lock"),
+    "--break-lock            Retoma um run.lock/ deixado por outra execucao",
+    "--cache-only            Nao treina: celula sem artefato no cache falha (state.cache_miss); importe com cache import"),
+  scoped  = c("--corte", "--protocol", "--dplus", "--report", "--report-format", "--resume", "--keep-going", "--break-lock", "--cache-only"),
   handler = function(ctx, args) cmd_backtest(ctx, args),
   owner   = "M7",
   exempt  = FALSE,

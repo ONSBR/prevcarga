@@ -33,11 +33,13 @@
 ## `dplus` e `baseline` alimentam o REDUCE (M7.7); `report`/`report_format` ligam o relatorio do backtest (M7.4, secao 9).
 prevcarga_backtest <- function(ctx, origins, models = NULL, areas = NULL, cortes = NULL, protocol = NULL, dplus = NULL,
                                baseline = "todos", resume = FALSE, keep_going = FALSE, break_lock = FALSE, jobs = 1L,
-                               report = FALSE, report_format = "html") {
+                               report = FALSE, report_format = "html", cache_only = FALSE) {
+  ctx$cache_only <- isTRUE(cache_only)
   default <- if (is.null(ctx$backtest$corte_default)) "08:00" else ctx$backtest$corte_default
   cortes <- .m7_parse_cortes(cortes, default)
   ## o plano valida a matriz classe x protocolo: incompativel aborta AQUI, antes de qualquer celula ou arquivo
   plan <- prevcarga_plan(ctx, origins, cortes, protocol = protocol, filters = list(model = models, area = areas))
+  .m7_cache_only_guard(ctx, plan)
   map <- prevcarga_orchestrate(ctx, plan, .bt_make_run_cell(ctx, plan), jobs = jobs, keep_going = keep_going,
                                resume = resume, break_lock = break_lock)
   map$summary$weather_issue_cutoff <- plan$weather_issue_cutoff     # regra efetiva (flag > config.yaml > default), so registrada
@@ -108,12 +110,29 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   .bt_lateral_memo[[k]]
 }
 
+## --cache-only (v0.1.8): MISS nao treina. A chave esperada vai na MENSAGEM (o ledger/failures.jsonl guarda so a mensagem).
+.bt_cache_miss <- function(cell, key) {
+  cond <- prevcarga_condition("state.cache_miss", where = key,
+                              details = list(kind = "artifact", membro = cell$membro, folha = cell$folha,
+                                             train_origin = format(cell$train_origin, "%Y-%m-%d")))
+  cond$message <- sprintf("%s: chave %s (artifact, %s %s train_origin=%s)", cond$message, key, cell$membro, cell$folha,
+                          format(cell$train_origin, "%Y-%m-%d"))
+  stop(cond)
+}
+
 .bt_artifact <- function(ctx, plan, cell) {
   spec <- .bt_spec(ctx, cell)
   args <- .bt_key_args(ctx, plan, cell, spec)
   key <- do.call(prevcarga_cache_key, args)
   art <- prevcarga_cache_get(ctx, key, "artifact")
-  if (!is.null(art)) return(art)
+  tag <- sprintf("%s %s train_origin=%s", cell$membro, cell$folha, format(.bt_train_origin(plan, cell), "%Y-%m-%d"))
+  if (!is.null(art)) {
+    prevcarga_say(ctx, "backtest: %s: artefato do cache (HIT %s)", tag, key)
+    return(art)
+  }
+  if (isTRUE(ctx$cache_only)) .bt_cache_miss(cell, key)
+  prevcarga_say(ctx, "backtest: %s: cache MISS, lendo insumos do treino", tag)
+  t0 <- prevcarga_t0()
   member <- .bt_member(cell)
   inp <- prevcarga_train_inputs(member, cell$folha, .bt_train_origin(plan, cell), ctx)
   ## o treino deriva os mesmos cortes do dates.R que o plano: qualquer divergencia e bug, nunca um recalculo
@@ -123,7 +142,11 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
                                    plan_last_data_day = format(cell$last_data_day),
                                    last_data_day = format(inp$cuts$last_data_day)))
   pctx <- list(load_label = inp$cuts$load_label, timezone = inp$cuts$tz, weather_issue_cutoff = inp$cuts$weather_issue_cutoff)
+  prevcarga_say(ctx, "backtest: %s: insumos em %s (painel %d linhas, ultimo dia %s); treinando", tag,
+                prevcarga_since(t0), NROW(inp$panel), format(inp$cuts$last_data_day, "%Y-%m-%d"))
+  t0 <- prevcarga_t0()
   fit <- prevcarga_plugin_train(inp$plugin, inp$panel, inp$cuts, inp$spec, pctx)
+  prevcarga_say(ctx, "backtest: %s: treino em %s", tag, prevcarga_since(t0))
   art <- prevcarga_artifact_build(member, cell$folha, inp, fit)
   prevcarga_cache_put(ctx, key, "artifact", art, identity = do.call(prevcarga_cache_identity, args), lateral = .bt_lateral(ctx))
   art
@@ -137,7 +160,10 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   member <- .bt_member(cell)
   if (!.m7_class(.bt_spec(ctx, cell), cell$protocol)$coupled_forecast) {
     art <- .bt_artifact(ctx, plan, cell)
+    t0 <- prevcarga_t0()
     res <- prevcarga_infer_cell(member, cell$folha, cell$origem, ctx, artifact = art, truncate_at = cut)
+    prevcarga_say(ctx, "backtest: %s %s %s: inferencia em %s (%d linhas)", cell$membro, cell$folha,
+                  format(cell$origem, "%Y-%m-%d"), prevcarga_since(t0), NROW(res$predictions))
     plugin <- prevcarga_plugin_load(cell$mdir, prevcarga_models_root(ctx$root))
     p <- res$predictions
     return(list(delivery = data.table::data.table(interval_end = p$target_datetime, y_pred = p$y_pred),
@@ -150,9 +176,15 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   ## o painel do forecast carrega a historia do treino E a do infer (o despachante fatia o treino em last_data_day)
   rspec <- spec
   rspec$history_days$infer <- max(spec$history_days$train, spec$history_days$infer)
+  tag <- sprintf("%s %s %s", cell$membro, cell$folha, format(cell$origem, "%Y-%m-%d"))
+  t0 <- prevcarga_t0()
   rp <- prevcarga_infer_read_panel(plugin, rspec, cuts, cell$folha, cell$origem, ctx, truncate_at = cut)
+  prevcarga_say(ctx, "backtest: %s: painel do forecast em %s (%d linhas); treino+inferencia acoplados", tag,
+                prevcarga_since(t0), NROW(rp$panel))
+  t0 <- prevcarga_t0()
   pctx <- list(load_label = rp$cuts$load_label, timezone = rp$cuts$tz, weather_issue_cutoff = rp$cuts$weather_issue_cutoff)
   env <- prevcarga_plugin_forecast(plugin, rp$panel, rp$cuts, spec, pctx)
+  prevcarga_say(ctx, "backtest: %s: forecast em %s", tag, prevcarga_since(t0))
   list(delivery = data.table::data.table(interval_end = env$delivery$interval_end, y_pred = env$delivery$y_pred),
        available_until = rp$cuts$available_until, descriptor = plugin$descriptor)
 }
@@ -244,7 +276,8 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
 .bt_combine <- function(ctx, panel, folha, corte, paths) {
   rctx <- ctx
   n_min <- if (is.null(ctx$combina$n_min)) 24L else as.integer(ctx$combina$n_min)
-  d <- prevcarga_combina_full(panel, rctx, n_min = n_min, detail = TRUE)
+  wm <- if (is.null(ctx$combina$window_months)) prevcarga_combina_defaults$window_months else ctx$combina$window_months
+  d <- prevcarga_combina_full(panel, rctx, n_min = n_min, detail = TRUE, window_months = wm)
   tag <- .bt_hhmm(corte)
   .m7_write_atomic(file.path(paths$combined, folha, tag, "combined.parquet"),
                    function(tmp) arrow::write_parquet(as.data.frame(d$long), tmp))
@@ -439,10 +472,14 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   folhas <- sort(unique(status$folha), method = "radix")
   cortes <- sort(unique(status$corte_hm), method = "radix")
   combined <- list(); fallback <- list(); mem <- list()
+  t_red <- prevcarga_t0()
+  prevcarga_say(ctx, "backtest: reduce: combina de %d folhas x %d cortes", length(folhas), length(cortes))
   for (cr in cortes) for (f in folhas) {
     panel <- .bt_reduce_panel(ctx, plan, status, paths, f, cr)
     if (is.null(panel)) next
+    t0 <- prevcarga_t0()
     cb <- .bt_combine(ctx, panel, f, cr, paths)
+    prevcarga_say(ctx, "backtest: reduce: combina %s corte %s em %s", f, cr, prevcarga_since(t0))
     combined[[cr]][[f]] <- cb$long
     fallback[[length(fallback) + 1L]] <- cb$fallback
     for (i in which(status$state == "done" & status$folha == f & status$corte_hm == cr)) {
@@ -454,6 +491,8 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   ## so ha reconcile quando o plano cobre TODAS as folhas da topologia (um --area parcial nao e origem incompleta)
   can_reconcile <- setequal(folhas, topo$leaves)
   incompleto <- list(); rec <- list(); fails <- list()
+  if (!can_reconcile)
+    prevcarga_say(ctx, "backtest: reduce: sem reconcile (plano cobre %d de %d folhas)", length(folhas), length(topo$leaves))
   if (can_reconcile) for (cr in cortes) {
     cells <- unique(status[status$corte_hm == cr, c("origem", "available_until")])
     cells <- cells[order(cells$origem), ]
@@ -461,6 +500,8 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
       r <- tryCatch(.bt_reconcile(ctx, plan, combined[[cr]], cells$origem[[k]], cr, cells$available_until[[k]], paths),
                     prevcarga_error = function(e) e)
       if (inherits(r, "prevcarga_error")) {
+        prevcarga_say(ctx, "backtest: reduce: reconcile %s %s FALHOU %s: %s", format(cells$origem[[k]], "%Y-%m-%d"), cr,
+                      r$id, conditionMessage(r))
         fails[[length(fails) + 1L]] <- data.table::data.table(origem = cells$origem[[k]], corte_hm = cr,
           error_id = r$id, mensagem = conditionMessage(r))
       } else if (!is.null(r$incompleto)) incompleto[[length(incompleto) + 1L]] <- r$incompleto
@@ -473,8 +514,10 @@ prevcarga_backtest_cell_runner <- function(ctx, plan) .bt_make_run_cell(ctx, pla
   }))
   if (nrow(cbl)) cbl <- data.table::as.data.table(.bt_check_long(cbl, rctx))
   rcl <- if (length(rec)) data.table::as.data.table(.bt_check_long(data.table::rbindlist(rec), rctx)) else NULL
+  prevcarga_say(ctx, "backtest: reduce: avaliando (%s ate aqui)", prevcarga_since(t_red))
   scores <- .bt_evaluate(ctx, plan, data.table::rbindlist(mem), if (nrow(cbl)) cbl else NULL, rcl, dplus, baseline, paths,
                          plan$origins)
+  prevcarga_say(ctx, "backtest: reduce: fim em %s", prevcarga_since(t_red))
   scores$fallback_months <- data.table::rbindlist(fallback)
   list(incompleto = data.table::rbindlist(incompleto), fallback = data.table::rbindlist(fallback),
        failures = data.table::rbindlist(fails), scores = scores)

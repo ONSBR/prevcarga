@@ -25,7 +25,19 @@
                error_id = "config.bad_color"),
   format = list(default = "text", kind = "enum", allowed = c("text", "json"),
                 error_id = "config.bad_format"),
-  backtest = list(default = list(corte_default = "08:00"), kind = "map")
+  backtest = list(default = list(corte_default = "08:00"), kind = "map"),
+  combina = list(default = list(window_months = 24L), kind = "map")
+)
+
+## Subchaves de cada mapa: validador (TRUE = ok) e o que a mensagem de config.bad_type diz que se espera.
+.prevcarga_config_map_keys <- list(
+  backtest = list(corte_default = list(
+    ok = function(v) is.character(v) && length(v) == 1L && grepl(.prevcarga_corte_re, v),
+    expected = "HH:00 ou HH:30")),
+  combina = list(window_months = list(
+    ok = function(v) is.numeric(v) && length(v) == 1L && !is.na(v) && v >= 0 && v == floor(v),
+    expected = "inteiro >= 0 (meses; 0 = sem janela)",
+    cast = as.integer))
 )
 
 .prevcarga_config_defaults <- function() {
@@ -68,12 +80,18 @@ prevcarga_config_load <- function(path) {
       if (is.null(v)) next
       if (!is.list(v) || (length(v) && is.null(names(v))))
         prevcarga_abort("config.bad_type", where = k, details = list(expected = "mapa"))
-      extra <- setdiff(names(v), "corte_default")
+      spec <- .prevcarga_config_map_keys[[k]]
+      extra <- setdiff(names(v), names(spec))
       if (length(extra)) prevcarga_abort("config.unknown_key", where = paste0(k, ".", extra[[1L]]))
-      cd <- v[["corte_default"]]
-      if (!is.null(cd) && !(is.character(cd) && length(cd) == 1L && grepl(.prevcarga_corte_re, cd)))
-        prevcarga_abort("config.bad_type", where = "backtest.corte_default", details = list(expected = "HH:00 ou HH:30"))
-      out[[k]] <- list(corte_default = if (is.null(cd)) .prevcarga_config_schema$backtest$default$corte_default else cd)
+      m <- s$default
+      for (sk in names(spec)) {
+        sv <- v[[sk]]
+        if (is.null(sv)) next
+        if (!isTRUE(spec[[sk]]$ok(sv)))
+          prevcarga_abort("config.bad_type", where = paste0(k, ".", sk), details = list(expected = spec[[sk]]$expected))
+        m[[sk]] <- if (is.null(spec[[sk]]$cast)) sv else spec[[sk]]$cast(sv)
+      }
+      out[[k]] <- m
     } else if (!is.null(v)) {
       .prevcarga_check_value(k, v, s)
       out[[k]] <- if (identical(s$kind, "int")) as.integer(v) else v
@@ -190,6 +208,7 @@ prevcarga_ctx <- function(args, root, verb = NULL) {
     color = color,
     debug = isTRUE(args[["--debug"]]),
     backtest = list(corte_default = cfg$backtest$corte_default),
+    combina = list(window_months = cfg$combina$window_months),
     version = version,
     run_id = prevcarga_run_id(),
     verb = verb)
@@ -337,3 +356,6 @@ prevcarga_set_data_dir_interactive <- function(ctx, base, input = stdin(), is_tt
   res <- prevcarga_config_set_keys(ctx, want[chg])
   c(res, list(gravado = TRUE))
 }
+
+## Relogio de parede do prefixo do progresso (prevcarga_say, 0.1.8): "HH:MM:SSZ" em UTC. So exibicao, nunca identidade.
+prevcarga_wall_hms <- function() format(lubridate::now(tzone = "UTC"), "%H:%M:%SZ")
