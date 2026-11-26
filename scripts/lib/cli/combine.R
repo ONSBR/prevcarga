@@ -69,15 +69,24 @@
        origin_to = if (length(origins)) origins[[length(origins)]] else NULL)
 }
 
+## train --origin=<data> (0.1.9): o mes da origem e o mes alvo; o treino usa so origens ate o mes anterior
+.prevcarga_cb_target_ym <- function(origin) {
+  if (is.null(origin)) return(NULL)
+  sprintf("%04d-%02d", lubridate::year(origin), lubridate::month(origin))
+}
+
 ## dispatch train/apply/full; `warns` acumula os avisos de nao-estacionariedade (muffled aqui, emitidos 1x)
 .prevcarga_cb_dispatch <- function(mode, area, panel, ctx, artifact_dir, t_cut, members) {
-  wm <- if (is.null(ctx$combina$window_months)) prevcarga_combina_defaults$window_months else ctx$combina$window_months
+  cc <- ctx[["combina"]]                          # [[ ]]: `$` casaria parcialmente com ctx$combina_all_months
+  wm <- if (is.null(cc[["window_months"]])) prevcarga_combina_defaults$window_months else cc[["window_months"]]
   switch(mode,
     train = {
       r <- prevcarga_combina_train(area, panel, artifact_dir, root = ctx$root, members = members, window_months = wm,
                                    say = function(fmt, ...) prevcarga_say(ctx, paste0("combine ", area, ": ", fmt), ...),
-                                   only_next = !isTRUE(ctx$combina_all_months))   # 0.1.8: so o mes que o apply le
-      list(weights = r$cells, version_hash = r$version_hash, artifact_path = file.path(r$path, "weights.rds"), long = NULL)
+                                   only_next = !isTRUE(ctx$combina_all_months),   # 0.1.8: so o mes que o apply le
+                                   target_ym = .prevcarga_cb_target_ym(ctx$origin))  # 0.1.9: --origin = mes alvo
+      list(weights = r$cells, version_hash = r$version_hash, artifact_path = file.path(r$path, "weights.rds"), long = NULL,
+           target_month = r$next_ym, latest = r$latest)
     },
     apply = {
       r <- prevcarga_combina_apply(area, artifact_dir, panel, ctx, t_cut = t_cut, members = members, detail = TRUE)
@@ -146,7 +155,7 @@ prevcarga_build_combine <- function(ctx, opts) {
   mbl <- prevcarga_combina_members_by_lead(w)
   if (n_cap > 0L) prevcarga_warn("warning.combina_nonstationary", details = list(cells = n_cap))
   list(mode = mode, area = area, version_hash = r$version_hash, artifact_path = r$artifact_path,
-       out_path = out_path,
+       out_path = out_path, target_month = r$target_month, latest_updated = r$latest,
        n_cells_fitted = as.integer(length(which(is.na(w$fallback)))),
        n_cells_eqw = as.integer(length(which(!is.na(w$fallback)))),
        n_cells_nonstationary = as.integer(length(which(w$nonstationary %in% TRUE))),
@@ -169,6 +178,8 @@ prevcarga_build_combine <- function(ctx, opts) {
     sprintf("celulas: fitadas=%d eqw=%d nao-estacionarias=%d", res$n_cells_fitted, res$n_cells_eqw,
             res$n_cells_nonstationary),
     paste0("membros: ", paste(unlist(res$members_present), collapse = " ")),
+    if (!is.null(res$target_month))
+      sprintf("mes alvo: %s (latest.txt %s)", res$target_month, if (isTRUE(res$latest_updated)) "atualizado" else "mantido"),
     if (!is.null(res$artifact_path)) paste0("artefato: ", res$artifact_path),
     if (!is.null(res$out_path)) paste0("saida: ", res$out_path),
     "OK")
