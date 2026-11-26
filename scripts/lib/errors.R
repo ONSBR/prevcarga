@@ -229,3 +229,19 @@ prevcarga_export_error_catalog <- function(path, dir = prevcarga_errors_dir()) {
   writeBin(charToRaw(enc2utf8(paste0(paste(lines, collapse = "\n"), "\n"))), path)
   invisible(path)
 }
+
+## --- Progresso no stderr (0.1.8) ----------------------------------------------------------------------------------
+## Uma linha ASCII "HH:MM:SSZ <verbo>: <texto>" por etapa. O stdout fica so com o envelope (--format=json intacto).
+## So fala quando a fachada liga ctx$say (cli.R, .prevcarga_run_verb); chamada de biblioteca e teste ficam mudos.
+## O relogio de parede vem de ctx$say_clock (config.R, prevcarga_wall_hms): este arquivo nao le relogio.
+prevcarga_say <- function(ctx, fmt, ...) {
+  if (!isTRUE(ctx$say)) return(invisible(FALSE))
+  msg <- if (...length()) sprintf(fmt, ...) else fmt
+  ts <- if (is.function(ctx$say_clock)) paste0(ctx$say_clock(), " ") else ""
+  writeLines(paste0(ts, iconv(msg, "UTF-8", "ASCII", sub = "?")), con = stderr())
+  invisible(TRUE)
+}
+
+## relogio monotono para medir etapa (segundos); prevcarga_since(t0) = "12.3s"
+prevcarga_t0 <- function() proc.time()[["elapsed"]]
+prevcarga_since <- function(t0) sprintf("%.1fs", proc.time()[["elapsed"]] - t0)

@@ -356,3 +356,6 @@ prevcarga_set_data_dir_interactive <- function(ctx, base, input = stdin(), is_tt
   res <- prevcarga_config_set_keys(ctx, want[chg])
   c(res, list(gravado = TRUE))
 }
+
+## Relogio de parede do prefixo do progresso (prevcarga_say, 0.1.8): "HH:MM:SSZ" em UTC. So exibicao, nunca identidade.
+prevcarga_wall_hms <- function() format(lubridate::now(tzone = "UTC"), "%H:%M:%SZ")

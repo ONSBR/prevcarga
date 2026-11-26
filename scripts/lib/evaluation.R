@@ -138,6 +138,11 @@ prevcarga_assert_long <- function(long, ctx) {
   long
 }
 
+## Pacote de runs por area (combine --runs / --mode=pack, 0.1.8): E/S crua do parquet. A validacao (colunas, LONG pelo
+## prevcarga_assert_long, proveniencia) e do leitor do pacote em combination.R.
+prevcarga_pack_read_raw <- function(path) as.data.frame(arrow::read_parquet(path))
+prevcarga_pack_write_raw <- function(df, path) arrow::write_parquet(as.data.frame(df), path)
+
 ## LEITOR UNICO de LONG em disco; nao constroi LONG (build_long_output e do M6).
 prevcarga_read_long <- function(path, ctx) {
   if (!is.character(path) || length(path) != 1L || !file.exists(path))

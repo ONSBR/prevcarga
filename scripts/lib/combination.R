@@ -54,12 +54,19 @@ prevcarga_proj_simplex <- function(v) {
   if (!is.numeric(v) || length(v) < 1L || anyNA(v))
     prevcarga_abort("contract.combina_input", where = "proj_simplex:v")
   if (length(v) == 1L) return(stats::setNames(1, names(v)))
-  u   <- sort(v, decreasing = TRUE)
+  .prevcarga_proj_simplex_fast(v)                     # preserva names(v)
+}
+
+## caminho quente do FISTA (0.1.8): sem validacao nem despacho S3 (sort/pmax/tail custavam ~70% do fit). Mesmos numeros:
+## sort.int radix ordena os mesmos valores; max(which()) = ULTIMO TRUE; corte em 0 = pmax(x, 0) sem NA.
+.prevcarga_proj_simplex_fast <- function(v) {
+  if (length(v) == 1L) { v[] <- 1; return(v) }
+  u   <- sort.int(v, decreasing = TRUE, method = "radix")
   css <- cumsum(u) - 1
-  ind <- seq_along(u)
-  rho <- utils::tail(which(u - css / ind > 0), 1L)   # ULTIMO TRUE, nunca which.max
-  theta <- css[rho] / rho
-  pmax(v - theta, 0)                                  # preserva names(v)
+  rho <- max(which(u - css / seq_along(u) > 0))      # ULTIMO TRUE, nunca which.max
+  x   <- v - css[rho] / rho
+  x[x < 0] <- 0
+  x
 }
 
 ## --- estacionariedade e FISTA --------------------------------------------------------------------
@@ -78,7 +85,7 @@ prevcarga_proj_simplex <- function(v) {
 ## norma do gradient mapping no simplex: L * || w - P(w - g/L) ||
 .prevcarga_cmb_grad_map <- function(g, w, L) {
   w <- unname(w)
-  sqrt(sum((L * (w - unname(prevcarga_proj_simplex(w - g / L))))^2))
+  sqrt(sum((L * (w - unname(.prevcarga_proj_simplex_fast(w - g / L))))^2))
 }
 
 ## medida unica de estacionariedade, direto do objetivo BRUTO ||y - (a + Xw)||^2; o solver para por ela
@@ -110,7 +117,7 @@ prevcarga_fit_convex <- function(X, y, w0 = NULL, iters = 500L, grad_tol = 1e-6)
   while (it < iters) {
     it <- it + 1L
     g <- 2 * (drop(cz$G %*% z) - cz$b)
-    w_new <- unname(prevcarga_proj_simplex(z - g / cz$L))
+    w_new <- unname(.prevcarga_proj_simplex_fast(z - g / cz$L))
     t_new <- (1 + sqrt(1 + 4 * t^2)) / 2
     z <- w_new + ((t - 1) / t_new) * (w_new - w)
     w <- w_new; t <- t_new
@@ -176,57 +183,70 @@ prevcarga_combina_train_mask <- function(panel, m, window_months = prevcarga_com
   format(m0 + lubridate::period(1L, "month"), "%Y-%m", tz = tz)
 }
 
+## --- uma celula (lead, cut, m) do grupo. `g` = list(grp, Fm, months, cfg); `acc` = list(rows, w_prev) (warm start de m-1)
+.prevcarga_cmb_fit_cell <- function(acc, m, g) {
+  cfg <- g$cfg; months <- g$months; Fm <- g$Fm; grp <- g$grp
+  is_next <- !m %in% months
+  in_cell <- grp$ym == if (is_next) max(months) else m
+  present <- cfg$fcols[colSums(!is.na(Fm[in_cell, , drop = FALSE])) > 0L]
+  fb <- if (!is_next && m == months[1L]) "first_month" else if (!length(present)) "no_member" else NA_character_
+  n <- 0L
+  if (is.na(fb)) {
+    ok <- prevcarga_combina_train_mask(grp, m, cfg$window_months) & stats::complete.cases(Fm[, present, drop = FALSE])
+    n <- sum(ok)
+    if (n < cfg$n_min) fb <- "n_min"
+  }
+  w_prev <- acc$w_prev
+  if (is.na(fb)) {
+    w0  <- if (identical(names(w_prev), present)) w_prev else NULL
+    fit <- prevcarga_fit_convex(Fm[ok, present, drop = FALSE], grp$y_true[ok], w0 = w0, iters = cfg$iters,
+                                grad_tol = cfg$grad_tol)
+    w_prev <- fit$w
+  } else {
+    k   <- max(1L, length(present))
+    fit <- list(w = stats::setNames(rep(1 / k, length(present)), present),
+                a = 0, iters = 0L, grad_norm = NA_real_, nonstationary = FALSE)
+  }
+  row <- data.table::data.table(lead = grp$lead[1L], cut = grp$cut[1L], ym = m, a = fit$a, w = list(fit$w),
+                                fallback = fb, n = as.integer(n), iters = as.integer(fit$iters),
+                                grad_norm = fit$grad_norm, nonstationary = fit$nonstationary)
+  list(rows = c(acc$rows, list(row)), w_prev = w_prev)
+}
+
+## --- um grupo (lead, cut): meses em sequencia (Reduce carrega o warm start); devolve as linhas do grupo
+.prevcarga_cmb_fit_group <- function(grp, cfg) {
+  months <- sort(unique(grp$ym))
+  cells <- months
+  if (isTRUE(cfg$next_month))
+    cells <- c(months, .prevcarga_cmb_next_ym(max(months), attr(grp$target_datetime, "tzone")[1L]))
+  if (isTRUE(cfg$next_month) && isTRUE(cfg$only_next)) cells <- cells[length(cells)]   # 0.1.8: so a celula do apply
+  g <- list(grp = grp, Fm = as.matrix(grp[, cfg$fcols, with = FALSE]), months = months, cfg = cfg)
+  data.table::rbindlist(Reduce(function(acc, m) .prevcarga_cmb_fit_cell(acc, m, g), cells,
+                               list(rows = list(), w_prev = NULL))$rows)
+}
+
 ## next_month = TRUE (so o train): cada (lead, cut) ganha a celula m_next = max(ym) + 1 mes, com os presentes do ultimo mes,
 ## a mesma mascara train_mask(grp, m_next), o mesmo n_min/taxonomia e o warm start do ultimo mes. Default = delta 0.
+## only_next = TRUE (train, 0.1.8): ajusta SO a celula m_next (a unica que o apply le). `say` (opcional): function(fmt, ...)
+## de progresso; nao entra na identidade.
 prevcarga_combina_fit <- function(panel, n_min = 24L, iters = 500L, grad_tol = 1e-6, next_month = FALSE,
-                                  window_months = prevcarga_combina_defaults$window_months) {
+                                  window_months = prevcarga_combina_defaults$window_months, say = NULL,
+                                  only_next = FALSE) {
   .prevcarga_cmb_need(panel, c("lead", "cut", "ym", "target_datetime", "y_true"), "combina_fit")
   window_months <- .prevcarga_cmb_window(window_months, "combina_fit")
-  fcols <- .prevcarga_cmb_fcols(panel, "combina_fit")
+  cfg <- list(fcols = .prevcarga_cmb_fcols(panel, "combina_fit"), n_min = n_min, iters = iters, grad_tol = grad_tol,
+              window_months = window_months, next_month = next_month, only_next = only_next)
   dt <- data.table::as.data.table(panel)
-  keys <- unique(dt[, c("lead", "cut"), with = FALSE])
-  data.table::setorderv(keys, c("lead", "cut"))
-  out <- list()
-  for (gi in seq_len(nrow(keys))) {
-    l  <- keys$lead[gi]
-    ct <- keys$cut[gi]
-    grp <- dt[dt$lead == l & dt$cut == ct]
-    months <- sort(unique(grp$ym))
-    Fm <- as.matrix(grp[, fcols, with = FALSE])
-    w_prev <- NULL
-    cells <- months
-    if (isTRUE(next_month))
-      cells <- c(months, .prevcarga_cmb_next_ym(max(months), attr(grp$target_datetime, "tzone")[1L]))
-    for (m in cells) {
-      is_next <- !m %in% months
-      in_cell <- grp$ym == if (is_next) max(months) else m
-      present <- fcols[colSums(!is.na(Fm[in_cell, , drop = FALSE])) > 0L]
-      fb <- if (!is_next && m == months[1L]) "first_month" else if (!length(present)) "no_member" else NA_character_
-      n <- 0L
-      if (is.na(fb)) {
-        ok <- prevcarga_combina_train_mask(grp, m, window_months) &
-          stats::complete.cases(Fm[, present, drop = FALSE])
-        n <- sum(ok)
-        if (n < n_min) fb <- "n_min"
-      }
-      if (is.na(fb)) {
-        w0  <- if (identical(names(w_prev), present)) w_prev else NULL
-        fit <- prevcarga_fit_convex(Fm[ok, present, drop = FALSE], grp$y_true[ok],
-                                    w0 = w0, iters = iters, grad_tol = grad_tol)
-        w_prev <- fit$w
-      } else {
-        k   <- max(1L, length(present))
-        fit <- list(w = stats::setNames(rep(1 / k, length(present)), present),
-                    a = 0, iters = 0L, grad_norm = NA_real_, nonstationary = FALSE)
-      }
-      out[[length(out) + 1L]] <- data.table::data.table(
-        lead = l, cut = ct, ym = m, a = fit$a, w = list(fit$w), fallback = fb,
-        n = as.integer(n), iters = as.integer(fit$iters), grad_norm = fit$grad_norm,
-        nonstationary = fit$nonstationary)
-    }
-  }
-  if (!length(out)) return(.prevcarga_cmb_empty_weights())
-  res <- data.table::rbindlist(out)
+  if (!nrow(dt)) return(.prevcarga_cmb_empty_weights())
+  groups <- split(dt, by = c("lead", "cut"), sorted = TRUE)          # 1 passada; ordem (lead, cut)
+  t0 <- prevcarga_t0()
+  if (is.function(say))
+    say("ajuste: %d grupos (lead x corte), %d linhas, janela %d meses%s", length(groups), nrow(dt), window_months,
+        if (isTRUE(only_next)) ", so o mes seguinte" else "")
+  res <- data.table::rbindlist(lapply(groups, .prevcarga_cmb_fit_group, cfg = cfg))
+  if (is.function(say))
+    say("ajuste: %d celulas (fitadas=%d eqw=%d) em %s", nrow(res), sum(is.na(res$fallback)), sum(!is.na(res$fallback)),
+        prevcarga_since(t0))
   data.table::setorderv(res, c("lead", "cut", "ym"))
   res
 }
@@ -313,6 +333,7 @@ prevcarga_combina_run_modes <- c("infer", "fixed", "daily", "retrain_harness")
 ## --- proveniencia por run (run-manifest M1.3 ao lado do LONG) --------------------------------------
 ## Arquivo/campo ausente vira NA (quem recusa e o alinhamento M4.2b). available_until e gravado em UTC
 ## ISO-8601 pelo M1.3; ymd_hms(tz = load_tz) o devolve no fuso da carga do proprio manifest (HHMM do corte).
+.prevcarga_cmb_olson <- new.env(parent = emptyenv())
 .prevcarga_cmb_read_provenance <- function(run_path, member, run_id, run_mode, cut_suffix) {
   mf <- file.path(run_path, "run_manifest.json")
   m <- if (file.exists(mf)) jsonlite::read_json(mf, simplifyVector = TRUE) else list()
@@ -322,12 +343,13 @@ prevcarga_combina_run_modes <- c("infer", "fixed", "daily", "retrain_harness")
   }
   load_tz <- chr("load_tz")
   au_raw <- m[["available_until"]]
+  if (is.null(.prevcarga_cmb_olson$names)) .prevcarga_cmb_olson$names <- OlsonNames()   # 1x por processo (le o disco)
   au <- lubridate::as_datetime(NA_real_)
   cut <- NA_character_
   if (file.exists(mf) && "available_until" %in% names(m) && is.null(au_raw)) {
     cut <- ""                                    # available_until nulo = corte unico
   } else if (is.character(au_raw) && length(au_raw) == 1L && !is.na(au_raw) && !is.na(load_tz) &&
-             load_tz %in% OlsonNames()) {
+             load_tz %in% .prevcarga_cmb_olson$names) {
     au <- suppressMessages(lubridate::ymd_hms(au_raw, tz = load_tz, quiet = TRUE))   # "Z" -> fuso da carga
     if (!is.na(au)) cut <- sprintf("%02d%02d", lubridate::hour(au), lubridate::minute(au))
   }
@@ -340,7 +362,43 @@ prevcarga_combina_run_modes <- c("infer", "fixed", "daily", "retrain_harness")
 }
 
 ## --- descoberta -------------------------------------------------------------------------------------
-prevcarga_combina_discover <- function(root, area, ctx, members = prevcarga_members(root = ctx$root)) {
+## uma run: LONG (+ member, run_id) e a proveniencia do run-manifest
+.prevcarga_cmb_read_run <- function(path, run_id, run_mode, cut_suffix, sg, area, ctx) {
+  lp <- file.path(path, "long.parquet")
+  d <- tryCatch(prevcarga_read_long(lp, ctx), prevcarga_error = function(e)   # mesmo id/classe, com o run
+    prevcarga_abort(e$id, where = sprintf("%s [%s]", lp, paste(e$where, collapse = ",")), details = e$details))
+  if (!all(d$area == area))
+    prevcarga_abort("contract.combina_input", where = sprintf("discover:area divergente em %s", path))
+  d <- data.table::as.data.table(d)
+  d[, `:=`(member = sg, run_id = run_id)]
+  list(d = d, p = .prevcarga_cmb_read_provenance(path, sg, run_id, run_mode, cut_suffix))
+}
+
+## um membro: lista as runs da area (menos as de `skip`) e le cada uma; NULL se nao houver run
+.prevcarga_cmb_read_member <- function(sg, mdir, exogena, root, area, ctx, skip) {
+  runs <- .prevcarga_cmb_member_runs(root, area, mdir, exogena)
+  if (length(skip) && nrow(runs)) runs <- runs[!paste0(sg, "/", runs$run_id) %in% skip]
+  if (!nrow(runs)) {
+    prevcarga_say(ctx, "combine %s: membro %s sem run em %s", area, sg, file.path(root, mdir, area))
+    return(NULL)
+  }
+  modes <- sort(unique(runs$run_mode))
+  if (length(modes) > 1L)
+    prevcarga_abort("contract.combina_run_mode_dup",
+                    where = sprintf("%s: %s/%s EXOGENA=%s {%s}", sg, mdir, area, if (is.na(exogena)) "-" else exogena,
+                                    paste(modes, collapse = ",")))
+  prevcarga_say(ctx, "combine %s: membro %s: lendo %d runs (%s .. %s)", area, sg, nrow(runs), runs$run_id[[1L]],
+                runs$run_id[[nrow(runs)]])
+  t1 <- prevcarga_t0()
+  rr <- Map(.prevcarga_cmb_read_run, runs$path, runs$run_id, runs$run_mode, runs$cut_suffix,
+            MoreArgs = list(sg = sg, area = area, ctx = ctx), USE.NAMES = FALSE)
+  prevcarga_say(ctx, "combine %s: membro %s: %d runs lidos em %s", area, sg, nrow(runs), prevcarga_since(t1))
+  list(sg = sg, d = lapply(rr, `[[`, "d"), p = lapply(rr, `[[`, "p"))
+}
+
+## `skip` (0.1.8): chaves "<sigla>/<run_id>" ja lidas do pacote (nao relidas); `allow_empty`: sem run devolve NULL
+prevcarga_combina_discover <- function(root, area, ctx, members = prevcarga_members(root = ctx$root),
+                                       skip = character(), allow_empty = FALSE) {
   topo <- prevcarga_topology(root = ctx$root)
   if (!is.character(area) || length(area) != 1L || is.na(area) || !area %in% c(topo$leaves, topo$order))
     prevcarga_abort("topology.area_undeclared", where = as.character(area)[1L])
@@ -348,33 +406,17 @@ prevcarga_combina_discover <- function(root, area, ctx, members = prevcarga_memb
     prevcarga_abort("contract.combina_input",
                     where = sprintf("discover:root inexistente %s", as.character(root)[1L]))
   if (is.null(ctx$tz)) ctx$tz <- .prevcarga_eval_tz(ctx)
-  parts <- list(); prov <- list(); present <- character()
-  for (i in seq_len(nrow(members))) {
-    sg <- members$sigla[[i]]
-    runs <- .prevcarga_cmb_member_runs(root, area, members$mdir[[i]], members$exogena[[i]])
-    if (!nrow(runs)) next
-    modes <- sort(unique(runs$run_mode))
-    if (length(modes) > 1L)
-      prevcarga_abort("contract.combina_run_mode_dup",
-                      where = sprintf("%s: %s/%s EXOGENA=%s {%s}", sg, members$mdir[[i]], area,
-                                      if (is.na(members$exogena[[i]])) "-" else members$exogena[[i]],
-                                      paste(modes, collapse = ",")))
-    for (j in seq_len(nrow(runs))) {
-      lp <- file.path(runs$path[[j]], "long.parquet")
-      d <- tryCatch(prevcarga_read_long(lp, ctx), prevcarga_error = function(e)   # mesmo id/classe, com o run
-        prevcarga_abort(e$id, where = sprintf("%s [%s]", lp, paste(e$where, collapse = ",")),
-                        details = e$details))
-      if (!all(d$area == area))
-        prevcarga_abort("contract.combina_input",
-                        where = sprintf("discover:area divergente em %s", runs$path[[j]]))
-      d <- data.table::as.data.table(d)
-      d[, `:=`(member = sg, run_id = runs$run_id[[j]])]
-      parts[[length(parts) + 1L]] <- d
-      prov[[length(prov) + 1L]] <- .prevcarga_cmb_read_provenance(
-        runs$path[[j]], sg, runs$run_id[[j]], runs$run_mode[[j]], runs$cut_suffix[[j]])
-    }
-    present <- c(present, sg)
-  }
+  t0 <- prevcarga_t0()
+  prevcarga_say(ctx, "combine %s: procurando runs de %d membros em %s", area, nrow(members), root)
+  per_member <- Map(.prevcarga_cmb_read_member, members$sigla, members$mdir, members$exogena,
+                    MoreArgs = list(root = root, area = area, ctx = ctx, skip = skip), USE.NAMES = FALSE)
+  per_member <- Filter(Negate(is.null), per_member)
+  parts <- unlist(lapply(per_member, `[[`, "d"), recursive = FALSE)
+  prov <- unlist(lapply(per_member, `[[`, "p"), recursive = FALSE)
+  present <- vapply(per_member, `[[`, "", "sg")
+  n_read <- length(parts)
+  prevcarga_say(ctx, "combine %s: %d runs de %d membros lidos em %s", area, n_read, length(present), prevcarga_since(t0))
+  if (!length(parts) && isTRUE(allow_empty)) return(NULL)
   if (!length(parts))
     prevcarga_abort("contract.combina_input",
                     where = sprintf("discover:nenhum membro com run em %s/*/%s", root, area))
@@ -382,6 +424,95 @@ prevcarga_combina_discover <- function(root, area, ctx, members = prevcarga_memb
   data.table::setattr(out, "members_declared", members$sigla)
   data.table::setattr(out, "members_present", present)
   data.table::setattr(out, "provenance", data.table::rbindlist(prov))
+  out
+}
+
+## --- pacote de runs por area (0.1.8) ---------------------------------------------------------------------------
+## Um parquet com TODAS as runs de UMA area: as 8 colunas do LONG + member (sigla) + run_id + a proveniencia que o
+## discover tira do run_manifest.json. Instantes no fuso em que foram lidos (o parquet guarda o fuso no metadado; o leitor
+## do LONG confere target_datetime contra o fuso do deck). Equivale a arvore
+## <root>/<mdir>/<area>/<run_id>/{long.parquet, run_manifest.json}: mesmo painel, mesmo hash de artefato.
+.prevcarga_cmb_pack_prov <- c("run_mode", "cut_suffix", "origin", "available_until", "cut", "load_label", "load_tz",
+                              "weather_issue_cutoff", "delivery_days")
+prevcarga_combina_pack_cols <- function() c(names(prevcarga_schema_long), "member", "run_id", .prevcarga_cmb_pack_prov)
+
+.prevcarga_cmb_pack_bad <- function(path, what)
+  prevcarga_abort("contract.combina_input", where = sprintf("pack:%s em %s", what, path))
+
+## `long` = saida do discover (ou do proprio leitor de pacote); grava atomico (tmp irmao + rename)
+prevcarga_combina_pack_write <- function(long, path) {
+  prov <- data.table::as.data.table(attr(long, "provenance"))
+  if (!nrow(prov) || !all(c("member", "run_id", .prevcarga_cmb_pack_prov) %in% names(prov)))
+    prevcarga_abort("contract.combina_input", where = "pack_write:provenance")
+  prov <- data.table::copy(prov)[, c("member", "run_id", .prevcarga_cmb_pack_prov), with = FALSE]
+  d <- data.table::as.data.table(long)[, c(names(prevcarga_schema_long), "member", "run_id"), with = FALSE]
+  d <- merge(d, prov, by = c("member", "run_id"), sort = FALSE)
+  data.table::setcolorder(d, prevcarga_combina_pack_cols())
+  tmp <- tempfile(".pack-", tmpdir = dirname(path), fileext = ".parquet")
+  on.exit(unlink(tmp), add = TRUE)
+  prevcarga_pack_write_raw(d, tmp)
+  if (!file.rename(tmp, path)) prevcarga_abort("config.usage", where = paste0("--out=", path))
+  invisible(list(path = path, n_runs = nrow(prov), n_rows = nrow(d)))
+}
+
+## le o pacote de UMA area e devolve o mesmo objeto do discover (LONG + member/run_id + atributos)
+prevcarga_combina_pack_read <- function(path, area, ctx, members = prevcarga_members(root = ctx$root)) {
+  if (!is.character(path) || length(path) != 1L || is.na(path) || !file.exists(path) || dir.exists(path))
+    prevcarga_abort("contract.combina_input", where = sprintf("pack:arquivo inexistente %s", as.character(path)[1L]))
+  if (is.null(ctx$tz)) ctx$tz <- .prevcarga_eval_tz(ctx)
+  t0 <- prevcarga_t0()
+  d <- tryCatch(data.table::as.data.table(prevcarga_pack_read_raw(path)),
+                error = function(e) .prevcarga_cmb_pack_bad(path, "parquet ilegivel"))
+  want <- prevcarga_combina_pack_cols()
+  if (!setequal(names(d), want) || length(names(d)) != length(want))
+    .prevcarga_cmb_pack_bad(path, paste0("colunas esperadas {", paste(want, collapse = ","), "}"))
+  if (!nrow(d)) .prevcarga_cmb_pack_bad(path, "vazio")
+  if (!all(d$area == area)) .prevcarga_cmb_pack_bad(path, sprintf("area divergente (esperada %s)", area))
+  bad <- setdiff(unique(d$member), members$sigla)
+  if (length(bad)) .prevcarga_cmb_pack_bad(path, paste0("membro nao declarado ", paste(bad, collapse = ",")))
+  prov <- unique(d[, c("member", "run_id", .prevcarga_cmb_pack_prov), with = FALSE])
+  if (anyDuplicated(prov, by = c("member", "run_id")))
+    .prevcarga_cmb_pack_bad(path, "proveniencia divergente dentro de um run")
+  dup <- prov[, list(modes = paste(sort(unique(run_mode)), collapse = ","), k = data.table::uniqueN(run_mode)), by = "member"][k > 1L]
+  if (nrow(dup))
+    prevcarga_abort("contract.combina_run_mode_dup", where = sprintf("%s: pacote %s {%s}", dup$member[[1L]], path, dup$modes[[1L]]))
+  ord <- order(match(d$member, members$sigla), d$run_id, method = "radix")
+  d <- d[ord]
+  long <- tryCatch(prevcarga_assert_long(as.data.frame(d[, names(prevcarga_schema_long), with = FALSE]), ctx),
+                   prevcarga_error = function(e)
+                     prevcarga_abort(e$id, where = sprintf("%s [%s]", path, paste(e$where, collapse = ",")),
+                                     details = e$details))
+  out <- data.table::as.data.table(long)
+  out[, `:=`(member = d$member, run_id = d$run_id)]
+  present <- members$sigla[members$sigla %in% unique(d$member)]
+  prov <- prov[order(match(prov$member, members$sigla), prov$run_id, method = "radix")]
+  data.table::setattr(out, "members_declared", members$sigla)
+  data.table::setattr(out, "members_present", present)
+  data.table::setattr(out, "provenance", prov[, c("member", "run_id", .prevcarga_cmb_pack_prov), with = FALSE])
+  prevcarga_say(ctx, "combine %s: pacote %s: %d runs de %d membros (%d linhas) lido em %s", area, path, nrow(prov),
+                length(present), nrow(out), prevcarga_since(t0))
+  out
+}
+
+## junta dois objetos do discover/pacote (incremental: pacote antigo + runs novas); run repetido aborta
+prevcarga_combina_pack_merge <- function(a, b, members) {
+  if (is.null(a)) return(b)
+  if (is.null(b)) return(a)
+  pa <- data.table::as.data.table(attr(a, "provenance")); pb <- data.table::as.data.table(attr(b, "provenance"))
+  cols <- c("member", "run_id", .prevcarga_cmb_pack_prov)
+  pa <- pa[, cols, with = FALSE]; pb <- pb[, cols, with = FALSE]
+  dup <- merge(pa[, c("member", "run_id"), with = FALSE], pb[, c("member", "run_id"), with = FALSE],
+               by = c("member", "run_id"))
+  if (nrow(dup))
+    prevcarga_abort("contract.combina_input",
+                    where = sprintf("pack:run repetido %s/%s (%d no total)", dup$member[[1L]], dup$run_id[[1L]], nrow(dup)))
+  out <- data.table::rbindlist(list(data.table::as.data.table(a), data.table::as.data.table(b)), use.names = TRUE)
+  out <- out[order(match(out$member, members$sigla), out$run_id, method = "radix")]
+  prov <- data.table::rbindlist(list(pa, pb), use.names = TRUE)
+  prov <- prov[order(match(prov$member, members$sigla), prov$run_id, method = "radix")]
+  data.table::setattr(out, "members_declared", members$sigla)
+  data.table::setattr(out, "members_present", members$sigla[members$sigla %in% unique(out$member)])
+  data.table::setattr(out, "provenance", prov)
   out
 }
 
@@ -602,11 +733,38 @@ prevcarga_assert_members_aligned <- function(long, ctx) {
 }
 
 ## unico pipeline de montagem (M4.4): discover -> assert_members_aligned -> build_panel -> join_fresh_truth
-prevcarga_combina_load <- function(root, area, ctx, members = prevcarga_members(root = ctx$root)) {
-  long <- prevcarga_combina_discover(root, area, ctx, members)
+## `runs` (0.1.8): pacote explicito da area no lugar da arvore. Com so `root`: se existir <root>/<AREA>.runs.parquet ele e
+## lido primeiro (prioridade) e da arvore entram so as runs que nao estao nele; sem pacote, so a arvore (como antes).
+prevcarga_combina_pack_name <- function(area) paste0(area, ".runs.parquet")
+
+prevcarga_combina_gather <- function(root, area, ctx, members = prevcarga_members(root = ctx$root)) {
+  pk <- file.path(root, prevcarga_combina_pack_name(area))
+  if (!file.exists(pk)) {
+    prevcarga_say(ctx, "combine %s: sem pacote %s; lendo a arvore", area, pk)
+    return(prevcarga_combina_discover(root, area, ctx, members))
+  }
+  old <- prevcarga_combina_pack_read(pk, area, ctx, members)
+  pv <- attr(old, "provenance")
+  new <- prevcarga_combina_discover(root, area, ctx, members, skip = paste0(pv$member, "/", pv$run_id), allow_empty = TRUE)
+  prevcarga_say(ctx, "combine %s: %d runs do pacote + %d runs da arvore fora dele", area, nrow(pv),
+                if (is.null(new)) 0L else nrow(attr(new, "provenance")))
+  prevcarga_combina_pack_merge(old, new, members)
+}
+
+prevcarga_combina_load <- function(root, area, ctx, members = prevcarga_members(root = ctx$root), runs = NULL) {
+  long <- if (is.null(runs)) prevcarga_combina_gather(root, area, ctx, members)
+          else prevcarga_combina_pack_read(runs, area, ctx, members)
+  t0 <- prevcarga_t0()
   prevcarga_assert_members_aligned(long, ctx)
   panel <- prevcarga_build_panel(long, members)
-  prevcarga_join_fresh_truth(panel, ctx, area)
+  prevcarga_say(ctx, "combine %s: alinhamento e painel em %s (%d linhas LONG -> %d linhas de painel)", area,
+                prevcarga_since(t0), nrow(long), nrow(panel))
+  t0 <- prevcarga_t0()
+  panel <- prevcarga_join_fresh_truth(panel, ctx, area)
+  ym <- if (nrow(panel)) range(panel$ym) else c("-", "-")
+  prevcarga_say(ctx, "combine %s: y_true do deck em %s; meses %s..%s, %d com y_true", area, prevcarga_since(t0),
+                ym[[1L]], ym[[2L]], sum(!is.na(panel$y_true)))
+  panel
 }
 
 ## sha256 (64 hex) do conteudo do painel pelo canonicalizador do M1.3 (sem digest/toJSON proprio). Linhas em ordem
@@ -746,7 +904,8 @@ prevcarga_combina_full <- function(panel, ctx, t_cut = NULL, n_min = 24L, iters 
                                    detail = FALSE, window_months = prevcarga_combina_defaults$window_months) {
   rows    <- .prevcarga_cmb_select_cut(panel, t_cut)
   weights <- prevcarga_combina_fit(rows, n_min = n_min, iters = iters, grad_tol = grad_tol,
-                                   window_months = window_months)
+                                   window_months = window_months,
+                                   say = function(fmt, ...) prevcarga_say(ctx, paste0("combine ", rows$area[1L], ": ", fmt), ...))
   y       <- prevcarga_produce_combined(rows, weights)
   long    <- .prevcarga_cmb_to_long(rows, y, ctx)
   if (!detail) return(long)
@@ -783,7 +942,7 @@ prevcarga_combina_full <- function(panel, ctx, t_cut = NULL, n_min = 24L, iters 
     data_fingerprint = prevcarga_combina_panel_hash(panel),
     cutoff           = paste0(last_m, "-01"),
     feature_config   = list(area = area, n_min = cfg$n_min, iters = cfg$iters, grad_tol = cfg$grad_tol,
-                            window_months = cfg$window_months,
+                            window_months = cfg$window_months, cells = cfg$cells,
                             cuts = sort(unique(as.character(panel$cut)), method = "radix"),
                             member_set_hash = prevcarga_member_set_hash(members),
                             delivery_days = as.list(stats::setNames(as.integer(dd$delivery_days),
@@ -809,7 +968,8 @@ prevcarga_combina_full <- function(panel, ctx, t_cut = NULL, n_min = 24L, iters 
 ## --- train: fit de todos os cortes e leads + freeze content-addressed -------------------------------------------
 prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = prevcarga_members(root = root),
                                     n_min = 24L, iters = 500L, grad_tol = 1e-6, trained_at = NULL,
-                                    window_months = prevcarga_combina_defaults$window_months) {
+                                    window_months = prevcarga_combina_defaults$window_months, say = NULL,
+                                    only_next = FALSE) {
   if (!is.character(area) || length(area) != 1L || is.na(area) || !nzchar(area))
     prevcarga_abort("contract.combina_input", where = "train:area")
   if (!is.character(artifact_dir) || length(artifact_dir) != 1L || is.na(artifact_dir) || !nzchar(artifact_dir))
@@ -817,14 +977,16 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
   .prevcarga_cmb_need(panel, c("area", "forecast_origin", "cut"), "train")
   window_months <- .prevcarga_cmb_window(window_months, "train")
   weights <- prevcarga_combina_fit(panel, n_min = n_min, iters = iters, grad_tol = grad_tol, next_month = TRUE,
-                                   window_months = window_months)
-  cfg <- list(n_min = as.integer(n_min), iters = as.integer(iters), grad_tol = grad_tol, window_months = window_months)
+                                   window_months = window_months, say = say, only_next = isTRUE(only_next))
+  cfg <- list(n_min = as.integer(n_min), iters = as.integer(iters), grad_tol = grad_tol, window_months = window_months,
+              cells = if (isTRUE(only_next)) "next_month" else "all")
   last_ym <- if (nrow(panel)) max(panel$ym) else NA_character_
   next_ym <- if (nrow(panel)) .prevcarga_cmb_next_ym(last_ym, attr(panel$target_datetime, "tzone")[1L]) else NULL
   vh  <- prevcarga_version_hash(.prevcarga_cmb_fingerprint(area, panel, weights, cfg, members, root, next_ym = next_ym))
   area_dir <- file.path(artifact_dir, area)
   final <- file.path(area_dir, vh)
   if (dir.exists(final)) {                         # versao imutavel: nao reescreve; so reaponta o latest
+    if (is.function(say)) say("treino: versao %s ja existe; so reaponta latest.txt (next_ym=%s)", vh, next_ym)
     .prevcarga_cmb_write_latest(area_dir, vh)
     return(list(version_hash = vh, path = final, reused = TRUE, cells = weights))
   }
@@ -845,6 +1007,7 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
   meta$panel_last_ym <- last_ym                                    # E6: ultimo ym com origem no painel de train
   meta$next_ym <- next_ym                                          # E6: celula extra por (lead, cut) = cutoff do fingerprint
   meta$window_months <- window_months                              # 0.1.8: janela movel do treino (0 = expansivel)
+  meta$cells <- cfg$cells                                          # 0.1.8: "next_month" (verbo) ou "all"
   obj <- list(meta = meta, weights = .prevcarga_cmb_plain_table(weights))
   pure <- list(meta = meta[setdiff(names(meta), "trained_at")], weights = obj$weights)
   prevcarga_plugin_scan_pure(pure)                                 # pureza (P.0d); trained_at e lateral declarada
@@ -857,6 +1020,7 @@ prevcarga_combina_train <- function(area, panel, artifact_dir, root, members = p
     prevcarga_abort("contract.combina_input", where = paste0("rename ", stg))
   }
   .prevcarga_cmb_write_latest(area_dir, vh)                        # POR ULTIMO
+  if (is.function(say)) say("treino: versao %s gravada em %s (next_ym=%s)", vh, final, next_ym)
   list(version_hash = vh, path = final, reused = FALSE, cells = weights)
 }
 
@@ -923,6 +1087,7 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
   vh <- readLines(lp, n = 1L, warn = FALSE)
   if (!length(vh) || !grepl("^v_[0-9a-f]{16}$", vh))
     prevcarga_abort("contract.combina_input", where = paste0("latest.txt invalido: ", lp))
+  prevcarga_say(ctx, "combine %s: aplicando pesos %s de %s", area, vh, file.path(artifact_dir, area))
   obj <- prevcarga_thaw(file.path(artifact_dir, area, vh, "weights.rds"))      # integrity (9) antes do readRDS
   if (!is.list(obj) || !all(c("meta", "weights") %in% names(obj)))
     prevcarga_abort("contract.combina_artifact_mismatch", where = file.path(area, vh))
@@ -943,6 +1108,8 @@ prevcarga_combina_apply <- function(area, artifact_dir, panel, ctx, t_cut = NULL
   rows <- .prevcarga_cmb_select_cut(panel, t_cut)
   rc   <- .prevcarga_cmb_resolve_cells(rows, obj$weights, area, allow_stale = isTRUE(stale_ok))
   long <- .prevcarga_cmb_to_long(rows, prevcarga_produce_combined(rows, rc$weights), ctx)
+  prevcarga_say(ctx, "combine %s: %d linhas combinadas, meses %s", area, nrow(long),
+                paste(sort(unique(rc$cells_used$ym_pedido), method = "radix"), collapse = ","))
   if (!detail) return(long)
   cm <- unique(rc$cells_used[, list(mes_pedido = ym_pedido, mes_usado = ym_usado)])
   cm[, stale := mes_usado != mes_pedido]

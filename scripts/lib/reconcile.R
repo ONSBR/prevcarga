@@ -395,9 +395,15 @@ prevcarga_reconcile_train <- function(ctx, origin, subsystems = "all", window_da
   last_day <- unique(cuts$cuts$last_data_day)
   if (length(last_day) != 1L) prevcarga_abort("contract.reconcile_input", where = "last_data_day")
   from <- origin - as.integer(window_days)
+  prevcarga_say(ctx, "reconcile train: origem %s, %d subsistemas (%s), janela %s..%s (%d dias)", format(origin), length(sss),
+                paste(sss, collapse = ","), format(from), format(last_day), as.integer(window_days))
   out <- lapply(sss, function(ss) {
+    t0 <- prevcarga_t0()
     areas <- topo$subsystems[[ss]]$areas
     truth <- prevcarga_read_load(ctx, areas = c(areas, ss), from = from, to = last_day)
+    prevcarga_say(ctx, "reconcile train %s: carga de %d areas + %s lida em %s (%d linhas)", ss, length(areas), ss,
+                  prevcarga_since(t0), NROW(truth))
+    t0 <- prevcarga_t0()
     ratio <- prevcarga_khat_ratio(truth, ss, topo)
     fit <- prevcarga_khat_fit(ratio, origin, window_days)
     conv <- list(load_label = attr(truth, "load_label"), tz = attr(truth, "tz"))
@@ -411,9 +417,13 @@ prevcarga_reconcile_train <- function(ctx, origin, subsystems = "all", window_da
                  code_commit = if (is.null(ctx$root)) "unknown" else prevcarga_code_commit(ctx$root),
                  renv_lock_hash = if (is.null(renv)) "none" else renv)
     fz <- prevcarga_khat_freeze(fit, meta, ctx)
+    pr <- prevcarga_khat_advance_latest(ss, fz$version, origin, ctx)
+    rs <- .prevcarga_khat_summary(fit$profile, topo$subsystems[[ss]]$khat_range)
+    prevcarga_say(ctx, "reconcile train %s: k-hat %s (n_ratio=%d, k %.4f..%.4f, fora da faixa=%d, promovido=%s) em %s", ss,
+                  fz$version, as.integer(fit$n_ratio), rs$min, rs$max, rs$fora_faixa, if (isTRUE(pr)) "sim" else "nao",
+                  prevcarga_since(t0))
     list(versao = fz$version, path = fz$path, khat_origin = origin, n_ratio = fit$n_ratio,
-         promovido = prevcarga_khat_advance_latest(ss, fz$version, origin, ctx),
-         k_hat_resumo = .prevcarga_khat_summary(fit$profile, topo$subsystems[[ss]]$khat_range))
+         promovido = pr, k_hat_resumo = rs)
   })
   stats::setNames(out, sss)
 }
@@ -476,6 +486,8 @@ prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat
   origin <- lubridate::as_date(origin)
 
   plan <- prevcarga_reconcile_plan(unique(all_leaves$area), topo)
+  prevcarga_say(ctx, "reconcile apply: origem %s, %d folhas (%d linhas), subsistemas %s", format(origin),
+                length(unique(all_leaves$area)), nrow(all_leaves), paste(sss, collapse = ","))
   open <- setdiff(sss, plan$closed)
   if (length(open)) {
     absent <- unlist(lapply(open, function(ss) setdiff(topo$subsystems[[ss]]$areas, all_leaves$area)))
@@ -486,6 +498,7 @@ prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat
   long <- list(); khat <- list(); cob <- list(); wm <- list(); dets <- list()
   withCallingHandlers({
     for (ss in sss) {
+      t0 <- prevcarga_t0()
       areas <- topo$subsystems[[ss]]$areas
       bu <- prevcarga_reconcile_bottomup(all_leaves, ss, topo, ctx)
       ver <- if (is.null(khat_version)) .prevcarga_khat_resolve_for_origin(ctx, ss, origin)
@@ -501,6 +514,9 @@ prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat
       cob[[ss]] <- if (nrow(dr)) stats::setNames(as.list(as.integer(dr$n)), paste0("d_plus_", dr$d_plus)) else list()
       dets[[ss]] <- ap
       long[[ss]] <- prevcarga_reconcile_long(ap, ss, ctx)
+      prevcarga_say(ctx, "reconcile apply %s: %d folhas, k-hat %s (khat_origin=%s, fallback=%d), %d linhas em %s", ss,
+                    length(areas), ver, format(lubridate::as_date(m$khat_origin)), as.integer(attr(ap, "n_fallback")),
+                    nrow(long[[ss]]), prevcarga_since(t0))
     }
   }, warning = function(w) {
     warns[[length(warns) + 1L]] <<- list(id = if (inherits(w, "prevcarga_warning")) w$id else NA_character_,
@@ -528,6 +544,7 @@ prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat
   }
 
   sin <- NULL
+  if (!setequal(sss, topo$order)) prevcarga_say(ctx, "reconcile apply: SIN nao montado (so %s)", paste(sss, collapse = ","))
   if (setequal(sss, topo$order)) {
     ls <- prevcarga_reconcile_sin(long, topo)
     if (isTRUE(eval)) {
@@ -536,6 +553,7 @@ prevcarga_reconcile_apply <- function(long_leaves, ctx, subsystems = "all", khat
     }
     sin <- prevcarga_reconcile_long(ls, "SIN", ctx)
   }
+  if (!is.null(sin)) prevcarga_say(ctx, "reconcile apply: SIN montado (%d linhas)", nrow(sin))
   scorecard <- NULL
   if (isTRUE(eval)) {
     allv <- data.table::rbindlist(c(unname(long), if (!is.null(sin)) list(sin)), use.names = TRUE)
