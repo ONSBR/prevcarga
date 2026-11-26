@@ -1426,7 +1426,15 @@ prevcarga_registry_show <- function(key, version = NULL, ctx = NULL) {
 }
 
 ## Poda local: orfas v_<hex> (nem latest nem pinada) e `.tmp-*` orfaos de qualquer escritor, sob <state>/artifacts.
+## Versao apontada por um month-<AAAA-MM>.txt (combina, 0.1.9) tambem fica (reason = month).
 ## Celula sem ponteiro algum (sem latest.txt nem .pin) nao tem v_* podada (nada a preservar-por-referencia); so seus .tmp-*.
+## ponteiros por mes (combina, 0.1.9): month-<AAAA-MM>.txt na celula; cada versao apontada fica fora da poda
+.prevcarga_reg_first_line <- function(f) utils::head(.prevcarga_reg_read_lines(f), 1L)
+.prevcarga_reg_month_refs <- function(key) {
+  fs <- list.files(key, pattern = "^month-[0-9]{4}-[0-9]{2}[.]txt$", full.names = TRUE)
+  unique(unlist(lapply(fs, .prevcarga_reg_first_line)))
+}
+
 prevcarga_registry_gc <- function(ctx, model = NULL, dry_run = FALSE) {
   sc <- .prevcarga_reg_scope(ctx, model)
   w <- .prevcarga_reg_walk(sc$start)
@@ -1436,12 +1444,14 @@ prevcarga_registry_gc <- function(ctx, model = NULL, dry_run = FALSE) {
     key <- .prevcarga_reg_rel(cl$path, sc$root)
     cur <- .prevcarga_reg_latest_or_na(cl$path)
     pins <- .prevcarga_reg_pins(cl$path)
-    keep <- c(if (!is.na(cur)) cur, pins)
+    months <- .prevcarga_reg_month_refs(cl$path)
+    keep <- c(if (!is.na(cur)) cur, pins, months)
     if (!length(keep)) {
       if (length(cl$versions)) kept[[length(kept) + 1L]] <- data.frame(key = key, version = cl$versions, reason = "no_pointer")
       next
     }
-    why <- ifelse(cl$versions %in% cur, "latest", ifelse(cl$versions %in% pins, "pinned", NA_character_))
+    why <- ifelse(cl$versions %in% cur, "latest", ifelse(cl$versions %in% pins, "pinned",
+                  ifelse(cl$versions %in% months, "month", NA_character_)))
     if (any(!is.na(why)))
       kept[[length(kept) + 1L]] <- data.frame(key = key, version = cl$versions[!is.na(why)], reason = why[!is.na(why)])
     rm_paths <- c(rm_paths, file.path(cl$path, cl$versions[is.na(why)]))
