@@ -65,7 +65,7 @@ A célula cai no **fallback EQW** (pesos 1/k sobre os k membros presentes e a = 
 | `no_member` | Nenhum membro tem previsão naquela célula. |
 | `n_min` | Menos de `n_min = 24` linhas de treino completas (alvo com verdade e todos os membros presentes sem NA). |
 
-No `train`, cada par (lead, corte) congela também a **célula do mês seguinte**, m_next = último mês do painel + 1 mês. Ela usa os membros presentes do último mês do painel, a mesma máscara de treino (aplicada a m_next), o mesmo `n_min` e a mesma taxonomia de fallback (`no_member`, `n_min`), com o ajuste do último mês como ponto de partida. Por isso a primeira origem do mês seguinte encontra pesos e não aborta. O `full` e o backtest não geram essa célula.
+Desde a 0.1.8, o verbo `combine --mode=train` congela **só a célula do mês seguinte** de cada par (lead, corte): m_next = último mês do painel + 1 mês, que é a única que o `apply` do mês vai ler. Ela usa os membros presentes do último mês do painel, a mesma máscara de treino (aplicada a m_next), o mesmo `n_min` e a mesma taxonomia de fallback (`no_member`, `n_min`). O ajuste parte dos pesos iguais (sem o encadeamento mês a mês); a diferença para o encadeado fica na tolerância do FISTA (no teste, 3e-9 relativo no `y_pred`). Até a 0.1.7 o verbo reajustava todos os meses do histórico para usar só o último. O modo antigo continua disponível com `combine --mode=train --all-months` (na biblioteca, `prevcarga_combina_train(only_next = FALSE)`, que é o default dela). O modo entra na identidade do artefato (`cells = next_month | all`). O `full` e o backtest seguem mês a mês e não geram essa célula.
 
 <Figura id="FIG-M15" titulo="Ajuste por célula da combina" natureza="Fluxo" fontes={['scripts/lib/combination.R']} adrs={['ADR-0013', 'ADR-0032']}>
 
@@ -188,7 +188,7 @@ A saída é o LONG de 8 colunas por área (`area`, `forecast_origin`, `target_da
 
 | Modo | O que faz | Onde |
 |---|---|---|
-| `train` | Ajusta todos os cortes e leads e congela os pesos | `prevcarga_combina_train` |
+| `train` | Ajusta a célula do mês seguinte de cada corte e lead e congela os pesos | `prevcarga_combina_train` |
 | `apply` | Lê os pesos congelados e aplica, sem reajustar | `prevcarga_combina_apply`; é o que a rodada (`forecast`) usa, com a média simples no lugar dos pesos quando a área não tem pesos treinados |
 | `full` | Ajusta e aplica num passo, sem artefato | `prevcarga_combina_full`; é o que o backtest usa, por (área, corte), com o ajuste mês a mês |
 
@@ -198,11 +198,33 @@ Na aplicação do verbo `combine --mode apply`, sem `latest.txt` a área dá `st
 
 **Célula stale na rodada.** O retreino é mensal e a combinação guarda uma célula por (lead, corte, mês), com a do mês seguinte ao último treinado. Se o retreino atrasa e o mês da rodada não tem célula, a rodada diária usa a célula de maior mês anterior do mesmo (lead, corte), re-chaveada para o mês pedido, e emite `warning.combina_stale` (um por folha e mês pedido). Não há limite de idade. Mês pedido anterior a toda célula continua abortando `contract.combina_input`: nunca há EQW silencioso. O `combine --mode apply` segue estrito e aborta `contract.combina_input` quando falta a célula do mês.
 
-`apply` sobre o resultado de `train` dá saída idêntica, bit a bit, à de `full` no mesmo painel.
+Com o `train` de todos os meses (`--all-months`), `apply` sobre o resultado dá saída idêntica, bit a bit, à de `full` no mesmo painel.
 
 ```bash title="prevcarga combine"
 prevcarga combine --mode=train --area=RJ --root=<runs>
 prevcarga combine --mode=apply --area=RJ --root=<runs> --cut=0900 --out=<saida.parquet>
 ```
+
+### Pacote de runs por área
+
+O `combine` lê as runs de duas formas, com o mesmo painel e o mesmo hash de artefato:
+
+- **Árvore:** `<root>/<mdir>/<área>/<run_id>/{long.parquet, run_manifest.json}`, uma pasta por (membro, origem).
+- **Pacote da área:** um parquet só, com todas as runs da área. Tem as 8 colunas do LONG, mais `member`, `run_id` e a proveniência do `run_manifest.json` (`run_mode`, `cut_suffix`, `origin`, `available_until` em UTC, `cut`, `load_label`, `load_tz`, `weather_issue_cutoff`, `delivery_days`).
+
+O pacote é gerado por `combine --mode=pack`. Com `--root`, ele lê a árvore; com `--runs`, parte de um pacote anterior e acrescenta só as runs da árvore que ainda não estão nele. Na leitura:
+
+- `--runs=<arquivo>` lê só o pacote.
+- `--root=<dir>` procura antes `<dir>/<ÁREA>.runs.parquet`. Se existir, o pacote tem prioridade e da árvore entram só as runs que faltam nele. Sem pacote, lê a árvore como antes.
+- `--root` e `--runs` juntos saem com `config.usage` (exit 8). Pacote de outra área, com coluna faltando ou com proveniência divergente dentro de um run sai com `contract.combina_input` (exit 2).
+
+```bash title="Pacote incremental (um por área)"
+prevcarga combine --mode=pack --area=RJ --root=<runs-do-mes> --runs=<RJ.runs.parquet> --out=<RJ.runs.parquet.novo>
+prevcarga combine --mode=train --area=RJ --runs=<RJ.runs.parquet.novo>
+```
+
+### Progresso
+
+`combine`, `backtest` e `reconcile` escrevem uma linha por etapa no stderr, no formato `HH:MM:SSZ <verbo> <área>: <texto>`, em ASCII. O stdout continua só com o envelope (`--format=json` intacto). No `combine`, as linhas cobrem a leitura por membro (runs lidas e tempo), o painel, o `y_true` do deck, o ajuste (cerca de 10 linhas) e o artefato gravado. Num wrapper que redireciona o stderr para arquivo, use `tee` para ver as linhas enquanto o verbo roda.
 
 O fluxo de artefatos do treino até a rodada está em [Ciclo de vida dos artefatos](/execucao/artefatos).
