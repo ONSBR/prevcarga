@@ -194,7 +194,7 @@ O motor tem três guardas de robustez, sempre ligadas e sem chave por variável 
 
 | Guarda | Função | Quando age | Efeito |
 |---|---|---|---|
-| Modelo vazio | `.wsvm_guard_retry` (`robustez.R`) | `tune_wsvm` falha com erro de modelo vazio, constante ou de escala | Refaz o ajuste sem as dummies binárias raras (minoria até 3, depois 10, depois 30 linhas); em último caso, só com as variáveis contínuas |
+| Modelo vazio | `.wsvm_guard_retry` (`robustez.R`) | `tune_wsvm` falha com erro de modelo vazio, constante ou de escala | Refaz o ajuste sem as dummies binárias raras (minoria até 3, depois 10, depois 30 linhas); em último caso, só com as variáveis contínuas. Desde a 0.1.10, uma variável constante na amostra, binária ou contínua, sai já na primeira tentativa: o `wsvm` não a escala e devolve um modelo sem vetor de suporte (ex.: temperatura de 27 °C nas 34 amostras de CE às 18h) |
 | Clamp de cross | `.wsvm_clamp_cross` (`robustez.R`) | `tune_wsvm` falha por amostra menor que o número de dobras | Reduz `cross` ao número de linhas com peso; abaixo de 2, propaga o erro original |
 | Código de dia especial | `normalize_special_day_codes` (`feriados.R`) | Código fora dos modelados: 0 (normal) e 1 a 11, os tipos que têm janela em `janelaDadosFer` | O código vira 0 (dia normal) em todas as datas |
 

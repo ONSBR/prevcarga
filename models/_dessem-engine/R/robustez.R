@@ -10,7 +10,7 @@ dessem_engine_guard <- function(code, ...) {
   d <- list(...)
   txt <- switch(code,
     "warning.engine_empty_model_guard" = sprintf(
-      "modelo-vazio contornado: dummies dropadas [%s] (minoria<=%s)",
+      "modelo-vazio contornado: variaveis dropadas [%s] (minoria<=%s)",
       paste(d$dropped, collapse = ","), as.character(d$k)),
     "warning.engine_cross_clamped" = sprintf(
       "cross clampado %s->%s (amostra=%s)", as.character(d$from), as.character(d$to), as.character(d$n_eff)),
@@ -27,7 +27,9 @@ dessem_engine_guard <- function(code, ...) {
 ## _load_engine.R:264
 .tune_wsvm_real <- function(...) WeightSVM::tune_wsvm(...)
 
-## _load_engine.R:265 -- guarda de modelo-vazio (dummies de calendario ultra-raras, ex.: GO 2024-10-05).
+## _load_engine.R:265 -- guarda de modelo-vazio (dummies de calendario ultra-raras, ex.: GO 2024-10-05). Desde a 0.1.10 tambem
+## remove a variavel constante na amostra (minoria 0), binaria ou nao: ex. Exo_Temperatura = 27 C nas 34 amostras de CE as 18h
+## (origem 2025-08-19, LIN_MXMN), que o wsvm nao escala e devolve sem vetor de suporte ("Model is empty!").
 .wsvm_guard_retry <- function(.args, msg) {
   fpos <- which(vapply(.args, inherits, logical(1L), "formula"))
   if (!length(fpos)) stop(msg, call. = FALSE)
@@ -36,7 +38,9 @@ dessem_engine_guard <- function(code, ...) {
   labs <- attr(stats::terms(fml), "term.labels"); lhs <- all.vars(fml)[1L]
   minority <- vapply(labs, function(v) {
     x <- dat[[v]]
-    if (is.null(x) || !all(x %in% c(0, 1))) return(Inf)   # nao-binaria: nunca dropa
+    if (is.null(x)) return(Inf)
+    if (length(unique(x)) < 2L) return(0)                 # constante na amostra (binaria ou nao): o wsvm nao escala (0.1.10)
+    if (!all(x %in% c(0, 1))) return(Inf)                 # nao-binaria com variacao: nunca dropa
     as.numeric(min(sum(x == 1), sum(x == 0)))
   }, numeric(1L))
   try_keep <- function(keep) {
