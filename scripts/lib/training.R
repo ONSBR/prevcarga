@@ -307,12 +307,13 @@ prevcarga_train_matrix <- function(args, ctx) {
 ## execucoes). Chave exata (area, span, horizon_days, weather_forecast_in_train, assinatura da regra de previsto); o valor e o painel NAO cortado.
 .prevcarga_tr_panel_memo <- function(ctx, origin, rc) {
   memo <- new.env(parent = emptyenv())
-  function(area, span, horizon_days, fc_in_train, rule = NULL) {
+  function(area, span, horizon_days, fc_in_train, rule = NULL, holiday_window = NULL) {
     sig <- if (is.null(rule)) "all" else paste(rule$area, vapply(rule$segments, function(z)
       paste(z$kind, z$from, z$to, z$lead, sep = ","), ""), sep = ":", collapse = ";")
-    k <- paste(area, span, horizon_days, isTRUE(fc_in_train), sig, sep = "|")
+    hw <- if (is.null(holiday_window)) "-" else paste(unlist(holiday_window), collapse = ",")   # 0.1.10: janela de feriados
+    k <- paste(area, span, horizon_days, isTRUE(fc_in_train), sig, hw, sep = "|")
     if (!is.null(memo[[k]])) return(memo[[k]])
-    p <- prevcarga_read_panel(ctx, origin, area, horizon_days, span)
+    p <- prevcarga_read_panel(ctx, origin, area, horizon_days, span, holiday_window = holiday_window)
     if (isTRUE(fc_in_train))
       p$weather_forecast <- if (!is.null(rule))
         prevcarga_read_forecast_by_rule(ctx, rule$area, origin, rule$segments, rc$weather_issue_limit)
